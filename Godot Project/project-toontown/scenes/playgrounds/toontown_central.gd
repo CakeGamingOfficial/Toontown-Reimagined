@@ -1,25 +1,18 @@
+@tool
 extends Node3D
 
 ## Playground motion that the bind-pose export cannot carry on its own.
-## The sky keeps the world's rotation and only follows the camera across the
-## ground. Clouds, fish, the HQ telescope, butterflies, and ice-cream treasures
+## The sky is the shared Toontown dome. Fish, the HQ telescope, butterflies, and ice-cream treasures
 ## replay the original cycles. Flat cards yaw to face the camera.
 
 const FISH_PATH := "res://assets/neighborhoods/toontown_central/props/fish_swim.json"
 const TELESCOPE_PATH := "res://assets/neighborhoods/toontown_central/props/telescope.json"
 const BUTTERFLY_SCENE := "res://assets/neighborhoods/toontown_central/props/butterfly.glb"
 const TREASURE_SCENE := "res://assets/neighborhoods/toontown_central/props/icecream.glb"
+const SHADOW_TEXTURE := "res://assets/neighborhoods/toontown_central/props/drop_shadow.png"
 const MUSIC_PATH := "res://assets/neighborhoods/toontown_central/audio/TC_nbrhood.ogg"
 const MUSIC_VOLUME := 0.8
-
-var _sky: Node3D
-var _sky_height := 0.0
-var _cloud1: Node3D
-var _cloud2: Node3D
-var _cloud1_rest: Basis
-var _cloud2_rest: Basis
-var _cloud_heading := 0.0
-
+const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 var _billboards: Array[Dictionary] = []
 
 var _fish_fps := 24.0
@@ -37,15 +30,17 @@ var _scope_fps := 24.0
 
 var _butterflies: Array[Dictionary] = []
 var _treasures: Array[Node3D] = []
-var _treasure_shown: Array[int] = []
-var _treasure_timer := 0.0
 
 var _time := 0.0
 
 
 func _ready() -> void:
+	TOONTOWN_SKY.ensure(self)
+	if Engine.is_editor_hint():
+		return
 	_ready_music()
-	_ready_sky()
+	_close_hq_doors(self)
+	_hide_back_pigs(self)
 	_ready_billboards()
 	_ready_fish()
 	_ready_telescope()
@@ -70,10 +65,17 @@ func _ready_music() -> void:
 	player.play()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_EDITOR_PRE_SAVE:
+		TOONTOWN_SKY.restore_imported(self)
+
+
 func _process(delta: float) -> void:
+	TOONTOWN_SKY.ensure(self)
+	if Engine.is_editor_hint():
+		return
 	_time += delta
-	var camera := get_viewport().get_camera_3d()
-	_process_sky(delta, camera)
+	var camera := _view_camera()
 	_process_billboards(camera)
 	_process_fish()
 	_process_telescope()
@@ -81,37 +83,19 @@ func _process(delta: float) -> void:
 	_process_treasures(delta, camera)
 
 
-func _ready_sky() -> void:
-	_cloud1 = find_child("cloud1", true, false) as Node3D
-	_cloud2 = find_child("cloud2", true, false) as Node3D
-	if _cloud1:
-		_sky = _cloud1.get_parent() as Node3D
-		_cloud1_rest = _cloud1.basis
-	if _cloud2:
-		_cloud2_rest = _cloud2.basis
-	if _sky:
-		_sky_height = _sky.global_position.y
-		_sky.visible = true
-	# The cloud cards are a soft alpha texture. Alpha scissor cuts the puffs
-	# into rectangular holes and makes the slow drift pop from frame to frame.
-	if _cloud1:
-		_soften_clouds(_cloud1)
-	if _cloud2:
-		_soften_clouds(_cloud2)
-
-
-func _process_sky(delta: float, camera: Camera3D) -> void:
-	# CompassEffect PRot|PZ: the dome follows the camera across the playground
-	# but keeps the world's rotation and height, so looking around shows new sky.
-	if _sky and camera:
-		var place := camera.global_position
-		_sky.global_position = Vector3(place.x, _sky_height, place.z)
-	# cloud1 gains a quarter degree per second. cloud2 drifts the other way.
-	_cloud_heading += delta * 0.25
-	if _cloud1:
-		_cloud1.basis = _cloud1_rest * Basis(Vector3(0, 0, 1), deg_to_rad(_cloud_heading))
-	if _cloud2:
-		_cloud2.basis = _cloud2_rest * Basis(Vector3(0, 0, 1), deg_to_rad(-_cloud_heading * 0.8))
+func _view_camera() -> Camera3D:
+	if not Engine.is_editor_hint():
+		var game_view := get_viewport()
+		if game_view == null:
+			return null
+		return game_view.get_camera_3d()
+	var editor := Engine.get_singleton("EditorInterface")
+	if editor == null:
+		return null
+	var editor_view := editor.call("get_editor_viewport_3d", 0) as Viewport
+	if editor_view == null:
+		return null
+	return editor_view.get_camera_3d()
 
 
 func _ready_billboards() -> void:
@@ -119,7 +103,7 @@ func _ready_billboards() -> void:
 
 
 func _collect_billboards(node: Node) -> void:
-	if node is Node3D and (node.is_in_group("tt_billboard") or String(node.name).contains("__billboard")):
+	if node is Node3D and (node as Node3D).visible and (node.is_in_group("tt_billboard") or String(node.name).contains("__billboard")):
 		_billboards.append({"node": node, "rest": (node as Node3D).global_transform.basis})
 		if node is MeshInstance3D:
 			_show_both_sides(node as MeshInstance3D)
@@ -150,20 +134,33 @@ func _yaw_toward(node: Node3D, rest: Basis, target: Vector3) -> void:
 	node.global_transform = turned
 
 
-func _soften_clouds(node: Node) -> void:
-	if node is MeshInstance3D:
-		var mesh := (node as MeshInstance3D).mesh
-		if mesh:
-			for surface in mesh.get_surface_count():
-				var material := mesh.surface_get_material(surface)
-				if material is StandardMaterial3D:
-					var standard := (material as StandardMaterial3D).duplicate() as StandardMaterial3D
-					standard.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-					standard.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-					standard.cull_mode = BaseMaterial3D.CULL_DISABLED
-					mesh.surface_set_material(surface, standard)
+func _close_hq_doors(node: Node) -> void:
+	# A closed HQ door shows the painted flat. The swinging doors and the
+	# black frame hole are only revealed while the door is opening.
+	var node_name := String(node.name)
+	if node_name.begins_with("doorFrameHole") or node_name.begins_with("leftDoor") or node_name.begins_with("rightDoor"):
+		node.visible = false
+	if node_name.begins_with("door_flat"):
+		_show_door_flat(node)
 	for child in node.get_children():
-		_soften_clouds(child)
+		_close_hq_doors(child)
+
+
+func _show_door_flat(node: Node) -> void:
+	if node is MeshInstance3D:
+		_show_both_sides(node as MeshInstance3D)
+	for child in node.get_children():
+		if not String(child.name).begins_with("doorFrameHole"):
+			_show_door_flat(child)
+
+
+func _hide_back_pigs(node: Node) -> void:
+	# roof_pig faces the street. The other two cards sit inside the back wall.
+	var node_name := String(node.name)
+	if node_name.begins_with("roof_pig_1") or node_name.begins_with("roof_pig_2"):
+		node.visible = false
+	for child in node.get_children():
+		_hide_back_pigs(child)
 
 
 func _ready_fish() -> void:
@@ -320,7 +317,18 @@ func _show_telescope(frame: float) -> void:
 	_scope_mesh.surface_set_material(0, _scope_material)
 	if i0 < _scope_tips.size() and _scope_tip:
 		var tip_b := i1 if i1 < _scope_tips.size() else i0
-		_scope_tip.transform = _scope_tips[i0].interpolate_with(_scope_tips[tip_b], along)
+		# The head joint is scaled out along the tube. Quaternion blending
+		# drops that scale and leaves the lens behind.
+		_scope_tip.transform = _lerp_scaled(_scope_tips[i0], _scope_tips[tip_b], along)
+
+
+func _lerp_scaled(from_pose: Transform3D, to_pose: Transform3D, along: float) -> Transform3D:
+	var basis := Basis(
+		from_pose.basis.x.lerp(to_pose.basis.x, along),
+		from_pose.basis.y.lerp(to_pose.basis.y, along),
+		from_pose.basis.z.lerp(to_pose.basis.z, along)
+	)
+	return Transform3D(basis, from_pose.origin.lerp(to_pose.origin, along))
 
 
 func _ready_butterflies() -> void:
@@ -328,7 +336,6 @@ func _ready_butterflies() -> void:
 		return
 	var packed := load(BUTTERFLY_SCENE) as PackedScene
 	var areas := _butterfly_areas()
-	var counts: Array[int] = [2, 2, 1, 1]
 	var colors := [
 		Color(1, 1, 1),
 		Color(0.2, 0, 1),
@@ -337,9 +344,10 @@ func _ready_butterflies() -> void:
 		Color(0.9, 0.4, 0.6),
 		Color(1, 1, 1),
 	]
+	# HoodDataAI places NUM_BUTTERFLIES in every area: 6 x 4 in Toontown Central.
 	var made := 0
 	for area_index in areas.size():
-		for copy in counts[area_index]:
+		for copy in 6:
 			var actor := packed.instantiate() as Node3D
 			actor.name = "butterfly_%d" % made
 			add_child(actor)
@@ -356,7 +364,7 @@ func _ready_butterflies() -> void:
 					landed = child
 				elif String(child.name).begins_with("flutter_"):
 					frames.append(child)
-				_select_wing(child, wing, colors[made])
+				_select_wing(child, wing, colors[made % colors.size()])
 			frames.sort_custom(func(a, b): return String(a.name) < String(b.name))
 			var points: Array = areas[area_index]
 			var start: int = (copy * 5) % points.size()
@@ -442,47 +450,70 @@ func _ready_treasures() -> void:
 	if not ResourceLoader.exists(TREASURE_SCENE):
 		return
 	var packed := load(TREASURE_SCENE) as PackedScene
-	for point in _treasure_points():
-		var treasure := packed.instantiate() as Node3D
-		treasure.name = "treasure_%d" % _treasures.size()
-		treasure.scale = Vector3(0.9, 0.9, 0.9)
-		add_child(treasure)
-		_style_actor(treasure)
-		treasure.global_position = point
-		treasure.visible = false
-		_treasures.append(treasure)
-	for i in mini(_treasures.size(), 5):
-		_treasures[i].visible = true
-		_treasure_shown.append(i)
+	var points := _treasure_points()
+	for point in points:
+		var root := Node3D.new()
+		root.name = "treasure_%d" % _treasures.size()
+		root.scale = Vector3(0.9, 0.9, 0.9)
+		add_child(root)
+		root.global_position = point
+		var model := packed.instantiate() as Node3D
+		model.name = "model"
+		root.add_child(model)
+		_style_actor(model)
+		root.add_child(_make_treasure_shadow())
+		root.visible = false
+		_treasures.append(model)
+	# Five are placed at the start. They stay until grabbed. The original 20
+	# second task only fills an empty spot; it does not move one that is still there.
+	var order: Array[int] = []
+	for i in _treasures.size():
+		order.append(i)
+	order.shuffle()
+	for n in mini(order.size(), 5):
+		(_treasures[order[n]].get_parent() as Node3D).visible = true
 
 
-func _process_treasures(delta: float, camera: Camera3D) -> void:
-	_treasure_timer += delta
-	if _treasure_timer >= 20.0 and _treasures.size() > 5:
-		_treasure_timer = 0.0
-		var drop := _treasure_shown[randi() % _treasure_shown.size()]
-		var hidden: Array[int] = []
-		for i in _treasures.size():
-			if not _treasure_shown.has(i):
-				hidden.append(i)
-		if not hidden.is_empty():
-			var show := hidden[randi() % hidden.size()]
-			_treasures[drop].visible = false
-			_treasures[show].visible = true
-			_treasure_shown.erase(drop)
-			_treasure_shown.append(show)
+func _process_treasures(_delta: float, camera: Camera3D) -> void:
 	if camera == null:
 		return
-	for treasure in _treasures:
-		if not treasure.visible:
+	for model in _treasures:
+		var root := model.get_parent() as Node3D
+		if root == null or not root.visible:
 			continue
-		var flat := camera.global_position - treasure.global_position
+		var flat := camera.global_position - root.global_position
 		flat.y = 0.0
 		if flat.length() < 0.001:
 			continue
 		# The cone's visible side is +Z. look_at aims -Z at the point, so aim
-		# it away from the camera and the picture faces the player.
-		treasure.look_at(treasure.global_position - flat, Vector3.UP)
+		# it away from the camera and the picture faces the player. The shadow
+		# stays flat on the ground.
+		model.look_at(model.global_position - flat, Vector3.UP)
+
+
+func _make_treasure_shadow() -> MeshInstance3D:
+	# phase_3/models/props/drop_shadow, tinted black at half strength, sitting
+	# just above the ground. The card is 8 units across and then scaled by 0.4.
+	var mesh := QuadMesh.new()
+	mesh.orientation = PlaneMesh.FACE_Y
+	mesh.size = Vector2(8.0, 8.0)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(0.0, 0.0, 0.0, 0.5)
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	var texture := load(SHADOW_TEXTURE) as Texture2D
+	if texture:
+		material.albedo_texture = texture
+	var shadow := MeshInstance3D.new()
+	shadow.name = "shadow"
+	shadow.mesh = mesh
+	shadow.material_override = material
+	shadow.position = Vector3(0.0, 0.025, 0.0)
+	shadow.scale = Vector3(0.4, 0.4, 0.4)
+	return shadow
 
 
 func _style_actor(root: Node) -> void:
@@ -494,13 +525,26 @@ func _style_actor(root: Node) -> void:
 			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			material.vertex_color_use_as_albedo = true
 			material.cull_mode = BaseMaterial3D.CULL_DISABLED
+			if material.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
+				material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mesh_instance.material_override = material
+			mesh_instance.lod_bias = 128.0
 	for child in root.get_children():
 		_style_actor(child)
 
 
 func _select_wing(node: Node, wing: String, tint: Color) -> void:
-	if String(node.name) == wing and node is MeshInstance3D:
+	# The importer keeps the first wings_1 and renames the copies wings_12, wings_151,
+	# and so on. An exact name check hid every copy, so the butterfly was only a body.
+	var wanted := _wing_kind(wing)
+	_select_wing_kind(node, wanted, tint)
+
+
+func _select_wing_kind(node: Node, wanted: int, tint: Color) -> void:
+	var kind := _wing_kind(String(node.name))
+	if kind > 0 and kind != wanted:
+		node.visible = false
+	elif kind == wanted and node is MeshInstance3D:
 		var mesh_instance := node as MeshInstance3D
 		var source := mesh_instance.material_override
 		if source == null:
@@ -508,11 +552,39 @@ func _select_wing(node: Node, wing: String, tint: Color) -> void:
 		if source is StandardMaterial3D:
 			var material := (source as StandardMaterial3D).duplicate() as StandardMaterial3D
 			material.albedo_color = tint
+			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			material.cull_mode = BaseMaterial3D.CULL_DISABLED
 			mesh_instance.material_override = material
+		mesh_instance.lod_bias = 128.0
 	for child in node.get_children():
-		if String(child.name).begins_with("wings_") and String(child.name) != wing:
-			child.visible = false
-		_select_wing(child, wing, tint)
+		_select_wing_kind(child, wanted, tint)
+
+
+func _wing_kind(node_name: String) -> int:
+	if not node_name.begins_with("wings_"):
+		return 0
+	var rest := node_name.substr(6)
+	if rest.is_empty():
+		return 0
+	var digit := rest.unicode_at(0)
+	if digit < 49 or digit > 54:
+		return 0
+	var suffix := rest.substr(1)
+	if not suffix.is_empty() and not suffix.is_valid_int():
+		return 0
+	return digit - 48
+
+
+func _part_key(node_name: String) -> String:
+	var kind := _wing_kind(node_name)
+	if kind > 0:
+		return "wings_%d" % kind
+	var end := node_name.length()
+	while end > 0 and node_name.unicode_at(end - 1) >= 48 and node_name.unicode_at(end - 1) <= 57:
+		end -= 1
+	if end == 0 or end == node_name.length():
+		return node_name
+	return node_name.substr(0, end)
 
 
 func _show_both_sides(mesh_instance: MeshInstance3D) -> void:
@@ -547,6 +619,7 @@ func _make_flutter_player(actor: Dictionary) -> void:
 		var instance := MeshInstance3D.new()
 		instance.mesh = mesh
 		instance.transform = source["xform"]
+		instance.lod_bias = 128.0
 		play.add_child(instance)
 		parts.append({
 			"name": source["name"],
@@ -589,7 +662,7 @@ func _capture_mesh_walk(node: Node, parent: Transform3D, found: Array, path: Str
 			if not verts.is_empty():
 				var active := (node as MeshInstance3D).get_active_material(0)
 				found.append({
-					"name": next,
+					"name": _part_key(String(node.name)),
 					"xform": here,
 					"verts": verts,
 					"uv": uvs,

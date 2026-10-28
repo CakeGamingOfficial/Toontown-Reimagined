@@ -1,8 +1,8 @@
 extends Node3D
 
 ## Donald's Dock playground motion the bind-pose export does not carry.
-## The sky keeps the world's rotation and only follows the camera across the
-## ground. Palm tops and other flat cards yaw to face the camera. The pet
+## The sky is the shared Toontown dome. Palm
+## tops and other flat cards yaw to face the camera. The pet
 ## shop bowl fish replay the original swim cycle. The boat sails the original
 ## east-west curves while the drawbridges swing down behind it and up ahead.
 
@@ -10,14 +10,13 @@ const FISH_PATH := "res://assets/neighborhoods/toontown_central/props/fish_swim.
 const BOAT_PATH := "res://assets/neighborhoods/donalds_dock/boat_path.json"
 const MUSIC_PATH := "res://assets/neighborhoods/donalds_dock/audio/DD_nbrhood.ogg"
 const MUSIC_VOLUME := 0.8
+const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 const DOCK_TIME := 10.0
 const PIER_TIME := 5.0
 
 enum _Berth { WEST, EAST }
 enum _Phase { DOCKED, SAILING }
 
-var _sky: Node3D
-var _sky_height := 0.0
 var _billboards: Array[Dictionary] = []
 
 var _fish_fps := 24.0
@@ -48,7 +47,7 @@ var _trip_arrive := false
 
 func _ready() -> void:
 	_ready_music()
-	_ready_sky()
+	TOONTOWN_SKY.ensure(self)
 	_ready_billboards()
 	_ready_fish()
 	_ready_boat()
@@ -74,25 +73,9 @@ func _ready_music() -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	var camera := get_viewport().get_camera_3d()
-	_process_sky(camera)
 	_process_billboards(camera)
 	_process_fish()
 	_process_boat(delta)
-
-
-func _ready_sky() -> void:
-	_sky = _find_exact(self, "DDSky") as Node3D
-	if _sky:
-		_sky_height = _sky.global_position.y
-		_sky.visible = true
-
-
-func _process_sky(camera: Camera3D) -> void:
-	# CompassEffect PRot|PZ: the dome follows the camera across the playground
-	# but keeps the world's rotation and height.
-	if _sky and camera:
-		var place := camera.global_position
-		_sky.global_position = Vector3(place.x, _sky_height, place.z)
 
 
 func _ready_billboards() -> void:

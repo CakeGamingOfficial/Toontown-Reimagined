@@ -3,10 +3,9 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://byyklpaejbwtc"
-path.s3tc="res://.godot/imported/butterfly_3.png-d41e5efaf89855468d2b67b28857d833.s3tc.ctex"
+path="res://.godot/imported/butterfly_3.png-d41e5efaf89855468d2b67b28857d833.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
 "md5": "db899332f0427a492f426587e9213334"
@@ -15,12 +14,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/toontown_central/props/butterfly_3.png"
-dest_files=["res://.godot/imported/butterfly_3.png-d41e5efaf89855468d2b67b28857d833.s3tc.ctex"]
+dest_files=["res://.godot/imported/butterfly_3.png-d41e5efaf89855468d2b67b28857d833.ctex"]
 
 [params]
 
-compress/mode=2
-compress/high_quality=false
+compress/mode=0
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

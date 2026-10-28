@@ -6,6 +6,7 @@ transform so the glTF is Y-up for Godot.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import struct
 import sys
@@ -94,13 +95,11 @@ def bake_skin(geom: Geom) -> Geom:
     return geom
 
 
-def texture_key(tex: Texture) -> tuple:
+def texture_filename(tex: Texture):
     filename = tex.getFullpath()
     if filename.empty():
         filename = tex.getFilename()
-    if not filename.empty():
-        return ("file", str(filename), tex.getXSize(), tex.getYSize(), tex.getFormat())
-    return ("object", id(tex), tex.getXSize(), tex.getYSize(), tex.getFormat())
+    return filename
 
 
 def encode_rgba_png(raw: bytes, width: int, height: int) -> bytes:
@@ -123,30 +122,46 @@ def encode_rgba_png(raw: bytes, width: int, height: int) -> bytes:
     ])
 
 
-def texture_bytes(tex: Texture, cache: dict) -> bytes | None:
-    key = texture_key(tex)
-    if key in cache:
-        return cache[key]
+def texture_bytes(tex: Texture, cache: dict) -> tuple[tuple | None, bytes | None]:
+    """Return a cache key and PNG for this texture's current pixels.
+
+    File textures stay keyed by path. Dynamic font pages have no filename and
+    are rewritten in place as more signs are built, so they are keyed by the
+    pixels themselves. Keying those by object id keeps the first snapshot and
+    points later letters at the wrong characters.
+    """
     source = tex
+    filename = texture_filename(source)
+    file_key = None
+    if not filename.empty():
+        file_key = ("file", str(filename), source.getXSize(), source.getYSize(), source.getFormat())
+        if file_key in cache:
+            return file_key, cache[file_key]
+        if not source.hasRamImage():
+            loaded = Texture()
+            if loaded.read(filename):
+                source = loaded
     if not source.hasRamImage():
-        filename = source.getFullpath()
-        if filename.empty():
-            filename = source.getFilename()
-        loaded = Texture()
-        if not filename.empty() and loaded.read(filename):
-            source = loaded
-    if not source.hasRamImage():
-        cache[key] = None
-        return None
+        if file_key is not None:
+            cache[file_key] = None
+        return file_key, None
     # "RGBA" expands gray+alpha fonts and RGBM masks into a channel layout glTF understands.
     raw = bytes(source.getRamImageAs("RGBA"))
     expected = source.getXSize() * source.getYSize() * 4
     if len(raw) != expected:
-        cache[key] = None
-        return None
+        if file_key is not None:
+            cache[file_key] = None
+        return file_key, None
+    if file_key is None:
+        key = ("ram", hashlib.md5(raw).hexdigest(), source.getXSize(), source.getYSize(), source.getFormat())
+        cached = cache.get(key, False)
+        if cached is not False:
+            return key, cached
+    else:
+        key = file_key
     data = encode_rgba_png(raw, source.getXSize(), source.getYSize())
     cache[key] = data
-    return data
+    return key, data
 
 
 def sanitize(name: str) -> str:
@@ -224,9 +239,8 @@ class GltfWriter:
         return self.sampler_ids[key]
 
     def texture_index(self, tex: Texture) -> int | None:
-        key = texture_key(tex)
-        png = texture_bytes(tex, self.texture_cache)
-        if not png:
+        key, png = texture_bytes(tex, self.texture_cache)
+        if not png or key is None:
             return None
         if key not in self.image_ids:
             view = self.add_bytes(png)
@@ -413,11 +427,11 @@ class GltfWriter:
             self.add_node(child, index)
         return index
 
-    def pack(self) -> bytes:
+    def pack(self, scene_name: str = "ToontownCentral") -> bytes:
         gltf = {
             "asset": {"version": "2.0", "generator": "export_toontown_central.py"},
             "scene": 0,
-            "scenes": [{"name": "ToontownCentral", "nodes": [0]}],
+            "scenes": [{"name": scene_name, "nodes": [0]}],
             "nodes": self.nodes,
             "meshes": self.meshes,
             "materials": self.materials,

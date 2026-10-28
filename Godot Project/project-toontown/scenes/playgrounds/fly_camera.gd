@@ -13,6 +13,10 @@ var _pitch := 0.0
 
 func _ready() -> void:
 	current = true
+	# ToonBase sets the lens horizontal field to 52 degrees. Godot's 75 degree
+	# vertical default looks out over the top of the cloud ring.
+	keep_aspect = KEEP_WIDTH
+	fov = 52.0
 	look_at(Vector3(0, 4, 0), Vector3.UP)
 	_pitch = rotation.x
 	_yaw = rotation.y

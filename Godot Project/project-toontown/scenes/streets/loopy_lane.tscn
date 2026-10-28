@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://kp844h72yn1p"]
+
+[ext_resource type="PackedScene" uid="uid://b5fbq283pnfng" path="res://assets/neighborhoods/toontown_central/streets/loopy_lane.glb" id="1_geom"]
+[ext_resource type="Script" uid="uid://r8xqfq6aalwx" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" uid="uid://5uejmdh7kiu8" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" uid="uid://cylhm3k2y5rdy" path="res://scenes/streets/ttc_street.gd" id="4_street"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_day"]
+sky_top_color = Color(0.27, 0.55, 0.95, 1)
+sky_horizon_color = Color(0.76, 0.88, 1, 1)
+sky_curve = 0.06
+ground_bottom_color = Color(0.4, 0.72, 0.32, 1)
+ground_horizon_color = Color(0.66, 0.84, 0.48, 1)
+sun_angle_max = 35.0
+
+[sub_resource type="Sky" id="Sky_day"]
+sky_material = SubResource("ProceduralSkyMaterial_day")
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.05098, 0.286275, 0.72549, 1)
+sky = SubResource("Sky_day")
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="LoopyLane" type="Node3D" unique_id=2033067260]
+script = ExtResource("4_street")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=593455107]
+environment = SubResource("Environment_day")
+
+[node name="SunPivot" type="Node3D" parent="." unique_id=186442430]
+transform = Transform3D(0.766044, 0, 0.642788, 0, 1, 0, -0.642788, 0, 0.766044, 0, 0, 0)
+
+[node name="Sun" type="DirectionalLight3D" parent="SunPivot" unique_id=763809979]
+transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 0, 0)
+light_color = Color(1, 0.97, 0.88, 1)
+
+[node name="Fill" type="DirectionalLight3D" parent="." unique_id=664953220]
+transform = Transform3D(-0.766044, 0.219846, 0.604023, 0, 0.939693, -0.34202, -0.642788, -0.262003, -0.719846, 0, 0, 0)
+light_color = Color(0.72, 0.84, 1, 1)
+light_energy = 0.35
+
+[node name="Geometry" parent="." unique_id=1103885147 instance=ExtResource("1_geom")]
+script = ExtResource("2_collision")
+
+[node name="Camera" type="Camera3D" parent="." unique_id=1080817740]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -426, 8, -23)
+current = true
+script = ExtResource("3_fly")

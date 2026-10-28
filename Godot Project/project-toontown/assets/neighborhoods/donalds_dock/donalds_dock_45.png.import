@@ -3,10 +3,9 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://smavq2vnecf1"
-path.s3tc="res://.godot/imported/donalds_dock_45.png-9e56ede2c51040d405526d7864dab60c.s3tc.ctex"
+path="res://.godot/imported/donalds_dock_45.png-9e56ede2c51040d405526d7864dab60c.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
 "md5": "95ec01344d04a0745d6dadc7b88bdc4d"
@@ -15,12 +14,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/donalds_dock/donalds_dock_45.png"
-dest_files=["res://.godot/imported/donalds_dock_45.png-9e56ede2c51040d405526d7864dab60c.s3tc.ctex"]
+dest_files=["res://.godot/imported/donalds_dock_45.png-9e56ede2c51040d405526d7864dab60c.ctex"]
 
 [params]
 
-compress/mode=2
-compress/high_quality=false
+compress/mode=0
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

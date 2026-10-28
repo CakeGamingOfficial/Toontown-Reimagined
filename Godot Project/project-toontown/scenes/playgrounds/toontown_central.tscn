@@ -3,7 +3,12 @@
 [ext_resource type="PackedScene" uid="uid://dmjwg0o02uxyv" path="res://assets/neighborhoods/toontown_central/toontown_central.glb" id="1_geom"]
 [ext_resource type="Script" uid="uid://r8xqfq6aalwx" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
 [ext_resource type="Script" uid="uid://5uejmdh7kiu8" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Shader" uid="uid://c82r0rxxryirg" path="res://assets/neighborhoods/toontown_central/cloud_card.gdshader" id="4_cydwk"]
 [ext_resource type="Script" uid="uid://bb60l5vmfqmvl" path="res://scenes/playgrounds/toontown_central.gd" id="4_sky"]
+[ext_resource type="Texture2D" uid="uid://b0ttrxgkuc8pr" path="res://assets/neighborhoods/toontown_central/toontown_central_115.png" id="5_hyq2c"]
+[ext_resource type="Texture2D" uid="uid://cmc3v6xxkilr" path="res://assets/neighborhoods/toontown_central/toontown_central_116.png" id="6_6djck"]
+[ext_resource type="Shader" uid="uid://vvigff7is2ub" path="res://assets/neighborhoods/toontown_central/sky_gradient.gdshader" id="7_e80yu"]
+[ext_resource type="Texture2D" uid="uid://ca3wqlyyrukc1" path="res://assets/neighborhoods/toontown_central/toontown_central_117.png" id="8_evquv"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_day"]
 sky_top_color = Color(0.27, 0.55, 0.95, 1)
@@ -22,6 +27,93 @@ background_color = Color(0.05098, 0.286275, 0.72549, 1)
 sky = SubResource("Sky_day")
 ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_uu11m"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 0.7998)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_dv6lg"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 0.7998)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_t40kx"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 0.7998)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ca6uo"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 0.7998)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_b82es"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 0.7998)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ee2ot"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 0.7998)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_yitp6"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_li62u"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_n41wp"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_d7f2j"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_17abp"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_irhwa"]
+render_priority = 0
+shader = ExtResource("4_cydwk")
+shader_parameter/albedo_tex = ExtResource("5_hyq2c")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_78lsx"]
+resource_name = "mat_246"
+transparency = 1
+depth_draw_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 1, 1, 0)
+albedo_texture = ExtResource("6_6djck")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ci5by"]
+render_priority = 0
+shader = ExtResource("7_e80yu")
+shader_parameter/albedo_tex = ExtResource("8_evquv")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
 
 [node name="ToontownCentral" type="Node3D" unique_id=588383692]
 script = ExtResource("4_sky")
@@ -44,11 +136,48 @@ light_energy = 0.35
 [node name="Geometry" parent="." unique_id=1133550800 instance=ExtResource("1_geom")]
 script = ExtResource("2_collision")
 
-[node name="base_grass" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/toontown_central_DNARoot/toontown_central/mainfloor" parent_id_path=PackedInt32Array(1133550800, 300776891) index="1" unique_id=2003273029]
+[node name="base_grass" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/toontown_central_DNARoot/toontown_central/mainfloor" parent_id_path=PackedInt32Array(1133550800, 1332233503) index="1" unique_id=909093590]
 visible = false
 
-[node name="node23" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/prop_gazebo_DNARoot" parent_id_path=PackedInt32Array(1133550800, 2024403887) index="0" unique_id=1433633411]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12895584, -3.693049, 0)
+[node name="o3_1" parent="Geometry/ToontownCentral/Sky/node65/cloud1" parent_id_path=PackedInt32Array(1133550800, 149375929) index="0" unique_id=1763398546]
+surface_material_override/0 = SubResource("ShaderMaterial_uu11m")
+
+[node name="o4_1" parent="Geometry/ToontownCentral/Sky/node65/cloud1" parent_id_path=PackedInt32Array(1133550800, 149375929) index="1" unique_id=749109299]
+surface_material_override/0 = SubResource("ShaderMaterial_dv6lg")
+
+[node name="o6_1" parent="Geometry/ToontownCentral/Sky/node65/cloud1" parent_id_path=PackedInt32Array(1133550800, 149375929) index="2" unique_id=1455156000]
+surface_material_override/0 = SubResource("ShaderMaterial_t40kx")
+
+[node name="o5_1" parent="Geometry/ToontownCentral/Sky/node65/cloud1" parent_id_path=PackedInt32Array(1133550800, 149375929) index="3" unique_id=280561505]
+surface_material_override/0 = SubResource("ShaderMaterial_ca6uo")
+
+[node name="o7_1" parent="Geometry/ToontownCentral/Sky/node65/cloud1" parent_id_path=PackedInt32Array(1133550800, 149375929) index="4" unique_id=1665031016]
+surface_material_override/0 = SubResource("ShaderMaterial_b82es")
+
+[node name="o8_1" parent="Geometry/ToontownCentral/Sky/node65/cloud1" parent_id_path=PackedInt32Array(1133550800, 149375929) index="5" unique_id=238593298]
+surface_material_override/0 = SubResource("ShaderMaterial_ee2ot")
+
+[node name="o7_2" parent="Geometry/ToontownCentral/Sky/node65/cloud2" parent_id_path=PackedInt32Array(1133550800, 1338536221) index="0" unique_id=1714203571]
+surface_material_override/0 = SubResource("ShaderMaterial_yitp6")
+
+[node name="o6_2" parent="Geometry/ToontownCentral/Sky/node65/cloud2" parent_id_path=PackedInt32Array(1133550800, 1338536221) index="1" unique_id=158680713]
+surface_material_override/0 = SubResource("ShaderMaterial_li62u")
+
+[node name="o5_2" parent="Geometry/ToontownCentral/Sky/node65/cloud2" parent_id_path=PackedInt32Array(1133550800, 1338536221) index="2" unique_id=1919754094]
+surface_material_override/0 = SubResource("ShaderMaterial_n41wp")
+
+[node name="o4_2" parent="Geometry/ToontownCentral/Sky/node65/cloud2" parent_id_path=PackedInt32Array(1133550800, 1338536221) index="3" unique_id=1980382458]
+surface_material_override/0 = SubResource("ShaderMaterial_d7f2j")
+
+[node name="o3_2" parent="Geometry/ToontownCentral/Sky/node65/cloud2" parent_id_path=PackedInt32Array(1133550800, 1338536221) index="4" unique_id=404930344]
+surface_material_override/0 = SubResource("ShaderMaterial_17abp")
+
+[node name="o8_2" parent="Geometry/ToontownCentral/Sky/node65/cloud2" parent_id_path=PackedInt32Array(1133550800, 1338536221) index="5" unique_id=523125631]
+surface_material_override/0 = SubResource("ShaderMaterial_irhwa")
+
+[node name="Sky2" parent="Geometry/ToontownCentral/Sky/node65" parent_id_path=PackedInt32Array(1133550800, 27532194) index="2" unique_id=641135907]
+surface_material_override/0 = SubResource("StandardMaterial3D_78lsx")
+surface_material_override/1 = SubResource("ShaderMaterial_ci5by")
 
 [node name="Camera" type="Camera3D" parent="." unique_id=822209480]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 6, 80)

@@ -3,10 +3,9 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dtngxcwcawkcn"
-path.s3tc="res://.godot/imported/toontown_central_46.png-a0c24ed0bfaf177e72b5bd06bdf7d3fa.s3tc.ctex"
+path="res://.godot/imported/toontown_central_46.png-a0c24ed0bfaf177e72b5bd06bdf7d3fa.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
 "md5": "acf772bcefb15f62b94f40d8a42e2e5d"
@@ -15,12 +14,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/toontown_central/toontown_central_46.png"
-dest_files=["res://.godot/imported/toontown_central_46.png-a0c24ed0bfaf177e72b5bd06bdf7d3fa.s3tc.ctex"]
+dest_files=["res://.godot/imported/toontown_central_46.png-a0c24ed0bfaf177e72b5bd06bdf7d3fa.ctex"]
 
 [params]
 
-compress/mode=2
-compress/high_quality=false
+compress/mode=0
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

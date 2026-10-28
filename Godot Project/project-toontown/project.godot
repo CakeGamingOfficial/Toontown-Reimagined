@@ -36,3 +36,13 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/anisotropic_filtering_level=16
+
+[importer_defaults]
+
+texture={
+"compress/high_quality": true,
+"compress/mode": 0,
+"detect_3d/compress_to": 0,
+"mipmaps/generate": true
+}

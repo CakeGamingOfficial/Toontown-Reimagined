@@ -1,0 +1,50 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/neighborhoods/toontown_central/streets/punchline_place.glb" id="1_geom"]
+[ext_resource type="Script" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" path="res://scenes/streets/ttc_street.gd" id="4_street"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_day"]
+sky_top_color = Color(0.27, 0.55, 0.95, 1)
+sky_horizon_color = Color(0.76, 0.88, 1, 1)
+sky_curve = 0.06
+ground_bottom_color = Color(0.4, 0.72, 0.32, 1)
+ground_horizon_color = Color(0.66, 0.84, 0.48, 1)
+sun_angle_max = 35.0
+
+[sub_resource type="Sky" id="Sky_day"]
+sky_material = SubResource("ProceduralSkyMaterial_day")
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.05098, 0.286275, 0.72549, 1)
+sky = SubResource("Sky_day")
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="PunchlinePlace" type="Node3D"]
+script = ExtResource("4_street")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="SunPivot" type="Node3D" parent="."]
+transform = Transform3D(0.766044, 0, 0.642788, 0, 1, 0, -0.642788, 0, 0.766044, 0, 0, 0)
+
+[node name="Sun" type="DirectionalLight3D" parent="SunPivot"]
+transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 0, 0)
+light_color = Color(1, 0.97, 0.88, 1)
+
+[node name="Fill" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.766044, 0.219846, 0.604023, 0, 0.939693, -0.34202, -0.642788, -0.262003, -0.719846, 0, 0, 0)
+light_color = Color(0.72, 0.84, 1, 1)
+light_energy = 0.35
+
+[node name="Geometry" parent="." instance=ExtResource("1_geom")]
+script = ExtResource("2_collision")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 479, 8, -73)
+current = true
+script = ExtResource("3_fly")
