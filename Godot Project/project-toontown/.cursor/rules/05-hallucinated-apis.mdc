@@ -1,0 +1,38 @@
+---
+description: Known fake or wrong Godot APIs that AI tools invent
+globs: **/*.gd
+alwaysApply: false
+---
+# Known hallucinated / wrong APIs
+
+None of the left-hand names exist in Godot 4. If you're about to write one, use the right-hand version or say **unverified**.
+
+| Invented / wrong | Real Godot 4 API |
+|---|---|
+| `KinematicBody2D`, `move_and_slide(velocity, Vector2.UP)` | `CharacterBody2D`, `velocity` property + `move_and_slide()` |
+| `instance()` | `instantiate()` |
+| `move_and_slide_with_snap()` | removed in 4. Use `floor_snap_length` + `move_and_slide()` |
+| `yield(...)` | `await signal` |
+| `get_node_by_name("X")` | `find_child("X")` (slow; prefer `%X` or exported refs) |
+| `get_children_of_type(T)` | loop `get_children()` and check `is T` |
+| `Input.get_axis_vector(...)` | `Input.get_vector(neg_x, pos_x, neg_y, pos_y)` or `Input.get_axis(neg, pos)` |
+| `Input.is_key_down(KEY_A)` | `Input.is_key_pressed(KEY_A)` (prefer input actions) |
+| `Input.is_action_down("jump")` | `Input.is_action_pressed("jump")` / `is_action_just_pressed` |
+| `Vector2.clamp_length(...)` | `limit_length(max)` |
+| `Vector2.magnitude` / `.normalize()` | `length()` / `normalized()` |
+| `lerp_vector()` | `a.lerp(b, weight)` |
+| `Timer.wait(1.0)` / `wait(1.0)` / `sleep()` in GDScript | `await get_tree().create_timer(1.0).timeout` |
+| `get_tree().load_scene()` / `change_scene()` | `change_scene_to_file()` / `change_scene_to_packed()` |
+| `Node.destroy()` / `delete()` | `queue_free()` |
+| `print_error()` | `push_error()` / `printerr()` |
+| `OS.get_time()` / `OS.get_unix_time()` | `Time.get_unix_time_from_system()`, `Time.get_ticks_msec()` |
+| `File.new()` | `FileAccess.open(path, mode)` (static) |
+| `JSON.parse(text).result` | `JSON.parse_string(text)` or `var j := JSON.new(); j.parse(text); j.data` |
+| `AnimationPlayer.playing` (as a setter) | `play("name")`, `stop()`, `is_playing()` |
+| `AudioStreamPlayer.play_sound(...)` | set `stream`, then `play()` |
+| `Area2D.get_colliding_bodies()` | `get_overlapping_bodies()` (that's RigidBody's `get_colliding_bodies()`) |
+| `Node2D.look_at_smooth()` | `rotation = lerp_angle(rotation, target_angle, weight)` |
+| `@export_range(0, 10) var x` without a type | `@export_range(0, 10) var x: int` |
+| `@signal`, `@func`, `@var` | not annotations. `signal`, `func`, `var` are keywords |
+
+Class reference: https://docs.godotengine.org/en/stable/classes/

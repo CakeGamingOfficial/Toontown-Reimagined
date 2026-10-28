@@ -1,0 +1,39 @@
+Source: https://docs.godotengine.org/en/stable/tutorials/migrating/upgrading_to_godot_4.html
+
+| Godot 3 (wrong in 4.x) | Godot 4 (correct) |
+|---|---|
+| `export var speed = 5` | `@export var speed: float = 5.0` |
+| `onready var sprite = $Sprite` | `@onready var sprite: Sprite2D = $Sprite2D` |
+| `tool` | `@tool` (first line of the file) |
+| `yield(get_tree().create_timer(1), "timeout")` | `await get_tree().create_timer(1.0).timeout` |
+| `yield(anim, "animation_finished")` | `await anim.animation_finished` |
+| `connect("pressed", self, "_on_pressed")` | `pressed.connect(_on_pressed)` |
+| `emit_signal("died", 3)` | `died.emit(3)` |
+| `scene.instance()` | `scene.instantiate()` |
+| `KinematicBody2D` / `KinematicBody` | `CharacterBody2D` / `CharacterBody3D` |
+| `velocity = move_and_slide(velocity, Vector2.UP)` | set the built-in `velocity` property, then call `move_and_slide()` with **no arguments**. Floor direction is the `up_direction` property. |
+| `Spatial` | `Node3D` |
+| `Sprite` | `Sprite2D` |
+| `Position2D` / `Position3D` | `Marker2D` / `Marker3D` |
+| `get_tree().change_scene("res://x.tscn")` | `get_tree().change_scene_to_file("res://x.tscn")` (or `change_scene_to_packed(packed)`) |
+| `array.empty()` / `array.remove(i)` / `array.invert()` | `is_empty()` / `remove_at(i)` / `reverse()` |
+| `update()` on CanvasItem | `queue_redraw()` |
+| `File.new()` / `Directory.new()` | `FileAccess.open(path, FileAccess.READ)` / `DirAccess.open(path)` |
+| `OS.get_screen_size()` | `DisplayServer.screen_get_size()` |
+| `Tween` node + `interpolate_property` | `var t := create_tween(); t.tween_property(self, "position", target, 0.5)` |
+| `Color.palegreen` | `Color.PALE_GREEN` |
+| `rect_position`, `rect_size` on Control | `position`, `size` |
+| `setget` | `var hp: int: set = set_hp, get = get_hp` or inline `set(value):` blocks |
+| `Engine.editor_hint` | `Engine.is_editor_hint()` |
+| `ResourceSaver.save(path, res)` | `ResourceSaver.save(res, path)` (arguments swapped) |
+| `Camera2D.current = true` | `make_current()` |
+| `.shader` files, `hint_color` | `.gdshader`, `source_color` |
+
+## Behavior changes that don't cause parse errors
+- Overridden lifecycle functions don't call the parent automatically. Call `super()` (e.g. `super._ready()`) when the base class `_ready()` must run.
+- `Camera2D.zoom` is inverted: larger values zoom **in**.
+- `Array.slice(begin, end)`: `end` is now **exclusive**.
+- `String.right(n)` now returns the last n characters.
+- `randomize()` runs automatically on startup. Set `seed()` yourself if you need determinism.
+
+If the user's project is actually Godot 3.x (check `project.godot`), stop and say so instead of mixing versions.

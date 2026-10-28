@@ -1,0 +1,15 @@
+# Godot editor cache
+.godot/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Secrets
+.env
+.env.*
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini

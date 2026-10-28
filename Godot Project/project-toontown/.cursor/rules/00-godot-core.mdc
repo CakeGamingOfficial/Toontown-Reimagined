@@ -1,0 +1,26 @@
+---
+description: Core rules for all Godot 4.x work in this project
+globs:
+alwaysApply: true
+---
+# Godot 4 Core Rules
+
+## Know the project before writing code
+- Read `project.godot`. `config/features=PackedStringArray("4.x", ...)` tells you the engine version. Never emit APIs newer than that version, and never emit Godot 3 APIs (see `01-godot3-vs-4.mdc`).
+- Check `[autoload]` in `project.godot` before referencing a singleton. If an autoload doesn't exist, say so. Don't assume one.
+- Check `[input]` in `project.godot` (or Project Settings > Input Map) before using an action name in `Input.is_action_pressed()`. Unknown action names fail at runtime, not at parse time.
+- Read `docs/PROJECT.md` and `docs/ARCHITECTURE.md` if they exist.
+- If the project has a `.csproj`, ask whether the file should be GDScript or C# before writing one.
+
+## Never invent APIs
+- Use only classes, methods, properties and signals you are certain exist in Godot 4. If unsure, say **unverified** and link the class reference (https://docs.godotengine.org/en/stable/classes/). Don't guess.
+- See `05-hallucinated-apis.mdc` for the list of known fakes and Godot 3 leftovers.
+
+## Complete, parseable output
+- Write complete `.gd` files: `extends`, optional `class_name`, signals, enums, constants, `@export` vars, `@onready` vars, then functions. Don't use `# ...rest unchanged` stubs unless asked for a diff.
+- Indent with **tabs** (Godot's default). Never mix tabs and spaces in one file; that is a parse error.
+- After editing, run `godot --headless --check-only --script res://<file>.gd` before saying the task is done.
+
+## Scope discipline
+- Change only what the task needs. Never rename `@export` variables, signals, node names or files without flagging it. Renaming an exported var drops the value saved in `.tscn` files; renaming a node breaks `$Path` and `%Unique` lookups.
+- Don't edit `.tscn`/`.tres` files by hand unless asked. If a scene change is needed, describe it (node type, name, parent, properties) so the user can do it in the editor.
