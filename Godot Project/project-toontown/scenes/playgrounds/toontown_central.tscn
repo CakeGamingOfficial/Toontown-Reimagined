@@ -44,8 +44,11 @@ light_energy = 0.35
 [node name="Geometry" parent="." unique_id=1133550800 instance=ExtResource("1_geom")]
 script = ExtResource("2_collision")
 
-[node name="base_grass" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/toontown_central_DNARoot/toontown_central/mainfloor" parent_id_path=PackedInt32Array(1133550800, 1332233503) index="1" unique_id=909093590]
+[node name="base_grass" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/toontown_central_DNARoot/toontown_central/mainfloor" parent_id_path=PackedInt32Array(1133550800, 300776891) index="1" unique_id=2003273029]
 visible = false
+
+[node name="node23" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/prop_gazebo_DNARoot" parent_id_path=PackedInt32Array(1133550800, 2024403887) index="0" unique_id=1433633411]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12895584, -3.693049, 0)
 
 [node name="Camera" type="Camera3D" parent="." unique_id=822209480]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 6, 80)

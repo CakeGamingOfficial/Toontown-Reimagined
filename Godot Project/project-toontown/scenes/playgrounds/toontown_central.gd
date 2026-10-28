@@ -9,6 +9,8 @@ const FISH_PATH := "res://assets/neighborhoods/toontown_central/props/fish_swim.
 const TELESCOPE_PATH := "res://assets/neighborhoods/toontown_central/props/telescope.json"
 const BUTTERFLY_SCENE := "res://assets/neighborhoods/toontown_central/props/butterfly.glb"
 const TREASURE_SCENE := "res://assets/neighborhoods/toontown_central/props/icecream.glb"
+const MUSIC_PATH := "res://assets/neighborhoods/toontown_central/audio/TC_nbrhood.ogg"
+const MUSIC_VOLUME := 0.8
 
 var _sky: Node3D
 var _sky_height := 0.0
@@ -42,12 +44,30 @@ var _time := 0.0
 
 
 func _ready() -> void:
+	_ready_music()
 	_ready_sky()
 	_ready_billboards()
 	_ready_fish()
 	_ready_telescope()
 	_ready_butterflies()
 	_ready_treasures()
+
+
+func _ready_music() -> void:
+	# Playground.enter loops loader.music at 0.8. Toontown Central's playground
+	# track is TC_nbrhood ("Toontown Central"). The street theme is TC_SZ.
+	if not FileAccess.file_exists(MUSIC_PATH):
+		return
+	var stream := AudioStreamOggVorbis.load_from_file(MUSIC_PATH)
+	if stream == null:
+		return
+	stream.loop = true
+	var player := AudioStreamPlayer.new()
+	player.name = "PlaygroundMusic"
+	player.stream = stream
+	player.volume_db = linear_to_db(MUSIC_VOLUME)
+	add_child(player)
+	player.play()
 
 
 func _process(delta: float) -> void:
