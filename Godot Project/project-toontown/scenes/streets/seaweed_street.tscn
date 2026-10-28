@@ -1,0 +1,32 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/neighborhoods/donalds_dock/streets/seaweed_street.glb" id="1_geom"]
+[ext_resource type="Script" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" path="res://scenes/streets/donalds_dock_street.gd" id="4_street"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.8, 0.8, 0.8, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.8, 0.8, 0.8, 1)
+fog_depth_begin = 0.0
+fog_depth_end = 400.0
+fog_depth_curve = 1.0
+
+[node name="SeaweedStreet" type="Node3D"]
+script = ExtResource("4_street")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="Geometry" parent="." instance=ExtResource("1_geom")]
+script = ExtResource("2_collision")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 55, 150)
+current = true
+script = ExtResource("3_fly")
