@@ -52,6 +52,7 @@ func _ready() -> void:
 	_ready_billboards()
 	_ready_fish()
 	_ready_boat()
+	_close_hq_doors(self)
 
 
 func _ready_music() -> void:
@@ -335,6 +336,23 @@ func _ride_collision(root: Node) -> void:
 		return
 	for child in root.get_children():
 		_ride_collision(child)
+
+
+func _close_hq_doors(node: Node) -> void:
+	# The slabs are stored facing into the hull. Closed, they match the door
+	# origin and the black frame holes stay hidden.
+	var name := String(node.name)
+	if name.begins_with("doorFrameHole"):
+		node.visible = false
+	elif (name.begins_with("leftDoor_") or name.begins_with("rightDoor_")) and node is Node3D:
+		var index := name.get_slice("_", name.get_slice_count("_") - 1)
+		var origin := _find_exact(self, "door_origin_" + index) as Node3D
+		if origin:
+			var placed := (node as Node3D).global_transform
+			placed.basis = origin.global_transform.basis
+			(node as Node3D).global_transform = placed
+	for child in node.get_children():
+		_close_hq_doors(child)
 
 
 func _find_exact(node: Node, wanted: String) -> Node:
