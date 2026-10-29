@@ -7,9 +7,42 @@ extends RefCounted
 
 const TRACK_COUNT := 7
 const LEVEL_COUNT := 7
+const TOON_UP := 0
 const THROW := 4
 const SQUIRT := 5
 const START_HP := 15
+const NEXT_GAG := 10
+const POCKET := 10
+const SKILL_CREDIT := 1
+
+# ToontownBattleGlobals AvPropDamage, level by level, and AvPropAccuracy.
+const _DAMAGE_MIN: Array = [
+	[8, 15, 25, 40, 60, 90, 210],
+	[10, 18, 30, 45, 60, 90, 195],
+	[0, 0, 0, 0, 0, 0, 0],
+	[3, 5, 9, 14, 19, 25, 90],
+	[4, 8, 14, 24, 36, 48, 120],
+	[3, 6, 10, 18, 27, 36, 105],
+	[10, 18, 30, 45, 60, 85, 180],
+]
+const _DAMAGE_MAX: Array = [
+	[10, 18, 30, 45, 70, 120, 210],
+	[12, 20, 35, 50, 70, 180, 195],
+	[0, 0, 0, 0, 0, 0, 0],
+	[4, 7, 11, 16, 21, 50, 90],
+	[6, 10, 17, 27, 40, 100, 120],
+	[4, 8, 12, 21, 30, 80, 105],
+	[10, 18, 30, 45, 60, 170, 180],
+]
+const _ACCURACY: Array = [
+	[70, 70, 70, 70, 70, 70, 100],
+	[0, 0, 0, 0, 0, 0, 0],
+	[50, 50, 60, 60, 70, 70, 90],
+	[95, 95, 95, 95, 95, 95, 95],
+	[75, 75, 75, 75, 75, 75, 75],
+	[95, 95, 95, 95, 95, 95, 95],
+	[50, 50, 50, 50, 50, 50, 50],
+]
 
 const TRACK_NAMES: PackedStringArray = [
 	"Toon-Up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop",
@@ -39,6 +72,7 @@ var hp := START_HP
 var max_hp := START_HP
 var _counts: Array = []
 var _unlocked: Array = []
+var _exp: Array[int] = []
 var _slot := -1
 
 
@@ -78,6 +112,88 @@ func set_gag(track: int, level: int, amount: int, owned: bool) -> void:
 	_counts[track][level] = maxi(amount, 0)
 
 
+func spend_gag(track: int, level: int) -> bool:
+	if count_of(track, level) <= 0:
+		return false
+	_counts[track][level] = count_of(track, level) - 1
+	return true
+
+
+func refund_gag(track: int, level: int) -> void:
+	if not _valid(track, level):
+		return
+	_unlocked[track][level] = true
+	_counts[track][level] = count_of(track, level) + 1
+
+
+func experience_of(track: int) -> int:
+	if track < 0 or track >= _exp.size():
+		return 0
+	return _exp[track]
+
+
+func add_experience(track: int, amount: int) -> void:
+	if track < 0 or track >= _exp.size():
+		return
+	_exp[track] += maxi(amount, 0)
+
+
+func gag_count() -> int:
+	var total := 0
+	for track in TRACK_COUNT:
+		for level in LEVEL_COUNT:
+			total += count_of(track, level)
+	return total
+
+
+static func gag_damage(track: int, level: int, exp: int) -> int:
+	if track < 0 or track >= _DAMAGE_MIN.size():
+		return 0
+	var lows: Array = _DAMAGE_MIN[track]
+	var highs: Array = _DAMAGE_MAX[track]
+	if level < 0 or level >= lows.size():
+		return 0
+	var low := int(lows[level])
+	var high := int(highs[level])
+	if level > 0 or high <= low:
+		return low
+	# getAvPropDamage at the start of a track: 0 experience deals the minimum.
+	var per := float(NEXT_GAG + 1) / float(high - low + 1)
+	var dealt := int(floor(float(clampi(exp, 0, NEXT_GAG)) / per)) + low
+	return clampi(dealt, low, high)
+
+
+static func gag_accuracy(track: int, level: int) -> int:
+	if track < 0 or track >= _ACCURACY.size():
+		return 0
+	var row: Array = _ACCURACY[track]
+	if level < 0 or level >= row.size():
+		return 0
+	var percent := int(row[level])
+	# Trap stores 0 because it does not roll this table.
+	if percent <= 0:
+		return 100
+	return percent
+
+
+static func accuracy_word(percent: int) -> String:
+	if percent >= 95:
+		return "High"
+	if percent >= 70:
+		return "Medium"
+	if percent >= 50:
+		return "Low"
+	return "Very Low"
+
+
+static func affects_label(track: int) -> String:
+	if track == TOON_UP:
+		return "One Toon"
+	if track == 3 or track == 6:
+		return "All Cogs"
+	return "One Cog"
+
+
 func set_hp(current: int, maximum: int) -> void:
 	max_hp = maxi(maximum, 1)
 	hp = clampi(current, 0, max_hp)
@@ -95,6 +211,7 @@ func save() -> void:
 		"max_hp": max_hp,
 		"counts": _counts,
 		"unlocked": _unlocked,
+		"exp": _exp,
 	}
 	root["slots"] = slots
 	var file := FileAccess.open(_PATH, FileAccess.WRITE)
@@ -115,6 +232,9 @@ func _blank() -> void:
 		owned.fill(false)
 		_counts.append(counts)
 		_unlocked.append(owned)
+	_exp.clear()
+	_exp.resize(TRACK_COUNT)
+	_exp.fill(0)
 
 
 func _load() -> void:
@@ -136,6 +256,9 @@ func _load() -> void:
 			_counts[track][level] = int(row[level])
 			if level < flags.size():
 				_unlocked[track][level] = bool(flags[level])
+	var experience: Array = stored.get("exp", [])
+	for track in mini(experience.size(), TRACK_COUNT):
+		_exp[track] = int(experience[track])
 
 
 func _read_file() -> Dictionary:

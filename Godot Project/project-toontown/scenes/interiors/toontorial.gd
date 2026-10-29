@@ -39,6 +39,7 @@ var _briefing: TutorialBriefing
 var _tasks: ToonTasks
 var _book: ShtickerBook
 var _flunky: Flunky
+var _battle: StreetBattle
 
 
 func _ready() -> void:
@@ -57,6 +58,7 @@ func _ready() -> void:
 	_ready_loadout()
 	_spawn_flunky()
 	_add_outside_floor()
+	_start_battle()
 	_place_camera()
 
 
@@ -78,6 +80,7 @@ func _physics_process(delta: float) -> void:
 	_walk(delta)
 	_approach_tom()
 	_try_door()
+	_try_battle()
 
 
 func _spawn_toons() -> void:
@@ -321,6 +324,25 @@ func place_player(where: Vector3, heading: float) -> void:
 	_face(_player, heading)
 
 
+func face_actor(actor: Node3D, heading: float) -> void:
+	_face(actor, heading)
+	if actor == _player:
+		_heading = heading
+
+
+func _start_battle() -> void:
+	_battle = StreetBattle.new()
+	_battle.name = "StreetBattle"
+	add_child(_battle)
+	_battle.setup(self, _body, _player, _flunky, _loadout, _tasks, _camera, _meter, _book, _hud())
+
+
+func _try_battle() -> void:
+	if _battle == null or _briefing == null or not _briefing.finished or _body == null:
+		return
+	_battle.consider(_body.global_position)
+
+
 func _ready_loadout() -> void:
 	_loadout = ToonLoadout.for_selected()
 	_panel = GagPanel.new()
@@ -411,6 +433,9 @@ func _try_door() -> void:
 		_body.position = Vector3(-22.0, 0.2, -24.5)
 		_heading = 180.0
 		_face(_player, _heading)
+		# The window pace is only the cutscene. Move him while the screen is black.
+		if _flunky:
+			_flunky.walk_street()
 	)
 	tween.tween_property(fade, "color:a", 0.0, 0.4)
 	tween.tween_callback(func() -> void:
@@ -422,6 +447,8 @@ func _try_door() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _briefing == null or not _briefing.finished or _panel == null:
+		return
+	if _battle != null and _battle.active():
 		return
 	if event is InputEventKey:
 		var key := event as InputEventKey
@@ -483,7 +510,7 @@ func _place_tags() -> void:
 		elif head:
 			point = head.global_position + Vector3(0, 0.45, 0)
 		_place_control(label, point, Vector2(0, -8))
-		if actor == _flunky and _body != null and _body.position.x > -16.5:
+		if actor == _flunky and (_body != null and _body.position.x > -16.5 or (_battle != null and _battle.hides_flunky_tag())):
 			label.visible = false
 
 

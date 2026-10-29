@@ -1,8 +1,8 @@
 class_name Flunky
 extends Node3D
 
-## The tutorial Flunky from DistributedTutorialInterior.createSuit: a bossbot
-## C-body with the flunky head, pacing outside the shop window.
+## The tutorial Flunky. He paces the shop window during the cutscene, then
+## walks the street rectangle from DistributedTutorialSuit once the toon leaves.
 
 const _MODEL := "res://assets/cogs/flunky.glb"
 const _WALK := "res://assets/cogs/flunky.walk"
@@ -17,6 +17,13 @@ var _heading := 0.0
 var _wait := 0.0
 var _leg := 0
 var _pacing := false
+var _street := false
+var _outside := false
+var _path: PackedVector3Array = PackedVector3Array()
+var _path_index := 0
+
+# DistributedSuitBase path speed for the tutorial cog.
+const _STREET_SPEED := 4.5
 
 
 func _ready() -> void:
@@ -26,10 +33,15 @@ func _ready() -> void:
 	var model := packed.instantiate()
 	add_child(model)
 	_load_walk()
+	_show_both_sides()
+	_hide_gray_cuffs()
 
 
 func pace_outside() -> void:
 	# Panda (-20, 8, 0) to (-20, 20, 0), then back to (-20, 10, 0).
+	# Only the cutscene, while the toon is still inside the shop.
+	_street = false
+	_outside = false
 	position = Vector3(-20.0, 0.0, -8.0)
 	_heading = 0.0
 	_leg = 0
@@ -37,6 +49,41 @@ func pace_outside() -> void:
 	_pacing = true
 	_face()
 	_begin_leg()
+
+
+func walk_street() -> void:
+	# DistributedTutorialSuit.enterWalk. The playground path is
+	# (55, 15), (55, 25), (25, 25), (25, 15) at z -0.5, and the street
+	# backdrop sits at (-17, 42, -0.5) heading 180. Feet stay on the
+	# sidewalk the toon walks on after leaving the shop.
+	_street = true
+	_outside = true
+	_pacing = true
+	_wait = 0.0
+	_path = PackedVector3Array([
+		Vector3(-72.0, 0.0, -27.0),
+		Vector3(-72.0, 0.0, -17.0),
+		Vector3(-42.0, 0.0, -17.0),
+		Vector3(-42.0, 0.0, -27.0),
+	])
+	_path_index = 0
+	position = _path[0]
+	_begin_street_leg()
+
+
+func on_street() -> bool:
+	return _outside and visible
+
+
+func stop_for_battle() -> void:
+	_pacing = false
+	_wait = 0.0
+	_set_moving(false)
+
+
+func face_heading(heading: float) -> void:
+	_heading = heading
+	_face()
 
 
 func _process(delta: float) -> void:
@@ -91,8 +138,23 @@ func _begin_leg() -> void:
 
 
 func _finish_leg() -> void:
+	if _street:
+		_path_index = (_path_index + 1) % _path.size()
+		_begin_street_leg()
+		return
 	_leg += 1
 	_begin_leg()
+
+
+func _begin_street_leg() -> void:
+	var start := _path[_path_index]
+	var goal := _path[(_path_index + 1) % _path.size()]
+	_goal = goal
+	var flat := Vector2(goal.x - start.x, goal.z - start.z)
+	# Heading 0 faces -Z. Positive heading turns left.
+	_heading = rad_to_deg(atan2(-flat.x, -flat.y))
+	_leg_left = flat.length() / _STREET_SPEED
+	_face()
 
 
 func _leg_time_left() -> float:
@@ -146,6 +208,7 @@ func _pose(delta: float) -> void:
 			var uvs: PackedVector2Array = surface["uv"]
 			if uvs.size() == positions.size():
 				arrays[Mesh.ARRAY_TEX_UV] = uvs
+			arrays[Mesh.ARRAY_NORMAL] = _face_normals(positions)
 			posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			if surface_index < original.get_surface_count():
 				posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
@@ -174,6 +237,82 @@ func _restore() -> void:
 		var node := joint["node"] as Node3D
 		if is_instance_valid(node):
 			node.transform = joint["rest"]
+
+
+func _show_both_sides() -> void:
+	# The walk replaces each part with a posed mesh. Suit pieces overlap and
+	# some triangles face inward, so culling makes the cuffs vanish and the
+	# gloves look like they left the sleeves.
+	var seen: Array[Material] = []
+	for child in find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := child as MeshInstance3D
+		if mesh_node.mesh == null:
+			continue
+		for index in mesh_node.mesh.get_surface_count():
+			var material := mesh_node.mesh.surface_get_material(index)
+			if material == null or material in seen:
+				continue
+			seen.append(material)
+			if material is BaseMaterial3D:
+				(material as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
+
+
+func _hide_gray_cuffs() -> void:
+	# suitC keeps a flat blue-gray lining at each wrist. It sits outside the
+	# pinstripe sleeve, so it reads as a gray cuff. Drop those surfaces from
+	# the rest mesh and the walk, and leave the black ring up at the neck.
+	var suit := _find(self, "node") as MeshInstance3D
+	if suit == null or suit.mesh == null:
+		return
+	var drop: Array[int] = []
+	for index in suit.mesh.get_surface_count():
+		var material := suit.mesh.surface_get_material(index) as BaseMaterial3D
+		if material == null or material.albedo_texture != null:
+			continue
+		var color := material.albedo_color
+		# Imported from linear 0.06, so Godot stores it near 0.28.
+		if color.r > 0.15 and color.r < 0.45 and color.g < 0.45 and color.b < 0.55:
+			drop.append(index)
+	if drop.is_empty():
+		return
+	var kept := ArrayMesh.new()
+	for index in suit.mesh.get_surface_count():
+		if drop.has(index):
+			continue
+		var arrays := suit.mesh.surface_get_arrays(index)
+		kept.add_surface_from_arrays(suit.mesh.surface_get_primitive_type(index), arrays)
+		kept.surface_set_material(kept.get_surface_count() - 1, suit.mesh.surface_get_material(index))
+	suit.mesh = kept
+	for clip in _clips:
+		if clip["instance"] != suit:
+			continue
+		var surfaces: Array = clip["surfaces"]
+		var filtered: Array = []
+		for index in surfaces.size():
+			if drop.has(index):
+				continue
+			filtered.append(surfaces[index])
+		clip["surfaces"] = filtered
+		clip["original"] = kept
+
+
+func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
+	var normals := PackedVector3Array()
+	normals.resize(positions.size())
+	var index := 0
+	while index + 2 < positions.size():
+		var edge_a := positions[index + 1] - positions[index]
+		var edge_b := positions[index + 2] - positions[index]
+		var normal := edge_a.cross(edge_b)
+		if normal.length_squared() < 0.000001:
+			normal = Vector3.UP
+		else:
+			normal = normal.normalized()
+		normals[index] = normal
+		normals[index + 1] = normal
+		normals[index + 2] = normal
+		index += 3
+	return normals
 
 
 func _load_walk() -> void:

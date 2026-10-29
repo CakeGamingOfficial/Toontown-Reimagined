@@ -299,6 +299,11 @@ func _open_book() -> void:
 	book_opened.emit()
 
 
+func close() -> void:
+	if _open:
+		_close()
+
+
 func _close() -> void:
 	_open = false
 	_guided = false
