@@ -42,6 +42,12 @@ var _flunky: Flunky
 var _battle: StreetBattle
 var _return_spot := Vector3(-22.0, 0.2, -24.5)
 var _return_heading := 180.0
+var _gate: StaticBody3D
+var _door_dialog: Control
+var _door_stopped := false
+var _gate_armed := true
+const _DOOR := Vector2(-14.2, -24.5)
+const _NEED_GAGS := "You need gags! Go talk to\nTutorial Tom!"
 
 
 func _ready() -> void:
@@ -60,6 +66,7 @@ func _ready() -> void:
 	_ready_loadout()
 	_spawn_flunky()
 	_add_outside_floor()
+	_build_exit_gate()
 	_start_battle()
 	_place_camera()
 
@@ -70,6 +77,11 @@ func _process(delta: float) -> void:
 		_place_camera()
 	_face_billboards()
 	_place_tags()
+	if _gate != null and _briefing != null and _briefing.finished:
+		_gate.queue_free()
+		_gate = null
+	if _door_dialog != null and Input.is_action_just_pressed("ui_accept"):
+		_close_need_gags()
 	if not _cutscene and not _welcome_done:
 		_place_bubble()
 	elif _bubble and (_cutscene or _welcome_done):
@@ -77,7 +89,7 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _locked:
+	if _locked or _door_stopped:
 		return
 	_walk(delta)
 	_approach_tom()
@@ -403,6 +415,21 @@ func _spawn_flunky() -> void:
 	_add_tag(_flunky, "Flunky\nBossbot\nLevel 1", Color(0.95, 0.95, 0.95))
 
 
+func _build_exit_gate() -> void:
+	# TutorialBuildingAI locks the inside door with TALK_TO_TOM until the
+	# gag handoff. The wall fills the doorway the exit check uses.
+	var gate := StaticBody3D.new()
+	gate.name = "ExitGate"
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.7, 4.2, 8.0)
+	var collision := CollisionShape3D.new()
+	collision.shape = box
+	collision.position = Vector3(_DOOR.x - 0.6, 2.1, _DOOR.y)
+	gate.add_child(collision)
+	add_child(gate)
+	_gate = gate
+
+
 func _add_outside_floor() -> void:
 	# The street mesh is already outside the window. This slab is what the
 	# toon stands on after walking through the door.
@@ -432,13 +459,15 @@ func _approach_tom() -> void:
 
 
 func _try_door() -> void:
-	if _fading or _briefing == null or not _briefing.finished or _body == null:
+	if _fading or _briefing == null or _body == null or _door_stopped:
+		return
+	var here := Vector2(_body.position.x, _body.position.z)
+	if not _briefing.finished:
+		_try_locked_door(here)
 		return
 	if not Input.is_physical_key_pressed(KEY_W):
 		return
-	var door := Vector2(-14.2, -24.5)
-	var here := Vector2(_body.position.x, _body.position.z)
-	if here.distance_to(door) > 4.5 or _body.position.x < -16.5:
+	if here.distance_to(_DOOR) > 4.5 or _body.position.x < -16.5:
 		return
 	_fading = true
 	_locked = true
@@ -463,6 +492,83 @@ func _try_door() -> void:
 		_locked = false
 		_fading = false
 	)
+
+
+func _try_locked_door(here: Vector2) -> void:
+	if here.distance_to(_DOOR) > 5.2:
+		_gate_armed = true
+		return
+	if not _gate_armed or not _pushing_the_gate():
+		return
+	_show_need_gags()
+
+
+func _pushing_the_gate() -> bool:
+	if _body == null:
+		return false
+	for index in _body.get_slide_collision_count():
+		var hit := _body.get_slide_collision(index)
+		if hit.get_collider() == _gate:
+			return true
+	return Input.is_physical_key_pressed(KEY_W) and Vector2(_body.position.x, _body.position.z).distance_to(_DOOR) < 2.6
+
+
+func _show_need_gags() -> void:
+	if _door_dialog != null:
+		return
+	_door_stopped = true
+	_gate_armed = false
+	if _body:
+		_body.velocity = Vector3.ZERO
+	var view := get_viewport().get_visible_rect().size
+	var panel := TextureRect.new()
+	panel.texture = load("res://assets/gui/tutorial/dialog/dialog_box.png")
+	panel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	panel.stretch_mode = TextureRect.STRETCH_SCALE
+	panel.modulate = Color(1.0, 1.0, 0.75)
+	panel.size = Vector2(minf(view.x * 0.46, 760.0), minf(view.y * 0.38, 440.0))
+	panel.position = (view - panel.size) * 0.5
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hud().add_child(panel)
+	var label := Label.new()
+	label.text = _NEED_GAGS
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.position = Vector2(panel.size.x * 0.08, panel.size.y * 0.08)
+	label.size = Vector2(panel.size.x * 0.84, panel.size.y * 0.42)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), int(panel.size.y * 0.11), Color(0, 0, 0, 0), 0)
+	panel.add_child(label)
+	var button := TextureButton.new()
+	button.texture_normal = load("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+	button.texture_hover = load("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
+	button.texture_pressed = load("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.focus_mode = Control.FOCUS_NONE
+	var diameter := panel.size.y * 0.18
+	button.size = Vector2(diameter, diameter)
+	button.position = Vector2((panel.size.x - diameter) * 0.5, panel.size.y * 0.56)
+	button.pressed.connect(_close_need_gags)
+	panel.add_child(button)
+	var ok := Label.new()
+	ok.text = "OK"
+	ok.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ok.position = Vector2(0, button.position.y + diameter)
+	ok.size = Vector2(panel.size.x, panel.size.y * 0.14)
+	ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(ok, Color(0.05, 0.05, 0.05), int(panel.size.y * 0.09), Color(0, 0, 0, 0), 0)
+	panel.add_child(ok)
+	_door_dialog = panel
+
+
+func _close_need_gags() -> void:
+	if _door_dialog:
+		_door_dialog.queue_free()
+		_door_dialog = null
+	_door_stopped = false
+	if _body != null and _body.position.x < _DOOR.x + 0.4:
+		_body.position.x = _DOOR.x + 1.1
 
 
 func _unhandled_input(event: InputEvent) -> void:
