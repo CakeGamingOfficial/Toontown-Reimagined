@@ -14,7 +14,7 @@ const START_HEADING := 14.0
 # npc_origin_0 from the tutorial interior. Tom's DNA is NPC 20000.
 const TOM_POSITION := Vector3(1.0, 0.0, -22.5)
 const TOM_HEADING := 180.0
-const WELCOME := "Come here! Use the WASD keys to move."
+const WELCOME := "Hey, you must be the new Toon in town! Use the MOVEMENT KEYS to come over here."
 # OTPGlobals, with ToonSpeedFactor applied.
 const FORWARD_SPEED := 20.0
 const REVERSE_SPEED := 10.0
@@ -28,6 +28,17 @@ var _heading := START_HEADING
 var _billboards: Array[Dictionary] = []
 var _tags: Array[Dictionary] = []
 var _bubble: Control
+var _cutscene := false
+var _locked := false
+var _welcome_done := false
+var _fading := false
+var _loadout: ToonLoadout
+var _panel: GagPanel
+var _meter: LaffMeter
+var _briefing: TutorialBriefing
+var _tasks: ToonTasks
+var _book: ShtickerBook
+var _flunky: Flunky
 
 
 func _ready() -> void:
@@ -43,19 +54,30 @@ func _ready() -> void:
 	_collect_billboards(self)
 	_build_bubble()
 	_spawn_toons()
+	_ready_loadout()
+	_spawn_flunky()
+	_add_outside_floor()
 	_place_camera()
 
 
 func _process(delta: float) -> void:
 	TOONTOWN_SKY.ensure(self, "tt")
-	_place_camera()
+	if not _cutscene:
+		_place_camera()
 	_face_billboards()
 	_place_tags()
-	_place_bubble()
+	if not _cutscene and not _welcome_done:
+		_place_bubble()
+	elif _bubble and (_cutscene or _welcome_done):
+		_bubble.visible = false
 
 
 func _physics_process(delta: float) -> void:
+	if _locked:
+		return
 	_walk(delta)
+	_approach_tom()
+	_try_door()
 
 
 func _spawn_toons() -> void:
@@ -75,7 +97,7 @@ func _spawn_toons() -> void:
 		_add_capsule()
 		_add_tag(_player, style.display_name(), Color(0.45, 0.62, 0.95))
 	var tom := _spawn(_tom_style(), TOM_POSITION, TOM_HEADING, self)
-	_add_tag(tom, "Tutorial Tom", Color(0.95, 0.95, 0.95))
+	_add_tag(tom, "Tutorial Tom", Color(0.92, 0.32, 0.18))
 
 
 func _player_style() -> ToonStyle:
@@ -218,6 +240,10 @@ func _walk(delta: float) -> void:
 	else:
 		_body.velocity.y -= 80.0 * delta
 	_body.move_and_slide()
+	if _body.position.y < -1.0:
+		_body.velocity = Vector3.ZERO
+		_body.position = Vector3(-22.0, 0.2, -24.5)
+		_heading = 180.0
 	_face(_player, _heading)
 	# S plays the cycle backward. A and D turn, and still play the cycle forward.
 	_player.set_locomotion(speed != 0.0 or turning, speed < 0.0, delta)
@@ -266,6 +292,151 @@ func _hud() -> CanvasLayer:
 	return layer
 
 
+func hud() -> CanvasLayer:
+	return _hud()
+
+
+func set_cutscene(active: bool) -> void:
+	_cutscene = active
+	_locked = active
+
+
+func dismiss_welcome() -> void:
+	_welcome_done = true
+	if _bubble:
+		_bubble.visible = false
+
+
+func face_tom(heading: float) -> void:
+	var tom := get_node_or_null("Tutorial Tom") as Node3D
+	if tom:
+		_face(tom, heading)
+
+
+func place_player(where: Vector3, heading: float) -> void:
+	if _body == null or _player == null:
+		return
+	_body.position = where
+	_heading = heading
+	_face(_player, heading)
+
+
+func _ready_loadout() -> void:
+	_loadout = ToonLoadout.for_selected()
+	_panel = GagPanel.new()
+	_panel.name = "GagPanel"
+	_panel.setup(_loadout)
+	_panel.visible = false
+	_hud().add_child(_panel)
+	_meter = LaffMeter.new()
+	_meter.name = "LaffMeter"
+	_meter.setup(_player_style())
+	_meter.set_hp(_loadout.hp, _loadout.max_hp)
+	_meter.visible = false
+	_hud().add_child(_meter)
+	_briefing = TutorialBriefing.new()
+	_briefing.name = "Briefing"
+	add_child(_briefing)
+	_briefing.setup(self, _panel, _meter, _loadout)
+	_tasks = ToonTasks.for_selected()
+	_book = ShtickerBook.new()
+	_book.name = "ShtickerBook"
+	_hud().add_child(_book)
+	_book.setup(_tasks, _loadout)
+
+
+func tasks() -> ToonTasks:
+	return _tasks
+
+
+func shticker() -> ShtickerBook:
+	return _book
+
+
+func _spawn_flunky() -> void:
+	_flunky = Flunky.new()
+	_flunky.name = "Flunky"
+	add_child(_flunky)
+	_flunky.pace_outside()
+	_add_tag(_flunky, "Flunky\nBossbot\nLevel 1", Color(0.95, 0.95, 0.95))
+
+
+func _add_outside_floor() -> void:
+	# The street mesh is already outside the window. This slab is what the
+	# toon stands on after walking through the door.
+	var slab := StaticBody3D.new()
+	slab.name = "OutsideFloor"
+	var box := BoxShape3D.new()
+	box.size = Vector3(120.0, 1.0, 90.0)
+	var collision := CollisionShape3D.new()
+	collision.shape = box
+	collision.position = Vector3(-50.0, -0.5, -18.0)
+	slab.add_child(collision)
+	add_child(slab)
+
+
+func _approach_tom() -> void:
+	if _briefing == null or _briefing.started or _body == null:
+		return
+	var tom := get_node_or_null("Tutorial Tom") as Node3D
+	if tom == null:
+		return
+	var here := Vector2(_body.position.x, _body.position.z)
+	var there := Vector2(tom.position.x, tom.position.z)
+	var distance := here.distance_to(there)
+	var pushing := Input.is_physical_key_pressed(KEY_W) and _body.get_real_velocity().length() < 0.4
+	if distance < 8.0 or (distance < 12.0 and pushing):
+		_briefing.start()
+
+
+func _try_door() -> void:
+	if _fading or _briefing == null or not _briefing.finished or _body == null:
+		return
+	if not Input.is_physical_key_pressed(KEY_W):
+		return
+	var door := Vector2(-14.2, -24.5)
+	var here := Vector2(_body.position.x, _body.position.z)
+	if here.distance_to(door) > 4.5 or _body.position.x < -16.5:
+		return
+	_fading = true
+	_locked = true
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hud().add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 1.0, 0.3)
+	tween.tween_callback(func() -> void:
+		_body.position = Vector3(-22.0, 0.2, -24.5)
+		_heading = 180.0
+		_face(_player, _heading)
+	)
+	tween.tween_property(fade, "color:a", 0.0, 0.4)
+	tween.tween_callback(func() -> void:
+		fade.queue_free()
+		_locked = false
+		_fading = false
+	)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _briefing == null or not _briefing.finished or _panel == null:
+		return
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.pressed and not key.echo and key.keycode == KEY_I:
+			if _book != null and _tasks != null and _tasks.has_book:
+				_book.open_to_gags()
+				return
+			_panel.visible = not _panel.visible
+			_panel.scale = Vector2.ONE
+			if _panel.visible:
+				var view := get_viewport().get_visible_rect().size
+				_panel.position = (view - _panel.size) * 0.5
+
+
+
 func _build_bubble() -> void:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -307,9 +478,13 @@ func _place_tags() -> void:
 		var actor := item["actor"] as Node3D
 		var head := _find(actor, "def_head")
 		var point := actor.global_position + Vector3(0, 3.2, 0)
-		if head:
+		if actor == _flunky:
+			point = actor.global_position + Vector3(0, 5.4, 0)
+		elif head:
 			point = head.global_position + Vector3(0, 0.45, 0)
 		_place_control(label, point, Vector2(0, -8))
+		if actor == _flunky and _body != null and _body.position.x > -16.5:
+			label.visible = false
 
 
 func _place_bubble() -> void:

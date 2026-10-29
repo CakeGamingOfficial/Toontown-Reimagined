@@ -48,6 +48,11 @@ static func selected_style() -> ToonStyle:
 	return get_slot(_selected)
 
 
+static func selected_index() -> int:
+	_ensure()
+	return _selected
+
+
 static func select_slot(index: int) -> void:
 	_ensure()
 	_selected = index
