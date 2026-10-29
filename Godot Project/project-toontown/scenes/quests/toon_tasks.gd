@@ -20,21 +20,24 @@ const CATALOG := {
 		"cog": "f",
 		"goal": 1,
 		"show_count": true,
+		"speech": "I need to defeat a Flunky.",
 		"next": 110,
 	},
 	110: {
 		"headline": "TROLLEY",
-		"caption": "Ride the trolley",
-		"where": "Playground",
+		"caption": "Ride on The Trolley",
+		"where": "in The Playground",
 		"kind": TROLLEY,
 		"cog": "",
 		"goal": 1,
 		"show_count": false,
+		"speech": "I need to ride the trolley.",
 		"next": 0,
 	},
 }
 
 var has_book := false
+var met_flippy := false
 
 var _slot := -1
 var _active: Array[Dictionary] = []
@@ -69,6 +72,8 @@ func note_cog_defeat(cog: String) -> void:
 	save()
 
 
+## The trolley game is not in yet. When it is, finishing a ride calls this.
+## Nothing else marks quest 110 complete.
 func note_trolley() -> void:
 	for entry in _active:
 		var info: Dictionary = CATALOG[int(entry["id"])]
@@ -125,6 +130,33 @@ func grant_book() -> void:
 	save()
 
 
+## The corner button stays hidden until Harry has turned in the Flunky task.
+## An older visit used to set has_book during Tom's briefing, before that reward.
+func book_ready() -> bool:
+	return has_book and _done.has(101)
+
+
+func grant_speedchat() -> void:
+	met_flippy = true
+	save()
+
+
+## One task at a time in the toontorial. SpeedChat's MY TASKS reads these lines.
+func task_lines() -> PackedStringArray:
+	var lines := PackedStringArray()
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not CATALOG.has(quest_id):
+			continue
+		var info: Dictionary = CATALOG[quest_id]
+		var speech := String(info.get("speech", ""))
+		if speech != "" and not lines.has(speech):
+			lines.append(speech)
+	if _active.is_empty():
+		lines.append("I need to get a ToonTask.")
+	return lines
+
+
 func save() -> void:
 	var root := _read_file()
 	var slots: Array = root.get("slots", [])
@@ -137,6 +169,7 @@ func save() -> void:
 		active.append({"id": int(entry["id"]), "progress": int(entry["progress"])})
 	slots[_slot] = {
 		"has_book": has_book,
+		"met_flippy": met_flippy,
 		"active": active,
 		"done": _done.duplicate(),
 	}
@@ -166,6 +199,7 @@ func _load() -> void:
 	_active = []
 	_done = []
 	has_book = false
+	met_flippy = false
 	if _slot < 0:
 		return
 	var root := _read_file()
@@ -174,6 +208,7 @@ func _load() -> void:
 		return
 	var stored: Dictionary = slots[_slot]
 	has_book = bool(stored.get("has_book", false))
+	met_flippy = bool(stored.get("met_flippy", false))
 	for quest_id in stored.get("done", []):
 		_done.append(int(quest_id))
 	for entry in stored.get("active", []):

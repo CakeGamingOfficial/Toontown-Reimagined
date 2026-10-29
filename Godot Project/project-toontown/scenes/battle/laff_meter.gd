@@ -40,6 +40,7 @@ var _teeth: Array[TextureRect] = []
 var _fur := Color.WHITE
 var _hp := 15
 var _max_hp := 15
+var _followed: ToonLoadout
 
 
 func setup(style: ToonStyle) -> void:
@@ -70,6 +71,21 @@ func setup(style: ToonStyle) -> void:
 		_teeth.append(tooth)
 	_apply_size(108)
 	set_hp(_hp, _max_hp)
+
+
+## LaffMeter.start listens to the toon's hpChange. The eyes show that health.
+func follow(loadout: ToonLoadout) -> void:
+	if _followed != null and _followed.hp_changed.is_connected(_on_health):
+		_followed.hp_changed.disconnect(_on_health)
+	_followed = loadout
+	if loadout == null:
+		return
+	loadout.hp_changed.connect(_on_health)
+	set_hp(loadout.hp, loadout.max_hp)
+
+
+func _on_health(current: int, maximum: int) -> void:
+	set_hp(current, maximum)
 
 
 func set_hp(current: int, maximum: int) -> void:

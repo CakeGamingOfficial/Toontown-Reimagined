@@ -32,6 +32,7 @@ var _inside_origins: Array[Node3D] = []
 var _inside := false
 var _busy := false
 var _exit_armed := true
+var _talking := false
 
 
 func inside() -> bool:
@@ -84,6 +85,7 @@ func consider_inside(body: CharacterBody3D) -> void:
 		return
 	if _inside_origins[0] == null or _inside_origins[1] == null:
 		return
+	_approach_harry(body)
 	var here := Vector2(body.global_position.x, body.global_position.z)
 	var entrance := _inside_spot(0)
 	var playground := _inside_spot(1)
@@ -100,6 +102,40 @@ func consider_inside(body: CharacterBody3D) -> void:
 		leave()
 	else:
 		_reject_entrance()
+
+
+func _approach_harry(body: CharacterBody3D) -> void:
+	# Same reach as Tutorial Tom: close enough, or walking into him.
+	if _talking or _harry == null or not _harry.visible:
+		return
+	if _host != null and _host.has_method("in_cutscene") and bool(_host.call("in_cutscene")):
+		return
+	if not _host.has_method("tasks"):
+		return
+	var tasks := _host.call("tasks") as ToonTasks
+	if tasks == null or not tasks.is_complete(101) or tasks.book_ready():
+		return
+	var here := Vector2(body.global_position.x, body.global_position.z)
+	var there := Vector2(_harry.global_position.x, _harry.global_position.z)
+	var distance := here.distance_to(there)
+	var pushing := Input.is_physical_key_pressed(KEY_W) and body.get_real_velocity().length() < 0.4
+	if distance < 8.0 or (distance < 12.0 and pushing):
+		_talking = true
+		_begin_talk()
+
+
+func _begin_talk() -> void:
+	if _host.has_method("tasks"):
+		var tasks := _host.call("tasks") as ToonTasks
+		if tasks != null and tasks.book_ready():
+			_talking = false
+			return
+	var movie := TutorialHarry.new()
+	movie.name = "HarryMovie"
+	add_child(movie)
+	await movie.play(_host, _harry)
+	movie.queue_free()
+	_talking = false
 
 
 func enter() -> void:
@@ -120,6 +156,28 @@ func enter() -> void:
 	_close_swung_door(_ext_doors[0], true)
 	await get_tree().create_timer(1.0).timeout
 	_busy = false
+
+
+func stand_at_tunnel() -> bool:
+	if _ext_origins.size() < 2 or _ext_origins[0] == null or _ext_origins[1] == null:
+		return false
+	var origin := _ext_origins[1]
+	var other := _ext_origins[0]
+	var away := origin.global_position - other.global_position
+	away.y = 0.0
+	if away.length() < 0.001:
+		return false
+	away = away.normalized()
+	var feet := origin.global_position + away * 6.0
+	feet.y = 0.2
+	var heading := rad_to_deg(atan2(-away.x, -away.z))
+	if _host.has_method("place_player"):
+		_host.call("place_player", feet, heading)
+	if _host.has_method("note_plaza"):
+		_host.call("note_plaza", feet, heading)
+	if _host.has_method("restore_street_body"):
+		_host.call("restore_street_body")
+	return true
 
 
 func leave() -> void:
@@ -416,6 +474,7 @@ func _spawn_harry() -> void:
 	_room.add_child(_harry)
 	_harry.position = HARRY_SPOT
 	_harry.show_style(style)
+	_harry.follows_ground = true
 	_harry.visible = false
 	if _host.has_method("face_actor"):
 		_host.call("face_actor", _harry, HARRY_HEADING)

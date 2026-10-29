@@ -48,6 +48,10 @@ var _meter: LaffMeter
 var _briefing: TutorialBriefing
 var _tasks: ToonTasks
 var _book: ShtickerBook
+var _speed: SpeedChat
+var _line: PanelContainer
+var _line_label: Label
+var _line_left := 0.0
 var _flunky: Flunky
 var _battle: StreetBattle
 var _return_spot := Vector3(-22.0, 0.2, -24.5)
@@ -60,6 +64,7 @@ var _hq
 var _cam_yaw := 0.0
 var _cam_pitch := 0.0
 var _cam_distance := 1.0
+var _camera_held := false
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
 const _CAM_DIST_MIN := 0.38
@@ -87,6 +92,8 @@ func _ready() -> void:
 	_build_exit_gate()
 	_start_battle()
 	_place_camera()
+	if _tasks != null and _tasks.book_ready():
+		_open_plaza()
 
 
 func _process(delta: float) -> void:
@@ -99,7 +106,7 @@ func _process(delta: float) -> void:
 			tom.set_dialogue(delta)
 		else:
 			tom.set_locomotion(0.0, false, false, delta)
-	if not _cutscene or (_hq != null and _hq.inside()):
+	if not _camera_held and (not _cutscene or (_hq != null and _hq.inside())):
 		_place_camera()
 	_face_billboards()
 	_place_tags()
@@ -112,6 +119,8 @@ func _process(delta: float) -> void:
 		_place_bubble()
 	elif _bubble and (_cutscene or _welcome_done):
 		_bubble.visible = false
+	_idle_flippy(delta)
+	_place_line()
 
 
 func _physics_process(delta: float) -> void:
@@ -126,6 +135,7 @@ func _physics_process(delta: float) -> void:
 	_approach_tom()
 	_try_door()
 	_try_battle()
+	_consider_flippy()
 	if _hq != null and not _cutscene:
 		_hq.consider(_body)
 
@@ -147,6 +157,7 @@ func _spawn_toons() -> void:
 		_add_capsule()
 		_add_tag(_player, style.display_name(), "player")
 	var tom := _spawn(_tom_style(), TOM_POSITION, TOM_HEADING, self)
+	tom.follows_ground = true
 	_add_tag(tom, "Tutorial Tom", "npc")
 	_cache_eye_height()
 
@@ -431,6 +442,10 @@ func _tag_hidden(actor: Node3D, point: Vector3) -> bool:
 	# The player's own card floats above his head, so his body is not in the way.
 	if actor == _player:
 		return false
+	# Harry stands inside the HQ trimesh. A ray from the interior camera hits
+	# that shell before his card, so the card never appears.
+	if _actor_in_hq(actor):
+		return false
 	var world := get_world_3d()
 	if world == null:
 		return false
@@ -442,6 +457,15 @@ func _tag_hidden(actor: Node3D, point: Vector3) -> bool:
 		return false
 	# Tom's card was drawing on top of the player. A body or a wall in front hides it.
 	return origin.distance_to(hit.position) < origin.distance_to(point) - 0.3
+
+
+func _actor_in_hq(actor: Node) -> bool:
+	var node: Node = actor
+	while node != null:
+		if node.name == "HQInterior":
+			return true
+		node = node.get_parent()
+	return false
 
 
 func _forward(heading: float) -> Vector3:
@@ -466,6 +490,14 @@ func hud() -> CanvasLayer:
 func set_cutscene(active: bool) -> void:
 	_cutscene = active
 	_locked = active
+
+
+func in_cutscene() -> bool:
+	return _cutscene or _door_stopped
+
+
+func hold_camera(held: bool) -> void:
+	_camera_held = held
 
 
 func dismiss_welcome() -> void:
@@ -547,7 +579,7 @@ func _ready_loadout() -> void:
 	_meter = LaffMeter.new()
 	_meter.name = "LaffMeter"
 	_meter.setup(_player_style())
-	_meter.set_hp(_loadout.hp, _loadout.max_hp)
+	_meter.follow(_loadout)
 	_meter.visible = false
 	_hud().add_child(_meter)
 	_briefing = TutorialBriefing.new()
@@ -559,6 +591,11 @@ func _ready_loadout() -> void:
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
+	_speed = SpeedChat.new()
+	_speed.name = "SpeedChat"
+	_hud().add_child(_speed)
+	_speed.setup(_tasks)
+	_speed.phrase_said.connect(say_line)
 
 
 func tasks() -> ToonTasks:
@@ -567,6 +604,37 @@ func tasks() -> ToonTasks:
 
 func shticker() -> ShtickerBook:
 	return _book
+
+
+func speedchat() -> SpeedChat:
+	return _speed
+
+
+func say_line(text: String) -> void:
+	if _line == null:
+		_line = PanelContainer.new()
+		_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_line.z_index = 15
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(1, 1, 1, 0.98)
+		box.border_color = Color(0.05, 0.05, 0.05)
+		box.set_border_width_all(3)
+		box.set_corner_radius_all(16)
+		box.content_margin_left = 12
+		box.content_margin_right = 16
+		box.content_margin_top = 6
+		box.content_margin_bottom = 6
+		_line.add_theme_stylebox_override("panel", box)
+		_line_label = Label.new()
+		_line_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_line_label.custom_minimum_size = Vector2(40, 0)
+		ToonGui.style_label(_line_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
+		_line.add_child(_line_label)
+		_hud().add_child(_line)
+	_line_label.text = text
+	_line_left = maxf(2.8, float(text.length()) * 0.045)
+	_line.visible = true
+	_place_line()
 
 
 func _spawn_flunky() -> void:
@@ -618,6 +686,116 @@ func _approach_tom() -> void:
 	var pushing := Input.is_physical_key_pressed(KEY_W) and _body.get_real_velocity().length() < 0.4
 	if distance < 8.0 or (distance < 12.0 and pushing):
 		_briefing.start()
+
+
+func _open_plaza() -> void:
+	# A toon who already has the book comes back on the street outside HQ,
+	# looking down toward the tunnel, instead of starting over in the shop.
+	if get_node_or_null("TutorialStreet") == null:
+		var packed := load("res://assets/neighborhoods/tutorial_zone/tutorial_zone.glb") as PackedScene
+		if packed == null:
+			return
+		var zone := packed.instantiate()
+		zone.name = "TutorialStreet"
+		add_child(zone)
+		_hide_named(zone, "sky")
+	var interior := get_node_or_null("Geometry") as Node3D
+	if interior:
+		interior.visible = false
+	dismiss_welcome()
+	var tom := get_node_or_null("Tutorial Tom") as Node3D
+	if tom:
+		tom.visible = false
+	if _flunky:
+		_flunky.visible = false
+	if get_node_or_null("PlazaFloor") == null:
+		var slab := StaticBody3D.new()
+		slab.name = "PlazaFloor"
+		var box := BoxShape3D.new()
+		box.size = Vector3(360.0, 1.0, 180.0)
+		var collision := CollisionShape3D.new()
+		collision.shape = box
+		collision.position = Vector3(20.0, -0.5, 0.0)
+		slab.add_child(collision)
+		add_child(slab)
+	prepare_hq()
+	var placed := false
+	if _hq != null and _hq.has_method("stand_at_tunnel"):
+		placed = bool(_hq.call("stand_at_tunnel"))
+	if not placed:
+		if interior:
+			interior.visible = true
+		if tom:
+			tom.visible = true
+		if _flunky:
+			_flunky.visible = true
+		return
+	if _body:
+		_body.velocity = Vector3.ZERO
+	settle_camera()
+
+
+func _hide_named(node: Node, piece: String) -> void:
+	if piece in node.name.to_lower():
+		if node is Node3D:
+			(node as Node3D).visible = false
+		return
+	for child in node.get_children():
+		_hide_named(child, piece)
+
+
+func _consider_flippy() -> void:
+	if _tasks == null or not _tasks.book_ready() or _tasks.met_flippy or _body == null:
+		return
+	var street := get_node_or_null("TutorialStreet") as Node3D
+	if street == null or not street.visible:
+		return
+	if get_node_or_null("FlippyMovie") != null:
+		return
+	var flippy := street.get_node_or_null("Flippy") as ToonActor
+	if flippy == null:
+		flippy = TutorialFlippy.spawn(street, self)
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	var there := Vector2(flippy.global_position.x, flippy.global_position.z)
+	var distance := here.distance_to(there)
+	var pushing := Input.is_physical_key_pressed(KEY_W) and _body.get_real_velocity().length() < 0.4
+	if distance < 8.0 or (distance < 12.0 and pushing):
+		var movie := TutorialFlippy.new()
+		movie.name = "FlippyMovie"
+		add_child(movie)
+		movie.play(self, flippy)
+
+
+func _idle_flippy(delta: float) -> void:
+	if _cutscene:
+		return
+	var street := get_node_or_null("TutorialStreet") as Node3D
+	if street == null:
+		return
+	var flippy := street.get_node_or_null("Flippy") as ToonActor
+	if flippy == null or not flippy.is_visible_in_tree():
+		return
+	flippy.set_locomotion(0.0, false, false, delta)
+
+
+func _place_line() -> void:
+	if _line == null or _camera == null:
+		return
+	_line_left = maxf(_line_left - get_process_delta_time(), 0.0)
+	if _line_left <= 0.0 or _player == null or not _player.visible:
+		_line.visible = false
+		return
+	var head := _find(_player, "def_head")
+	var point := _player.global_position + Vector3(0.0, 3.6, 0.0)
+	if head:
+		point = head.global_position + Vector3(0.0, 0.7, 0.0)
+	if _camera.is_position_behind(point):
+		_line.visible = false
+		return
+	_line.visible = true
+	_line.reset_size()
+	var screen := _camera.unproject_position(point)
+	_line.position = screen - Vector2(_line.size.x * 0.5, _line.size.y + 8.0)
 
 
 func _try_door() -> void:
@@ -752,7 +930,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key := event as InputEventKey
 		if key.pressed and not key.echo and key.keycode == KEY_I:
-			if _book != null and _tasks != null and _tasks.has_book:
+			if _book != null and _tasks != null and _tasks.book_ready():
 				_book.open_to_gags()
 				return
 			_panel.visible = not _panel.visible
@@ -836,12 +1014,22 @@ func _add_tag(actor: Node3D, text: String, kind: String, text_tint: Color = Colo
 func _place_tags() -> void:
 	if _camera == null:
 		return
+	var kept: Array[Dictionary] = []
 	for item in _tags:
 		var label := item["label"] as Control
-		var actor := item["actor"] as Node3D
-		if actor == null or not actor.visible:
-			label.visible = false
+		# Casting a freed actor errors. Flippy is freed when he runs into the tunnel.
+		var raw: Variant = item.get("actor")
+		if not is_instance_valid(raw):
+			if is_instance_valid(label):
+				label.queue_free()
 			continue
+		var actor := raw as Node3D
+		if actor == null or not actor.visible or not actor.is_visible_in_tree():
+			if is_instance_valid(label):
+				label.visible = false
+			kept.append(item)
+			continue
+		kept.append(item)
 		var lift := float(item.get("lift", 4.6))
 		var point := actor.global_position + Vector3(0.0, lift, 0.0)
 		if _tag_hidden(actor, point):
@@ -850,6 +1038,7 @@ func _place_tags() -> void:
 		_place_control(label, point, Vector2(0, -8))
 		if actor == _flunky and (_body != null and _body.position.x > -16.5 or (_battle != null and _battle.hides_flunky_tag())):
 			label.visible = false
+	_tags = kept
 
 
 func _place_bubble() -> void:

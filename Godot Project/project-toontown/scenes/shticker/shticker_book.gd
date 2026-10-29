@@ -1,9 +1,9 @@
 class_name ShtickerBook
 extends Control
 
-## The Shticker Book from quest_assign_110: map, gags, and ToonTasks.
-## Tutorial Tom walks the new toon through those pages once, then the book
-## stays on the corner button.
+## The Shticker Book from quest_assign_110. HQ Harry walks the new toon
+## through the map, the gags, and the ToonTasks, then the book stays
+## on the corner button.
 
 signal book_opened
 signal book_closed
@@ -51,29 +51,38 @@ func setup(tasks: ToonTasks, loadout: ToonLoadout) -> void:
 	_build_sounds()
 	_build_button()
 	_build_book()
-	if _tasks != null and _tasks.has_book:
+	if _tasks != null and _tasks.book_ready():
 		_button.visible = true
 		call_deferred("_place_button")
 
 
+## quest_assign_110: the button fades in at the middle of the view, holds,
+## then slides to the corner. 0.5 / 0.305 is the script's scale change.
 func present_button() -> void:
 	if _tasks != null:
 		_tasks.grant_book()
 	_guided = true
 	_close_armed = false
 	_next_armed = false
+	if _pulse != null and _pulse.is_valid():
+		_pulse.kill()
 	_button.visible = true
-	_button.scale = Vector2(0.2, 0.2)
+	_button.modulate = Color(1, 1, 1, 0)
+	_button.scale = Vector2(1.64, 1.64)
 	_button.pivot_offset = _button.size * 0.5
 	var view := get_viewport_rect().size
 	_button.position = view * 0.5 - _button.size * 0.5
 	var home := _button_home()
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(_button, "position", home, 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_property(_button, "scale", Vector2.ONE, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var fade := create_tween()
+	fade.tween_property(_button, "modulate:a", 1.0, 0.5)
+	fade.tween_interval(1.5)
+	await fade.finished
+	var fly := create_tween()
+	fly.set_parallel(true)
+	fly.tween_property(_button, "position", home, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	fly.tween_property(_button, "scale", Vector2.ONE, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	await fly.finished
 	_pulse = create_tween()
-	_pulse.tween_interval(0.8)
 	_pulse.tween_property(_button, "scale", Vector2(1.12, 1.12), 0.35).set_trans(Tween.TRANS_SINE)
 	_pulse.tween_property(_button, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_SINE)
 	_pulse.set_loops()
@@ -97,6 +106,18 @@ func page() -> int:
 	return _page
 
 
+func button_center() -> Vector2:
+	return _button.get_global_rect().get_center()
+
+
+func turn_center() -> Vector2:
+	return _next.get_global_rect().get_center()
+
+
+func cover_rect() -> Rect2:
+	return _cover.get_global_rect()
+
+
 func let_clicks_through(on: bool) -> void:
 	# The open book covers the whole view. Dialogue beats still need a click
 	# on the page, while the arrows and the corner button keep their own.
@@ -108,7 +129,7 @@ func let_clicks_through(on: bool) -> void:
 
 
 func open_to_gags() -> void:
-	if _tasks == null or not _tasks.has_book:
+	if _tasks == null or not _tasks.book_ready():
 		return
 	_guided = false
 	_close_armed = true
@@ -148,7 +169,7 @@ func _build_button() -> void:
 
 func _build_book() -> void:
 	_dim = ColorRect.new()
-	_dim.color = Color(0.05, 0.12, 0.28, 0.55)
+	_dim.color = Color(0.02, 0.08, 0.32, 0.78)
 	_dim.mouse_filter = MOUSE_FILTER_STOP
 	_dim.visible = false
 	_dim.set_anchors_preset(PRESET_FULL_RECT)

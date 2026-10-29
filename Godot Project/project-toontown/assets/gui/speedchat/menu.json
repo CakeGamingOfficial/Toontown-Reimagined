@@ -1,0 +1,1076 @@
+{
+ "items": [
+  {
+   "title": "EMOTIONS",
+   "items": [
+    {
+     "text": "Wave",
+     "say": "%s waves.",
+     "emote": 0
+    },
+    {
+     "text": "Happy",
+     "say": "%s is happy.",
+     "emote": 1
+    },
+    {
+     "text": "Sad",
+     "say": "%s is sad.",
+     "emote": 2
+    },
+    {
+     "text": "Angry",
+     "say": "%s is angry.",
+     "emote": 3
+    },
+    {
+     "text": "Sleepy",
+     "say": "%s is sleepy.",
+     "emote": 4
+    }
+   ]
+  },
+  {
+   "title": "HELLO",
+   "items": [
+    {
+     "text": "Hi!",
+     "say": "Hi!",
+     "emote": 0
+    },
+    {
+     "text": "Hello!",
+     "say": "Hello!",
+     "emote": 0
+    },
+    {
+     "text": "Hi there!",
+     "say": "Hi there!",
+     "emote": 0
+    },
+    {
+     "text": "Hey!",
+     "say": "Hey!",
+     "emote": 0
+    },
+    {
+     "text": "Howdy!",
+     "say": "Howdy!",
+     "emote": 0
+    },
+    {
+     "text": "Hi everybody!",
+     "say": "Hi everybody!",
+     "emote": 0
+    },
+    {
+     "text": "Welcome to Toontown!",
+     "say": "Welcome to Toontown!"
+    },
+    {
+     "text": "What's up?",
+     "say": "What's up?"
+    },
+    {
+     "text": "How are you doing?",
+     "say": "How are you doing?"
+    },
+    {
+     "text": "Hello?",
+     "say": "Hello?"
+    }
+   ]
+  },
+  {
+   "title": "GOODBYE",
+   "items": [
+    {
+     "text": "Bye!",
+     "say": "Bye!",
+     "emote": 0
+    },
+    {
+     "text": "Later!",
+     "say": "Later!",
+     "emote": 0
+    },
+    {
+     "text": "See ya!",
+     "say": "See ya!",
+     "emote": 0
+    },
+    {
+     "text": "Have a nice day!",
+     "say": "Have a nice day!"
+    },
+    {
+     "text": "Have fun!",
+     "say": "Have fun!"
+    },
+    {
+     "text": "Good luck!",
+     "say": "Good luck!"
+    },
+    {
+     "text": "I'll be right back.",
+     "say": "I'll be right back."
+    },
+    {
+     "text": "I'll be back later!",
+     "say": "I'll be back later!"
+    },
+    {
+     "text": "I only have a few minutes.",
+     "say": "I only have a few minutes."
+    },
+    {
+     "text": "I need to go.",
+     "say": "I need to go."
+    }
+   ]
+  },
+  {
+   "title": "HAPPY",
+   "items": [
+    {
+     "text": ":-)",
+     "say": ":-)",
+     "emote": 1
+    },
+    {
+     "text": "Yay!",
+     "say": "Yay!",
+     "emote": 1
+    },
+    {
+     "text": "Hooray!",
+     "say": "Hooray!",
+     "emote": 1
+    },
+    {
+     "text": "Cool!",
+     "say": "Cool!"
+    },
+    {
+     "text": "Woo hoo!",
+     "say": "Woo hoo!",
+     "emote": 1
+    },
+    {
+     "text": "Yeah!",
+     "say": "Yeah!"
+    },
+    {
+     "text": "Ha ha!",
+     "say": "Ha ha!"
+    },
+    {
+     "text": "Hee hee!",
+     "say": "Hee hee!"
+    },
+    {
+     "text": "Wow!",
+     "say": "Wow!"
+    },
+    {
+     "text": "Great!",
+     "say": "Great!"
+    },
+    {
+     "text": "Whee!",
+     "say": "Whee!"
+    },
+    {
+     "text": "Oh boy!",
+     "say": "Oh boy!"
+    },
+    {
+     "text": "Whoopee!",
+     "say": "Whoopee!",
+     "emote": 1
+    },
+    {
+     "text": "Yippee!",
+     "say": "Yippee!",
+     "emote": 1
+    },
+    {
+     "text": "Yee hah!",
+     "say": "Yee hah!",
+     "emote": 1
+    },
+    {
+     "text": "Toontastic!",
+     "say": "Toontastic!"
+    }
+   ]
+  },
+  {
+   "title": "SAD",
+   "items": [
+    {
+     "text": ":-(",
+     "say": ":-(",
+     "emote": 2
+    },
+    {
+     "text": "Oh no!",
+     "say": "Oh no!",
+     "emote": 2
+    },
+    {
+     "text": "Uh oh!",
+     "say": "Uh oh!",
+     "emote": 2
+    },
+    {
+     "text": "Rats!",
+     "say": "Rats!"
+    },
+    {
+     "text": "Drat!",
+     "say": "Drat!"
+    },
+    {
+     "text": "Ouch!",
+     "say": "Ouch!"
+    },
+    {
+     "text": "Oof!",
+     "say": "Oof!"
+    },
+    {
+     "text": "No!!!",
+     "say": "No!!!"
+    },
+    {
+     "text": "Yikes!",
+     "say": "Yikes!"
+    },
+    {
+     "text": "Huh?",
+     "say": "Huh?"
+    },
+    {
+     "text": "I need more Laff points.",
+     "say": "I need more Laff points."
+    }
+   ]
+  },
+  {
+   "title": "FRIENDLY",
+   "items": [
+    {
+     "title": "You...",
+     "items": [
+      {
+       "text": "You look nice.",
+       "say": "You look nice."
+      },
+      {
+       "text": "You are awesome!",
+       "say": "You are awesome!"
+      },
+      {
+       "text": "You rock!",
+       "say": "You rock!"
+      },
+      {
+       "text": "You are a genius!",
+       "say": "You are a genius!"
+      }
+     ]
+    },
+    {
+     "title": "I like...",
+     "items": [
+      {
+       "text": "I like your name.",
+       "say": "I like your name."
+      },
+      {
+       "text": "I like your look.",
+       "say": "I like your look."
+      },
+      {
+       "text": "I like your shirt.",
+       "say": "I like your shirt."
+      },
+      {
+       "text": "I like your skirt.",
+       "say": "I like your skirt."
+      },
+      {
+       "text": "I like your shorts.",
+       "say": "I like your shorts."
+      },
+      {
+       "text": "I like this game!",
+       "say": "I like this game!"
+      }
+     ]
+    },
+    {
+     "text": "Thanks!",
+     "say": "Thanks!"
+    },
+    {
+     "text": "No problem.",
+     "say": "No problem."
+    },
+    {
+     "text": "You're welcome!",
+     "say": "You're welcome!"
+    },
+    {
+     "text": "Any time!",
+     "say": "Any time!"
+    },
+    {
+     "text": "No thank you.",
+     "say": "No thank you."
+    },
+    {
+     "text": "Good teamwork!",
+     "say": "Good teamwork!"
+    },
+    {
+     "text": "That was fun!",
+     "say": "That was fun!"
+    },
+    {
+     "text": "Please be my friend!",
+     "say": "Please be my friend!"
+    },
+    {
+     "text": "Let's work together!",
+     "say": "Let's work together!"
+    },
+    {
+     "text": "You guys are great!",
+     "say": "You guys are great!"
+    },
+    {
+     "text": "Are you new here?",
+     "say": "Are you new here?"
+    },
+    {
+     "text": "Have you been here before?",
+     "say": "Have you been here before?"
+    },
+    {
+     "text": "Did you win?",
+     "say": "Did you win?"
+    },
+    {
+     "text": "I think this is too risky for you.",
+     "say": "I think this is too risky for you."
+    },
+    {
+     "text": "Would you like some help?",
+     "say": "Would you like some help?"
+    },
+    {
+     "text": "Can you help me?",
+     "say": "Can you help me?"
+    }
+   ]
+  },
+  {
+   "title": "SORRY",
+   "items": [
+    {
+     "text": "Oops!",
+     "say": "Oops!"
+    },
+    {
+     "text": "Sorry!",
+     "say": "Sorry!"
+    },
+    {
+     "text": "Sorry, I'm busy fighting Cogs!",
+     "say": "Sorry, I'm busy fighting Cogs!"
+    },
+    {
+     "text": "Sorry, I'm busy getting Jellybeans!",
+     "say": "Sorry, I'm busy getting Jellybeans!"
+    },
+    {
+     "text": "Sorry, I'm busy completing a ToonTask!",
+     "say": "Sorry, I'm busy completing a ToonTask!"
+    },
+    {
+     "text": "Sorry, I'm busy fishing!",
+     "say": "Sorry, I'm busy fishing!"
+    },
+    {
+     "text": "Sorry, I'm busy kart racing!",
+     "say": "Sorry, I'm busy kart racing!"
+    },
+    {
+     "text": "Sorry, I'm busy gardening!",
+     "say": "Sorry, I'm busy gardening!"
+    },
+    {
+     "text": "Sorry, I'm busy golfing!",
+     "say": "Sorry, I'm busy golfing!"
+    },
+    {
+     "text": "Sorry, I'm in a building!",
+     "say": "Sorry, I'm in a building!"
+    },
+    {
+     "text": "Sorry, I'm helping a friend!",
+     "say": "Sorry, I'm helping a friend!"
+    },
+    {
+     "text": "Sorry, my Friends List is full.",
+     "say": "Sorry, my Friends List is full."
+    },
+    {
+     "text": "Sorry, I had to leave unexpectedly.",
+     "say": "Sorry, I had to leave unexpectedly."
+    },
+    {
+     "text": "Sorry, I was delayed.",
+     "say": "Sorry, I was delayed."
+    },
+    {
+     "text": "Sorry, I can't.",
+     "say": "Sorry, I can't."
+    },
+    {
+     "text": "I can't get on the elevator now.",
+     "say": "I can't get on the elevator now."
+    },
+    {
+     "text": "I couldn't wait any longer.",
+     "say": "I couldn't wait any longer."
+    },
+    {
+     "text": "I can't understand you.",
+     "say": "I can't understand you.",
+     "emote": 5
+    },
+    {
+     "text": "Use the SpeedChat.",
+     "say": "Use the SpeedChat."
+    }
+   ]
+  },
+  {
+   "title": "STINKY",
+   "items": [
+    {
+     "text": "Hey!",
+     "say": "Hey!",
+     "emote": 3
+    },
+    {
+     "text": "Please go away!",
+     "say": "Please go away!",
+     "emote": 3
+    },
+    {
+     "text": "Stop that!",
+     "say": "Stop that!",
+     "emote": 3
+    },
+    {
+     "text": "That wasn't nice!",
+     "say": "That wasn't nice!",
+     "emote": 3
+    },
+    {
+     "text": "Don't be mean!",
+     "say": "Don't be mean!"
+    },
+    {
+     "text": "You stink!",
+     "say": "You stink!",
+     "emote": 3
+    },
+    {
+     "text": "I'm stuck.",
+     "say": "I'm stuck."
+    }
+   ]
+  },
+  {
+   "title": "PLACES",
+   "items": [
+    {
+     "title": "PLAYGROUND",
+     "items": [
+      {
+       "text": "Let's go on the trolley!",
+       "say": "Let's go on the trolley!"
+      },
+      {
+       "text": "Let's go back to the playground!",
+       "say": "Let's go back to the playground!"
+      },
+      {
+       "text": "Let's go to Toontown Central!",
+       "say": "Let's go to Toontown Central!"
+      },
+      {
+       "text": "Let's go to Donald's Dock!",
+       "say": "Let's go to Donald's Dock!"
+      },
+      {
+       "text": "Let's go to Minnie's Melodyland!",
+       "say": "Let's go to Minnie's Melodyland!"
+      },
+      {
+       "text": "Let's go to Daisy Gardens!",
+       "say": "Let's go to Daisy Gardens!"
+      },
+      {
+       "text": "Let's go to The Brrrgh!",
+       "say": "Let's go to The Brrrgh!"
+      },
+      {
+       "text": "Let's go to Donald's Dreamland!",
+       "say": "Let's go to Donald's Dreamland!"
+      },
+      {
+       "text": "Let's go to Goofy Speedway!",
+       "say": "Let's go to Goofy Speedway!"
+      },
+      {
+       "text": "Let's go fishing!",
+       "say": "Let's go fishing!"
+      },
+      {
+       "text": "Let's go to Chip 'n Dale's Acorn Acres!",
+       "say": "Let's go to Chip 'n Dale's Acorn Acres!"
+      },
+      {
+       "text": "Let's go to Chip 'n Dale's MiniGolf!",
+       "say": "Let's go to Chip 'n Dale's MiniGolf!"
+      }
+     ]
+    },
+    {
+     "title": "COGS",
+     "items": [
+      {
+       "text": "Let's go fight the Cogs!",
+       "say": "Let's go fight the Cogs!"
+      },
+      {
+       "text": "Let's go take over a Cog building!",
+       "say": "Let's go take over a Cog building!"
+      },
+      {
+       "text": "Let's go in the elevator!",
+       "say": "Let's go in the elevator!"
+      },
+      {
+       "text": "Let's go to Sellbot HQ!",
+       "say": "Let's go to Sellbot HQ!"
+      },
+      {
+       "text": "Let's go fight the VP!",
+       "say": "Let's go fight the VP!"
+      },
+      {
+       "text": "Let's go in the Factory!",
+       "say": "Let's go in the Factory!"
+      },
+      {
+       "text": "Let's go to Cashbot HQ!",
+       "say": "Let's go to Cashbot HQ!"
+      },
+      {
+       "text": "Let's go fight the CFO!",
+       "say": "Let's go fight the CFO!"
+      },
+      {
+       "text": "Let's go in the Mint!",
+       "say": "Let's go in the Mint!"
+      },
+      {
+       "text": "Let's go to Lawbot HQ!",
+       "say": "Let's go to Lawbot HQ!"
+      },
+      {
+       "text": "Let's go fight the Chief Justice!",
+       "say": "Let's go fight the Chief Justice!"
+      },
+      {
+       "text": "Let's go in the District Attorney's Office!",
+       "say": "Let's go in the District Attorney's Office!"
+      },
+      {
+       "text": "Let's go to Bossbot HQ!",
+       "say": "Let's go to Bossbot HQ!"
+      },
+      {
+       "text": "Let's go fight the CEO!",
+       "say": "Let's go fight the CEO!"
+      },
+      {
+       "text": "Let's go in the Cog Golf Courses!",
+       "say": "Let's go in the Cog Golf Courses!"
+      },
+      {
+       "text": "Let's go take over a Field Office!",
+       "say": "Let's go take over a Field Office!"
+      }
+     ]
+    },
+    {
+     "title": "ESTATE",
+     "items": [
+      {
+       "text": "Let's go to my house!",
+       "say": "Let's go to my house!"
+      },
+      {
+       "text": "Let's go to your house!",
+       "say": "Let's go to your house!"
+      },
+      {
+       "text": "Can you come to my house?",
+       "say": "Can you come to my house?"
+      },
+      {
+       "text": "Let's go fishing at my house!",
+       "say": "Let's go fishing at my house!"
+      },
+      {
+       "text": "Come check out my garden.",
+       "say": "Come check out my garden."
+      }
+     ]
+    },
+    {
+     "title": "PARTIES",
+     "items": [
+      {
+       "text": "Let's go to a party.",
+       "say": "Let's go to a party."
+      },
+      {
+       "text": "See you at the party!",
+       "say": "See you at the party!"
+      },
+      {
+       "text": "My party has started!",
+       "say": "My party has started!"
+      },
+      {
+       "text": "Come to my party!",
+       "say": "Come to my party!"
+      }
+     ]
+    },
+    {
+     "title": "WAIT",
+     "items": [
+      {
+       "text": "Wait!",
+       "say": "Wait!"
+      },
+      {
+       "text": "Wait for me!",
+       "say": "Wait for me!"
+      },
+      {
+       "text": "Let's wait for my friend.",
+       "say": "Let's wait for my friend."
+      },
+      {
+       "text": "Wait here.",
+       "say": "Wait here."
+      },
+      {
+       "text": "Wait a minute.",
+       "say": "Wait a minute."
+      },
+      {
+       "text": "Don't wait for me.",
+       "say": "Don't wait for me."
+      },
+      {
+       "text": "Let's catch the next one.",
+       "say": "Let's catch the next one."
+      }
+     ]
+    },
+    {
+     "text": "Let's go!",
+     "say": "Let's go!"
+    },
+    {
+     "text": "Can you teleport to me?",
+     "say": "Can you teleport to me?"
+    },
+    {
+     "text": "Shall we go?",
+     "say": "Shall we go?"
+    },
+    {
+     "text": "Where should we go?",
+     "say": "Where should we go?"
+    },
+    {
+     "text": "Which way?",
+     "say": "Which way?"
+    },
+    {
+     "text": "This way.",
+     "say": "This way."
+    },
+    {
+     "text": "Follow me.",
+     "say": "Follow me."
+    },
+    {
+     "text": "Let's find other Toons.",
+     "say": "Let's find other Toons."
+    },
+    {
+     "text": "Meet here.",
+     "say": "Meet here."
+    }
+   ]
+  },
+  {
+   "title": "TOONTASKS",
+   "items": [
+    {
+     "title": "MY TASKS",
+     "dynamic": "tasks"
+    },
+    {
+     "title": "I think you should choose...",
+     "items": [
+      {
+       "text": "I think you should choose Toon-up.",
+       "say": "I think you should choose Toon-up."
+      },
+      {
+       "text": "I think you should choose Sound.",
+       "say": "I think you should choose Sound."
+      },
+      {
+       "text": "I think you should choose Drop.",
+       "say": "I think you should choose Drop."
+      },
+      {
+       "text": "I think you should choose Trap.",
+       "say": "I think you should choose Trap."
+      },
+      {
+       "text": "I think you should choose Lure.",
+       "say": "I think you should choose Lure."
+      }
+     ]
+    },
+    {
+     "title": "I need more...",
+     "items": [
+      {
+       "text": "I need more Merits.",
+       "say": "I need more Merits."
+      },
+      {
+       "text": "I need more Cogbucks.",
+       "say": "I need more Cogbucks."
+      },
+      {
+       "text": "I need more Jury Notices.",
+       "say": "I need more Jury Notices."
+      },
+      {
+       "text": "I need more Stock Options.",
+       "say": "I need more Stock Options."
+      },
+      {
+       "text": "I need more Sellbot Suit Parts.",
+       "say": "I need more Sellbot Suit Parts."
+      },
+      {
+       "text": "I need more Cashbot Suit Parts.",
+       "say": "I need more Cashbot Suit Parts."
+      },
+      {
+       "text": "I need more Lawbot Suit Parts.",
+       "say": "I need more Lawbot Suit Parts."
+      },
+      {
+       "text": "I need more Bossbot Suit Parts.",
+       "say": "I need more Bossbot Suit Parts."
+      }
+     ]
+    },
+    {
+     "text": "What ToonTask are you working on?",
+     "say": "What ToonTask are you working on?"
+    },
+    {
+     "text": "Let's work on that.",
+     "say": "Let's work on that."
+    },
+    {
+     "text": "This isn't what I'm looking for.",
+     "say": "This isn't what I'm looking for."
+    },
+    {
+     "text": "This isn't what you need.",
+     "say": "This isn't what you need."
+    },
+    {
+     "text": "I'm going to look for that.",
+     "say": "I'm going to look for that."
+    },
+    {
+     "text": "I found what you need.",
+     "say": "I found what you need."
+    },
+    {
+     "text": "It isn't on this street.",
+     "say": "It isn't on this street."
+    },
+    {
+     "text": "I haven't found it yet.",
+     "say": "I haven't found it yet."
+    }
+   ]
+  },
+  {
+   "title": "BATTLE",
+   "items": [
+    {
+     "title": "GAGS",
+     "items": [
+      {
+       "text": "Let's use toon-up!",
+       "say": "Let's use toon-up!"
+      },
+      {
+       "text": "Let's use trap!",
+       "say": "Let's use trap!"
+      },
+      {
+       "text": "Let's use lure!",
+       "say": "Let's use lure!"
+      },
+      {
+       "text": "Let's use sound!",
+       "say": "Let's use sound!"
+      },
+      {
+       "text": "Let's use throw!",
+       "say": "Let's use throw!"
+      },
+      {
+       "text": "Let's use squirt!",
+       "say": "Let's use squirt!"
+      },
+      {
+       "text": "Let's use drop!",
+       "say": "Let's use drop!"
+      },
+      {
+       "text": "Nice shot!",
+       "say": "Nice shot!"
+      },
+      {
+       "text": "Nice gag!",
+       "say": "Nice gag!"
+      },
+      {
+       "text": "I need more gags.",
+       "say": "I need more gags."
+      }
+     ]
+    },
+    {
+     "title": "TAUNTS",
+     "items": [
+      {
+       "text": "Missed me!",
+       "say": "Missed me!"
+      },
+      {
+       "text": "Bring it on!",
+       "say": "Bring it on!"
+      },
+      {
+       "text": "Rock and roll!",
+       "say": "Rock and roll!"
+      },
+      {
+       "text": "That's gotta hurt.",
+       "say": "That's gotta hurt."
+      },
+      {
+       "text": "Catch!",
+       "say": "Catch!"
+      },
+      {
+       "text": "Special delivery!",
+       "say": "Special delivery!"
+      },
+      {
+       "text": "Are you still here?",
+       "say": "Are you still here?"
+      },
+      {
+       "text": "I'm SO scared!",
+       "say": "I'm SO scared!"
+      },
+      {
+       "text": "That's going to leave a mark!",
+       "say": "That's going to leave a mark!"
+      },
+      {
+       "text": "Piece of cake!",
+       "say": "Piece of cake!"
+      },
+      {
+       "text": "That was easy!",
+       "say": "That was easy!"
+      }
+     ]
+    },
+    {
+     "title": "STRATEGY",
+     "items": [
+      {
+       "text": "I need a Toon-Up.",
+       "say": "I need a Toon-Up."
+      },
+      {
+       "text": "I'm going to use trap.",
+       "say": "I'm going to use trap."
+      },
+      {
+       "text": "I'm going to use lure.",
+       "say": "I'm going to use lure."
+      },
+      {
+       "text": "I'm going to use drop.",
+       "say": "I'm going to use drop."
+      },
+      {
+       "text": "You should pass.",
+       "say": "You should pass."
+      },
+      {
+       "text": "You should use a different gag.",
+       "say": "You should use a different gag."
+      },
+      {
+       "text": "Let's all go for the same Cog.",
+       "say": "Let's all go for the same Cog."
+      },
+      {
+       "text": "You should choose a different Cog.",
+       "say": "You should choose a different Cog."
+      },
+      {
+       "text": "Go for the weakest Cog first.",
+       "say": "Go for the weakest Cog first."
+      },
+      {
+       "text": "Go for the strongest Cog first.",
+       "say": "Go for the strongest Cog first."
+      },
+      {
+       "text": "Save your powerful gags.",
+       "say": "Save your powerful gags."
+      },
+      {
+       "text": "Don't use sound on lured Cogs.",
+       "say": "Don't use sound on lured Cogs."
+      }
+     ]
+    },
+    {
+     "text": "Hurry!",
+     "say": "Hurry!"
+    },
+    {
+     "text": "We can do this!",
+     "say": "We can do this!"
+    },
+    {
+     "text": "You did it!",
+     "say": "You did it!"
+    },
+    {
+     "text": "We did it!",
+     "say": "We did it!"
+    },
+    {
+     "text": "Run!",
+     "say": "Run!"
+    },
+    {
+     "text": "Help!",
+     "say": "Help!"
+    },
+    {
+     "text": "Phew!",
+     "say": "Phew!"
+    },
+    {
+     "text": "We are in trouble.",
+     "say": "We are in trouble."
+    }
+   ]
+  },
+  {
+   "title": "GAG SHOP",
+   "items": [
+    {
+     "text": "I have enough gags.",
+     "say": "I have enough gags."
+    },
+    {
+     "text": "I need more jellybeans.",
+     "say": "I need more jellybeans."
+    },
+    {
+     "text": "Me too.",
+     "say": "Me too."
+    },
+    {
+     "text": "Hurry up!",
+     "say": "Hurry up!"
+    },
+    {
+     "text": "One more?",
+     "say": "One more?"
+    },
+    {
+     "text": "Play again?",
+     "say": "Play again?"
+    },
+    {
+     "text": "Let's play again.",
+     "say": "Let's play again."
+    }
+   ]
+  },
+  {
+   "text": "Yes",
+   "say": "Yes",
+   "emote": 17
+  },
+  {
+   "text": "No",
+   "say": "No",
+   "emote": 18
+  },
+  {
+   "text": "OK",
+   "say": "OK"
+  }
+ ]
+}

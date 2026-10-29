@@ -272,18 +272,21 @@ func _toon_attack(track: int, level: int) -> void:
 	await _movie.play_gag(track, level, hit, func() -> void:
 		if track == ToonLoadout.TOON_UP:
 			var heal := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
-			_loadout.set_hp(_loadout.hp + heal, _loadout.max_hp)
-			_meter.set_hp(_loadout.hp, _loadout.max_hp)
-			_floater(_body.global_position + Vector3(0, 3.2, 0), "+%d" % heal, Color(0.35, 0.85, 0.35))
+			var gained := _loadout.gain_hp(heal)
+			if gained > 0:
+				_floater(_body.global_position + Vector3(0, 3.2, 0), "+%d" % gained, Color(0.35, 0.85, 0.35))
 			return
 		if not hit:
 			_floater(at, "MISSED", Color(1, 1, 1))
 			return
 		var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+		var before := _cog_hp
 		_cog_hp = maxi(_cog_hp - damage, 0)
 		_set_cog_bar()
 		_pulse_marker()
-		_floater(at + Vector3(0, 1.2, 0), "-%d" % damage, Color(0.92, 0.08, 0.08))
+		var dealt := before - _cog_hp
+		if dealt > 0:
+			_floater(at + Vector3(0, 1.2, 0), "-%d" % dealt, Color(0.92, 0.08, 0.08))
 	)
 
 
@@ -297,10 +300,9 @@ func _cog_attack() -> void:
 	var at := _body.global_position + Vector3(0, 2.6, 0)
 	await _movie.play_cog(String(attack["name"]), hit, func() -> void:
 		if hit:
-			var damage := int(attack["hp"])
-			_loadout.set_hp(_loadout.hp - damage, _loadout.max_hp)
-			_meter.set_hp(_loadout.hp, _loadout.max_hp)
-			_floater(at, "-%d" % damage, Color(0.92, 0.08, 0.08))
+			var lost := _loadout.take_damage(int(attack["hp"]))
+			if lost > 0:
+				_floater(at, "-%d" % lost, Color(0.92, 0.08, 0.08))
 		else:
 			_floater(at, "MISSED", Color(1, 1, 1))
 	)

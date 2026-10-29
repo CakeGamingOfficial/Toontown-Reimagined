@@ -25,6 +25,11 @@ const _SHORTS := [
 ]
 const _SKIRT := preload("res://assets/toons/clothes/desat_skirt_1.png")
 
+## World NPCs fall onto collision the way the player does. The player's own
+## toon stays off, because his CharacterBody already carries him.
+var follows_ground := false
+var _ground := Grounded.new()
+
 var _style: ToonStyle
 var _walk_clips: Array = []
 var _walk_joints: Array = []
@@ -1082,6 +1087,12 @@ func _corner_colors(mesh: Mesh, surface_index: int, corner_count: int) -> Packed
 			return PackedColorArray()
 		expanded[index] = colors[source]
 	return expanded
+
+
+func _physics_process(delta: float) -> void:
+	if not follows_ground or get_parent() is CharacterBody3D:
+		return
+	_ground.step(self, delta)
 
 
 func _process(delta: float) -> void:

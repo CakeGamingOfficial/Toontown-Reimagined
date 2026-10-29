@@ -31,8 +31,6 @@ var _label: Label
 var _quest: Control
 var _advance := false
 var _bubble_on := false
-var _hold_advance := false
-var _pin_bubble := false
 
 
 func setup(host: Node3D, panel: GagPanel, meter: LaffMeter, loadout: ToonLoadout) -> void:
@@ -87,8 +85,6 @@ func _run() -> void:
 	_quest.visible = true
 	await _line("Here is your first ToonTask!", _TEAL, "")
 	_quest.visible = false
-	if tasks == null or not tasks.has_book:
-		await _give_book()
 	await _line("Hurry up! Go defeat that Flunky!", _TEAL, "")
 	_bubble_on = false
 	_bubble.visible = false
@@ -103,9 +99,9 @@ func _run() -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _hold_advance and Input.is_action_just_pressed("ui_accept"):
+	if Input.is_action_just_pressed("ui_accept"):
 		_advance = true
-	if not _bubble_on or _pin_bubble or _host == null:
+	if not _bubble_on or _host == null:
 		return
 	var camera := _host.get_node_or_null("Camera") as Camera3D
 	var tom := _host.get_node_or_null("Tutorial Tom") as Node3D
@@ -123,8 +119,6 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _hold_advance:
-		return
 	if event is InputEventMouseButton:
 		var click := event as InputEventMouseButton
 		if click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
@@ -133,70 +127,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_advance = true
 
 
-func _give_book() -> void:
-	# quest_assign_110's book tour, played once Tom has handed over the task.
-	# The pages are the map, the gags he just gave, and this Flunky ToonTask.
-	var book := _host.call("shticker") as ShtickerBook
-	if book == null:
-		return
-	_pin_bubble = true
-	_bubble.z_index = 40
-	await _line("Oh! You will need a Shticker Book.", _BLACK, "")
-	await _line("The book is full of good stuff.", _TEAL, "")
-	_hold_advance = true
-	_say("Open it, and I'll show you.")
-	book.present_button()
-	await book.book_opened
-	_say("The map shows where you've been.")
-	await _click()
-	_say("Turn the page to see your gags...")
-	book.arm_next()
-	await _wait_page(book, 1)
-	_say("Turn the page to see your tasks.")
-	book.arm_next()
-	await _wait_page(book, 2)
-	_say("Close the book when you're ready.")
-	book.arm_close()
-	await book.book_closed
-	_pin_bubble = false
-	_hold_advance = false
-	_bubble.z_index = 0
-
-
 func hide_speech() -> void:
 	_bubble_on = false
 	if _bubble:
 		_bubble.visible = false
-
-
-func _say(text: String) -> void:
-	_show_poster("")
-	_label.text = text
-	_label.add_theme_color_override("font_color", _TEAL)
-	_bubble_on = true
-	_bubble.visible = true
-	_bubble.reset_size()
-	var view := _view()
-	_bubble.position = Vector2(view.x * 0.5 - 200.0, 28.0)
-
-
-func _click() -> void:
-	var book := _host.call("shticker") as ShtickerBook
-	if book != null:
-		book.let_clicks_through(true)
-	_advance = false
-	_hold_advance = false
-	while not _advance:
-		await get_tree().process_frame
-	_advance = false
-	_hold_advance = true
-	if book != null:
-		book.let_clicks_through(false)
-
-
-func _wait_page(book: ShtickerBook, index: int) -> void:
-	while book.page() != index:
-		await book.page_ready
 
 
 func _tom() -> ToonActor:

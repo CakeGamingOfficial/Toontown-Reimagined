@@ -89,10 +89,11 @@ func _show_plaza() -> void:
 		var slab := StaticBody3D.new()
 		slab.name = "PlazaFloor"
 		var box := BoxShape3D.new()
-		box.size = Vector3(240.0, 1.0, 180.0)
+		# The tunnel, where Flippy stands, sits past the playground end of the street.
+		box.size = Vector3(360.0, 1.0, 180.0)
 		var collision := CollisionShape3D.new()
 		collision.shape = box
-		collision.position = Vector3(-20.0, -0.5, 0.0)
+		collision.position = Vector3(20.0, -0.5, 0.0)
 		slab.add_child(collision)
 		host.add_child(slab)
 	var feet := _street(PLAYER_PANDA)

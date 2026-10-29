@@ -29,6 +29,7 @@ var _street := false
 var _outside := false
 var _path: PackedVector3Array = PackedVector3Array()
 var _path_index := 0
+var _ground := Grounded.new()
 
 # DistributedSuitBase path speed for the tutorial cog.
 const _STREET_SPEED := 4.5
@@ -95,9 +96,13 @@ func face_heading(heading: float) -> void:
 	_face()
 
 
-func _process(delta: float) -> void:
-	if not _pacing:
-		return
+func _physics_process(delta: float) -> void:
+	if _pacing:
+		_walk_pace(delta)
+	_ground.step(self, delta)
+
+
+func _walk_pace(delta: float) -> void:
 	if _wait > 0.0:
 		_wait -= delta
 		_set_moving(false)

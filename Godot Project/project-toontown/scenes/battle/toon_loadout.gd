@@ -68,6 +68,8 @@ const GAG_NAMES: Array = [
 
 const _PATH := "user://toon_loadout.json"
 
+signal hp_changed(current: int, maximum: int)
+
 var hp := START_HP
 var max_hp := START_HP
 var _counts: Array = []
@@ -197,6 +199,21 @@ static func affects_label(track: int) -> String:
 func set_hp(current: int, maximum: int) -> void:
 	max_hp = maxi(maximum, 1)
 	hp = clampi(current, 0, max_hp)
+	hp_changed.emit(hp, max_hp)
+
+
+## DistributedAvatar.takeDamage. The popup is the laff that was actually lost.
+func take_damage(amount: int) -> int:
+	var before := hp
+	set_hp(before - maxi(amount, 0), max_hp)
+	return before - hp
+
+
+## DistributedAvatar.toonUp. The popup is the laff that was actually gained.
+func gain_hp(amount: int) -> int:
+	var before := hp
+	set_hp(before + maxi(amount, 0), max_hp)
+	return hp - before
 
 
 func save() -> void:
