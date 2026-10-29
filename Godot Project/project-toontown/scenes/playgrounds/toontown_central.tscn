@@ -179,6 +179,9 @@ surface_material_override/0 = SubResource("ShaderMaterial_irhwa")
 surface_material_override/0 = SubResource("StandardMaterial3D_78lsx")
 surface_material_override/1 = SubResource("ShaderMaterial_ci5by")
 
+[node name="node23" parent="Geometry/ToontownCentral/toontownCentral/2000_safe_zone/prop_gazebo_DNARoot" parent_id_path=PackedInt32Array(1133550800, 2024403887) index="0" unique_id=1433633411]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0067977905, 0.19420767, 0)
+
 [node name="Camera" type="Camera3D" parent="." unique_id=822209480]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 6, 80)
 current = true

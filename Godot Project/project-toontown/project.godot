@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Project Toontown"
-run/main_scene="res://scenes/playgrounds/toontown_central.tscn"
+run/main_scene="uid://bmbhn4wtyb5oh"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
