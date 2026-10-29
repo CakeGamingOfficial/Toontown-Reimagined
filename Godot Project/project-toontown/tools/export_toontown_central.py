@@ -332,19 +332,14 @@ class GltfWriter:
             if matrix_attrib is not None and matrix_attrib.hasStage(stage):
                 tex_matrix = matrix_attrib.getTransform(stage).getMat()
 
-        triangles: list[int] = []
-        for prim_index in range(geom.getNumPrimitives()):
-            primitive = geom.getPrimitive(prim_index).decompose()
-            for vertex_index in range(primitive.getNumVertices()):
-                triangles.append(primitive.getVertex(vertex_index))
+        triangles = triangle_indices(geom)
         if len(triangles) < 3:
             return None
 
-        out_pos: list[tuple[float, float, float]] = []
+        out_pos = position_strip(positions, triangles, state, np)
         out_uv: list[tuple[float, float]] = []
         out_color: list[tuple[float, float, float, float]] = []
         for index in triangles:
-            out_pos.append(positions[index])
             if uvs:
                 u, v = uvs[index]
                 if tex_matrix is not None:
@@ -354,16 +349,6 @@ class GltfWriter:
                 out_uv.append((u, 1.0 - v))
             if colors:
                 out_color.append(colors[index])
-
-        # Doors, windows, and signs are coplanar decals. Panda draws them with a
-        # depth offset; glTF has no equivalent, so the card is nudged along its normal.
-        nudge = decal_nudge(np, state)
-        if nudge:
-            normal = average_normal(out_pos)
-            out_pos = [
-                (point[0] + normal.x * nudge, point[1] + normal.y * nudge, point[2] + normal.z * nudge)
-                for point in out_pos
-            ]
 
         normals = smooth_normals(out_pos)
         self.tri_count += len(out_pos) // 3
@@ -381,6 +366,28 @@ class GltfWriter:
             "attributes": attributes,
             "material": self.material_index(state, tex),
         }
+
+    def add_position_morphs(self, surfaces: list[list[list[tuple[float, float, float]]]]) -> None:
+        # One entry per primitive, in the order mesh_from_geom_node created them.
+        # Each entry is a walk frame of position deltas from the neutral pose.
+        flat = 0
+        for mesh in self.meshes:
+            primitives = mesh.get("primitives", [])
+            if not primitives:
+                continue
+            frame_count = 0
+            for primitive in primitives:
+                frames = surfaces[flat]
+                flat += 1
+                frame_count = len(frames)
+                primitive["targets"] = [
+                    {"POSITION": self.vec3_accessor(deltas, bounds=False)}
+                    for deltas in frames
+                ]
+            mesh["weights"] = [0.0] * frame_count
+            mesh["extras"] = {"targetNames": [f"walk_{index}" for index in range(frame_count)]}
+        if flat != len(surfaces):
+            raise RuntimeError(f"morph surfaces {len(surfaces)} != primitives {flat}")
 
     def vec3_accessor(self, values: list[tuple[float, float, float]], bounds: bool = True) -> int:
         data = b"".join(struct.pack("<3f", *value) for value in values)
@@ -479,6 +486,47 @@ def read_column(vdata, column: str, read) -> list:
         reader.setRow(row)
         values.append(read(reader))
     return values
+
+
+def triangle_indices(geom: Geom) -> list[int]:
+    triangles: list[int] = []
+    for prim_index in range(geom.getNumPrimitives()):
+        primitive = geom.getPrimitive(prim_index).decompose()
+        for vertex_index in range(primitive.getNumVertices()):
+            triangles.append(primitive.getVertex(vertex_index))
+    return triangles
+
+
+def position_strip(positions: list[tuple[float, float, float]], triangles: list[int], state, np: NodePath) -> list[tuple[float, float, float]]:
+    # Doors, windows, and signs are coplanar decals. Panda draws them with a
+    # depth offset; glTF has no equivalent, so the card is nudged along its normal.
+    out_pos = [positions[index] for index in triangles]
+    nudge = decal_nudge(np, state)
+    if not nudge:
+        return out_pos
+    normal = average_normal(out_pos)
+    return [
+        (point[0] + normal.x * nudge, point[1] + normal.y * nudge, point[2] + normal.z * nudge)
+        for point in out_pos
+    ]
+
+
+def expanded_positions(np: NodePath) -> list[list[tuple[float, float, float]]]:
+    # Same primitive order as GltfWriter.mesh_from_geom_node.
+    geom_node = np.node()
+    surfaces = []
+    for geom_index in range(geom_node.getNumGeoms()):
+        geom = bake_skin(geom_node.getGeom(geom_index))
+        state = np.getNetState().compose(geom_node.getGeomState(geom_index))
+        vdata = geom.getVertexData()
+        if vdata.getNumRows() == 0:
+            continue
+        triangles = triangle_indices(geom)
+        if len(triangles) < 3:
+            continue
+        positions = read_column(vdata, "vertex", copy3)
+        surfaces.append(position_strip(positions, triangles, state, np))
+    return surfaces
 
 
 def under_decal(np: NodePath) -> bool:
