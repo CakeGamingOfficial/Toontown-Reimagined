@@ -685,11 +685,12 @@ func _death_sound(file_name: String, volume: float, from_time: float, duration: 
 	_death_player.finished.connect(_death_player.queue_free)
 	_death_player.play(from_time)
 	if duration > 0.0:
-		var player := _death_player
-		get_tree().create_timer(duration).timeout.connect(func() -> void:
-			if player == _death_player:
-				_stop_death_sound()
-		)
+		get_tree().create_timer(duration).timeout.connect(_cut_death_sound.bind(_death_player), CONNECT_ONE_SHOT)
+
+
+func _cut_death_sound(player: AudioStreamPlayer) -> void:
+	if is_instance_valid(player) and player == _death_player:
+		_stop_death_sound()
 
 
 func _stop_death_sound() -> void:

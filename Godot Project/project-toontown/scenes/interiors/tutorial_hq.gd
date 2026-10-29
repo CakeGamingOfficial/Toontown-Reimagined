@@ -246,15 +246,10 @@ func _swing_panel(panel: Node3D) -> void:
 	panel.visible = true
 	if not panel.has_meta("closed_basis"):
 		panel.set_meta("closed_basis", panel.transform.basis)
-	var closed: Basis = panel.get_meta("closed_basis")
 	panel.set_meta("door_open", true)
 	# rightSwing turns the right panel +100 degrees on its parent's Z.
 	var tween := create_tween()
-	tween.tween_method(func(degrees: float) -> void:
-		if panel == null:
-			return
-		panel.transform.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(degrees)) * closed
-	, 0.0, 100.0, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_method(_set_panel_swing.bind(panel), 0.0, 100.0, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func _close_swung_door(door: Node3D, play_sound: bool) -> void:
@@ -262,23 +257,28 @@ func _close_swung_door(door: Node3D, play_sound: bool) -> void:
 		return
 	var panel := _find_starting(door, "rightDoor")
 	if panel != null and bool(panel.get_meta("door_open", false)):
-		var closed: Basis = panel.get_meta("closed_basis")
 		var tween := create_tween()
 		# enterClosing lerps the open heading back to 0 over one second.
-		tween.tween_method(func(degrees: float) -> void:
-			if panel == null:
-				return
-			panel.transform.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(degrees)) * closed
-		, 100.0, 0.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		tween.finished.connect(func() -> void:
-			if panel != null:
-				panel.set_meta("door_open", false)
-			_show_closed_door(door)
-			if play_sound:
-				_play_sound(CLOSE_SFX)
-		)
+		tween.tween_method(_set_panel_swing.bind(panel), 100.0, 0.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tween.finished.connect(_finish_door_close.bind(door, panel, play_sound))
 		return
 	_show_closed_door(door)
+	if play_sound:
+		_play_sound(CLOSE_SFX)
+
+
+func _set_panel_swing(degrees: float, panel: Node3D) -> void:
+	if not is_instance_valid(panel) or not panel.has_meta("closed_basis"):
+		return
+	var closed: Basis = panel.get_meta("closed_basis")
+	panel.transform.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(degrees)) * closed
+
+
+func _finish_door_close(door: Node3D, panel: Node3D, play_sound: bool) -> void:
+	if is_instance_valid(panel):
+		panel.set_meta("door_open", false)
+	if is_instance_valid(door):
+		_show_closed_door(door)
 	if play_sound:
 		_play_sound(CLOSE_SFX)
 

@@ -507,7 +507,7 @@ func settle_camera() -> void:
 
 
 func add_nametag(actor: Node3D, text: String, color: Color) -> void:
-	_add_tag(actor, text, color)
+	_add_tag(actor, text, "npc", color)
 
 
 func prepare_hq() -> void:
@@ -786,7 +786,7 @@ func _build_bubble() -> void:
 	_bubble = panel
 
 
-func _add_tag(actor: Node3D, text: String, kind: String) -> void:
+func _add_tag(actor: Node3D, text: String, kind: String, text_tint: Color = Color(0, 0, 0, 0)) -> void:
 	# phase_3/models/props/panel, stretched over the name. No dialog border.
 	# NPCs are tan with orange Impress BT. Members are gray with blue Impress BT.
 	# Cogs are olive with black Remington Portable.
@@ -797,7 +797,7 @@ func _add_tag(actor: Node3D, text: String, kind: String) -> void:
 	var face := ToonGui.font()
 	if kind == "npc":
 		box.bg_color = Color(0.86, 0.78, 0.58, 0.94)
-		text_color = Color(0.6, 0.4, 0.2)
+		text_color = text_tint if text_tint.a > 0.0 else Color(0.6, 0.4, 0.2)
 	elif kind == "cog":
 		box.bg_color = Color(0.69, 0.72, 0.55, 0.94)
 		text_color = Color(0.0, 0.0, 0.0)
