@@ -92,7 +92,10 @@ func set_locomotion(moving: bool, reverse: bool, delta: float) -> void:
 		_posing = true
 	var direction := -1.0 if reverse else 1.0
 	_walk_time = fposmod(_walk_time + delta * 24.0 * direction, float(_frame_count))
-	var frame := int(_walk_time)
+	# fposmod can return the modulus itself. That index does not exist.
+	if _walk_time >= float(_frame_count):
+		_walk_time = 0.0
+	var frame := mini(int(_walk_time), _frame_count - 1)
 	var following := (frame + 1) % _frame_count
 	_pose_walk(frame, following, _walk_time - float(frame))
 
@@ -215,9 +218,14 @@ func _pose_walk(frame: int, following: int, blend: float) -> void:
 		for surface_index in surfaces.size():
 			var surface: Dictionary = surfaces[surface_index]
 			var frames: Array = surface["frames"]
-			var positions: PackedVector3Array = frames[frame]
+			if frames.is_empty():
+				continue
+			var count := frames.size()
+			var used := frame % count
+			var next_frame := following % count
+			var positions: PackedVector3Array = frames[used]
 			if blend > 0.001:
-				var nxt: PackedVector3Array = frames[following]
+				var nxt: PackedVector3Array = frames[next_frame]
 				var mixed := PackedVector3Array()
 				mixed.resize(positions.size())
 				for index in positions.size():
@@ -240,7 +248,8 @@ func _pose_walk(frame: int, following: int, blend: float) -> void:
 		var frames: Array = joint["frames"]
 		if frames.is_empty():
 			continue
-		node.transform = _joint_pose(joint, frame, following, blend)
+		var count := frames.size()
+		node.transform = _joint_pose(joint, frame % count, following % count, blend)
 
 
 func _joint_pose(joint: Dictionary, frame: int, following: int, blend: float) -> Transform3D:
