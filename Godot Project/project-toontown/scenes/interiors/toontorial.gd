@@ -40,6 +40,8 @@ var _tasks: ToonTasks
 var _book: ShtickerBook
 var _flunky: Flunky
 var _battle: StreetBattle
+var _return_spot := Vector3(-22.0, 0.2, -24.5)
+var _return_heading := 180.0
 
 
 func _ready() -> void:
@@ -245,8 +247,8 @@ func _walk(delta: float) -> void:
 	_body.move_and_slide()
 	if _body.position.y < -1.0:
 		_body.velocity = Vector3.ZERO
-		_body.position = Vector3(-22.0, 0.2, -24.5)
-		_heading = 180.0
+		_body.position = _return_spot
+		_heading = _return_heading
 	_face(_player, _heading)
 	# S plays the cycle backward. A and D turn, and still play the cycle forward.
 	_player.set_locomotion(speed != 0.0 or turning, speed < 0.0, delta)
@@ -310,6 +312,15 @@ func dismiss_welcome() -> void:
 		_bubble.visible = false
 
 
+func quiet_shop_speech() -> void:
+	# The plaza camera can see the shop Tom's spot. His greeting stays in the
+	# building; the street cutscene speaks with its own actor.
+	dismiss_welcome()
+	var briefing := get_node_or_null("Briefing")
+	if briefing != null and briefing.has_method("hide_speech"):
+		briefing.call("hide_speech")
+
+
 func face_tom(heading: float) -> void:
 	var tom := get_node_or_null("Tutorial Tom") as Node3D
 	if tom:
@@ -322,6 +333,15 @@ func place_player(where: Vector3, heading: float) -> void:
 	_body.position = where
 	_heading = heading
 	_face(_player, heading)
+
+
+func note_plaza(where: Vector3, heading: float) -> void:
+	_return_spot = where
+	_return_heading = heading
+
+
+func settle_camera() -> void:
+	_place_camera()
 
 
 func face_actor(actor: Node3D, heading: float) -> void:
@@ -503,6 +523,9 @@ func _place_tags() -> void:
 	for item in _tags:
 		var label := item["label"] as Label
 		var actor := item["actor"] as Node3D
+		if actor == null or not actor.visible:
+			label.visible = false
+			continue
 		var head := _find(actor, "def_head")
 		var point := actor.global_position + Vector3(0, 3.2, 0)
 		if actor == _flunky:
@@ -518,7 +541,7 @@ func _place_bubble() -> void:
 	if _bubble == null or _camera == null:
 		return
 	var tom := get_node_or_null("Tutorial Tom") as Node3D
-	if tom == null:
+	if tom == null or not tom.visible:
 		_bubble.visible = false
 		return
 	var head := _find(tom, "def_head")

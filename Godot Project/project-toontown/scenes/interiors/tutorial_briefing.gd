@@ -98,7 +98,8 @@ func _process(_delta: float) -> void:
 		return
 	var camera := _host.get_node_or_null("Camera") as Camera3D
 	var tom := _host.get_node_or_null("Tutorial Tom") as Node3D
-	if camera == null or tom == null:
+	if camera == null or tom == null or not tom.visible:
+		_bubble.visible = false
 		return
 	var point := tom.global_position + Vector3(0.2, 3.5, 0.0)
 	if camera.is_position_behind(point):
@@ -149,6 +150,12 @@ func _give_book() -> void:
 	_pin_bubble = false
 	_hold_advance = false
 	_bubble.z_index = 0
+
+
+func hide_speech() -> void:
+	_bubble_on = false
+	if _bubble:
+		_bubble.visible = false
 
 
 func _say(text: String) -> void:

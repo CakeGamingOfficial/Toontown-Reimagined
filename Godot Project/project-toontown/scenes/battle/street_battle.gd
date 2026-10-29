@@ -137,13 +137,24 @@ func _run() -> void:
 		await _cog_attack()
 	if _cog_hp <= 0:
 		await _defeat_cog()
+		_marker.visible = false
+		_card.visible = false
+		await _reward_movie()
 	else:
 		await _toon_went_sad()
-	_marker.visible = false
-	_card.visible = false
+		_marker.visible = false
+		_card.visible = false
 	_host.call("set_cutscene", false)
 	_active = false
 	_cool = 1.5
+
+
+func _reward_movie() -> void:
+	var movie = load("res://scenes/interiors/tutorial_reward.gd").new()
+	movie.name = "TutorialReward"
+	add_child(movie)
+	await movie.play(_host, _body, _player, _camera)
+	movie.queue_free()
 
 
 func _separate() -> void:
