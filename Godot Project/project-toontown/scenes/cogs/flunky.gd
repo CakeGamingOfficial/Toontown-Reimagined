@@ -6,9 +6,17 @@ extends Node3D
 
 const _MODEL := "res://assets/cogs/flunky.glb"
 const _WALK := "res://assets/cogs/flunky.walk"
+const _LOSE_MODEL := "res://assets/cogs/flunky_lose.glb"
+const _LOSE := "res://assets/cogs/flunky.lose"
+# MovieUtil.SUIT_LOSE_DURATION. The lose clip is played across these seconds.
+const LOSE_SECONDS := 6.0
 
 var _clips: Array[Dictionary] = []
 var _joints: Array[Dictionary] = []
+var _actions: Dictionary = {}
+var _lose_root: Node3D
+var _lose_bank: Dictionary = {}
+var _lose_shown := -1
 var _frame_count := 1
 var _walk_time := 0.0
 var _moving := false
@@ -33,6 +41,7 @@ func _ready() -> void:
 	var model := packed.instantiate()
 	add_child(model)
 	_load_walk()
+	_load_actions()
 	_show_both_sides()
 	_hide_gray_cuffs()
 
@@ -182,12 +191,17 @@ func _pose(delta: float) -> void:
 	var frame := mini(int(_walk_time), _frame_count - 1)
 	var following := (frame + 1) % _frame_count
 	var blend := _walk_time - float(frame)
-	for clip in _clips:
-		var instance := clip["instance"] as MeshInstance3D
+	_apply_pose(_clips, _joints, frame, following, blend)
+
+
+func _apply_pose(clips: Array, joints: Array, frame: int, following: int, blend: float, max_edge: float = 0.0) -> void:
+	for clip in clips:
+		var record: Dictionary = clip
+		var instance := record["instance"] as MeshInstance3D
 		if not is_instance_valid(instance):
 			continue
-		var original := clip["original"] as Mesh
-		var surfaces: Array = clip["surfaces"]
+		var original := record["original"] as Mesh
+		var surfaces: Array = record["surfaces"]
 		var posed := ArrayMesh.new()
 		for surface_index in surfaces.size():
 			var surface: Dictionary = surfaces[surface_index]
@@ -202,29 +216,59 @@ func _pose(delta: float) -> void:
 				for index in positions.size():
 					mixed[index] = positions[index].lerp(nxt[index], blend)
 				positions = mixed
+			var uvs: PackedVector2Array = surface["uv"]
+			if max_edge > 0.0:
+				var solid := PackedVector3Array()
+				var solid_uv := PackedVector2Array()
+				var limit := max_edge * max_edge
+				var cursor := 0
+				while cursor + 2 < positions.size():
+					var corner_a := positions[cursor]
+					var corner_b := positions[cursor + 1]
+					var corner_c := positions[cursor + 2]
+					# The last frames pull a few vertices across the street and
+					# leave triangles the size of the block. Those sheets are
+					# what flooded the renderer. The rigid chunks stay.
+					if corner_a.distance_squared_to(corner_b) <= limit and corner_b.distance_squared_to(corner_c) <= limit and corner_c.distance_squared_to(corner_a) <= limit:
+						solid.append(corner_a)
+						solid.append(corner_b)
+						solid.append(corner_c)
+						if uvs.size() == positions.size():
+							solid_uv.append(uvs[cursor])
+							solid_uv.append(uvs[cursor + 1])
+							solid_uv.append(uvs[cursor + 2])
+					cursor += 3
+				positions = solid
+				uvs = solid_uv
+			if positions.is_empty():
+				continue
 			var arrays: Array = []
 			arrays.resize(Mesh.ARRAY_MAX)
 			arrays[Mesh.ARRAY_VERTEX] = positions
-			var uvs: PackedVector2Array = surface["uv"]
 			if uvs.size() == positions.size():
 				arrays[Mesh.ARRAY_TEX_UV] = uvs
 			arrays[Mesh.ARRAY_NORMAL] = _face_normals(positions)
 			posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			if surface_index < original.get_surface_count():
-				posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
+				posed.surface_set_material(posed.get_surface_count() - 1, original.surface_get_material(surface_index))
+		if posed.get_surface_count() == 0:
+			instance.visible = false
+			continue
+		instance.visible = true
 		instance.mesh = posed
-	for joint in _joints:
-		var node := joint["node"] as Node3D
+	for joint in joints:
+		var record: Dictionary = joint
+		var node := record["node"] as Node3D
 		if not is_instance_valid(node):
 			continue
-		var frames: Array = joint["frames"]
+		var frames: Array = record["frames"]
 		var posed_frame: Transform3D = frames[frame % frames.size()]
 		if blend > 0.001:
 			var nxt: Transform3D = frames[following % frames.size()]
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, blend)
 			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, blend)
-		var bind: Transform3D = joint["bind"]
-		var rest: Transform3D = joint["rest"]
+		var bind: Transform3D = record["bind"]
+		var rest: Transform3D = record["rest"]
 		node.transform = rest * bind.affine_inverse() * posed_frame
 
 
@@ -260,7 +304,8 @@ func _show_both_sides() -> void:
 func _hide_gray_cuffs() -> void:
 	# suitC keeps a flat blue-gray lining at each wrist. It sits outside the
 	# pinstripe sleeve, so it reads as a gray cuff. Drop those surfaces from
-	# the rest mesh and the walk, and leave the black ring up at the neck.
+	# the rest mesh, the walk, and every attack clip, and leave the black
+	# ring up at the neck.
 	var suit := _find(self, "node") as MeshInstance3D
 	if suit == null or suit.mesh == null:
 		return
@@ -270,8 +315,11 @@ func _hide_gray_cuffs() -> void:
 		if material == null or material.albedo_texture != null:
 			continue
 		var color := material.albedo_color
-		# Imported from linear 0.06, so Godot stores it near 0.28.
-		if color.r > 0.15 and color.r < 0.45 and color.g < 0.45 and color.b < 0.55:
+		var brightest := maxf(color.r, maxf(color.g, color.b))
+		var dullest := minf(color.r, minf(color.g, color.b))
+		# The neck ring is black. The wrist lining is a flat blue-gray, which
+		# Godot may store as the glTF linear 0.06 or the sRGB value near 0.28.
+		if brightest > 0.02 and brightest < 0.55 and brightest - dullest < 0.2:
 			drop.append(index)
 	if drop.is_empty():
 		return
@@ -284,16 +332,25 @@ func _hide_gray_cuffs() -> void:
 		kept.surface_set_material(kept.get_surface_count() - 1, suit.mesh.surface_get_material(index))
 	suit.mesh = kept
 	for clip in _clips:
-		if clip["instance"] != suit:
+		_drop_cuff_surfaces(clip, suit, drop, kept)
+	for suffix in _actions.keys():
+		var bank := _actions[suffix] as Dictionary
+		var action_clips: Array = bank.get("clips", [])
+		for action_clip in action_clips:
+			_drop_cuff_surfaces(action_clip as Dictionary, suit, drop, kept)
+
+
+func _drop_cuff_surfaces(clip: Dictionary, suit: MeshInstance3D, drop: Array[int], kept: ArrayMesh) -> void:
+	if clip.get("instance") != suit:
+		return
+	var surfaces: Array = clip["surfaces"]
+	var filtered: Array = []
+	for index in surfaces.size():
+		if drop.has(index):
 			continue
-		var surfaces: Array = clip["surfaces"]
-		var filtered: Array = []
-		for index in surfaces.size():
-			if drop.has(index):
-				continue
-			filtered.append(surfaces[index])
-		clip["surfaces"] = filtered
-		clip["original"] = kept
+		filtered.append(surfaces[index])
+	clip["surfaces"] = filtered
+	clip["original"] = kept
 
 
 func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
@@ -316,16 +373,112 @@ func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
 
 
 func _load_walk() -> void:
-	if not FileAccess.file_exists(_WALK):
+	var bank := _read_bank(_WALK)
+	_frame_count = maxi(int(bank.get("frames", 1)), 1)
+	var clips: Array = bank.get("clips", [])
+	for clip in clips:
+		_clips.append(clip as Dictionary)
+	var joints: Array = bank.get("joints", [])
+	for joint in joints:
+		_joints.append(joint as Dictionary)
+
+
+func _load_actions() -> void:
+	for suffix in ["phone", "throw-paper", "shredder", "pie-small", "squirt-small", "sidestep-left", "sidestep-right", "drop-react"]:
+		_actions[suffix] = _read_bank("res://assets/cogs/flunky." + suffix)
+
+
+func action_length(suffix: String) -> float:
+	var bank: Dictionary = _actions.get(suffix, {})
+	var frames := int(bank.get("frames", 0))
+	if frames <= 1:
+		return 0.0
+	return float(frames - 1) / 24.0
+
+
+func pose_action(suffix: String, elapsed: float) -> void:
+	var bank: Dictionary = _actions.get(suffix, {})
+	var frames := int(bank.get("frames", 0))
+	var clips: Array = bank.get("clips", [])
+	if frames <= 1 or clips.is_empty():
 		return
-	var file := FileAccess.open(_WALK, FileAccess.READ)
+	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
+	var frame := mini(int(time), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var blend := 0.0 if following == frame else time - float(frame)
+	_apply_pose(clips, bank["joints"], frame, following, blend)
+
+
+func begin_lose() -> void:
+	# Suit.getLoseActor hides the live suit and shows suitC-lose-mod.
+	if _lose_root == null:
+		var packed := load(_LOSE_MODEL) as PackedScene
+		if packed == null:
+			return
+		_lose_root = packed.instantiate()
+		_lose_root.name = "LoseActor"
+		add_child(_lose_root)
+		_lose_bank = _read_bank(_LOSE, _lose_root)
+	_lose_shown = -1
+	for child in get_children():
+		if child == _lose_root:
+			continue
+		child.visible = false
+	_lose_root.visible = true
+	pose_lose(0.0)
+
+
+func pose_lose(elapsed: float) -> void:
+	if _lose_root == null:
+		return
+	var frames := int(_lose_bank.get("frames", 0))
+	var clips: Array = _lose_bank.get("clips", [])
+	if frames <= 1 or clips.is_empty():
+		return
+	# Snap to a frame. Blending the burst rubber-bands the pieces into sheets
+	# that cover the whole view.
+	var frame := mini(int(clampf(elapsed / LOSE_SECONDS, 0.0, 1.0) * float(frames - 1)), frames - 1)
+	if frame == _lose_shown:
+		return
+	_lose_shown = frame
+	_apply_pose(clips, _lose_bank["joints"], frame, frame, 0.0, 3.0)
+
+
+func finish_lose() -> void:
+	visible = false
+
+
+func end_action(suffix: String) -> void:
+	var bank: Dictionary = _actions.get(suffix, {})
+	var clips: Array = bank.get("clips", [])
+	for clip in clips:
+		var record: Dictionary = clip
+		var instance := record["instance"] as MeshInstance3D
+		if is_instance_valid(instance):
+			instance.mesh = record["original"]
+	var joints: Array = bank.get("joints", [])
+	for joint in joints:
+		var record: Dictionary = joint
+		var node := record["node"] as Node3D
+		if is_instance_valid(node):
+			node.transform = record["rest"]
+
+
+func _read_bank(path: String, root: Node = null) -> Dictionary:
+	var clips: Array = []
+	var joints: Array = []
+	var frame_count := 0
+	if not FileAccess.file_exists(path):
+		return {"clips": clips, "joints": joints, "frames": 0}
+	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return
+		return {"clips": clips, "joints": joints, "frames": 0}
 	var magic := file.get_buffer(8)
 	if magic.slice(0, 6).get_string_from_ascii() != "TWALK3":
 		file.close()
-		return
-	var frame_count := file.get_32()
+		return {"clips": clips, "joints": joints, "frames": 0}
+	var search: Node = self if root == null else root
+	frame_count = file.get_32()
 	var node_count := file.get_32()
 	for _node_index in node_count:
 		var name_len := file.get_16()
@@ -348,10 +501,9 @@ func _load_walk() -> void:
 					positions[index] = Vector3(file.get_float(), file.get_float(), file.get_float())
 				frames.append(positions)
 			surfaces.append({"uv": uvs, "frames": frames})
-		var instance := _find(self, node_name) as MeshInstance3D
+		var instance := _find(search, node_name) as MeshInstance3D
 		if instance != null and instance.mesh != null and not surfaces.is_empty():
-			_frame_count = maxi(_frame_count, frame_count)
-			_clips.append({
+			clips.append({
 				"instance": instance,
 				"original": instance.mesh,
 				"surfaces": surfaces,
@@ -371,25 +523,30 @@ func _load_walk() -> void:
 			for cell in 16:
 				cells[cell] = file.get_float()
 			frames.append(_transform_from_panda(cells))
-		var joint := _find(self, joint_name) as Node3D
+		var joint := _find(search, joint_name) as Node3D
 		if joint != null and not frames.is_empty():
-			_joints.append({
+			joints.append({
 				"node": joint,
 				"rest": joint.transform,
 				"bind": _transform_from_panda(bind_cells),
 				"frames": frames,
 			})
 	file.close()
+	return {"clips": clips, "joints": joints, "frames": frame_count}
 
 
 func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
-	var basis := Basis(
-		Vector3(cells[0], cells[1], cells[2]),
-		Vector3(cells[4], cells[5], cells[6]),
-		Vector3(cells[8], cells[9], cells[10])
-	)
+	var x := Vector3(cells[0], cells[1], cells[2])
+	var y := Vector3(cells[4], cells[5], cells[6])
+	var z := Vector3(cells[8], cells[9], cells[10])
+	var origin := Vector3(cells[12], cells[13], cells[14])
+	# The head joint scale collapses when it pops off. Orthonormalizing a
+	# zero basis invents a full-size spinning head.
+	if x.length_squared() < 0.0025 or y.length_squared() < 0.0025 or z.length_squared() < 0.0025:
+		return Transform3D(Basis.from_scale(Vector3.ZERO), origin)
+	var basis := Basis(x, y, z)
 	basis = basis.orthonormalized()
-	return Transform3D(basis, Vector3(cells[12], cells[13], cells[14]))
+	return Transform3D(basis, origin)
 
 
 func _find(node: Node, wanted: String) -> Node:

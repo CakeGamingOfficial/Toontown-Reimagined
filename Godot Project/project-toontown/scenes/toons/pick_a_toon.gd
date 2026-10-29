@@ -18,6 +18,9 @@ const _AREAS: Array[Rect2] = [
 const _TILT: Array[float] = [7.0, -11.0, 1.0, -5.0, 3.5, -5.0]
 const _TEAL := Color(0.0, 1.0, 0.8, 1.0)
 const _YELLOW := Color(1.0, 0.9, 0.1, 1.0)
+# ToontownStart and enterChooseAvatar loop tt_theme at 0.9 on this screen.
+const THEME_PATH := "res://assets/toons/audio/tt_theme.mp3"
+const THEME_VOLUME := 0.9
 
 var _confirm: Control
 var _confirm_slot := -1
@@ -28,6 +31,21 @@ func _ready() -> void:
 	_build()
 	resized.connect(_layout)
 	_layout()
+	_play_theme()
+
+
+func _play_theme() -> void:
+	var stream := load(THEME_PATH) as AudioStreamMP3
+	if stream == null:
+		return
+	stream = stream.duplicate() as AudioStreamMP3
+	stream.loop = true
+	var player := AudioStreamPlayer.new()
+	player.name = "ThemeMusic"
+	player.stream = stream
+	player.volume_db = linear_to_db(THEME_VOLUME)
+	add_child(player)
+	player.play()
 
 
 func _build() -> void:

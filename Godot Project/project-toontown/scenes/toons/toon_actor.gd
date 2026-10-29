@@ -288,7 +288,8 @@ func _ensure_clips() -> void:
 		_load_idle()
 		if not _idle_loaded:
 			_idle_missing = true
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart"]:
+	# Extra clips have to load with the walk, while the joints are still at rest.
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -317,6 +318,43 @@ func _play_bank(suffix: String, direction: float, delta: float, loop: bool = tru
 		return false
 	_play_cycle(suffix, clips, bank["joints"], frames, direction, delta, loop)
 	return true
+
+
+## One battle clip, held on a frame. The movie advances elapsed itself so a
+## pie can leave the hand while the throw is still playing.
+func action_length(suffix: String) -> float:
+	_ensure_clips()
+	var bank: Dictionary = _extra.get(suffix, {})
+	var frames := int(bank.get("frames", 0))
+	if frames <= 1:
+		return 0.0
+	return float(frames - 1) / 24.0
+
+
+func pose_action(suffix: String, elapsed: float) -> void:
+	_ensure_clips()
+	var bank: Dictionary = _extra.get(suffix, {})
+	var frames := int(bank.get("frames", 0))
+	var clips: Array = bank.get("clips", [])
+	if frames <= 1 or clips.is_empty():
+		return
+	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
+	var frame := mini(int(time), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var blend := 0.0 if following == frame else time - float(frame)
+	_posing = true
+	_clip = suffix
+	_pose_clip(clips, bank["joints"], frame, following, blend)
+
+
+func end_action(suffix: String) -> void:
+	var bank: Dictionary = _extra.get(suffix, {})
+	var clips: Array = bank.get("clips", [])
+	var joints: Array = bank.get("joints", [])
+	_restore_clip(clips, joints)
+	if _clip == suffix:
+		_clip = ""
+		_posing = false
 
 
 func _play_idle(delta: float) -> void:

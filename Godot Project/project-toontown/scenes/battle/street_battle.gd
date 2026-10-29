@@ -8,6 +8,11 @@ extends Node
 const APPROACH := 7.0
 const FLUNKY_LEVEL := 1
 const FLUNKY_HP := 6
+# TownLoader.battleMusic. BattlePlace.enterBattle plays it at 0.9 and
+# stops the street track. exitBattle brings the street track back at 0.8.
+const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
+const BATTLE_VOLUME := 0.9
+const PLACE_VOLUME := 0.8
 const _ATTACKS: Array[Dictionary] = [
 	{
 		"name": "Pound Key!",
@@ -51,6 +56,11 @@ var _cool := 0.0
 var _cog_hp := FLUNKY_HP
 var _gained: Dictionary = {}
 var _spent: Array[Vector2i] = []
+var _battle_music: AudioStreamPlayer
+var _place_music: AudioStreamPlayer
+var _movie: BattleMovie
+var _dancing := false
+var _dance := 0.0
 
 
 func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky, loadout: ToonLoadout, tasks: ToonTasks, camera: Camera3D, meter: LaffMeter, book: ShtickerBook, hud: CanvasLayer) -> void:
@@ -70,6 +80,10 @@ func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky,
 	_hud.add_child(_menu)
 	_menu.setup(loadout)
 	_build_card()
+	_movie = BattleMovie.new()
+	_movie.name = "BattleMovie"
+	add_child(_movie)
+	_movie.setup(player, flunky, camera)
 
 
 func active() -> bool:
@@ -94,6 +108,13 @@ func consider(where: Vector3) -> void:
 func _process(delta: float) -> void:
 	if _cool > 0.0:
 		_cool = maxf(_cool - delta, 0.0)
+	if _movie != null:
+		_movie.tick_shot(delta)
+	if _dancing and _player != null:
+		_dance += delta
+		var length := _player.action_length("victory")
+		if length > 0.05:
+			_player.pose_action("victory", fposmod(_dance, length))
 	if _card == null:
 		return
 	var show := _active and _flunky != null and _flunky.visible and _camera != null
@@ -121,6 +142,7 @@ func _run() -> void:
 	_body.velocity = Vector3.ZERO
 	_player.set_locomotion(0.0, false, false, 0.0)
 	_flunky.stop_for_battle()
+	_start_battle_music()
 	_host.call("set_cutscene", true)
 	_separate()
 	_face_each_other()
@@ -144,9 +166,49 @@ func _run() -> void:
 		await _toon_went_sad()
 		_marker.visible = false
 		_card.visible = false
+	_stop_battle_music()
 	_host.call("set_cutscene", false)
 	_active = false
 	_cool = 1.5
+
+
+func _start_battle_music() -> void:
+	_place_music = _place_track(_host)
+	if _place_music != null:
+		_place_music.stop()
+	var stream := load(BATTLE_MUSIC) as AudioStreamMP3
+	if stream == null:
+		return
+	stream = stream.duplicate() as AudioStreamMP3
+	stream.loop = true
+	_battle_music = AudioStreamPlayer.new()
+	_battle_music.name = "BattleMusic"
+	_battle_music.stream = stream
+	_battle_music.volume_db = linear_to_db(BATTLE_VOLUME)
+	add_child(_battle_music)
+	_battle_music.play()
+
+
+func _stop_battle_music() -> void:
+	if _battle_music != null:
+		_battle_music.stop()
+		_battle_music.queue_free()
+		_battle_music = null
+	if _place_music != null and is_instance_valid(_place_music):
+		_place_music.volume_db = linear_to_db(PLACE_VOLUME)
+		_place_music.play()
+	_place_music = null
+
+
+func _place_track(node: Node) -> AudioStreamPlayer:
+	var current := node
+	while current != null:
+		for child in current.get_children():
+			var player := child as AudioStreamPlayer
+			if player != null and str(player.name).ends_with("Music") and player.name != "BattleMusic":
+				return player
+		current = current.get_parent()
+	return null
 
 
 func _reward_movie() -> void:
@@ -203,31 +265,26 @@ func _toon_attack(track: int, level: int) -> void:
 	_spent.append(Vector2i(track, level))
 	_gained[track] = int(_gained.get(track, 0)) + ToonLoadout.SKILL_CREDIT
 	_aim(false)
-	var from := _body.global_position + Vector3(0, 1.7, 0)
-	var to := _flunky.global_position + Vector3(0, 3.1, 0)
-	if track == ToonLoadout.SQUIRT:
-		await _spray(from, to)
-	else:
-		await _lob(from, to, _gag_color(track))
-	if track == ToonLoadout.TOON_UP:
-		var heal := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
-		_loadout.set_hp(_loadout.hp + heal, _loadout.max_hp)
-		_meter.set_hp(_loadout.hp, _loadout.max_hp)
-		_floater(_body.global_position + Vector3(0, 3.2, 0), "+%d" % heal, Color(0.35, 0.85, 0.35))
-		await get_tree().create_timer(0.8).timeout
-		return
-	var accuracy := ToonLoadout.gag_accuracy(track, level)
-	if randi() % 100 >= accuracy:
-		_floater(to, "MISSED", Color(1, 1, 1))
-		await get_tree().create_timer(0.8).timeout
-		return
-	var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
-	_cog_hp = maxi(_cog_hp - damage, 0)
-	_set_cog_bar()
-	_pulse_marker()
-	_floater(to + Vector3(0, 1.2, 0), "-%d" % damage, Color(0.92, 0.08, 0.08))
-	await _nudge(_flunky, _body.global_position, 0.45)
-	await get_tree().create_timer(0.45).timeout
+	var hit := true
+	if track != ToonLoadout.TOON_UP:
+		hit = randi() % 100 < ToonLoadout.gag_accuracy(track, level)
+	var at := _flunky.global_position + Vector3(0, 3.4, 0)
+	await _movie.play_gag(track, level, hit, func() -> void:
+		if track == ToonLoadout.TOON_UP:
+			var heal := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+			_loadout.set_hp(_loadout.hp + heal, _loadout.max_hp)
+			_meter.set_hp(_loadout.hp, _loadout.max_hp)
+			_floater(_body.global_position + Vector3(0, 3.2, 0), "+%d" % heal, Color(0.35, 0.85, 0.35))
+			return
+		if not hit:
+			_floater(at, "MISSED", Color(1, 1, 1))
+			return
+		var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+		_cog_hp = maxi(_cog_hp - damage, 0)
+		_set_cog_bar()
+		_pulse_marker()
+		_floater(at + Vector3(0, 1.2, 0), "-%d" % damage, Color(0.92, 0.08, 0.08))
+	)
 
 
 func _cog_attack() -> void:
@@ -236,26 +293,18 @@ func _cog_attack() -> void:
 	var attack := _pick_attack()
 	var banner := _banner(String(attack["name"]).to_upper())
 	await _say(_flunky.global_position + Vector3(0, 4.4, 0), String(attack["line"]), 1.3)
-	var tie: Node3D = null
-	if String(attack["name"]) == "Clip On Tie!":
-		tie = _prop(Color(0.75, 0.12, 0.16), Vector3(0.12, 0.55, 0.28))
-		tie.global_position = _flunky.global_position + Vector3(0.8, 2.5, 0.2)
-	await _nudge(_flunky, _body.global_position, -1.5)
 	var hit := randi() % 100 < int(attack["acc"])
 	var at := _body.global_position + Vector3(0, 2.6, 0)
-	if hit:
-		var damage := int(attack["hp"])
-		_loadout.set_hp(_loadout.hp - damage, _loadout.max_hp)
-		_meter.set_hp(_loadout.hp, _loadout.max_hp)
-		_floater(at, "-%d" % damage, Color(0.92, 0.08, 0.08))
-		await _nudge(_body, _flunky.global_position, 0.35)
-	else:
-		_floater(at, "MISSED", Color(1, 1, 1))
-		await get_tree().create_timer(0.7).timeout
-	if tie != null:
-		tie.queue_free()
+	await _movie.play_cog(String(attack["name"]), hit, func() -> void:
+		if hit:
+			var damage := int(attack["hp"])
+			_loadout.set_hp(_loadout.hp - damage, _loadout.max_hp)
+			_meter.set_hp(_loadout.hp, _loadout.max_hp)
+			_floater(at, "-%d" % damage, Color(0.92, 0.08, 0.08))
+		else:
+			_floater(at, "MISSED", Color(1, 1, 1))
+	)
 	banner.queue_free()
-	await get_tree().create_timer(0.35).timeout
 
 
 func _pick_attack() -> Dictionary:
@@ -271,7 +320,10 @@ func _pick_attack() -> Dictionary:
 func _defeat_cog() -> void:
 	_aim(false)
 	await _explode()
-	_flunky.visible = false
+	_flunky.finish_lose()
+	_dance = 0.0
+	_dancing = true
+	_movie.show_reward()
 	var was_done := false
 	if _tasks != null:
 		was_done = _tasks.is_complete(101)
@@ -283,6 +335,9 @@ func _defeat_cog() -> void:
 	_loadout.save()
 	if _tasks != null and not was_done and _tasks.is_complete(101):
 		await _notice("ToonTasks", "Defeat a Flunky : Complete")
+	_dancing = false
+	_movie.hide_reward()
+	_player.end_action("victory")
 
 
 func _toon_went_sad() -> void:
@@ -303,31 +358,7 @@ func _toon_went_sad() -> void:
 
 
 func _explode() -> void:
-	var origin := _flunky.global_position + Vector3(0, 2.2, 0)
-	var puff := _prop(Color(1.0, 0.72, 0.35, 0.9), Vector3(0.6, 0.6, 0.6))
-	var puff_mesh := puff.mesh as SphereMesh
-	if puff_mesh:
-		puff_mesh.radius = 0.6
-		puff_mesh.height = 1.2
-	puff.global_position = origin
-	var mat := puff.material_override as StandardMaterial3D
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	var bits: Array[MeshInstance3D] = []
-	for _index in 8:
-		var bit := _prop(Color(0.36, 0.16, 0.1), Vector3(0.35, 0.22, 0.5))
-		bit.global_position = origin
-		bits.append(bit)
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(puff, "scale", Vector3(4.5, 4.5, 4.5), 0.7)
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.7)
-	for bit in bits:
-		var dir := Vector3(randf_range(-1, 1), randf_range(0.2, 1.2), randf_range(-1, 1)).normalized()
-		tween.tween_property(bit, "global_position", origin + dir * randf_range(2.0, 4.5), 0.7)
-	await tween.finished
-	puff.queue_free()
-	for bit in bits:
-		bit.queue_free()
+	await _movie.play_defeat()
 
 
 func _reward(track: int, amount: int) -> void:
@@ -428,54 +459,6 @@ func _floater(at: Vector3, text: String, color: Color) -> void:
 	tween.tween_callback(label.queue_free)
 
 
-func _lob(from: Vector3, to: Vector3, color: Color) -> void:
-	var prop := _prop(color, Vector3(0.28, 0.22, 0.28))
-	var sphere := prop.mesh as SphereMesh
-	if sphere:
-		sphere.radius = 0.22
-		sphere.height = 0.44
-	prop.global_position = from
-	var tween := create_tween()
-	tween.tween_method(_arc.bind(prop, from, to, 1.5), 0.0, 1.0, 0.55)
-	await tween.finished
-	prop.queue_free()
-
-
-func _spray(from: Vector3, to: Vector3) -> void:
-	for index in 5:
-		var drop := _prop(Color(0.25, 0.55, 1.0), Vector3(0.12, 0.12, 0.12))
-		var sphere := drop.mesh as SphereMesh
-		if sphere:
-			sphere.radius = 0.1
-			sphere.height = 0.2
-		var start := from + Vector3(randf_range(-0.15, 0.15), index * 0.05, 0)
-		drop.global_position = start
-		var tween := create_tween()
-		tween.tween_method(_arc.bind(drop, start, to, 0.35), 0.0, 1.0, 0.28)
-		tween.tween_callback(drop.queue_free)
-		await get_tree().create_timer(0.06).timeout
-	await get_tree().create_timer(0.25).timeout
-
-
-func _arc(weight: float, prop: Node3D, start: Vector3, end: Vector3, height: float) -> void:
-	if not is_instance_valid(prop):
-		return
-	prop.global_position = start.lerp(end, weight) + Vector3(0, sin(weight * PI) * height, 0)
-
-
-func _nudge(actor: Node3D, away_from: Vector3, distance: float) -> void:
-	var origin := actor.global_position
-	var flat := Vector3(origin.x - away_from.x, 0.0, origin.z - away_from.z)
-	if flat.length() < 0.1:
-		flat = Vector3(0, 0, 1)
-	var next := origin + flat.normalized() * distance
-	next.y = origin.y
-	var tween := create_tween()
-	tween.tween_property(actor, "global_position", next, 0.12)
-	tween.tween_property(actor, "global_position", origin, 0.16)
-	await tween.finished
-
-
 func _pulse_marker() -> void:
 	if _marker == null:
 		return
@@ -496,6 +479,9 @@ func _ensure_marker() -> void:
 		sphere.height = 0.44
 	_marker.reparent(_flunky)
 	_marker.position = Vector3(0, 3.15, -0.55)
+	var chest := _flunky.find_child("joint_attachMeter", true, false) as Node3D
+	if chest != null:
+		_marker.reparent(chest, true)
 
 
 func _show_meter() -> void:
@@ -548,14 +534,6 @@ func _set_cog_bar() -> void:
 		_hp_fill.color = Color(0.9, 0.78, 0.15)
 	else:
 		_hp_fill.color = Color(0.85, 0.16, 0.12)
-
-
-func _gag_color(track: int) -> Color:
-	if track == ToonLoadout.THROW:
-		return Color(0.93, 0.72, 0.45)
-	if track == ToonLoadout.SQUIRT:
-		return Color(0.3, 0.6, 1.0)
-	return ToonLoadout.TRACK_COLORS[track]
 
 
 func _prop(color: Color, box_size: Vector3) -> MeshInstance3D:

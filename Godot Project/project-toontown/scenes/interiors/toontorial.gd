@@ -119,6 +119,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if _hq != null and _hq.inside():
 		_walk(delta)
+		if not _cutscene:
+			_hq.consider_inside(_body)
 		return
 	_walk(delta)
 	_approach_tom()
@@ -191,6 +193,31 @@ func _spawn(style: ToonStyle, where: Vector3, heading: float, parent: Node) -> T
 	return actor
 
 
+func fit_hq_body() -> void:
+	# The radius-1 tube stands on the landing and floats over the 45-degree stairs.
+	var collision := _body.get_node_or_null("BodyCapsule") as CollisionShape3D
+	if collision == null:
+		return
+	var shape := collision.shape as CapsuleShape3D
+	if shape == null:
+		return
+	shape.radius = 0.35
+	shape.height = maxf(shape.height, shape.radius * 2.0 + 0.2)
+	collision.shape = shape
+
+
+func restore_street_body() -> void:
+	var collision := _body.get_node_or_null("BodyCapsule") as CollisionShape3D
+	if collision == null:
+		return
+	var shape := collision.shape as CapsuleShape3D
+	if shape == null:
+		return
+	shape.radius = 1.0
+	shape.height = maxf(shape.height, shape.radius * 2.0 + 0.2)
+	collision.shape = shape
+
+
 func _add_capsule() -> void:
 	# Avatar.initializeBodyCollisions uses a tube of radius 1.
 	var height := 3.0
@@ -201,6 +228,7 @@ func _add_capsule() -> void:
 	shape.radius = 1.0
 	shape.height = maxf(height, shape.radius * 2.0 + 0.2)
 	var collision := CollisionShape3D.new()
+	collision.name = "BodyCapsule"
 	collision.shape = shape
 	collision.position = Vector3(0.0, shape.height * 0.5, 0.0)
 	_body.add_child(collision)
@@ -304,7 +332,11 @@ func _walk(delta: float) -> void:
 	# Snap would glue a rising toon back onto the floor.
 	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
-	if _body.position.y < -1.0:
+	# The HQ pit floor is at -5. The street reset would pull a toon back up the stairs.
+	var void_y := -1.0
+	if _hq != null and _hq.inside():
+		void_y = -12.0
+	if _body.position.y < void_y:
 		_body.velocity = Vector3.ZERO
 		_body.position = _return_spot
 		_heading = _return_heading
@@ -643,11 +675,19 @@ func _pushing_the_gate() -> bool:
 	return Input.is_physical_key_pressed(KEY_W) and Vector2(_body.position.x, _body.position.z).distance_to(_DOOR) < 2.6
 
 
+func show_notice(message: String) -> void:
+	_open_dialog(message)
+
+
 func _show_need_gags() -> void:
+	_open_dialog(_NEED_GAGS)
+	_gate_armed = false
+
+
+func _open_dialog(message: String) -> void:
 	if _door_dialog != null:
 		return
 	_door_stopped = true
-	_gate_armed = false
 	if _body:
 		_body.velocity = Vector3.ZERO
 	var view := get_viewport().get_visible_rect().size
@@ -661,7 +701,7 @@ func _show_need_gags() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_hud().add_child(panel)
 	var label := Label.new()
-	label.text = _NEED_GAGS
+	label.text = message
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -697,6 +737,8 @@ func _close_need_gags() -> void:
 		_door_dialog.queue_free()
 		_door_dialog = null
 	_door_stopped = false
+	if _hq != null and _hq.inside():
+		return
 	if _body != null and _body.position.x < _DOOR.x + 0.4:
 		_body.position.x = _DOOR.x + 1.1
 

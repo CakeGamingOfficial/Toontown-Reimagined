@@ -50,6 +50,43 @@ def collision_triangles(root: NodePath) -> list[list[float]]:
     return triangles
 
 
+def place_doors(interior: NodePath) -> None:
+    # DistributedHQInterior.chooseDoor starts at door_double_round_ul and flips
+    # the last letter, so the interior uses door_double_round_ur.
+    catalog = Loader.getGlobalPtr().loadSync(
+        Filename(ASSETS, "phase_3.5/models/modules/doors_practical.bam")
+    )
+    if catalog is None:
+        raise RuntimeError("doors_practical.bam did not load")
+    source = NodePath(catalog).find("**/door_double_round_ur")
+    if source.isEmpty():
+        raise RuntimeError("door_double_round_ur missing")
+    renames = {
+        "door_double_round_ur_left": "leftDoor",
+        "door_double_round_ur_right": "rightDoor",
+        "door_double_round_ur_hole_left": "doorFrameHoleLeft",
+        "door_double_round_ur_hole_right": "doorFrameHoleRight",
+        "door_double_round_ur_flat": "door_flat",
+    }
+    origins = interior.findAllMatches("**/door_origin_*")
+    for index in range(origins.getNumPaths()):
+        origin = origins.getPath(index)
+        suffix = origin.getName().rsplit("_", 1)[-1]
+        door = source.copyTo(origin)
+        door.setName("door_" + suffix)
+        # setupDoors scales the origin to 0.8 and steps it back 0.025.
+        door.setPos(0, -0.025, 0)
+        door.setHpr(0, 0, 0)
+        door.setScale(0.8)
+        for child in list(door.getChildren()):
+            renamed = renames.get(child.getName())
+            if renamed:
+                child.setName(renamed)
+            if child.node().isOfType(CollisionNode.getClassType()):
+                child.removeNode()
+        print("placed", door.getName(), "on", origin.getName())
+
+
 def main() -> int:
     loadPrcFileData("", "window-type none")
     loadPrcFileData("", "audio-library-name null")
@@ -66,6 +103,7 @@ def main() -> int:
         else:
             found.hide()
             print("hid", found.getName())
+    place_doors(interior)
     print("--- nodes ---")
     for child in interior.findAllMatches("**"):
         kind = "geom" if child.node().isOfType(GeomNode.getClassType()) else child.node().getType().getName()
