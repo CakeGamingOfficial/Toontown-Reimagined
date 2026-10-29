@@ -1,10 +1,13 @@
 extends Control
 
 ## Six slots on the original Pick a Toon background. An empty slot starts
-## Make a Toon. Play starts the Toontorial with the toon in that slot.
+## Make a Toon. Play starts the Toontorial until that toon has reached a
+## playground. After that, Play teleports them to their last hood.
 
 const MAKE_SCENE := "res://scenes/toons/make_a_toon.tscn"
 const PLAY_SCENE := "res://scenes/interiors/toontorial.tscn"
+const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 ## The six squares are painted into the background. These cover them.
 # Centers of the six squares painted into the background.
 const _AREAS: Array[Rect2] = [
@@ -278,7 +281,13 @@ func _make_toon(index: int) -> void:
 
 func _play(index: int) -> void:
 	ToonRoster.select_slot(index)
-	get_tree().change_scene_to_file(PLAY_SCENE)
+	var tasks := ToonTasks.for_selected()
+	if not tasks.in_playground:
+		get_tree().change_scene_to_file(PLAY_SCENE)
+		return
+	# PlayGame.enter uses how = teleportIn at defaultZone, which is lastHood.
+	_ARRIVAL.teleport_in = true
+	get_tree().change_scene_to_file(_PLACES.scene_for(tasks.last_hood))
 
 
 func _ask_delete(index: int) -> void:

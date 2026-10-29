@@ -46,6 +46,7 @@ func _ready() -> void:
 	_ready_telescope()
 	_ready_butterflies()
 	_ready_treasures()
+	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
 func _ready_music() -> void:

@@ -38,6 +38,9 @@ const CATALOG := {
 
 var has_book := false
 var met_flippy := false
+var in_playground := false
+## Hood id from DistributedToonAI.setLocation. 2000 is Toontown Central.
+var last_hood := 0
 
 var _slot := -1
 var _active: Array[Dictionary] = []
@@ -141,6 +144,26 @@ func grant_speedchat() -> void:
 	save()
 
 
+## TutorialStreet.handleEnterTunnel sends stopTutorial, then the toon arrives
+## in Toontown Central. Reaching the playground is what finishes the toontorial.
+## After that, the journal stays on disk when the game closes.
+func note_playground() -> void:
+	in_playground = true
+	last_hood = 2000
+	save()
+
+
+## setLocation writes the playground or Cog HQ the toon is standing in.
+func note_hood(hood: int) -> void:
+	if not in_playground:
+		return
+	var canonical := hood - posmod(hood, 1000)
+	if canonical < 1000 or canonical == last_hood:
+		return
+	last_hood = canonical
+	save()
+
+
 ## One task at a time in the toontorial. SpeedChat's MY TASKS reads these lines.
 func task_lines() -> PackedStringArray:
 	var lines := PackedStringArray()
@@ -170,6 +193,8 @@ func save() -> void:
 	slots[_slot] = {
 		"has_book": has_book,
 		"met_flippy": met_flippy,
+		"in_playground": in_playground,
+		"last_hood": last_hood,
 		"active": active,
 		"done": _done.duplicate(),
 	}
@@ -200,6 +225,8 @@ func _load() -> void:
 	_done = []
 	has_book = false
 	met_flippy = false
+	in_playground = false
+	last_hood = 0
 	if _slot < 0:
 		return
 	var root := _read_file()
@@ -209,6 +236,10 @@ func _load() -> void:
 	var stored: Dictionary = slots[_slot]
 	has_book = bool(stored.get("has_book", false))
 	met_flippy = bool(stored.get("met_flippy", false))
+	in_playground = bool(stored.get("in_playground", false))
+	last_hood = int(stored.get("last_hood", 0))
+	if in_playground and last_hood == 0:
+		last_hood = 2000
 	for quest_id in stored.get("done", []):
 		_done.append(int(quest_id))
 	for entry in stored.get("active", []):

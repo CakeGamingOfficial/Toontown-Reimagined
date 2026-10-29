@@ -5,6 +5,8 @@ extends Node3D
 ## at the desk, and the toon saved from Make a Toon standing on the rug.
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
+const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const MUSIC_PATH := "res://assets/neighborhoods/tutorial_zone/audio/TC_SZ.ogg"
 const MUSIC_VOLUME := 0.8
 
@@ -71,9 +73,17 @@ const _CAM_DIST_MIN := 0.38
 const _CAM_DIST_MAX := 2.1
 const _DOOR := Vector2(-14.2, -24.5)
 const _NEED_GAGS := "You need gags! Go talk to\nTutorial Tom!"
+# linktunnel_tt_0 tunnel_origin, a step into the shaft. Local -Y of that
+# origin is +X here, which is the way Flippy runs.
+const _TUNNEL_MOUTH := Vector2(122.4, -0.15)
 
 
 func _ready() -> void:
+	var tasks := ToonTasks.for_selected()
+	if tasks.in_playground:
+		_ARRIVAL.teleport_in = true
+		get_tree().call_deferred("change_scene_to_file", _PLACES.scene_for(tasks.last_hood))
+		return
 	TOONTOWN_SKY.ensure(self, "tt")
 	_camera = get_node_or_null("Camera") as Camera3D
 	if _camera:
@@ -136,6 +146,7 @@ func _physics_process(delta: float) -> void:
 	_try_door()
 	_try_battle()
 	_consider_flippy()
+	_try_tunnel()
 	if _hq != null and not _cutscene:
 		_hq.consider(_body)
 
@@ -921,8 +932,26 @@ func _close_need_gags() -> void:
 		_body.position.x = _DOOR.x + 1.1
 
 
+func _try_tunnel() -> void:
+	if _cutscene or _locked or _fading or _body == null or _tasks == null:
+		return
+	if not _tasks.met_flippy or get_node_or_null("TunnelExit") != null:
+		return
+	if not Input.is_physical_key_pressed(KEY_W):
+		return
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(_TUNNEL_MOUTH) > 3.4:
+		return
+	var exit: Node = (load("res://scenes/interiors/tutorial_tunnel.gd") as GDScript).new()
+	exit.name = "TunnelExit"
+	add_child(exit)
+	exit.call("play", self)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	_steer_camera(event)
+	if in_cutscene():
+		return
 	if _briefing == null or not _briefing.finished or _panel == null:
 		return
 	if _battle != null and _battle.active():

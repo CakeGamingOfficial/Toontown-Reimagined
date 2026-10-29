@@ -52,6 +52,8 @@ func _ready() -> void:
 	_ready_fish()
 	_ready_boat()
 	_close_hq_doors(self)
+	if not Engine.is_editor_hint():
+		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
 func _ready_music() -> void:

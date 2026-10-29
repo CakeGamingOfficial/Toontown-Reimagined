@@ -26,6 +26,14 @@ func _ready() -> void:
 		return
 	_ready_music()
 	_ready_billboards()
+	_attach_returning_toon()
+
+
+func _attach_returning_toon() -> void:
+	var places := preload("res://scenes/places/hood_places.gd")
+	if places.hood_for_scene(scene_file_path) == 0:
+		return
+	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
 func _process(_delta: float) -> void:

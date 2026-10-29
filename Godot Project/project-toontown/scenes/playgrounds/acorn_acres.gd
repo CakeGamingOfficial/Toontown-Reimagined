@@ -24,6 +24,8 @@ func _ready() -> void:
 	_ready_billboards()
 	_open_backdrops(self)
 	_ready_waterfall()
+	if not Engine.is_editor_hint():
+		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
 func _open_backdrops(node: Node) -> void:
