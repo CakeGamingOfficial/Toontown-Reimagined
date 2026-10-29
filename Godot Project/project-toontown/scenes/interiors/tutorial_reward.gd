@@ -93,6 +93,8 @@ func _show_plaza() -> void:
 	var feet := _street(PLAYER_PANDA)
 	if _host.has_method("note_plaza"):
 		_host.call("note_plaza", feet, FACING_HQ)
+	if _host.has_method("prepare_hq"):
+		_host.call("prepare_hq")
 
 
 func _stand_cast() -> void:

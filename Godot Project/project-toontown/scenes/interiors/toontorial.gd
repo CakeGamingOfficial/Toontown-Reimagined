@@ -56,6 +56,7 @@ var _gate: StaticBody3D
 var _door_dialog: Control
 var _door_stopped := false
 var _gate_armed := true
+var _hq
 const _DOOR := Vector2(-14.2, -24.5)
 const _NEED_GAGS := "You need gags! Go talk to\nTutorial Tom!"
 
@@ -83,7 +84,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	TOONTOWN_SKY.ensure(self, "tt")
-	if not _cutscene:
+	if not _cutscene or (_hq != null and _hq.inside()):
 		_place_camera()
 	_face_billboards()
 	_place_tags()
@@ -101,10 +102,15 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _locked or _door_stopped:
 		return
+	if _hq != null and _hq.inside():
+		_walk(delta)
+		return
 	_walk(delta)
 	_approach_tom()
 	_try_door()
 	_try_battle()
+	if _hq != null and not _cutscene:
+		_hq.consider(_body)
 
 
 func _spawn_toons() -> void:
@@ -393,6 +399,18 @@ func note_plaza(where: Vector3, heading: float) -> void:
 
 func settle_camera() -> void:
 	_place_camera()
+
+
+func add_nametag(actor: Node3D, text: String, color: Color) -> void:
+	_add_tag(actor, text, color)
+
+
+func prepare_hq() -> void:
+	if _hq == null:
+		_hq = load("res://scenes/interiors/tutorial_hq.gd").new()
+		_hq.name = "TutorialHQ"
+		add_child(_hq)
+	_hq.setup(self)
 
 
 func face_actor(actor: Node3D, heading: float) -> void:
