@@ -56,10 +56,13 @@ func _run() -> void:
 	_host.call("set_cutscene", true)
 	_host.call("dismiss_welcome")
 	_frame_tom()
+	_expression("angry")
 	await _line("These are Cogs. They're the business bots trying to take over Toontown.", _BLACK, "suits")
 	await _line("There are all sorts of Cogs.", _TEAL, "suits")
 	await _line("They turn happy Toon buildings...", _TEAL, "toon_buildings")
+	_expression("sad")
 	await _line("...into ugly Cog buildings!", _TEAL, "suit_buildings")
+	_expression("normal")
 	await _line("The Cogs are tough, but they can't take a joke!", _TEAL, "squirt1")
 	await _line("A good gag will put a stop to them.", _TEAL, "squirt2")
 	_show_poster("")
@@ -67,9 +70,15 @@ func _run() -> void:
 	await _hand_over_gags()
 	await _present_laff()
 	_host.call("face_tom", 130.0)
+	_expression("surprised")
+	await _gesture("pstart", 1.5, false)
+	_gesture("rpoint", 1.0, true)
 	await _line("OH NO! There's a Cog outside my shop!", _TEAL, "")
 	await _line("HELP ME, PLEASE! Defeat that Cog!", _TEAL, "")
+	await _gesture("pstart", -1.0, false)
 	_host.call("face_tom", 180.0)
+	_expression("angry")
+	_clear_gesture()
 	var tasks := _host.call("tasks") as ToonTasks
 	if tasks != null:
 		tasks.assign(101)
@@ -87,6 +96,8 @@ func _run() -> void:
 	_loadout.set_hp(15, 15)
 	_loadout.save()
 	_host.call("place_player", Vector3(0.776, 0.2, -14.6), 58.0)
+	_expression("normal")
+	_clear_gesture()
 	_host.call("set_cutscene", false)
 	finished = true
 
@@ -101,7 +112,7 @@ func _process(_delta: float) -> void:
 	if camera == null or tom == null or not tom.visible:
 		_bubble.visible = false
 		return
-	var point := tom.global_position + Vector3(0.2, 3.5, 0.0)
+	var point := tom.global_position + Vector3(0.2, 5.2, 0.0)
 	if camera.is_position_behind(point):
 		_bubble.visible = false
 		return
@@ -188,6 +199,35 @@ func _wait_page(book: ShtickerBook, index: int) -> void:
 		await book.page_ready
 
 
+func _tom() -> ToonActor:
+	if _host == null:
+		return null
+	return _host.get_node_or_null("Tutorial Tom") as ToonActor
+
+
+func _expression(mood: String) -> void:
+	var tom := _tom()
+	if tom:
+		tom.set_expression(mood)
+
+
+func _clear_gesture() -> void:
+	var tom := _tom()
+	if tom:
+		tom.clear_gesture()
+
+
+func _gesture(suffix: String, rate: float, loop: bool) -> void:
+	var tom := _tom()
+	if tom == null:
+		return
+	tom.play_gesture(suffix, rate, loop)
+	if loop:
+		return
+	while is_instance_valid(tom) and not tom.gesture_finished():
+		await get_tree().process_frame
+
+
 func _line(text: String, color: Color, poster: String) -> void:
 	_show_poster(poster)
 	_label.text = text
@@ -211,9 +251,17 @@ func _hand_over_gags() -> void:
 	var opened := create_tween()
 	opened.tween_property(_panel, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	await opened.finished
+	await _gesture("rstart", 1.8, false)
+	_gesture("rhand", 1.1, true)
 	await _fly(_FLOWER, ToonLoadout.SQUIRT, 0)
+	await _gesture("rstart", -1.5, false)
+	_clear_gesture()
 	await get_tree().create_timer(0.25).timeout
+	await _gesture("rstart", 1.8, false)
+	_gesture("rhand", 1.1, true)
 	await _fly(_CUPCAKE, ToonLoadout.THROW, 0)
+	await _gesture("rstart", -1.5, false)
+	_clear_gesture()
 	await get_tree().create_timer(1.1).timeout
 	var closed := create_tween()
 	closed.tween_property(_panel, "scale", Vector2(0.15, 0.15), 0.25)
@@ -251,13 +299,19 @@ func _present_laff() -> void:
 	_meter.set_hp(15, 15)
 	_meter.visible = true
 	_meter.place(shown, big)
+	await _gesture("rstart", 1.0, false)
+	_gesture("rhand", 1.0, true)
 	await _line("Oh! You also need a Laff meter!", _BLACK, "")
 	await _line("When you run out of Laff, you'll turn sad!", _TEAL, "")
+	_expression("sad")
 	for current in range(14, -1, -1):
 		_meter.set_hp(current, 15)
 		await get_tree().create_timer(0.07).timeout
 	await _line("A happy Toon is a healthy Toon, you know.", _PINK, "")
+	_expression("normal")
 	_meter.set_hp(15, 15)
+	await _gesture("rstart", -2.0, false)
+	_clear_gesture()
 	var tween := create_tween()
 	tween.tween_method(_slide_meter.bind(shown, dock, big, small), 0.0, 1.0, 0.55)
 	await tween.finished

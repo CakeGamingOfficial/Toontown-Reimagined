@@ -232,6 +232,7 @@ func _add_head(parent: Control, style: ToonStyle) -> void:
 	parent.add_child(box)
 	var viewport := SubViewport.new()
 	viewport.transparent_bg = true
+	viewport.own_world_3d = true
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.size = Vector2i(320, 280)
 	box.add_child(viewport)
@@ -240,12 +241,15 @@ func _add_head(parent: Control, style: ToonStyle) -> void:
 	_hide_body(actor)
 	viewport.add_child(actor)
 	var camera := Camera3D.new()
-	camera.fov = 32
+	# The original square draws the head with the flat GUI camera. A close
+	# perspective lens sits just in front of the muzzle and balloons the skull.
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 1.55
 	viewport.add_child(camera)
 	var neck := _find(actor, "def_head")
 	var focus := _point_under(actor, neck) if neck else actor.position + Vector3(0, 1.5, 0)
-	focus.y += 0.05
-	camera.position = focus + Vector3(0, 0.0, 2.35)
+	focus.y += 0.08
+	camera.position = focus + Vector3(0, 0.0, 4.0)
 	camera.look_at_from_position(camera.position, focus, Vector3.UP)
 
 
@@ -353,10 +357,15 @@ func _rebuild() -> void:
 
 func _hide_body(node: Node) -> void:
 	var part := String(node.name)
-	if part in ["legs", "feet", "arms", "hands", "neck", "torso-top", "torso-bot", "sleeves"]:
+	# The slot only shows the head. A shirt or shorts under this camera reads as a second head.
+	if node is MeshInstance3D and not _is_head_part(part):
 		node.visible = false
 	for child in node.get_children():
 		_hide_body(child)
+
+
+func _is_head_part(part: String) -> bool:
+	return part.begins_with("head") or part.begins_with("ears") or part.begins_with("eyes") or part.begins_with("muzzle") or part.begins_with("eyelash") or part == "nose" or part == "node" or part == "node2" or part.contains("pupil")
 
 
 func _point_under(root: Node3D, node: Node3D) -> Vector3:

@@ -32,6 +32,11 @@ var _label: Label
 var _advance := false
 
 
+func _process(delta: float) -> void:
+	if is_instance_valid(_tom):
+		_tom.set_locomotion(0.0, false, false, delta)
+
+
 func play(host: Node, body: CharacterBody3D, player: ToonActor, camera: Camera3D) -> void:
 	_host = host
 	_body = body
@@ -325,7 +330,7 @@ func _tom_style() -> ToonStyle:
 	style.first_name = "Tutorial"
 	style.last_name = "Tom"
 	style.gender = "m"
-	style.head = "dll"
+	style.head = "dls"
 	style.torso = "ms"
 	style.legs = "m"
 	style.arm_color = 7

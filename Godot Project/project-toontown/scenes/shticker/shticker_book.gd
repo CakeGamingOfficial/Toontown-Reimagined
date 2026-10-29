@@ -89,6 +89,10 @@ func arm_close() -> void:
 	_guided = true
 
 
+func is_open() -> bool:
+	return _open
+
+
 func page() -> int:
 	return _page
 

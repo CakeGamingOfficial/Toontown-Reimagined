@@ -575,8 +575,8 @@ def visit_children(np: NodePath) -> list[NodePath]:
 
 
 def smooth_normals(positions: list[tuple[float, float, float]]) -> list[tuple[float, float, float]]:
-    accumulated: dict[tuple[int, int, int], Vec3] = {}
-    face_normals: list[Vec3] = []
+    faces: list[Vec3] = []
+    groups: dict[tuple[int, int, int], list[int]] = {}
     for index in range(0, len(positions), 3):
         a = Vec3(*positions[index])
         b = Vec3(*positions[index + 1])
@@ -586,20 +586,27 @@ def smooth_normals(positions: list[tuple[float, float, float]]) -> list[tuple[fl
             normal.normalize()
         else:
             normal = Vec3(0, 0, 1)
-        face_normals.extend((normal, normal, normal))
+        tri = len(faces)
+        faces.append(normal)
         for corner in range(3):
             point = positions[index + corner]
             key = (round(point[0] * 64), round(point[1] * 64), round(point[2] * 64))
-            accumulated[key] = accumulated.get(key, Vec3(0, 0, 0)) + normal
-    result = []
+            groups.setdefault(key, []).append(tri)
+    result: list[tuple[float, float, float]] = []
     for index, point in enumerate(positions):
+        face = faces[index // 3]
         key = (round(point[0] * 64), round(point[1] * 64), round(point[2] * 64))
-        normal = Vec3(accumulated[key])
-        if normal.lengthSquared() > 1e-12:
-            normal.normalize()
+        accumulated = Vec3(0, 0, 0)
+        for other in groups[key]:
+            # A thin ear has a back face on the same corners. Averaging both
+            # cancels the normal and leaves every triangle flat-shaded.
+            if face.dot(faces[other]) > 0.0:
+                accumulated += faces[other]
+        if accumulated.lengthSquared() > 1e-12:
+            accumulated.normalize()
+            result.append((accumulated.x, accumulated.y, accumulated.z))
         else:
-            normal = face_normals[index]
-        result.append((normal.x, normal.y, normal.z))
+            result.append((face.x, face.y, face.z))
     return result
 
 

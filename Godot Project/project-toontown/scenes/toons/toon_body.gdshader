@@ -8,12 +8,14 @@ uniform sampler2D albedo_texture : source_color, filter_linear_mipmap, repeat_di
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float use_albedo_texture = 0.0;
 uniform float shell = 0.0;
-// Upper left of a toon facing the camera, so a straight-on head still
-// shows the roundness the original chooser and Make a Toon screens have.
-uniform vec3 light_direction = vec3(-0.55, 0.72, 0.28);
+// View space: left, up, and toward the camera. A world light lit the
+// Create a Toon face from the side because that camera is not on +Z.
+uniform vec3 light_direction = vec3(-0.45, 0.75, 0.5);
 uniform float ambient = 0.42;
 uniform float key_light = 0.58;
 uniform float wrap = 0.28;
+// Nose only. Fur and the muzzle stay matte; the original nose carries a highlight.
+uniform float gloss = 0.0;
 
 void vertex() {
 	VERTEX += NORMAL * shell;
@@ -25,7 +27,14 @@ void fragment() {
 		color *= texture(albedo_texture, UV).rgb;
 	}
 	color *= COLOR.rgb;
-	vec3 world_normal = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	float wrapped = clamp((dot(world_normal, normalize(light_direction)) + wrap) / (1.0 + wrap), 0.0, 1.0);
-	ALBEDO = color * (ambient + key_light * wrapped);
+	vec3 normal_view = normalize(NORMAL);
+	vec3 light_view = normalize(light_direction);
+	float wrapped = clamp((dot(normal_view, light_view) + wrap) / (1.0 + wrap), 0.0, 1.0);
+	vec3 lit = color * (ambient + key_light * wrapped);
+	if (gloss > 0.0) {
+		vec3 half_dir = normalize(light_view + normalize(-VERTEX));
+		float spec = pow(clamp(dot(normal_view, half_dir), 0.0, 1.0), 40.0);
+		lit += vec3(spec * gloss);
+	}
+	ALBEDO = lit;
 }

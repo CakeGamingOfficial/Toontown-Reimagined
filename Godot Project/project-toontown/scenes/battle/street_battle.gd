@@ -119,7 +119,7 @@ func _run() -> void:
 	if panel != null:
 		panel.visible = false
 	_body.velocity = Vector3.ZERO
-	_player.set_locomotion(false, false, 0.0)
+	_player.set_locomotion(0.0, false, false, 0.0)
 	_flunky.stop_for_battle()
 	_host.call("set_cutscene", true)
 	_separate()

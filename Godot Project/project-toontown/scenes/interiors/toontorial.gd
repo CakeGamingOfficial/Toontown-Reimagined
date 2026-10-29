@@ -57,6 +57,13 @@ var _door_dialog: Control
 var _door_stopped := false
 var _gate_armed := true
 var _hq
+var _cam_yaw := 0.0
+var _cam_pitch := 0.0
+var _cam_distance := 1.0
+const _CAM_PITCH_MIN := -18.0
+const _CAM_PITCH_MAX := 42.0
+const _CAM_DIST_MIN := 0.38
+const _CAM_DIST_MAX := 2.1
 const _DOOR := Vector2(-14.2, -24.5)
 const _NEED_GAGS := "You need gags! Go talk to\nTutorial Tom!"
 
@@ -84,6 +91,14 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	TOONTOWN_SKY.ensure(self, "tt")
+	var tom := get_node_or_null("Tutorial Tom") as ToonActor
+	if tom:
+		# The welcome and the quest movie both keep him in the talk cycle
+		# unless a gesture (the pointing hand, the raised hand) is playing.
+		if _cutscene or not _welcome_done:
+			tom.set_dialogue(delta)
+		else:
+			tom.set_locomotion(0.0, false, false, delta)
 	if not _cutscene or (_hq != null and _hq.inside()):
 		_place_camera()
 	_face_billboards()
@@ -128,9 +143,9 @@ func _spawn_toons() -> void:
 		_body.position = START_POSITION + Vector3(0.0, 0.2, 0.0)
 		_player = _spawn(style, Vector3.ZERO, START_HEADING, _body)
 		_add_capsule()
-		_add_tag(_player, style.display_name(), Color(0.45, 0.62, 0.95))
+		_add_tag(_player, style.display_name(), "player")
 	var tom := _spawn(_tom_style(), TOM_POSITION, TOM_HEADING, self)
-	_add_tag(tom, "Tutorial Tom", Color(0.92, 0.32, 0.18))
+	_add_tag(tom, "Tutorial Tom", "npc")
 	_cache_eye_height()
 
 
@@ -146,12 +161,13 @@ func _player_style() -> ToonStyle:
 
 
 func _tom_style() -> ToonStyle:
-	# TutorialBuildingAI: ("dll", "ms", "m", "m", 7, 0, 7, 7, 2, 6, 2, 6, 2, 16)
+	# TutorialBuildingAI colors and clothes. The head he wears is the tall
+	# skull with the short muzzle.
 	var style := ToonStyle.new()
 	style.first_name = "Tutorial"
 	style.last_name = "Tom"
 	style.gender = "m"
-	style.head = "dll"
+	style.head = "dls"
 	style.torso = "ms"
 	style.legs = "m"
 	style.arm_color = 7
@@ -315,9 +331,13 @@ func _place_camera() -> void:
 	# Eye height is the resting head, taken once. Reading the live head follows
 	# the idle, run, and jump, and that bob is what makes the camera sick.
 	var height := _eye_height
-	var forward := _forward(heading)
+	var orbit := heading + _cam_yaw
+	var forward := _forward(orbit)
 	var eye := feet + Vector3(0.0, height, 0.0)
-	_camera.global_position = eye - forward * 9.0 * (height / 3.0)
+	var distance := 9.0 * (height / 3.0) * _cam_distance
+	var pitch := deg_to_rad(_cam_pitch)
+	var back := forward * distance * cos(pitch)
+	_camera.global_position = eye - Vector3(back.x, 0.0, back.z) + Vector3(0.0, distance * sin(pitch), 0.0)
 	_camera.look_at(eye + forward * 1.5, Vector3.UP)
 
 
@@ -337,6 +357,59 @@ func _face(actor: Node3D, heading: float) -> void:
 	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
 	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))
 	actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
+
+
+func _steer_camera(event: InputEvent) -> void:
+	if _cutscene or _locked or _fading:
+		return
+	if _book != null and _book.is_open():
+		return
+	if event is InputEventMouseButton:
+		var button := event as InputEventMouseButton
+		if not button.pressed:
+			return
+		if button.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_cam_distance = maxf(_CAM_DIST_MIN, _cam_distance - 0.14)
+		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_cam_distance = minf(_CAM_DIST_MAX, _cam_distance + 0.14)
+		elif button.button_index == MOUSE_BUTTON_MIDDLE:
+			_cam_yaw = 0.0
+			_cam_pitch = 0.0
+			_cam_distance = 1.0
+		return
+	if event is InputEventMouseMotion:
+		var motion := event as InputEventMouseMotion
+		var left := (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0
+		var right := (motion.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0
+		if not left and not right:
+			return
+		var yaw := -motion.relative.x * 0.18
+		_cam_pitch = clampf(_cam_pitch - motion.relative.y * 0.12, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
+		if right and Input.is_physical_key_pressed(KEY_W):
+			# Steering: the toon turns with the camera, so forward follows it.
+			_heading += yaw
+		else:
+			# Looking around, or a right-drag while standing still. The facing stays.
+			_cam_yaw += yaw
+
+
+func _tag_hidden(actor: Node3D, point: Vector3) -> bool:
+	if _camera == null or _camera.is_position_behind(point):
+		return true
+	# The player's own card floats above his head, so his body is not in the way.
+	if actor == _player:
+		return false
+	var world := get_world_3d()
+	if world == null:
+		return false
+	var origin := _camera.global_position
+	var query := PhysicsRayQueryParameters3D.create(origin, point)
+	query.collide_with_areas = false
+	var hit := world.direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return false
+	# Tom's card was drawing on top of the player. A body or a wall in front hides it.
+	return origin.distance_to(hit.position) < origin.distance_to(point) - 0.3
 
 
 func _forward(heading: float) -> Vector3:
@@ -469,7 +542,7 @@ func _spawn_flunky() -> void:
 	_flunky.name = "Flunky"
 	add_child(_flunky)
 	_flunky.pace_outside()
-	_add_tag(_flunky, "Flunky\nBossbot\nLevel 1", Color(0.95, 0.95, 0.95))
+	_add_tag(_flunky, "Flunky\nBossbot\nLevel 1", "cog")
 
 
 func _build_exit_gate() -> void:
@@ -629,6 +702,7 @@ func _close_need_gags() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	_steer_camera(event)
 	if _briefing == null or not _briefing.finished or _panel == null:
 		return
 	if _battle != null and _battle.active():
@@ -670,31 +744,67 @@ func _build_bubble() -> void:
 	_bubble = panel
 
 
-func _add_tag(actor: Node3D, text: String, color: Color) -> void:
+func _add_tag(actor: Node3D, text: String, kind: String) -> void:
+	# phase_3/models/props/panel, stretched over the name. No dialog border.
+	# NPCs are tan with orange Impress BT. Members are gray with blue Impress BT.
+	# Cogs are olive with black Remington Portable.
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := StyleBoxFlat.new()
+	var text_color := Color(0.22, 0.22, 0.78)
+	var face := ToonGui.font()
+	if kind == "npc":
+		box.bg_color = Color(0.86, 0.78, 0.58, 0.94)
+		text_color = Color(0.6, 0.4, 0.2)
+	elif kind == "cog":
+		box.bg_color = Color(0.69, 0.72, 0.55, 0.94)
+		text_color = Color(0.0, 0.0, 0.0)
+		face = ToonGui.suit_font()
+	else:
+		box.bg_color = Color(0.55, 0.55, 0.53, 0.94)
+	# The panel card is a rounded rectangle, not a capsule. The corners stay
+	# shallow so a long name keeps a flat top and bottom.
+	box.set_corner_radius_all(7)
+	box.content_margin_left = 14
+	box.content_margin_right = 14
+	box.content_margin_top = 4
+	box.content_margin_bottom = 4
+	panel.add_theme_stylebox_override("panel", box)
 	var label := Label.new()
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ToonGui.style_label(label, color, 20, Color(0, 0, 0), 3)
-	_hud().add_child(label)
-	_tags.append({"label": label, "actor": actor})
+	ToonGui.style_label(label, text_color, 16, Color(0, 0, 0, 0), 0)
+	if face:
+		label.add_theme_font_override("font", face)
+	panel.add_child(label)
+	_hud().add_child(panel)
+	# Measured once, from the resting head. Reading the live head makes the
+	# card bob with the idle and the talk cycle.
+	var lift := 4.6
+	if kind == "cog":
+		lift = 6.4
+	else:
+		var head := _find(actor, "def_head")
+		if head:
+			lift = head.global_position.y - actor.global_position.y + 1.25
+	_tags.append({"label": panel, "actor": actor, "lift": lift})
 
 
 func _place_tags() -> void:
 	if _camera == null:
 		return
 	for item in _tags:
-		var label := item["label"] as Label
+		var label := item["label"] as Control
 		var actor := item["actor"] as Node3D
 		if actor == null or not actor.visible:
 			label.visible = false
 			continue
-		var head := _find(actor, "def_head")
-		var point := actor.global_position + Vector3(0, 3.2, 0)
-		if actor == _flunky:
-			point = actor.global_position + Vector3(0, 5.4, 0)
-		elif head:
-			point = head.global_position + Vector3(0, 0.45, 0)
+		var lift := float(item.get("lift", 4.6))
+		var point := actor.global_position + Vector3(0.0, lift, 0.0)
+		if _tag_hidden(actor, point):
+			label.visible = false
+			continue
 		_place_control(label, point, Vector2(0, -8))
 		if actor == _flunky and (_body != null and _body.position.x > -16.5 or (_battle != null and _battle.hides_flunky_tag())):
 			label.visible = false
@@ -707,10 +817,7 @@ func _place_bubble() -> void:
 	if tom == null or not tom.visible:
 		_bubble.visible = false
 		return
-	var head := _find(tom, "def_head")
-	var point := tom.global_position + Vector3(0, 4.0, 0)
-	if head:
-		point = head.global_position + Vector3(0, 0.8, 0)
+	var point := tom.global_position + Vector3(0.0, 5.1, 0.0)
 	_place_control(_bubble, point, Vector2(150, -70))
 
 

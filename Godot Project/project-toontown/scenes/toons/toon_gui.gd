@@ -5,14 +5,22 @@ extends RefCounted
 ## the window height, matching Panda's aspect2d.
 
 static var _font: Font
+static var _suit: Font
 static var _sign: Font
 
 
 static func font() -> Font:
-	# ImpressBT.ttf is both the interface font and the toon font.
+	# ImpressBT.ttf is the toon font. Toon and NPC nametags use it.
 	if _font == null:
 		_font = load("res://assets/toons/fonts/ImpressBT.ttf")
 	return _font
+
+
+static func suit_font() -> Font:
+	# vtRemingtonPortable.ttf is the suit font. Cog nametags use it.
+	if _suit == null:
+		_suit = load("res://assets/toons/fonts/vtRemingtonPortable.ttf")
+	return _suit
 
 
 static func sign_font() -> Font:
