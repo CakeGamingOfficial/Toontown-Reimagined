@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://b0yvcmoki81kg"]
+
+[ext_resource type="PackedScene" uid="uid://bw80crbd1dr3q" path="res://assets/cog_hq/sellbot_vp.glb" id="1_geom"]
+[ext_resource type="Script" uid="uid://r8xqfq6aalwx" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" uid="uid://5uejmdh7kiu8" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" uid="uid://dlu3viftn06q5" path="res://scenes/playgrounds/neighborhood.gd" id="4_hood"]
+[ext_resource type="PackedScene" uid="uid://ch32cp47srynf" path="res://assets/cog_hq/sky/cog_sky.glb" id="5_sky"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.28, 0.32, 0.38, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="SellbotVp" type="Node3D" unique_id=1825790495]
+script = ExtResource("4_hood")
+music_path = "res://assets/cog_hq/audio/encntr_suit_winning_indoor.ogg"
+sky_kind = "cog"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1791893759]
+environment = SubResource("Environment_day")
+
+[node name="Geometry" parent="." unique_id=70899521 instance=ExtResource("1_geom")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.345, 0, 74.855)
+script = ExtResource("2_collision")
+
+[node name="CogSky" parent="." unique_id=527011357 instance=ExtResource("5_sky")]
+
+[node name="Camera" type="Camera3D" parent="." unique_id=1814224219]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 80)
+current = true
+script = ExtResource("3_fly")

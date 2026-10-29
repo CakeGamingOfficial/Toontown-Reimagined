@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/neighborhoods/donalds_dreamland/streets/pajama_place.glb" id="1_geom"]
+[ext_resource type="Script" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" path="res://scenes/playgrounds/neighborhood.gd" id="4_hood"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.05098, 0.286275, 0.72549, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="PajamaPlace" type="Node3D"]
+script = ExtResource("4_hood")
+music_path = "res://assets/neighborhoods/donalds_dreamland/audio/DL_SZ.ogg"
+sky_kind = "dl"
+zones_path = "res://assets/neighborhoods/donalds_dreamland/streets/pajama_place_zones.json"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="Geometry" parent="." instance=ExtResource("1_geom")]
+script = ExtResource("2_collision")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(0.957639, -0.013017, 0.287676, 0, 0.998978, 0.045202, -0.287971, -0.043287, 0.95666, 89.1, 18, 296.3)
+current = true
+far = 4000.0
+script = ExtResource("3_fly")

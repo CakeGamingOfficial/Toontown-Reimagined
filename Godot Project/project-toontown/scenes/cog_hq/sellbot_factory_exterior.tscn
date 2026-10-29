@@ -1,0 +1,32 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/cog_hq/sellbot_factory_exterior.glb" id="1_geom"]
+[ext_resource type="Script" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" path="res://scenes/playgrounds/neighborhood.gd" id="4_hood"]
+[ext_resource type="PackedScene" path="res://assets/cog_hq/sky/cog_sky.glb" id="5_sky"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.28, 0.32, 0.38, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="SellbotFactoryExterior" type="Node3D"]
+script = ExtResource("4_hood")
+music_path = "res://assets/cog_hq/audio/encntr_suit_HQ_nbrhood.ogg"
+sky_kind = "cog"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="Geometry" parent="." instance=ExtResource("1_geom")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -62.800, 0, -85.600)
+script = ExtResource("2_collision")
+
+[node name="CogSky" parent="." instance=ExtResource("5_sky")]
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 8, -36)
+current = true
+far = 4000.0
+script = ExtResource("3_fly")

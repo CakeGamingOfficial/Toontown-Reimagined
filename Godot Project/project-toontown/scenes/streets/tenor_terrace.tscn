@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/neighborhoods/minnies_melodyland/streets/tenor_terrace.glb" id="1_geom"]
+[ext_resource type="Script" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+[ext_resource type="Script" path="res://scenes/playgrounds/neighborhood.gd" id="4_hood"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.05098, 0.286275, 0.72549, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="TenorTerrace" type="Node3D"]
+script = ExtResource("4_hood")
+music_path = "res://assets/neighborhoods/minnies_melodyland/audio/MM_SZ.ogg"
+sky_kind = "mm"
+zones_path = "res://assets/neighborhoods/minnies_melodyland/streets/tenor_terrace_zones.json"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="Geometry" parent="." instance=ExtResource("1_geom")]
+script = ExtResource("2_collision")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(0.977049, -0.015491, 0.212449, 0, 0.997352, 0.072721, -0.213013, -0.071052, 0.974462, 40.9, 18, 187.6)
+current = true
+far = 4000.0
+script = ExtResource("3_fly")

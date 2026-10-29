@@ -2,26 +2,57 @@
 extends Node3D
 
 ## Background sky for every neighborhood. Call ensure(self) from _ready.
-## The gradient and cloud sheet come from TT_sky. The sky is the environment
-## background, so it cannot paint over the bank pig or any other model.
+## "tt" is the Toontown Central cloud sky. Daisy Gardens, Goofy Speedway,
+## MiniGolf, and the Toontorial use that same sky, because the original game does.
+## The other kinds use that hood's own sky painting.
 ## Saving the scene puts the imported sky and the original environment back.
 
 const GRADIENT := preload("res://assets/neighborhoods/toontown_central/toontown_central_117.png")
 const CLOUDS := preload("res://assets/neighborhoods/toontown_central/toontown_central_115.png")
 const SKY_SHADER_PATH := "res://assets/neighborhoods/toontown_central/toontown_sky.gdshader"
+const HOOD_SHADER_PATH := "res://scenes/sky/hood_sky.gdshader"
 
+const PROFILES := {
+	"mm": {
+		"sky": "res://assets/neighborhoods/minnies_melodyland/sky/lateday_sky3.png",
+		"zenith": "res://assets/neighborhoods/minnies_melodyland/sky/lateday_sky3.png",
+		"repeats": 8.0,
+		"crop": Vector4(0, 0, 1, 1),
+		"zenith_mode": 0,
+	},
+	"br": {
+		"sky": "res://assets/neighborhoods/the_burrrgh/sky/phase_3.5_palette_3cmla_1.png",
+		"zenith": "res://assets/neighborhoods/the_burrrgh/sky/sky_oc_blue2.png",
+		"repeats": 6.0,
+		"crop": Vector4(0.008, 0.008, 0.484, 0.484),
+		"zenith_mode": 0,
+	},
+	"dl": {
+		"sky": "res://assets/neighborhoods/donalds_dreamland/sky/nightsky.png",
+		"zenith": "res://assets/neighborhoods/donalds_dreamland/sky/nightskytop.png",
+		"repeats": 10.0,
+		"crop": Vector4(0, 0, 1, 1),
+		"zenith_mode": 1,
+	},
+}
+
+var kind := "tt"
 var _material: ShaderMaterial
 var _hidden: Array[Node3D] = []
 var _scroll := 0.0
 var _original_environment: Environment
 
 
-static func ensure(host: Node) -> Node3D:
+static func ensure(host: Node, sky_kind: String = "tt") -> Node3D:
 	var existing := host.get_node_or_null("ToontownSky") as Node3D
 	if existing:
+		if existing.get("kind") != sky_kind:
+			existing.set("kind", sky_kind)
+			existing.set("_material", null)
 		return existing
 	var sky := (load("res://scenes/sky/toontown_sky.gd") as GDScript).new() as Node3D
 	sky.name = "ToontownSky"
+	sky.set("kind", sky_kind)
 	host.add_child(sky)
 	return sky
 
@@ -40,9 +71,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	# cloud1 gains a quarter degree per second. The second layer uses 0.8 of that.
-	_scroll += delta * 0.25
-	if _material:
-		_material.set_shader_parameter("cloud_scroll", _scroll)
+	if kind == "tt":
+		_scroll += delta * 0.25
+		if _material:
+			_material.set_shader_parameter("cloud_scroll", _scroll)
 	_apply_sky()
 	if _hidden.is_empty() or not is_instance_valid(_hidden[0]):
 		_hidden.clear()
@@ -60,13 +92,7 @@ func _apply_sky() -> void:
 	if world == null:
 		return
 	if _material == null:
-		var shader := Shader.new()
-		shader.code = FileAccess.get_file_as_string(SKY_SHADER_PATH)
-		_material = ShaderMaterial.new()
-		_material.shader = shader
-		_material.set_shader_parameter("gradient_tex", GRADIENT)
-		_material.set_shader_parameter("cloud_tex", CLOUDS)
-		_material.set_shader_parameter("cloud_scroll", _scroll)
+		_material = _make_material()
 	var current := world.environment
 	if current and current.sky and current.sky.sky_material == _material:
 		return
@@ -80,6 +106,31 @@ func _apply_sky() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	world.environment = environment
+
+
+func _make_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	var material := ShaderMaterial.new()
+	if kind == "cog":
+		shader.code = "shader_type sky;\nvoid sky() {\n\tfloat height = clamp(normalize(EYEDIR).y, 0.0, 1.0);\n\tCOLOR = mix(vec3(0.55, 0.58, 0.62), vec3(0.28, 0.32, 0.38), height);\n}\n"
+		material.shader = shader
+		return material
+	if kind == "tt" or not PROFILES.has(kind):
+		shader.code = FileAccess.get_file_as_string(SKY_SHADER_PATH)
+		material.shader = shader
+		material.set_shader_parameter("gradient_tex", GRADIENT)
+		material.set_shader_parameter("cloud_tex", CLOUDS)
+		material.set_shader_parameter("cloud_scroll", _scroll)
+		return material
+	var profile: Dictionary = PROFILES[kind]
+	shader.code = FileAccess.get_file_as_string(HOOD_SHADER_PATH)
+	material.shader = shader
+	material.set_shader_parameter("sky_tex", load(str(profile["sky"])))
+	material.set_shader_parameter("zenith_tex", load(str(profile["zenith"])))
+	material.set_shader_parameter("crop", profile["crop"])
+	material.set_shader_parameter("repeats", float(profile["repeats"]))
+	material.set_shader_parameter("zenith_mode", int(profile["zenith_mode"]))
+	return material
 
 
 func _world() -> WorldEnvironment:
@@ -98,7 +149,7 @@ func _world() -> WorldEnvironment:
 func _collect_imported(node: Node) -> void:
 	if node == null or node == self:
 		return
-	var node_name := String(node.name)
+	var node_name := str(node.name)
 	if node_name == "cloud1" or node_name == "cloud2":
 		if node is Node3D:
 			_hidden.append(node as Node3D)
