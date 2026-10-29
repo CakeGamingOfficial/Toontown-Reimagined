@@ -59,7 +59,7 @@ var _rotate_left: Control
 var _rotate_right: Control
 var _spin := 0.0
 var _placed: Array = []
-var _typing := true
+var _typing := false
 var _name_edit: LineEdit
 var _titles: PackedStringArray = PackedStringArray()
 var _firsts: PackedStringArray = PackedStringArray()
@@ -90,6 +90,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _actor and _style:
+		# The original Make a Toon toon stands in neutral the whole time.
+		_actor.set_locomotion(0.0, false, false, delta)
 	if _spin != 0.0 and _actor:
 		_actor.global_rotate(Vector3.UP, _spin * delta)
 
@@ -255,6 +258,7 @@ func _build_gender() -> void:
 	boy.pressed.connect(_start_gender.bind("m"))
 	_shop_box.add_child(boy)
 	_track(boy, -0.42, -0.78, 0.52, 0.52)
+	_hover_caption(boy, "Boy", -0.42, -0.48)
 	var girl := _image_button(
 		preload("res://assets/toons/gui/tt_t_gui_mat_girlUp.png"),
 		preload("res://assets/toons/gui/tt_t_gui_mat_girlDown.png")
@@ -262,6 +266,7 @@ func _build_gender() -> void:
 	girl.pressed.connect(_start_gender.bind("f"))
 	_shop_box.add_child(girl)
 	_track(girl, 0.42, -0.78, 0.52, 0.52)
+	_hover_caption(girl, "Girl", 0.42, -0.48)
 
 
 func _start_gender(gender: String) -> void:
@@ -303,23 +308,15 @@ func _build_name() -> void:
 
 
 func _build_type_name() -> void:
-	var panel := _name_panel(-0.28, -0.02, 1.35, 1.28)
-	var title := _panel_label(panel, "Please type your name:", 0.02, 0.04, 0.96, 0.16, Color(1, 0.92, 0.15), 0.055)
+	var panel := _begin_panel(-0.28, 0.02, 1.35, 1.35)
+	_place_art(panel, preload("res://assets/toons/gui/tt_t_gui_mat_typeNamePanel.png"))
+	var title := _panel_label(panel, "Please type your name:", 0.08, 0.06, 0.92, 0.18, Color(1, 0.92, 0.15), 0.05)
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	var field := Panel.new()
-	field.anchor_left = 0.12
-	field.anchor_right = 0.88
-	field.anchor_top = 0.18
-	field.anchor_bottom = 0.32
-	var plate := StyleBoxFlat.new()
-	plate.bg_color = Color(0.98, 0.98, 0.98)
-	plate.set_corner_radius_all(4)
-	field.add_theme_stylebox_override("panel", plate)
-	panel.add_child(field)
 	_name_edit = LineEdit.new()
-	_name_edit.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_name_edit.offset_left = 8
-	_name_edit.offset_right = -8
+	_name_edit.anchor_left = 0.30
+	_name_edit.anchor_right = 0.72
+	_name_edit.anchor_top = 0.22
+	_name_edit.anchor_bottom = 0.34
 	_name_edit.text = _style.display_name() if _style and _style.display_name() != "Unnamed Toon" else ""
 	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_edit.max_length = 24
@@ -332,8 +329,8 @@ func _build_type_name() -> void:
 	_name_edit.text_submitted.connect(func(_text: String) -> void:
 		_on_typed_name(_name_edit.text)
 	)
-	field.add_child(_name_edit)
-	_panel_label(panel, "All new names must be\napproved by the Toon Council.", 0.08, 0.34, 0.92, 0.52, Color(1, 0.92, 0.15), 0.042)
+	panel.add_child(_name_edit)
+	_panel_label(panel, "All new names must be\napproved by the Toon Council.", 0.08, 0.38, 0.92, 0.54, Color(1, 0.92, 0.15), 0.04)
 	_panel_label(panel, "Be creative and remember:\nno Disney-related names, please.", 0.08, 0.50, 0.92, 0.68, Color(1, 0.95, 0.35), 0.038)
 	_yellow_button(panel, "Submit", 0.22, 0.70, 0.78, 0.82, func() -> void:
 		_on_typed_name(_name_edit.text if _name_edit else "")
@@ -347,35 +344,57 @@ func _build_type_name() -> void:
 
 func _build_pick_name() -> void:
 	_load_name_lists()
-	var panel := _name_panel(-0.32, -0.02, 1.55, 1.32)
-	var result := _panel_label(panel, _picked_name(), 0.04, 0.02, 0.96, 0.16, Color(1, 0.95, 0.4), 0.05)
+	var panel := _begin_panel(-0.38, 0.02, 1.52, 1.52)
+	_name_wash(panel, 0.08, Color(1.0, 0.73, 0.78), _title_on)
+	_name_wash(panel, 0.31, Color(0.72, 0.93, 0.55), _first_on)
+	_name_wash(panel, 0.545, Color(0.80, 0.66, 0.95), _last_on)
+	_name_wash(panel, 0.75, Color(0.68, 0.80, 0.98), _last_on)
+	_place_art(panel, preload("res://assets/toons/gui/tt_t_gui_mat_namePanel.png"))
+	var result := _panel_label(panel, _picked_name(), 0.30, 0.16, 0.72, 0.35, Color(0.08, 0.08, 0.1), 0.034, Color(0, 0, 0, 0))
 	result.name = "PickedName"
-	_name_column(panel, "Title", 0.04, _titles, _title_i, _title_on, _set_title)
-	_name_column(panel, "First", 0.36, _firsts, _first_i, _first_on, _set_first)
-	_name_column(panel, "Last", 0.68, _last_choices(), _last_choice_index(), _last_on, _set_last)
-	_yellow_button(panel, "Shuffle", 0.08, 0.84, 0.46, 0.96, _shuffle_name)
-	_yellow_button(panel, "Type-A-Name", 0.52, 0.84, 0.92, 0.96, func() -> void:
+	if not _title_on:
+		_panel_label(panel, "Title", 0.08, 0.44, 0.22, 0.56, Color(0.05, 0.22, 0.45), 0.038, Color(0, 0, 0, 0))
+	_name_check(panel, 0.155, 0.352, _title_on, func() -> void: _set_title("toggle", not _title_on))
+	_name_check(panel, 0.30, 0.352, _first_on, func() -> void: _set_first("toggle", not _first_on))
+	var first_label := _panel_label(panel, "First", 0.36, 0.325, 0.52, 0.415, Color(0.05, 0.22, 0.45), 0.028, Color(0, 0, 0, 0))
+	first_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	first_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	first_label.z_index = 5
+	_name_check(panel, 0.56, 0.352, _last_on, func() -> void: _set_last("toggle", not _last_on))
+	var last_label := _panel_label(panel, "Last", 0.62, 0.325, 0.80, 0.415, Color(0.05, 0.22, 0.45), 0.028, Color(0, 0, 0, 0))
+	last_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	last_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	last_label.z_index = 5
+	_name_column(panel, 0.08, _titles, _title_i, _title_on, _set_title, HORIZONTAL_ALIGNMENT_CENTER)
+	_name_column(panel, 0.31, _firsts, _first_i, _first_on, _set_first, HORIZONTAL_ALIGNMENT_CENTER)
+	_name_column(panel, 0.545, _prefixes, _prefix_i, _last_on, _set_prefix, HORIZONTAL_ALIGNMENT_RIGHT)
+	_name_column(panel, 0.75, _suffixes, _suffix_i, _last_on, _set_suffix, HORIZONTAL_ALIGNMENT_LEFT)
+	_yellow_button(panel, "Shuffle", 0.36, 0.715, 0.64, 0.795, _shuffle_name)
+	_yellow_button(panel, "Type-A-Name", 0.34, 0.805, 0.66, 0.875, func() -> void:
 		_typing = true
 		_show_shop()
 	)
+	_apply_picked()
 
 
-func _name_panel(x: float, z: float, width: float, height: float) -> Control:
-	var panel := Panel.new()
-	var plate := StyleBoxFlat.new()
-	plate.bg_color = Color(0.16, 0.62, 0.98)
-	plate.border_color = Color(0.05, 0.28, 0.62)
-	plate.set_border_width_all(8)
-	plate.set_corner_radius_all(26)
-	plate.shadow_color = Color(0, 0, 0, 0.25)
-	plate.shadow_size = 8
-	panel.add_theme_stylebox_override("panel", plate)
+func _begin_panel(x: float, z: float, width: float, height: float) -> Control:
+	var panel := Control.new()
 	_shop_box.add_child(panel)
 	_track(panel, x, z, width, height)
 	return panel
 
 
-func _panel_label(panel: Control, text: String, left: float, top: float, right: float, bottom: float, color: Color, scale: float) -> Label:
+func _place_art(panel: Control, texture: Texture2D) -> void:
+	var image := TextureRect.new()
+	image.texture = texture
+	image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(image)
+
+
+func _panel_label(panel: Control, text: String, left: float, top: float, right: float, bottom: float, color: Color, scale: float, outline: Color = Color(0.05, 0.15, 0.35)) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.anchor_left = left
@@ -389,7 +408,8 @@ func _panel_label(panel: Control, text: String, left: float, top: float, right: 
 	panel.add_child(label)
 	panel.resized.connect(func() -> void:
 		var px := int(panel.size.y * scale)
-		ToonGui.style_label(label, color, px, Color(0.05, 0.15, 0.35), maxi(px / 10, 1))
+		var outline_px := 0 if outline.a <= 0.0 else maxi(px / 10, 1)
+		ToonGui.style_label(label, color, px, outline, outline_px)
 	)
 	return label
 
@@ -423,44 +443,79 @@ func _yellow_button(panel: Control, caption: String, left: float, top: float, ri
 	)
 
 
-func _name_column(panel: Control, caption: String, left: float, values: PackedStringArray, index: int, enabled: bool, changed: Callable) -> void:
-	var box := VBoxContainer.new()
-	box.anchor_left = left
-	box.anchor_right = left + 0.28
-	box.anchor_top = 0.18
-	box.anchor_bottom = 0.80
-	panel.add_child(box)
-	var header := Button.new()
-	header.toggle_mode = true
-	header.button_pressed = enabled
-	header.text = caption
-	header.toggled.connect(func(on: bool) -> void:
-		changed.call("toggle", on)
-	)
-	box.add_child(header)
-	var up := Button.new()
-	up.text = "Up"
-	up.pressed.connect(func() -> void:
-		changed.call("step", -1)
-	)
-	box.add_child(up)
-	var value := Label.new()
-	value.text = _at(values, index) if enabled else ""
-	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	value.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(value)
-	var down := Button.new()
-	down.text = "Down"
-	down.pressed.connect(func() -> void:
-		changed.call("step", 1)
-	)
-	box.add_child(down)
+func _name_wash(panel: Control, left: float, color: Color, enabled: bool) -> void:
+	var wash := ColorRect.new()
+	wash.color = color
+	wash.anchor_left = left
+	wash.anchor_right = left + 0.16
+	wash.anchor_top = 0.41
+	wash.anchor_bottom = 0.63
+	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wash.modulate = Color(1, 1, 1, 1.0 if enabled else 0.28)
+	panel.add_child(wash)
+
+
+func _name_check(panel: Control, left: float, top: float, on: bool, toggled: Callable) -> void:
+	if not on:
+		return
+	var mark := TextureButton.new()
+	mark.texture_normal = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelCircle.png")
+	mark.ignore_texture_size = true
+	mark.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	mark.anchor_left = left
+	mark.anchor_right = left + 0.042
+	mark.anchor_top = top
+	mark.anchor_bottom = top + 0.042
+	mark.pressed.connect(toggled)
+	panel.add_child(mark)
+
+
+func _name_column(panel: Control, left: float, values: PackedStringArray, index: int, enabled: bool, changed: Callable, align: HorizontalAlignment) -> void:
+	var rows := 5
+	var top := 0.41
+	var height := 0.22
+	for row in rows:
+		var offset := row - 2
+		var item_index := 0 if values.is_empty() else posmod(index + offset, values.size())
+		if offset == 0 and enabled:
+			var mark := ColorRect.new()
+			mark.color = Color(1.0, 0.15, 0.85, 0.55)
+			var row_top := top + height * float(row) / float(rows)
+			var row_bottom := top + height * float(row + 1) / float(rows)
+			mark.anchor_left = left
+			mark.anchor_right = left + 0.16
+			mark.anchor_top = lerpf(row_top, row_bottom, 0.28)
+			mark.anchor_bottom = lerpf(row_top, row_bottom, 0.78)
+			mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			panel.add_child(mark)
+		var button := Button.new()
+		button.flat = true
+		button.focus_mode = Control.FOCUS_NONE
+		button.text = _at(values, item_index) if enabled else ""
+		button.alignment = align
+		button.anchor_left = left
+		button.anchor_right = left + 0.16
+		button.anchor_top = top + height * float(row) / float(rows)
+		button.anchor_bottom = top + height * float(row + 1) / float(rows)
+		button.disabled = not enabled or values.is_empty()
+		var empty := StyleBoxEmpty.new()
+		button.add_theme_stylebox_override("normal", empty)
+		button.add_theme_stylebox_override("hover", empty)
+		button.add_theme_stylebox_override("pressed", empty)
+		button.add_theme_stylebox_override("disabled", empty)
+		button.add_theme_stylebox_override("focus", empty)
+		button.pressed.connect(changed.bind("set", item_index))
+		panel.add_child(button)
+		_style_name_button(panel, button)
+
+
+func _style_name_button(panel: Control, button: Button) -> void:
 	panel.resized.connect(func() -> void:
-		var px := int(panel.size.y * 0.04)
-		ToonGui.style_label(value, Color.WHITE, px, _OUTLINE, maxi(px / 8, 1))
-		header.add_theme_font_override("font", ToonGui.font())
-		header.add_theme_font_size_override("font_size", px)
+		var px := int(panel.size.y * 0.038)
+		button.add_theme_font_override("font", ToonGui.font())
+		button.add_theme_font_size_override("font_size", maxi(px, 1))
+		button.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
+		button.add_theme_constant_override("outline_size", 0)
 	)
 
 
@@ -702,14 +757,14 @@ func _refresh() -> void:
 
 
 func _place_camera(camera: Camera3D) -> void:
-	# Original camera sits at Panda (-5.7, -12.3501, 2.15). On a 4:3 screen
-	# its 52 degree horizontal view is about 40 degrees tall, which is what
-	# frames the toon. Widescreen keeps that vertical view and the aim is the
-	# toon's chest, so the body sits in the middle instead of off to one side.
-	camera.keep_aspect = Camera3D.KEEP_HEIGHT
-	camera.fov = 40.0
+	# Original camera sits at Panda (-5.7, -12.3501, 2.15) with a 52 degree
+	# horizontal lens. The aim is a little above the chest so the head stays
+	# under the title and the feet fall off the bottom, the way the original
+	# screen crops them.
+	camera.keep_aspect = Camera3D.KEEP_WIDTH
+	camera.fov = 52.0
 	camera.position = Vector3(-5.7, 2.15, 12.3501)
-	camera.look_at(Vector3(-1.62, 1.45, 3.49))
+	camera.look_at(Vector3(-1.62, 2.55, 3.49))
 
 
 func _on_back() -> void:
@@ -845,8 +900,10 @@ func _picked_name() -> String:
 	var title := _at(_titles, _title_i) if _title_on else ""
 	var first := _at(_firsts, _first_i) if _first_on else ""
 	var last := ToonNames.last_name(_at(_prefixes, _prefix_i), _at(_suffixes, _suffix_i)) if _last_on else ""
-	var full := ToonNames.join_name(title, first, last)
-	return full if not full.is_empty() else " "
+	var given := ToonNames.join_name(title, first, "")
+	if given.is_empty() and last.is_empty():
+		return " "
+	return given + "\n" + last
 func _apply_picked() -> void:
 	if _style == null:
 		return
@@ -859,6 +916,8 @@ func _apply_picked() -> void:
 func _set_title(kind: String, value: Variant) -> void:
 	if kind == "toggle":
 		_title_on = bool(value)
+	elif kind == "set":
+		_title_i = posmod(int(value), maxi(_titles.size(), 1))
 	else:
 		_title_i = posmod(_title_i + int(value), maxi(_titles.size(), 1))
 	_apply_picked()
@@ -870,8 +929,28 @@ func _set_first(kind: String, value: Variant) -> void:
 		_first_on = bool(value)
 		if not _first_on and not _last_on:
 			_last_on = true
+	elif kind == "set":
+		_first_i = posmod(int(value), maxi(_firsts.size(), 1))
 	else:
 		_first_i = posmod(_first_i + int(value), maxi(_firsts.size(), 1))
+	_apply_picked()
+	_show_shop()
+
+
+func _set_prefix(kind: String, value: Variant) -> void:
+	if kind == "set":
+		_prefix_i = posmod(int(value), maxi(_prefixes.size(), 1))
+	else:
+		_prefix_i = posmod(_prefix_i + int(value), maxi(_prefixes.size(), 1))
+	_apply_picked()
+	_show_shop()
+
+
+func _set_suffix(kind: String, value: Variant) -> void:
+	if kind == "set":
+		_suffix_i = posmod(int(value), maxi(_suffixes.size(), 1))
+	else:
+		_suffix_i = posmod(_suffix_i + int(value), maxi(_suffixes.size(), 1))
 	_apply_picked()
 	_show_shop()
 
@@ -934,6 +1013,26 @@ func _flipped_arrow() -> Control:
 	return box
 
 
+func _hover_caption(button: BaseButton, text: String, x: float, z: float) -> void:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.modulate = Color(1, 1, 1, 0)
+	_shop_box.add_child(label)
+	_track(label, x, z, 0.46, 0.12)
+	button.mouse_entered.connect(func() -> void:
+		label.modulate.a = 1.0
+	)
+	button.mouse_exited.connect(func() -> void:
+		label.modulate.a = 0.0
+	)
+	label.resized.connect(func() -> void:
+		ToonGui.style_label(label, Color.WHITE, int(label.size.y * 0.7), Color(0, 0, 0), maxi(int(label.size.y * 0.12), 1))
+	)
+
+
 func _image_button(up: Texture2D, down: Texture2D) -> TextureButton:
 	var button := TextureButton.new()
 	button.texture_normal = up
@@ -945,12 +1044,19 @@ func _image_button(up: Texture2D, down: Texture2D) -> TextureButton:
 
 func _unshade(node: Node) -> void:
 	if node is MeshInstance3D:
-		var mesh := (node as MeshInstance3D).mesh
+		var mesh_instance := node as MeshInstance3D
+		var mesh := mesh_instance.mesh
 		if mesh:
 			for surface in mesh.get_surface_count():
-				var material := mesh.surface_get_material(surface)
-				if material is StandardMaterial3D:
-					(material as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				var source := mesh.surface_get_material(surface)
+				if source is StandardMaterial3D:
+					# Wall paint is stored in the vertex colors. The imported
+					# material ignores them, which leaves the rooms white.
+					var material := (source as StandardMaterial3D).duplicate() as StandardMaterial3D
+					material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+					material.vertex_color_use_as_albedo = true
+					material.vertex_color_is_srgb = true
+					mesh_instance.set_surface_override_material(surface, material)
 	for child in node.get_children():
 		_unshade(child)
 

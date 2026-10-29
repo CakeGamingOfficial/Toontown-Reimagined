@@ -93,7 +93,7 @@ func _layout() -> void:
 		quit.size = quit_size
 		var quit_label := quit.get_node_or_null("QuitLabel") as Label
 		if quit_label:
-			ToonGui.style_label(quit_label, _YELLOW, int(size.y * 0.032), Color(0.05, 0.15, 0.35), int(size.y * 0.004))
+			ToonGui.style_sign(quit_label, _YELLOW, int(size.y * 0.032), Color(0, 0, 0), int(size.y * 0.004))
 	for index in ToonRoster.SLOT_COUNT:
 		var panel := get_node_or_null("Slot%d" % index) as Control
 		if panel == null:
@@ -126,9 +126,12 @@ func _slot(index: int) -> Control:
 		button.add_child(make)
 		button.mouse_entered.connect(func() -> void:
 			make.modulate = Color(1, 1, 1, 1)
+			# text2_scale 0.12 against the resting text0_scale 0.1.
+			make.scale = Vector2(1.2, 1.2)
 		)
 		button.mouse_exited.connect(func() -> void:
 			make.modulate = Color(1, 1, 1, 0.55)
+			make.scale = Vector2.ONE
 		)
 		make.modulate = Color(1, 1, 1, 0.55)
 		button.pressed.connect(_make_toon.bind(index))
@@ -146,6 +149,16 @@ func _slot(index: int) -> Control:
 	name.rotation_degrees = _TILT[index]
 	button.add_child(name)
 
+	var status := Label.new()
+	status.name = "Status"
+	status.text = "Name\nApproved"
+	status.set_anchors_preset(Control.PRESET_FULL_RECT)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	status.rotation_degrees = _TILT[index]
+	button.add_child(status)
+
 	var play := Label.new()
 	play.name = "Play"
 	play.text = "PLAY\nTHIS TOON"
@@ -157,9 +170,11 @@ func _slot(index: int) -> Control:
 	button.add_child(play)
 	button.mouse_entered.connect(func() -> void:
 		play.modulate = Color(1, 1, 1, 1)
+		status.modulate = Color(1, 1, 1, 0)
 	)
 	button.mouse_exited.connect(func() -> void:
 		play.modulate = Color(1, 1, 1, 0)
+		status.modulate = Color(1, 1, 1, 1)
 	)
 	button.pressed.connect(_play.bind(index))
 
@@ -178,7 +193,7 @@ func _slot(index: int) -> Control:
 func _layout_slot(panel: Control, index: int) -> void:
 	var prompt := panel.find_child("Prompt", true, false) as Label
 	if prompt:
-		ToonGui.style_label(prompt, _TEAL, int(panel.size.y * 0.16), Color(0.0, 0.25, 0.35), int(panel.size.y * 0.02))
+		ToonGui.style_sign(prompt, _TEAL, int(panel.size.y * 0.12), Color(0.0, 0.2, 0.28), int(panel.size.y * 0.012))
 		prompt.pivot_offset = prompt.size * 0.5
 	var name := panel.find_child("ToonName", true, false) as Label
 	if name:
@@ -188,11 +203,17 @@ func _layout_slot(panel: Control, index: int) -> void:
 		name.offset_bottom = panel.size.y * 0.28
 		name.pivot_offset = name.size * 0.5
 		ToonGui.style_label(name, Color.WHITE, int(panel.size.y * 0.11), Color(0, 0, 0), int(panel.size.y * 0.014))
+	var status := panel.find_child("Status", true, false) as Label
+	if status:
+		status.offset_top = panel.size.y * 0.46
+		status.offset_bottom = panel.size.y * 0.72
+		status.pivot_offset = status.size * 0.5
+		ToonGui.style_label(status, Color.WHITE, int(panel.size.y * 0.09), Color(0, 0, 0), int(panel.size.y * 0.012))
 	var play := panel.find_child("Play", true, false) as Label
 	if play:
 		play.offset_top = -panel.size.y * 0.28
 		play.offset_bottom = -panel.size.y * 0.04
-		ToonGui.style_label(play, _YELLOW, int(panel.size.y * 0.08), Color(0, 0, 0), int(panel.size.y * 0.01))
+		ToonGui.style_sign(play, _YELLOW, int(panel.size.y * 0.075), Color(0, 0, 0), int(panel.size.y * 0.008))
 	var trash := panel.find_child("Trash", true, false) as TextureButton
 	if trash:
 		var trash_size := panel.size.y * 0.24
@@ -249,58 +270,62 @@ func _ask_delete(index: int) -> void:
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	_confirm = dim
-	var card := PanelContainer.new()
+	var card := TextureRect.new()
+	card.texture = preload("res://assets/toons/gui/g1.png")
+	card.modulate = Color(1, 1, 0.75)
+	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	card.stretch_mode = TextureRect.STRETCH_SCALE
 	card.set_anchors_preset(Control.PRESET_CENTER)
-	card.offset_left = -280
-	card.offset_top = -120
-	card.offset_right = 280
-	card.offset_bottom = 120
-	var plate := StyleBoxFlat.new()
-	plate.bg_color = Color(0.18, 0.55, 0.95)
-	plate.border_color = Color(0.05, 0.2, 0.45)
-	plate.set_border_width_all(6)
-	plate.set_corner_radius_all(18)
-	plate.content_margin_left = 24
-	plate.content_margin_right = 24
-	plate.content_margin_top = 18
-	plate.content_margin_bottom = 18
-	card.add_theme_stylebox_override("panel", plate)
+	card.offset_left = -250
+	card.offset_top = -130
+	card.offset_right = 250
+	card.offset_bottom = 130
 	dim.add_child(card)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 16)
-	card.add_child(column)
 	var message := Label.new()
 	message.text = "This will delete %s forever." % toon.display_name()
+	message.anchor_left = 0.08
+	message.anchor_right = 0.92
+	message.anchor_top = 0.16
+	message.anchor_bottom = 0.48
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	ToonGui.style_label(message, Color.WHITE, 28, Color(0, 0, 0), 4)
-	column.add_child(message)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 24)
-	column.add_child(row)
-	row.add_child(_dialog_button("Delete", _confirm_delete))
-	row.add_child(_dialog_button("Cancel", _close_confirm))
+	message.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(message, Color(0.08, 0.08, 0.1), 28, Color(0, 0, 0, 0), 0)
+	card.add_child(message)
+	card.add_child(_dialog_choice(preload("res://assets/toons/gui/ChtBx_OKBtn_UP.png"), preload("res://assets/toons/gui/ChtBx_OKBtn_DN.png"), "OK", 0.28, _confirm_delete))
+	card.add_child(_dialog_choice(preload("res://assets/toons/gui/CloseBtn_UP.png"), preload("res://assets/toons/gui/CloseBtn_DN.png"), "Cancel", 0.58, _close_confirm))
 
 
-func _dialog_button(caption: String, action: Callable) -> Control:
+func _dialog_choice(up: Texture2D, down: Texture2D, caption: String, left: float, action: Callable) -> Control:
+	var box := Control.new()
+	box.anchor_left = left
+	box.anchor_right = left + 0.16
+	box.anchor_top = 0.52
+	box.anchor_bottom = 0.92
 	var button := TextureButton.new()
-	button.texture_normal = preload("res://assets/toons/gui/QuitBtn_UP.png")
-	button.texture_pressed = preload("res://assets/toons/gui/QuitBtn_DN.png")
-	button.texture_hover = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+	button.texture_normal = up
+	button.texture_pressed = down
 	button.ignore_texture_size = true
-	button.stretch_mode = TextureButton.STRETCH_SCALE
-	button.custom_minimum_size = Vector2(180, 64)
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.anchor_left = 0.0
+	button.anchor_right = 1.0
+	button.anchor_top = 0.0
+	button.anchor_bottom = 0.62
 	button.pressed.connect(action)
+	box.add_child(button)
 	var label := Label.new()
 	label.text = caption
-	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.anchor_left = -0.4
+	label.anchor_right = 1.4
+	label.anchor_top = 0.62
+	label.anchor_bottom = 1.0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(label, Color(0.1, 0.1, 0.15), 22, Color(1, 1, 1, 0), 0)
-	button.add_child(label)
-	return button
+	ToonGui.style_label(label, Color(0.08, 0.08, 0.1), 18, Color(0, 0, 0, 0), 0)
+	box.add_child(label)
+	return box
 
 
 func _confirm_delete() -> void:

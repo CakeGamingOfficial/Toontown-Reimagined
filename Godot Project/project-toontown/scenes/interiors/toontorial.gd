@@ -19,12 +19,22 @@ const WELCOME := "Hey, you must be the new Toon in town! Use the MOVEMENT KEYS t
 const FORWARD_SPEED := 20.0
 const REVERSE_SPEED := 10.0
 const TURN_SPEED := 100.0
+# GravityWalker default gravity, and OTPGlobals.ToonJumpForce. Control jumps.
+const GRAVITY := 64.348
+const JUMP_FORCE := 24.0
+const JUMP_LOCK := 0.2
+# GravityWalker: impact faster than 30 plays the land animation and waits 0.3s.
+const HARD_LAND := -30.0
+const HARD_LOCK := 0.3
 const COLLISION_PATH := "res://assets/interiors/toontorial/collision.json"
 
 var _camera: Camera3D
 var _player: ToonActor
 var _body: CharacterBody3D
 var _heading := START_HEADING
+var _eye_height := 3.0
+var _jumping := false
+var _jump_lock := 0.0
 var _billboards: Array[Dictionary] = []
 var _tags: Array[Dictionary] = []
 var _bubble: Control
@@ -115,6 +125,7 @@ func _spawn_toons() -> void:
 		_add_tag(_player, style.display_name(), Color(0.45, 0.62, 0.95))
 	var tom := _spawn(_tom_style(), TOM_POSITION, TOM_HEADING, self)
 	_add_tag(tom, "Tutorial Tom", Color(0.92, 0.32, 0.18))
+	_cache_eye_height()
 
 
 func _player_style() -> ToonStyle:
@@ -252,18 +263,39 @@ func _walk(delta: float) -> void:
 	var forward := _forward(_heading)
 	_body.velocity.x = forward.x * speed
 	_body.velocity.z = forward.z * speed
-	if _body.is_on_floor():
-		_body.velocity.y = -2.0
+	var on_floor := _body.is_on_floor()
+	var jumped := false
+	var impact := _body.velocity.y
+	if on_floor:
+		if _jump_lock > 0.0:
+			_jump_lock = maxf(_jump_lock - delta, 0.0)
+		if Input.is_physical_key_pressed(KEY_CTRL) and _jump_lock <= 0.0:
+			_body.velocity.y = JUMP_FORCE
+			jumped = true
+			_jumping = true
+		else:
+			_body.velocity.y = -2.0
+			_jumping = false
 	else:
-		_body.velocity.y -= 80.0 * delta
+		_body.velocity.y -= GRAVITY * delta
+		impact = _body.velocity.y
+	# Snap would glue a rising toon back onto the floor.
+	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
 	if _body.position.y < -1.0:
 		_body.velocity = Vector3.ZERO
 		_body.position = _return_spot
 		_heading = _return_heading
+		_jumping = false
+	elif not on_floor and _body.is_on_floor() and not jumped:
+		_jumping = false
+		if impact < HARD_LAND:
+			_player.hard_land()
+			_jump_lock = HARD_LOCK
+		elif impact < -5.0:
+			_jump_lock = JUMP_LOCK
 	_face(_player, _heading)
-	# S plays the cycle backward. A and D turn, and still play the cycle forward.
-	_player.set_locomotion(speed != 0.0 or turning, speed < 0.0, delta)
+	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 
 
 func _place_camera() -> void:
@@ -274,15 +306,22 @@ func _place_camera() -> void:
 	if _player:
 		feet = _player.global_position
 		heading = _heading
-	var height := 3.0
-	if _player:
-		var head := _find(_player, "def_head")
-		if head:
-			height = maxf(head.global_position.y - feet.y, 3.0)
+	# Eye height is the resting head, taken once. Reading the live head follows
+	# the idle, run, and jump, and that bob is what makes the camera sick.
+	var height := _eye_height
 	var forward := _forward(heading)
 	var eye := feet + Vector3(0.0, height, 0.0)
 	_camera.global_position = eye - forward * 9.0 * (height / 3.0)
 	_camera.look_at(eye + forward * 1.5, Vector3.UP)
+
+
+func _cache_eye_height() -> void:
+	_eye_height = 3.0
+	if _player == null:
+		return
+	var head := _find(_player, "def_head")
+	if head:
+		_eye_height = maxf(head.global_position.y - _player.global_position.y, 3.0)
 
 
 func _face(actor: Node3D, heading: float) -> void:
