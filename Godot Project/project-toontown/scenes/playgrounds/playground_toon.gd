@@ -164,14 +164,27 @@ func _physics_process(delta: float) -> void:
 	_walk(delta)
 	_try_tunnel()
 	_try_house_door()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not _active or _filming or _locked:
 		return
-	if event is InputEventKey and _KEYS.event_is(event, "book"):
-		if _book != null and _book.is_open():
-			_book.close()
-		elif _book != null and _tasks != null and _tasks.book_ready():
-			_book.open_to_gags()
+	if _book != null and _tasks != null and _tasks.book_ready() and _book_hotkey(event):
+		_book.toggle_hotkey()
+		get_viewport().set_input_as_handled()
+
+
+func _book_hotkey(event: InputEvent) -> bool:
+	# The Controls page can rebind the book key. Escape still opens it, the
+	# way the original shticker book does, unless that press is cancelling a rebind.
+	if _KEYS.event_is(event, "book"):
+		return true
+	if not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	if not key.pressed or key.echo:
+		return false
+	return key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE
 
 
 func show_notice(message: String) -> void:
@@ -519,7 +532,7 @@ func _ready_hud() -> void:
 	_hud().add_child(_meter)
 	var view := get_viewport().get_visible_rect().size
 	var pixels := view.y * 0.15
-	_meter.place(Vector2(pixels * 0.5 + 28.0, view.y - pixels * 0.5 - 28.0), pixels)
+	_meter.place(LaffMeter.corner(view, pixels), pixels)
 	_book = ShtickerBook.new()
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)

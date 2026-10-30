@@ -232,6 +232,19 @@ func let_clicks_through(on: bool) -> void:
 		_cover.mouse_filter = filter
 
 
+func toggle_hotkey() -> void:
+	if _tasks == null or not _tasks.book_ready():
+		return
+	if _open:
+		if _guided and not _close_armed:
+			return
+		_close()
+		return
+	if _guided and not _open_armed:
+		return
+	open_to_gags()
+
+
 func open_to_gags() -> void:
 	if _tasks == null or not _tasks.book_ready():
 		return
@@ -264,10 +277,11 @@ func _build_button() -> void:
 	_button.texture_pressed = _OPEN_ICON
 	_button.ignore_texture_size = true
 	_button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	_button.custom_minimum_size = Vector2(96, 72)
-	_button.size = Vector2(96, 72)
-	_button.focus_mode = Control.FOCUS_NONE
+	# BookIcon_CLSD is 102 by 72. A shorter box stretches the cover.
+	_button.custom_minimum_size = Vector2(102, 72)
+	_button.size = Vector2(102, 72)
 	_button.visible = false
+	_button.focus_mode = Control.FOCUS_NONE
 	_button.pressed.connect(_on_button)
 	add_child(_button)
 

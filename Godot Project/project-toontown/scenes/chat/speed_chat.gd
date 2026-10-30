@@ -18,12 +18,13 @@ const _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
 const _HOVER_ROW := Color(0.53, 0.9, 0.53, 0.95)
 const _ARROW_TINT := Color(0.5, 0.5, 1.0)
 const _EMOTE_TINT := Color(0.2, 0.72, 0.32)
-const _SPEED_AT := Vector2(-1.129, 0.928)
-const _CHAT_AT := Vector2(-1.2647, 0.928)
 const _POP_AT := Vector2(-0.3, -0.1)
 const _HOME_SCALE := 1.179
 const _POP_SCALE := 2.0
 const _BTN := 0.15
+## SpeedChat+ (white and blue) sits in the corner. SpeedChat (green) is beside it.
+const _CORNER_PAD := 12.0
+const _BUTTON_GAP := 8.0
 
 var _tasks: ToonTasks
 var _items: Array = []
@@ -351,10 +352,10 @@ func _fit(panel: Control) -> void:
 func _layout_buttons() -> void:
 	if _flying:
 		return
-	if _speed_btn != null and _speed_btn.visible:
-		_put(_speed_btn, _SPEED_AT.x, _SPEED_AT.y, _HOME_SCALE)
 	if _chat_btn != null and _chat_btn.visible:
-		_put(_chat_btn, _CHAT_AT.x, _CHAT_AT.y, _HOME_SCALE)
+		_apply_rect(_chat_btn, _home_rect(false))
+	if _speed_btn != null and _speed_btn.visible:
+		_apply_rect(_speed_btn, _home_rect(true))
 
 
 func _fade_speed(alpha: float) -> void:
@@ -366,24 +367,45 @@ func _fade_chat(alpha: float) -> void:
 
 
 func _fly_speed(t: float) -> void:
-	var at := _POP_AT.lerp(_SPEED_AT, t)
-	var scale := lerpf(_POP_SCALE, _HOME_SCALE, t)
-	_put(_speed_btn, at.x, at.y, scale)
+	_glide(_speed_btn, _aspect_rect(_POP_AT.x, _POP_AT.y, _POP_SCALE), _home_rect(true), t)
 
 
 func _fly_chat(t: float) -> void:
-	var at := _POP_AT.lerp(_CHAT_AT, t)
-	var scale := lerpf(_POP_SCALE, _HOME_SCALE, t)
-	_put(_chat_btn, at.x, at.y, scale)
+	_glide(_chat_btn, _aspect_rect(_POP_AT.x, _POP_AT.y, _POP_SCALE), _home_rect(false), t)
+
+
+func _home_rect(speedchat: bool) -> Rect2:
+	var box := _button_box()
+	var x := _CORNER_PAD
+	if speedchat:
+		x += box + _BUTTON_GAP
+	return Rect2(x, _CORNER_PAD, box, box)
+
+
+func _button_box() -> float:
+	return _BTN * get_viewport().get_visible_rect().size.y * 0.5
+
+
+func _glide(button: TextureButton, start: Rect2, home: Rect2, weight: float) -> void:
+	button.position = start.position.lerp(home.position, weight)
+	button.size = start.size.lerp(home.size, weight)
+
+
+func _apply_rect(button: TextureButton, rect: Rect2) -> void:
+	button.position = rect.position
+	button.size = rect.size
 
 
 func _put(button: TextureButton, x: float, z: float, scale: float) -> void:
+	_apply_rect(button, _aspect_rect(x, z, scale))
+
+
+func _aspect_rect(x: float, z: float, scale: float) -> Rect2:
 	var view := get_viewport().get_visible_rect().size
 	var unit := view.y * 0.5
 	var box := _BTN * (scale / _HOME_SCALE) * unit
 	var center := Vector2(view.x * 0.5 + x * unit, view.y * 0.5 - z * unit)
-	button.size = Vector2(box, box)
-	button.position = center - button.size * 0.5
+	return Rect2(center - Vector2(box, box) * 0.5, Vector2(box, box))
 
 
 func _aspect_point(x: float, z: float) -> Vector2:
