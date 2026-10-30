@@ -10,6 +10,7 @@ const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
+const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 # HouseGlobals.houseDrops headings, one lot per Pick a Toon slot.
 const _ESTATE_HEADING: Array[float] = [-90.0, 116.565, 77.1957, 356.6, 248.962, 36.8699]
 
@@ -49,6 +50,10 @@ var _locked := true
 var _filming := false
 var _tunnel_ready := false
 var _door_ready := false
+var _bank_ready := false
+# Walk up to the jellybean bank. The sphere opens the counter, the way
+# DistributedBank listens for enter on bankSphere.
+const _BANK_REACH := 4.0
 var _from_door := ""
 var _tunnels: Array[Dictionary] = []
 var _shot := false
@@ -164,6 +169,7 @@ func _physics_process(delta: float) -> void:
 	_walk(delta)
 	_try_tunnel()
 	_try_house_door()
+	_try_bank()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -294,6 +300,39 @@ func _estate_door_drop() -> Dictionary:
 	var drop: Dictionary = _DOORS.outside_drop(house, origin)
 	var point: Vector3 = drop["point"]
 	return {"point": _snap_drop(point), "heading": float(drop["heading"])}
+
+
+func _try_bank() -> void:
+	if _body == null or get_parent() == null or not _PLACES.is_house(_scene_path()):
+		_bank_ready = true
+		return
+	var bank := get_parent().find_child("bank", true, false) as Node3D
+	if bank == null:
+		_bank_ready = true
+		return
+	var offset := bank.global_position - _body.global_position
+	var gap := Vector2(offset.x, offset.z).length()
+	if gap > _BANK_REACH:
+		_bank_ready = true
+		return
+	if _book != null and _book.is_open():
+		_bank_ready = false
+		return
+	if not _bank_ready:
+		return
+	_bank_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	var panel := _BANK_GUI.new() as Node
+	panel.name = "BankGui"
+	panel.connect("finished", _close_bank)
+	_hud().add_child(panel)
+
+
+func _close_bank() -> void:
+	_locked = false
+	if _book != null:
+		_book.refresh_jar()
 
 
 func _try_house_door() -> void:

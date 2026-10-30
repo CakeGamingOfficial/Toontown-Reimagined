@@ -15,7 +15,7 @@ const PAGE_GAGS := 2
 const PAGE_TASKS := 3
 const _PAGE_NAMES: PackedStringArray = ["Options", "Map", "Gags", "ToonTasks"]
 const _CARRY := 20
-const _JAR_MAX := 40
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
 const _CLOSED := preload("res://assets/gui/tutorial/book/BookIcon_CLSD.png")
@@ -478,7 +478,7 @@ func _build_gags() -> Control:
 	_beans.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_beans.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_beans.mouse_filter = MOUSE_FILTER_IGNORE
-	_beans.text = "0\n/ %d" % _JAR_MAX
+	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.POUCH_MAX]
 	sheet.add_child(_beans)
 	return sheet
 
@@ -719,7 +719,14 @@ func _refresh_binds() -> void:
 			_bind_buttons[index].modulate = Color.WHITE
 
 
+func refresh_jar() -> void:
+	if _beans == null:
+		return
+	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.POUCH_MAX]
+
+
 func _refresh_gags() -> void:
+	refresh_jar()
 	_clear_gag()
 	var carried := 0
 	if _loadout != null:

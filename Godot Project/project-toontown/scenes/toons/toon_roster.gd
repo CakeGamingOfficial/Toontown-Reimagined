@@ -6,6 +6,7 @@ extends RefCounted
 
 const SLOT_COUNT := 6
 const _PATH := "user://toons.json"
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 static var pending_slot := 0
 static var _slots: Array = []
@@ -31,9 +32,10 @@ static func set_slot(index: int, style: ToonStyle) -> void:
 		return
 	_slots[index] = style
 	_save()
-	# A new toon must not inherit the journal or gags of whoever used this slot.
+	# A new toon must not inherit the journal, gags, or jellybeans of whoever used this slot.
 	ToonTasks.reset_slot(index)
 	ToonLoadout.reset_slot(index)
+	_BEANS.reset_slot(index)
 
 
 static func clear_slot(index: int) -> void:
@@ -46,6 +48,7 @@ static func clear_slot(index: int) -> void:
 	_save()
 	ToonTasks.reset_slot(index)
 	ToonLoadout.reset_slot(index)
+	_BEANS.reset_slot(index)
 
 
 static func selected_style() -> ToonStyle:

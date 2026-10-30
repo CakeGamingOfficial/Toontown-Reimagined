@@ -17,6 +17,7 @@ from panda3d.core import (
     Loader,
     NodePath,
     Point3,
+    TransparencyAttrib,
     Vec4,
     getModelPath,
     loadPrcFileData,
@@ -89,9 +90,62 @@ def write_glb(root: NodePath, dest: Path, scene_name: str) -> None:
     print(f"wrote {dest} ({len(payload) / (1024 * 1024):.1f} MB) meshes={writer.mesh_count}")
 
 
+# HouseGlobals.interiors[0] is phase_5.5/dna/house_interior3.dna. That file is the
+# starter room: bed, closet, jellybean bank, rugs, fireplace, and chairs.
+# chairA.bam is already a full-size chair, so the DNA scale of 10 is not applied.
+# GardenA was built for the old house_interiorA window and cuts through this room.
+# The phone is catalog item 1399. The client stores no coordinate, so the mount
+# stands on the west wall of the front room, clear of the wall mesh.
+FURNITURE = (
+    ("phase_5.5/models/estate/rugB.bam", "rug", (-7.08867, 19.0589, 0.0), (-120.0, 0.0, 0.0), 5.15552),
+    ("phase_5.5/models/estate/regular_bed.bam", "bed", (-13.618, 26.1823, 0.0), (0.0, 0.0, 0.0), 1.0),
+    ("phase_5.5/models/estate/closetBoy.bam", "closet", (-19.45, 24.7018, 0.0), (0.0, 0.0, 0.0), 1.0),
+    ("phase_5.5/models/estate/jellybeanBank.bam", "bank", (-21.4932, 5.76027, 0.0), (120.0, 0.0, 0.0), 1.0),
+    ("phase_5.5/models/estate/rugB.bam", "rug", (7.87512, -11.2897, 0.0), (-90.0, 0.0, 0.0), 3.57074),
+    ("phase_5.5/models/estate/rugB.bam", "rug", (-20.6508, 6.52406, 0.0), (135.0, 0.0, 0.0), 2.3354),
+    ("phase_5.5/models/estate/FireplaceSq.bam", "fireplace", (15.9865, -11.3307, 0.0), (-90.0, 0.0, 0.0), 1.0),
+    ("phase_5.5/models/estate/chairA.bam", "chair", (-2.64541, 21.3024, 0.0), (-75.0, 0.0, 0.0), 1.0),
+    ("phase_5.5/models/estate/chairA.bam", "chair", (-6.36842, 24.5659, 0.0), (-15.0, 0.0, 0.0), 1.0),
+    ("phase_5.5/models/estate/chairA.bam", "chair", (-23.9124, 16.9335, 0.0), (90.0, 0.0, 0.0), 1.0),
+)
+
+
+def hide_helpers(prop: NodePath) -> None:
+    for child in prop.findAllMatches("**"):
+        name = child.getName().lower()
+        if "collision" in name or "trigger" in name or name.startswith("shadow"):
+            child.hide()
+
+
+def place_props(interior: NodePath) -> None:
+    for path, name, pos, hpr, scale in FURNITURE:
+        prop = load_model(path)
+        hide_helpers(prop)
+        prop.reparentTo(interior)
+        prop.setName(name)
+        prop.setPos(pos[0], pos[1], pos[2])
+        prop.setHpr(hpr[0], hpr[1], hpr[2])
+        prop.setScale(scale)
+    # DistributedPhone parents the handset onto the wall mount and leaves it
+    # posed on the hook. The bind pose already sits on the mount.
+    mount = load_model("phase_5.5/models/estate/phoneMount-mod.bam")
+    phone = load_model("phase_5.5/models/estate/prop_phone-mod.bam")
+    hide_helpers(mount)
+    hide_helpers(phone)
+    phone.reparentTo(mount)
+    # The mount's texture carries an alpha channel. DistributedPhone forces the
+    # mount opaque, otherwise the stand renders as glass.
+    mount.setTransparency(TransparencyAttrib.M_none, 1)
+    mount.reparentTo(interior)
+    mount.setName("phone")
+    mount.setPos(-17.3, -18.0, 0.0)
+    mount.setHpr(90.0, 0.0, 0.0)
+
+
 def export_interior(source: NodePath) -> None:
     interior = load_model("phase_5.5/models/estate/tt_m_ara_int_estateHouseA.bam")
     interior.setName("HouseInterior")
+    place_props(interior)
     origin = interior.find("**/door_origin")
     if origin.isEmpty():
         raise RuntimeError("interior door_origin missing")
