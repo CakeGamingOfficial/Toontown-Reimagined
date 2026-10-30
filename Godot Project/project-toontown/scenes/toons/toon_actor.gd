@@ -172,6 +172,13 @@ func show_style(style: ToonStyle) -> void:
 	_add_shadow()
 
 
+## LocalAvatar.getClampedAvatarHeight. Toons shorter than 3 share that camera.
+func clamped_height() -> float:
+	if _style == null:
+		return 3.0
+	return maxf(_style.avatar_height(), 3.0)
+
+
 ## A new head, torso, or legs. The idle clock keeps going, so the toon does not
 ## snap back to the first frame of neutral while the new parts come in.
 func swap_style(style: ToonStyle) -> void:
@@ -895,25 +902,27 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 	var source := mesh.mesh
 	if source == null:
 		return
-	# Draw farther out than the head shell so a card cannot sink into it.
-	# Eyes stay in the opaque pass (alpha scissor). Alpha blending sorted
-	# those cards behind the head and left holes in the face.
+	# The cards already sit on the face. Pushing them along the normal opened a
+	# gap. A depth bias keeps whites, then pupils, then lashes in front without
+	# moving the mesh. They stay in the opaque pass (alpha scissor). Alpha
+	# blending sorted those cards behind the head and left holes in the face.
 	var scissor := 0.0
-	var push := 0.002
+	var push := 0.0
+	var bias := 0.0
 	match kind:
 		"muzzle":
-			push = 0.003
+			push = 0.001
 		"nose":
-			push = 0.004
+			push = 0.0015
 		"eyes":
 			scissor = 0.5
-			push = 0.012
+			bias = 0.000008
 		"pupil":
 			scissor = 0.5
-			push = 0.016
+			bias = 0.000016
 		"lashes":
 			scissor = 0.5
-			push = 0.02
+			bias = 0.000024
 	mesh.material_override = null
 	for surface in source.get_surface_count():
 		var texture: Texture2D = null
@@ -926,15 +935,16 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 				var standard := material as BaseMaterial3D
 				texture = standard.albedo_texture
 				color = standard.albedo_color
-		mesh.set_surface_override_material(surface, _face_material(texture, color, scissor, push))
+		mesh.set_surface_override_material(surface, _face_material(texture, color, scissor, push, bias))
 
 
-func _face_material(texture: Texture2D, color: Color, scissor: float, push: float) -> ShaderMaterial:
+func _face_material(texture: Texture2D, color: Color, scissor: float, push: float, bias: float) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = preload("res://scenes/toons/toon_face.gdshader")
 	material.set_shader_parameter("albedo_color", color)
 	material.set_shader_parameter("scissor_threshold", scissor)
 	material.set_shader_parameter("surface_push", push)
+	material.set_shader_parameter("depth_bias", bias)
 	material.set_shader_parameter("use_albedo_texture", 1.0 if texture else 0.0)
 	if texture:
 		material.set_shader_parameter("albedo_texture", texture)

@@ -65,6 +65,7 @@ var _style: ToonStyle
 var _actor: ToonActor
 var _room: Node3D
 var _viewport: SubViewport
+var _spotlight: MeshInstance3D
 var _slide: Control
 var _shop_box: Control
 var _dropping := false
@@ -128,6 +129,7 @@ func _process(delta: float) -> void:
 		_actor.set_locomotion(0.0, false, false, delta)
 	if _spin != 0.0 and _actor:
 		_actor.global_rotate(Vector3.UP, _spin * delta)
+	_aim_spotlight()
 	_blink_name_caret()
 
 
@@ -154,9 +156,7 @@ func _build_view() -> void:
 	_room = (load("res://assets/toons/room.glb") as PackedScene).instantiate() as Node3D
 	_viewport.add_child(_room)
 	_unshade(_room)
-	var spotlight := _find(_room, "spotlight__billboard")
-	if spotlight:
-		spotlight.visible = false
+	_claim_spotlight()
 	# Leftover export cards: an untextured gray quad, and the camera helper
 	# that was sitting in front of the clothing rack.
 	for leftover_name in ["polySurface1", "camera_arrow"]:
@@ -277,6 +277,7 @@ func _show_shop() -> void:
 			_build_clothes()
 		4:
 			_build_name()
+	_place_spotlight()
 	_layout()
 
 
@@ -1036,6 +1037,61 @@ func _refresh() -> void:
 	_pose_toon()
 
 
+func _claim_spotlight() -> void:
+	var card := _find(_room, "spotlight__billboard") as MeshInstance3D
+	if card == null:
+		return
+	var parent := card.get_parent()
+	if parent:
+		parent.remove_child(card)
+	_viewport.add_child(card)
+	card.visible = true
+	card.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://scenes/toons/mat_spotlight.gdshader")
+	card.material_override = material
+	_spotlight = card
+	_place_spotlight()
+
+
+func _place_spotlight() -> void:
+	if _spotlight == null or not is_instance_valid(_spotlight):
+		return
+	# The beam is centered on the mark the toon uses, including the boy-or-girl
+	# screen before a body exists. Name shop stands the toon further right.
+	# It sits just past that mark so the body covers the middle and the light
+	# shows on the wall around them.
+	var stand := Vector3(1.55, 1.55, 4.05) if _shop == 4 else Vector3(-1.62, 1.55, 3.49)
+	var camera := Vector3(-5.7, 2.15, 12.3501)
+	var away := stand - camera
+	if away.length() < 0.001:
+		return
+	_spotlight.global_position = stand + away.normalized() * 1.4
+	_aim_spotlight()
+
+
+func _aim_spotlight() -> void:
+	if _spotlight == null or not is_instance_valid(_spotlight) or _viewport == null:
+		return
+	var camera := _viewport.get_camera_3d()
+	if camera == null:
+		return
+	var to_camera := camera.global_position - _spotlight.global_position
+	if to_camera.length() < 0.001:
+		return
+	# The card is flat along local Y and its visible side faces -Y.
+	var y_axis := -to_camera.normalized()
+	var side := Vector3.UP.cross(y_axis)
+	if side.length() < 0.001:
+		side = Vector3.RIGHT
+	side = side.normalized()
+	var up := y_axis.cross(side).normalized()
+	# The card is about 4 units across. This scale keeps the beam on the toon
+	# instead of flooding the room. The column is a little taller than it is wide.
+	var amount := 0.85 if _shop == 4 else 0.95
+	_spotlight.global_transform = Transform3D(Basis(side, y_axis, up).scaled(Vector3(amount, 1.0, amount * 1.35)), _spotlight.global_position)
+
+
 func _place_camera(camera: Camera3D) -> void:
 	# Original camera sits at Panda (-5.7, -12.3501, 2.15) with a 52 degree
 	# horizontal lens. The aim is a little above the chest so the head stays
@@ -1565,6 +1621,16 @@ func _unshade(node: Node) -> void:
 					material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 					material.vertex_color_use_as_albedo = true
 					material.vertex_color_is_srgb = true
+					# The spotlight adds the bright column back. The rest of the
+					# room sits a little under that so the beam reads.
+					# Prop shadows are black cards at the alpha they were
+					# exported with (0.5, or 0.28 on the floor ovals). A tint
+					# with alpha 1 paints those cards solid and turns the
+					# soft floor shadows into hard black shapes.
+					if String(mesh_instance.name) != "spotlight__billboard":
+						var shadow_alpha := material.albedo_color.a
+						if shadow_alpha >= 0.99:
+							material.albedo_color = Color(0.84, 0.84, 0.84, shadow_alpha)
 					mesh_instance.set_surface_override_material(surface, material)
 	for child in node.get_children():
 		_unshade(child)

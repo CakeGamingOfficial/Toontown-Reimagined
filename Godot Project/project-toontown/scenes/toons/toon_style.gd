@@ -108,6 +108,10 @@ const BODY_SCALE := {
 	"b": 0.85,
 	"s": 0.77,
 }
+## OTPGlobals legHeightDict and torsoHeightDict. A skirt or shorts letter does
+## not change the torso height, so only the size letter is used.
+const _LEG_HEIGHT := {"s": 1.5, "m": 2.0, "l": 2.75}
+const _TORSO_HEIGHT := {"s": 1.5, "m": 1.75, "l": 2.25}
 
 ## Make a Toon shirts are desat 1 and 2. Each entry is shirt texture, color.
 const BOY_TOPS: Array = [
@@ -219,6 +223,17 @@ static func random_named(gender_code: String) -> ToonStyle:
 
 func body_scale() -> float:
 	return float(BODY_SCALE.get(species(), 0.8))
+
+
+## Toon.resetHeight. Legs and torso take the body scale, then the head sits on top.
+## A long muzzle is 0.75 and a short muzzle is 0.5.
+func avatar_height() -> float:
+	var scale := body_scale()
+	var leg := float(_LEG_HEIGHT.get(legs, 2.0))
+	var torso_size := torso.substr(0, 1) if not torso.is_empty() else "m"
+	var torso_h := float(_TORSO_HEIGHT.get(torso_size, 1.75))
+	var head_h := 0.75 if head.length() > 1 and head[1] == "l" else 0.5
+	return (leg + torso_h) * scale + head_h
 
 
 static func tops_for(gender_code: String) -> Array:

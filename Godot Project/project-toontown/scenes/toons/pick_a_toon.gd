@@ -143,14 +143,17 @@ func _layout() -> void:
 		quit.size = quit_size
 		var quit_label := quit.get_node_or_null("QuitLabel") as Label
 		if quit_label:
+			# The sign font's letters sit high in the line. Dropping the label
+			# recenters them, and the size stops short of the pill's rim.
 			quit_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+			var drop := quit_size.y * 0.05
 			quit_label.offset_left = 0.0
-			quit_label.offset_top = 0.0
+			quit_label.offset_top = drop
 			quit_label.offset_right = 0.0
-			quit_label.offset_bottom = 0.0
+			quit_label.offset_bottom = drop
 			quit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			quit_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			ToonGui.style_sign(quit_label, _YELLOW, int(quit_size.y * 0.52), Color(0, 0, 0), int(quit_size.y * 0.08))
+			ToonGui.style_sign(quit_label, _YELLOW, int(quit_size.y * 0.76), Color(0, 0, 0), maxi(int(quit_size.y * 0.03), 1))
 	for index in ToonRoster.SLOT_COUNT:
 		var panel := get_node_or_null("Slot%d" % index) as Control
 		if panel == null:

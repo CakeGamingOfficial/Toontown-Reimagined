@@ -74,14 +74,14 @@ var _hq
 var _shop: Node3D
 var _plaza := false
 var _cam_yaw := 0.0
-var _cam_pitch := 12.0
+var _cam_pitch := 0.0
 var _cam_distance := 1.0
 var _camera_held := false
 var _cam_steering := false
 var _right_yaw := 0.0
 var _running := false
 var _reversing := false
-const _CAM_PITCH_HOME := 12.0
+const _CAM_PITCH_HOME := 0.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
 const _CAM_DIST_MIN := 0.38
@@ -489,10 +489,9 @@ func _place_camera() -> void:
 	if _player:
 		feet = _player.global_position
 		heading = _heading
-	# Eye height is the resting head, taken once. Reading the live head follows
-	# the idle, run, and jump, and that bob is what makes the camera sick.
-	# The camera rides a sphere around that point and always looks at it, so a
-	# vertical drag orbits over the toon instead of tilting onto the ground.
+	# Taken once from the toon's legs, torso, and head. A live head joint
+	# follows the idle and the jump, and that bob is what makes the camera sick.
+	# The resting camera sits at that height, the original distance behind.
 	var height := _eye_height
 	var orbit := heading + _cam_yaw
 	var forward := _forward(orbit)
@@ -509,9 +508,7 @@ func _cache_eye_height() -> void:
 	_eye_height = 3.0
 	if _player == null:
 		return
-	var head := _find(_player, "def_head")
-	if head:
-		_eye_height = maxf(head.global_position.y - _player.global_position.y, 3.0)
+	_eye_height = _player.clamped_height()
 
 
 func _face(actor: Node3D, heading: float) -> void:
@@ -641,6 +638,10 @@ func hud() -> CanvasLayer:
 func set_cutscene(active: bool) -> void:
 	_cutscene = active
 	_locked = active
+	# The close-up is aimed through the spot the player walks to. The quest
+	# camera leaves them out of the shot, so the actor stays hidden until it ends.
+	if _player:
+		_player.visible = not active
 
 
 func in_cutscene() -> bool:

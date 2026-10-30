@@ -141,9 +141,9 @@ func _show(text: String, color: Color) -> void:
 		box.set_border_width_all(3)
 		box.set_corner_radius_all(16)
 		box.content_margin_left = 14
-		box.content_margin_right = 22
+		box.content_margin_right = 28
 		box.content_margin_top = 8
-		box.content_margin_bottom = 8
+		box.content_margin_bottom = 16
 		_bubble.add_theme_stylebox_override("panel", box)
 		_label = Label.new()
 		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -151,6 +151,7 @@ func _show(text: String, color: Color) -> void:
 		ToonGui.style_label(_label, color, 22, Color(0, 0, 0, 0), 0)
 		_bubble.add_child(_label)
 		_hud().add_child(_bubble)
+		ToonGui.attach_next_arrow(_bubble)
 	_label.text = text
 	_label.add_theme_color_override("font_color", color)
 	_bubble.visible = true

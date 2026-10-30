@@ -115,6 +115,20 @@ static func play_sfx(host: Node, path: String) -> void:
 	player.play()
 
 
+## Click-to-continue speech. The arrow is a sibling, so a PanelContainer
+## cannot stretch it across the card, and it blinks in the bottom-right corner.
+static func attach_next_arrow(host: Control) -> TextureRect:
+	var arrow := TextureRect.new()
+	arrow.set_script(preload("res://scenes/toons/chat_next_arrow.gd"))
+	arrow.call("follow", host)
+	var parent := host.get_parent()
+	if parent == null:
+		parent = host
+	parent.add_child(arrow)
+	arrow.z_index = host.z_index + 1
+	return arrow
+
+
 static func place(control: Control, view: Vector2, x: float, z: float, width: float, height: float) -> void:
 	var unit := view.y * 0.5
 	var center := Vector2(view.x * 0.5 + x * unit, view.y * 0.5 - z * unit)
