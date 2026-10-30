@@ -10,6 +10,8 @@ const DOOR_GLB := "res://assets/interiors/estate/house_door.glb"
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
 const CLOSE_SFX := "res://assets/interiors/hq/Door_Close_1.ogg"
 const _PANELS: Array[String] = ["leftDoor", "rightDoor", "doorFrameHoleRight", "doorFrameHoleLeft"]
+## Wide enough to cover the round door. The slab is about five units across.
+const OUTSIDE_REACH := 3.2
 
 
 static func ensure_exterior(host: Node, slot: int) -> void:
@@ -18,7 +20,14 @@ static func ensure_exterior(host: Node, slot: int) -> void:
 		return
 	var origin := find_origin(house)
 	if origin == null:
-		return
+		# The second houseA lot lost its empty door_origin in the export.
+		# houseA.bam places that marker at this local position.
+		if find_anchor(house) != null:
+			return
+		origin = Node3D.new()
+		origin.name = "door_origin"
+		origin.position = Vector3(7.05265, -0.170105, 0.0)
+		house.add_child(origin)
 	var packed := load(DOOR_GLB) as PackedScene
 	if packed == null:
 		return
@@ -47,6 +56,29 @@ static func find_door(root: Node) -> Node3D:
 	return _find_exact(root, "door_0")
 
 
+## House A keeps a door_origin marker. Catalog houses only have the door mesh,
+## named door_0, door_02, door_03, or door_04.
+static func find_anchor(house: Node3D) -> Node3D:
+	var origin := find_origin(house)
+	if origin != null:
+		return origin
+	var best := {"node": null, "dist": 0.0}
+	_farthest_door(house, house, best)
+	return best["node"] as Node3D
+
+
+static func _farthest_door(house: Node3D, node: Node, best: Dictionary) -> void:
+	var node_name := str(node.name)
+	if node != house and node is Node3D and node_name.begins_with("door_0"):
+		var place := node as Node3D
+		var dist := place.global_position.distance_squared_to(house.global_position)
+		if best["node"] == null or dist > float(best["dist"]):
+			best["node"] = place
+			best["dist"] = dist
+	for child in node.get_children():
+		_farthest_door(house, child, best)
+
+
 static func inside_drop(origin: Node3D) -> Dictionary:
 	# avatarExitTrack's final point, doorX = 1.5, six units into the room.
 	var point := origin.to_global(Vector3(-1.5, -6.0, 0.025))
@@ -63,7 +95,10 @@ static func outside_drop(house: Node3D, origin: Node3D) -> Dictionary:
 
 
 static func outside_trigger(house: Node3D, origin: Node3D) -> Vector3:
-	return _yard(house, origin, 3.2)
+	# The door is set back under the porch. A point 3.2 units out from the
+	# marker sits in the yard, short of the doorway, so walking into the
+	# door never enters it.
+	return _in_front(house, origin, 1.0)
 
 
 static func seal(root: Node) -> void:
@@ -92,15 +127,59 @@ static func play_close(host: Node) -> void:
 
 
 static func _yard(house: Node3D, origin: Node3D, distance: float) -> Vector3:
+	var point := origin.global_position + _outward(house, origin) * distance
+	point.y = origin.global_position.y
+	return point
+
+
+static func _in_front(house: Node3D, origin: Node3D, gap: float) -> Vector3:
+	var point := _doorway(house, origin) + _outward(house, origin) * gap
+	point.y = origin.global_position.y
+	return point
+
+
+static func _outward(house: Node3D, origin: Node3D) -> Vector3:
 	var outward := origin.global_position - house.global_position
 	outward.y = 0.0
 	if outward.length_squared() < 0.0001:
-		outward = Vector3(1.0, 0.0, 0.0)
-	else:
-		outward = outward.normalized()
-	var point := origin.global_position + outward * distance
-	point.y = origin.global_position.y
-	return point
+		return Vector3(0.0, 0.0, 1.0)
+	return outward.normalized()
+
+
+## Center of the round door's slab, so the zone lines up with the opening.
+static func _doorway(house: Node3D, origin: Node3D) -> Vector3:
+	var door := find_door(house)
+	if door == null:
+		door = origin
+	var flat := _find_exact(door, "door_flat")
+	if flat is MeshInstance3D and (flat as MeshInstance3D).mesh != null:
+		var mesh := flat as MeshInstance3D
+		var box: AABB = mesh.global_transform * mesh.mesh.get_aabb()
+		return box.get_center()
+	return _mesh_center(door)
+
+
+static func _mesh_center(node: Node3D) -> Vector3:
+	var state := {"found": false, "box": AABB()}
+	_merge_bounds(node, state)
+	if not bool(state["found"]):
+		return node.global_position
+	var box: AABB = state["box"]
+	return box.get_center()
+
+
+static func _merge_bounds(node: Node, state: Dictionary) -> void:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mesh := node as MeshInstance3D
+		var part: AABB = mesh.global_transform * mesh.mesh.get_aabb()
+		if not bool(state["found"]):
+			state["box"] = part
+			state["found"] = true
+		else:
+			var box: AABB = state["box"]
+			state["box"] = box.merge(part)
+	for child in node.get_children():
+		_merge_bounds(child, state)
 
 
 static func _heading(dir: Vector3) -> float:
@@ -146,7 +225,7 @@ static func _sound(host: Node, path: String) -> void:
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return
-	var speaker := AudioStreamPlayer.new()
+	var speaker := ToonAudio.effect_player()
 	speaker.stream = stream
 	speaker.volume_db = -4.0
 	host.add_child(speaker)

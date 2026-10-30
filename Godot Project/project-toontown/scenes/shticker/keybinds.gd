@@ -17,11 +17,23 @@ static var _ready := false
 
 static func held(action: String) -> bool:
 	_ensure()
+	if typing():
+		return false
 	return Input.is_physical_key_pressed(_code(action))
 
 
+## SpeedChat and the name box keep the letters. Polling the key would walk
+## the toon on every W, A, S, or D in the sentence.
+static func typing() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return false
+	var focused := tree.root.gui_get_focus_owner()
+	return focused is LineEdit or focused is TextEdit
+
+
 static func event_is(event: InputEvent, action: String) -> bool:
-	if not (event is InputEventKey):
+	if typing() or not (event is InputEventKey):
 		return false
 	var key := event as InputEventKey
 	if not key.pressed or key.echo:

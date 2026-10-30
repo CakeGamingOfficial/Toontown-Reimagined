@@ -135,7 +135,7 @@ func _play_music() -> void:
 	if stream == null:
 		return
 	stream.loop = true
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.music_player()
 	player.name = "NeighborhoodMusic"
 	player.stream = stream
 	player.volume_db = linear_to_db(MUSIC_VOLUME)

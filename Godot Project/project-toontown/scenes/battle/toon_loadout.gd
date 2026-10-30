@@ -13,6 +13,9 @@ const SQUIRT := 5
 const START_HP := 15
 const NEXT_GAG := 10
 const POCKET := 10
+## A new toon holds 20 gags. ~max raises the pouch to the game limit.
+const CARRY := 20
+const MAX_CARRY := 80
 const SKILL_CREDIT := 1
 
 # ToontownBattleGlobals AvPropDamage, level by level, and AvPropAccuracy.
@@ -85,6 +88,7 @@ signal hp_changed(current: int, maximum: int)
 
 var hp := START_HP
 var max_hp := START_HP
+var max_carry := CARRY
 var _counts: Array = []
 var _unlocked: Array = []
 var _exp: Array[int] = []
@@ -123,6 +127,7 @@ static func reset_slot(index: int) -> void:
 	loadout._blank()
 	loadout.hp = START_HP
 	loadout.max_hp = START_HP
+	loadout.max_carry = CARRY
 	loadout.save()
 
 
@@ -264,8 +269,41 @@ func set_hp(current: int, maximum: int) -> void:
 	hp_changed.emit(hp, max_hp)
 
 
+## ~restock. Owned gags are wiped and the carry limit is dealt back out.
+func restock() -> int:
+	var slots: Array[Vector2i] = []
+	for track in TRACK_COUNT:
+		for level in LEVEL_COUNT:
+			if unlocked(track, level):
+				set_gag(track, level, 0, true)
+				slots.append(Vector2i(track, level))
+	var left := max_carry
+	var index := 0
+	while left > 0 and not slots.is_empty():
+		var slot := slots[index % slots.size()]
+		set_gag(slot.x, slot.y, count_of(slot.x, slot.y) + 1, true)
+		left -= 1
+		index += 1
+	save()
+	return max_carry - left
+
+
+## ~max. Every gag is owned, the tracks are maxed, the pouch is raised to
+## ToontownGlobals.MaxCarryLimit, then that pouch is filled.
+func unlock_all() -> int:
+	for track in TRACK_COUNT:
+		for level in LEVEL_COUNT:
+			if _valid(track, level):
+				_unlocked[track][level] = true
+		_exp[track] = _MAX_SKILL
+	max_carry = MAX_CARRY
+	return restock()
+
+
 ## DistributedAvatar.takeDamage. The popup is the laff that was actually lost.
 func take_damage(amount: int) -> int:
+	if MagicWords.ignores_damage():
+		return 0
 	var before := hp
 	set_hp(before - maxi(amount, 0), max_hp)
 	return before - hp
@@ -288,6 +326,7 @@ func save() -> void:
 	slots[_slot] = {
 		"hp": hp,
 		"max_hp": max_hp,
+		"max_carry": max_carry,
 		"counts": _counts,
 		"unlocked": _unlocked,
 		"exp": _exp,
@@ -326,6 +365,7 @@ func _load() -> void:
 	var stored: Dictionary = slots[_slot]
 	hp = int(stored.get("hp", START_HP))
 	max_hp = int(stored.get("max_hp", START_HP))
+	max_carry = clampi(int(stored.get("max_carry", CARRY)), 1, MAX_CARRY)
 	var counts: Array = stored.get("counts", [])
 	var owned: Array = stored.get("unlocked", [])
 	for track in mini(counts.size(), TRACK_COUNT):

@@ -14,7 +14,6 @@ const PAGE_MAP := 1
 const PAGE_GAGS := 2
 const PAGE_TASKS := 3
 const _PAGE_NAMES: PackedStringArray = ["Options", "Map", "Gags", "ToonTasks"]
-const _CARRY := 20
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
@@ -139,6 +138,9 @@ var _go_home: TextureButton
 var _go_back: TextureButton
 var _switch_button: TextureButton
 var _quit_button: TextureButton
+var _audio_captions: Array[Label] = []
+var _audio_toggles: Array[TextureButton] = []
+var _audio_sliders: Array[HSlider] = []
 var _exit_dialog: Control
 var _exit_accept: Callable
 var _map_picture: TextureRect
@@ -277,7 +279,7 @@ func _build_sounds() -> void:
 
 
 func _sound(path: String) -> AudioStreamPlayer:
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.effect_player()
 	var stream := load(path) as AudioStream
 	if stream != null:
 		player.stream = stream
@@ -380,6 +382,8 @@ func _build_options() -> Control:
 		sheet.add_child(button)
 		_bind_captions.append(caption)
 		_bind_buttons.append(button)
+	_audio_row(sheet, "Music", true)
+	_audio_row(sheet, "Sound Effects", false)
 	# Switch Toon throws the portable hole and returns to Pick a Toon.
 	# Quit Game writes the journal, then closes the window.
 	_switch_button = _pill("Switch Toon")
@@ -389,6 +393,80 @@ func _build_options() -> Control:
 	_quit_button.pressed.connect(_ask_quit)
 	sheet.add_child(_quit_button)
 	return sheet
+
+
+func _audio_row(sheet: Control, title: String, music: bool) -> void:
+	var caption := Label.new()
+	caption.text = title
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.mouse_filter = MOUSE_FILTER_IGNORE
+	sheet.add_child(caption)
+	var toggle := _pill("On")
+	toggle.pressed.connect(_toggle_audio.bind(music))
+	sheet.add_child(toggle)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 100.0
+	slider.step = 1.0
+	slider.focus_mode = Control.FOCUS_NONE
+	var level := ToonAudio.music_volume() if music else ToonAudio.sfx_volume()
+	slider.set_value_no_signal(level * 100.0)
+	slider.value_changed.connect(_on_audio_volume.bind(music))
+	_style_slider(slider)
+	sheet.add_child(slider)
+	_audio_captions.append(caption)
+	_audio_toggles.append(toggle)
+	_audio_sliders.append(slider)
+
+
+func _style_slider(slider: HSlider) -> void:
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.72, 0.58, 0.38, 1)
+	track.set_corner_radius_all(5)
+	track.content_margin_top = 6
+	track.content_margin_bottom = 6
+	var fill := track.duplicate() as StyleBoxFlat
+	fill.bg_color = Color(0.95, 0.55, 0.16, 1)
+	var knob := _knob_texture()
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", fill)
+	slider.add_theme_stylebox_override("grabber_area_highlight", fill)
+	slider.add_theme_icon_override("grabber", knob)
+	slider.add_theme_icon_override("grabber_highlight", knob)
+
+
+func _knob_texture() -> Texture2D:
+	var image := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	for y in 16:
+		for x in 16:
+			var edge := x < 2 or y < 2 or x > 13 or y > 13
+			image.set_pixel(x, y, Color(0.42, 0.24, 0.05, 1) if edge else Color(0.98, 0.84, 0.32, 1))
+	return ImageTexture.create_from_image(image)
+
+
+func _toggle_audio(music: bool) -> void:
+	if music:
+		ToonAudio.set_music_on(not ToonAudio.music_on())
+	else:
+		ToonAudio.set_sfx_on(not ToonAudio.sfx_on())
+	_paint_audio()
+
+
+func _on_audio_volume(value: float, music: bool) -> void:
+	if music:
+		ToonAudio.set_music_volume(value / 100.0)
+	else:
+		ToonAudio.set_sfx_volume(value / 100.0)
+
+
+func _paint_audio() -> void:
+	for index in _audio_toggles.size():
+		var enabled := ToonAudio.music_on() if index == 0 else ToonAudio.sfx_on()
+		var caption := _audio_toggles[index].get_child(0) as Label
+		if caption:
+			caption.text = "On" if enabled else "Off"
 
 
 func _build_map() -> Control:
@@ -775,13 +853,21 @@ func refresh_jar() -> void:
 	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.POUCH_MAX]
 
 
+func refresh_gags() -> void:
+	if _gag_icons.is_empty():
+		return
+	_refresh_gags()
+
+
 func _refresh_gags() -> void:
 	refresh_jar()
 	_clear_gag()
 	var carried := 0
+	var limit := ToonLoadout.CARRY
 	if _loadout != null:
 		carried = _loadout.gag_count()
-	_totals.text = "Total gags\n%d / %d\n\nDamage Rate: 100%%" % [carried, _CARRY]
+		limit = _loadout.max_carry
+	_totals.text = "Total gags\n%d / %d\n\nDamage Rate: 100%%" % [carried, limit]
 	if _loadout == null:
 		return
 	for track in ToonLoadout.TRACK_COUNT:
@@ -1122,8 +1208,8 @@ func _layout() -> void:
 
 
 func _layout_options(page_size: Vector2, body_px: int) -> void:
-	var top := page_size.y * 0.16
-	var row_h := minf(page_size.y * 0.09, 46.0)
+	var top := page_size.y * 0.13
+	var row_h := minf(page_size.y * 0.062, 34.0)
 	for index in _bind_buttons.size():
 		var y := top + float(index) * row_h
 		var caption := _bind_captions[index]
@@ -1135,6 +1221,20 @@ func _layout_options(page_size: Vector2, body_px: int) -> void:
 		button.size = Vector2(page_size.x * 0.28, row_h * 0.76)
 		var key_name := button.get_child(0) as Label
 		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), body_px, Color(0, 0, 0, 0), 0)
+	var audio_top := top + float(_bind_buttons.size()) * row_h + page_size.y * 0.03
+	var audio_h := minf(page_size.y * 0.08, 40.0)
+	for index in _audio_sliders.size():
+		var y := audio_top + float(index) * audio_h
+		var caption := _audio_captions[index]
+		caption.position = Vector2(0, y)
+		caption.size = Vector2(page_size.x * 0.34, audio_h)
+		ToonGui.style_label(caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		var toggle := _audio_toggles[index]
+		_place_pill(toggle, Vector2(page_size.x * 0.36, y + audio_h * 0.12), Vector2(page_size.x * 0.16, audio_h * 0.76), body_px)
+		var slider := _audio_sliders[index]
+		slider.position = Vector2(page_size.x * 0.54, y + audio_h * 0.22)
+		slider.size = Vector2(page_size.x * 0.42, audio_h * 0.56)
+	_paint_audio()
 	_switch_button.visible = not _guided
 	_quit_button.visible = not _guided
 	_place_pill(_switch_button, Vector2(page_size.x * 0.04, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)

@@ -52,7 +52,7 @@ func _play_theme() -> void:
 		return
 	stream = stream.duplicate() as AudioStreamMP3
 	stream.loop = true
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.music_player()
 	player.name = "ThemeMusic"
 	player.stream = stream
 	player.volume_db = linear_to_db(THEME_VOLUME)

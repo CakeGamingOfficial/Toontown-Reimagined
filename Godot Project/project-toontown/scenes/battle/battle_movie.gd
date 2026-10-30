@@ -108,52 +108,41 @@ func play_defeat() -> void:
 	var duck_len := _player.action_length("duck")
 	var second := 0.0 if duck_len <= 1.8 else duck_len - 1.8
 	var length := maxf(6.4, 1.0 + duck_len + second)
-	var small_wait := 0.0
-	var spun_soft := false
-	var spun_loud := false
-	var fell := false
-	var flashed := false
-	var burst_ten := false
-	var burst_big := false
-	var single := false
+	var clock := {"wait": 0.0}
+	var boom_on := {"on": false}
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_flunky.pose_lose(elapsed)
 		_duck(elapsed, duck_len)
 		var delta := get_process_delta_time()
 		if elapsed >= 2.1 and elapsed < 6.4:
-			small_wait -= delta
-			if small_wait <= 0.0:
-				small_wait = 0.4
+			clock["wait"] = float(clock["wait"]) - delta
+			if float(clock["wait"]) <= 0.0:
+				clock["wait"] = 0.4
 				_spawn_gear(gear_point, 3.2282, 9.0, 9.0, 0.112, minf(1.5, 6.4 - elapsed))
 				_spawn_gear(gear_point, 3.2282, 9.0, 9.0, 0.112, minf(1.5, 6.4 - elapsed))
-		if elapsed >= 0.7 and not single:
-			single = true
+		if elapsed >= 0.7 and _latch(gate, "single"):
 			_spawn_gear(gear_point, 3.2282, 9.0, 9.0, 0.16, 5.7)
-		if elapsed >= 5.2 and not burst_ten:
-			burst_ten = true
+		if elapsed >= 5.2 and _latch(gate, "burst_ten"):
 			for _index in 10:
 				_spawn_gear(gear_point, 3.2282, 9.0, 9.0, 0.16, 1.2)
-		if elapsed >= 5.4 and not burst_big:
-			burst_big = true
+		if elapsed >= 5.4 and _latch(gate, "burst_big"):
 			for _index in 30:
 				_spawn_gear(gear_point, 1.6282, 15.0, 18.0, 0.16, 1.0)
 		if elapsed >= 5.4 and elapsed < 6.0:
 			_show_boom(gear_point, elapsed - 5.4)
-			flashed = true
-		elif flashed:
+			boom_on["on"] = true
+		elif bool(boom_on["on"]):
 			_hide_boom()
-			flashed = false
+			boom_on["on"] = false
 		# MovieUtil deathSoundTrack. Cog_Death is the spin; ENC_cogfall_apart
 		# is the crash, and it starts just before the kapow.
-		if elapsed >= 0.8 and not spun_soft:
-			spun_soft = true
+		if elapsed >= 0.8 and _latch(gate, "spun_soft"):
 			_death_sound("Cog_Death.ogg", 0.2, 1.5, 1.2)
-		if elapsed >= 2.0 and not spun_loud:
-			spun_loud = true
+		if elapsed >= 2.0 and _latch(gate, "spun_loud"):
 			_stop_death_sound()
 			_death_sound("Cog_Death.ogg", 0.8, 0.6, 3.0)
-		if elapsed >= 5.0 and not fell:
-			fell = true
+		if elapsed >= 5.0 and _latch(gate, "fell"):
 			_stop_death_sound()
 			_death_sound("ENC_cogfall_apart.ogg", 0.32, 0.0, 0.0)
 		_tick_gears(delta)
@@ -175,7 +164,7 @@ func _throw(pie_name: String, level: int, hit: bool, on_contact: Callable) -> vo
 	var length := maxf(throw_len, react_at + react_len)
 	if not hit:
 		length = maxf(length, _PIE_LEAVES + fly + 0.7)
-	var contacted := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_player.pose_action("throw", elapsed)
 		if elapsed >= react_at:
@@ -209,8 +198,7 @@ func _throw(pie_name: String, level: int, hit: bool, on_contact: Callable) -> vo
 		_once("throw", elapsed, 2.6, _SFX + "AA_pie_throw_only.mp3")
 		if hit:
 			_once("hit", elapsed, _PIE_LEAVES, _SFX + _throw_hit_sound(level))
-		if not contacted and elapsed >= react_at:
-			contacted = true
+		if elapsed >= react_at and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_player.end_action("throw")
@@ -234,7 +222,7 @@ func _flower(hit: bool, on_contact: Callable) -> void:
 	var react_at := 2.7 if hit else 2.5
 	var length := maxf(push_len, react_at + _flunky.action_length(react))
 	length = maxf(length, 3.4)
-	var contacted := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_player.pose_action("pushbutton", elapsed)
 		if elapsed >= react_at:
@@ -273,8 +261,7 @@ func _flower(hit: bool, on_contact: Callable) -> void:
 				_billboard(splash)
 		var sound := "AA_squirt_flowersquirt.mp3" if hit else "AA_squirt_flowersquirt_miss.mp3"
 		_once("squirt", elapsed, 2.1, _SFX + sound)
-		if not contacted and elapsed >= react_at:
-			contacted = true
+		if elapsed >= react_at and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_player.end_action("pushbutton")
@@ -290,7 +277,7 @@ func _squirt_prop(prop_name: String, hit: bool, on_contact: Callable) -> void:
 	var push_len := maxf(_player.action_length("pushbutton"), 2.6)
 	var react := "squirt-small" if hit else "sidestep-left"
 	var length := maxf(push_len, 2.7 + _flunky.action_length(react))
-	var contacted := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_player.pose_action("pushbutton", elapsed)
 		prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
@@ -301,8 +288,7 @@ func _squirt_prop(prop_name: String, hit: bool, on_contact: Callable) -> void:
 			_spray(spray, prop.global_position, _cog_world(_SUIT_HEIGHT * 0.66), 0.35)
 		else:
 			spray.visible = false
-		if not contacted and elapsed >= 2.5:
-			contacted = true
+		if elapsed >= 2.5 and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_player.end_action("pushbutton")
@@ -323,7 +309,7 @@ func _drop(prop_name: String, hit: bool, on_contact: Callable) -> void:
 	var appear := 4.3
 	var land := appear + 0.6
 	var length := maxf(_player.action_length("pushbutton"), land + _flunky.action_length(react))
-	var contacted := false
+	var gate := {}
 	var start := _cog_point(_SUIT_HEIGHT + 14.0)
 	var rest := _cog_point(1.2)
 	await _play(length, func(elapsed: float) -> void:
@@ -335,8 +321,7 @@ func _drop(prop_name: String, hit: bool, on_contact: Callable) -> void:
 			prop.scale = Vector3.ONE
 		if elapsed >= land:
 			_flunky.pose_action(react, elapsed - land)
-		if not contacted and elapsed >= land:
-			contacted = true
+		if elapsed >= land and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_player.end_action("pushbutton")
@@ -349,7 +334,7 @@ func _lob_to_feet(prop_name: String, hit: bool, on_contact: Callable) -> void:
 	var throw_len := _player.action_length("throw")
 	var land_at := _PIE_HITS
 	var length := maxf(throw_len, land_at + 0.4)
-	var contacted := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_player.pose_action("throw", elapsed)
 		if elapsed < _PIE_LEAVES:
@@ -361,8 +346,7 @@ func _lob_to_feet(prop_name: String, hit: bool, on_contact: Callable) -> void:
 			var start := prop.get_meta("from") as Vector3
 			var flown := clampf((elapsed - _PIE_LEAVES) / (_PIE_HITS - _PIE_LEAVES), 0.0, 1.0)
 			prop.position = start.lerp(_cog_point(0.2), flown)
-		if not contacted and elapsed >= land_at:
-			contacted = true
+		if elapsed >= land_at and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_player.end_action("throw")
@@ -372,12 +356,11 @@ func _hold(prop_name: String, on_contact: Callable) -> void:
 	var prop := _make(prop_name)
 	_parent_hand(prop, "def_joint_right_hold")
 	var length := maxf(_player.action_length("throw"), 2.2)
-	var contacted := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_player.pose_action("throw", elapsed)
 		prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.5, 0.0, 1.0))
-		if not contacted and elapsed >= 1.2:
-			contacted = true
+		if elapsed >= 1.2 and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_player.end_action("throw")
@@ -393,16 +376,14 @@ func _clip_on_tie(hit: bool, on_contact: Callable) -> void:
 	var suit_len := _flunky.action_length("throw-paper")
 	var length := maxf(suit_len, react_at + _player.action_length(toon_anim))
 	length = maxf(length, throw_at + 1.2)
-	var contacted := false
-	var left := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_flunky.pose_action("throw-paper", elapsed)
 		if elapsed < 0.5:
 			tie.scale = Vector3.ONE * lerpf(0.01, 1.0, elapsed / 0.5)
-		if elapsed >= throw_at and not left:
-			left = true
+		if elapsed >= throw_at and _latch(gate, "left"):
 			tie.reparent(_player, true)
-		if left:
+		if gate.has("left"):
 			if not tie.has_meta("from"):
 				tie.set_meta("from", tie.position)
 			var start := tie.get_meta("from") as Vector3
@@ -418,8 +399,7 @@ func _clip_on_tie(hit: bool, on_contact: Callable) -> void:
 		_once("tie", elapsed, throw_at + 1.0, _SFX + "SA_powertie_throw.mp3")
 		if not hit:
 			_once("step", elapsed, react_at, _SFX + "AV_side_step.mp3")
-		if not contacted and elapsed >= react_at:
-			contacted = true
+		if elapsed >= react_at and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_flunky.end_action("throw-paper")
@@ -448,16 +428,14 @@ func _pound_key(hit: bool, on_contact: Callable) -> void:
 	var suit_len := _flunky.action_length("phone")
 	var length := maxf(suit_len, 5.8)
 	length = maxf(length, react_at + _player.action_length(toon_anim))
-	var contacted := false
-	var moved := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_flunky.pose_action("phone", elapsed)
 		if elapsed < 0.8:
 			var grown := clampf((elapsed - 0.3) / 0.5, 0.0, 1.0)
 			phone.scale = Vector3.ONE * lerpf(0.01, 1.0, grown)
 			receiver.scale = phone.scale
-		if elapsed >= 1.54 and not moved:
-			moved = true
+		if elapsed >= 1.54 and _latch(gate, "moved"):
 			_parent_joint(receiver, _flunky, "joint_Rhold", "receiver_right")
 			receiver.scale = Vector3.ONE
 		if elapsed >= 4.68:
@@ -481,8 +459,7 @@ func _pound_key(hit: bool, on_contact: Callable) -> void:
 			var from := phone.global_position
 			var to := _player.global_position + Vector3(0.0, 2.4, 0.0)
 			mark.global_position = from.lerp(to, along) + Vector3(sin(float(index)), 0.2, cos(float(index))) * 0.35
-		if not contacted and elapsed >= react_at:
-			contacted = true
+		if elapsed >= react_at and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_flunky.end_action("phone")
@@ -500,7 +477,7 @@ func _shred(hit: bool, on_contact: Callable) -> void:
 	var react_at := suit_len - (1.1 if hit else 3.1)
 	var toon_anim := "conked" if hit else "sidestep-left"
 	var length := maxf(suit_len, react_at + _player.action_length(toon_anim))
-	var contacted := false
+	var gate := {}
 	await _play(length, func(elapsed: float) -> void:
 		_flunky.pose_action("shredder", elapsed)
 		if elapsed >= 1.0:
@@ -514,8 +491,7 @@ func _shred(hit: bool, on_contact: Callable) -> void:
 		_once("shred", elapsed, 3.4, _SFX + "SA_shred.mp3")
 		if not hit:
 			_once("step", elapsed, react_at, _SFX + "AV_side_step.mp3")
-		if not contacted and elapsed >= react_at:
-			contacted = true
+		if elapsed >= react_at and _latch(gate, "hit"):
 			on_contact.call()
 	)
 	_flunky.end_action("shredder")
@@ -678,7 +654,7 @@ func _death_sound(file_name: String, volume: float, from_time: float, duration: 
 	var stream := load(_SFX + file_name) as AudioStream
 	if stream == null:
 		return
-	_death_player = AudioStreamPlayer.new()
+	_death_player = ToonAudio.effect_player()
 	_death_player.stream = stream
 	_death_player.volume_db = linear_to_db(volume)
 	add_child(_death_player)
@@ -768,6 +744,15 @@ func _frame(actor: Node3D, other: Node3D, side: float, ahead: float, height: flo
 		pos = look - forward * 4.0
 	_camera.global_position = pos
 	_camera.look_at(look, Vector3.UP)
+
+
+## Movie steps are lambdas. Godot copies a bool into that lambda, so setting
+## it does not last until the next frame and the same hit would land again.
+func _latch(gate: Dictionary, key: String) -> bool:
+	if gate.has(key):
+		return false
+	gate[key] = true
+	return true
 
 
 func _play(length: float, step: Callable) -> void:
@@ -978,7 +963,7 @@ func _sfx(path: String) -> void:
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.effect_player()
 	player.stream = stream
 	add_child(player)
 	player.finished.connect(player.queue_free)

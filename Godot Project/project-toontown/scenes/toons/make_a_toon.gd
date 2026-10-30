@@ -115,7 +115,7 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_layout()
 	_fade_in()
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.music_player()
 	player.stream = preload("res://assets/toons/audio/create_a_toon.ogg")
 	player.volume_db = -4.0
 	player.autoplay = true
@@ -1143,7 +1143,7 @@ func _play_crash() -> void:
 func _play_sfx(path: String) -> void:
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.effect_player()
 	player.stream = load(path)
 	player.finished.connect(player.queue_free)
 	add_child(player)

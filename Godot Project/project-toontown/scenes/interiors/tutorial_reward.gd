@@ -2,7 +2,8 @@ extends Node
 
 ## Movie.playTutorialReward_3. After the gag points and the finished ToonTask,
 ## Tutorial Tom meets the player in front of Toon Headquarters, then leaves
-## through a hole. Control comes back with the player facing the doors.
+## through a hole. He arrives with Toon.getTeleportInTrack and leaves with
+## getTeleportOutTrack. Control comes back with the player facing the doors.
 
 const ZONE_PATH := "res://assets/neighborhoods/tutorial_zone/tutorial_zone.glb"
 # export_neighborhoods centered tutorial_street.dna. tb1's child keeps the DNA
@@ -19,6 +20,15 @@ const FACING_HQ := 270.0
 const FEET_Y := 0.05
 const _BLACK := Color(0.08, 0.08, 0.1)
 const _TEAL := Color(0.0, 0.55, 0.62)
+const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
+const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
+# Toon.getTeleportOutTrack / getTeleportInTrack, in seconds.
+const _OUT_TIME := 3.4
+const _SOUND_AT := 0.5
+const _DROP_AT := 1.708
+const _IN_OPEN := 0.3
+const _IN_HOLD := 0.6
+const _JUMP_FROM := 0.45
 
 var _host: Node
 var _body: CharacterBody3D
@@ -26,14 +36,15 @@ var _player: ToonActor
 var _camera: Camera3D
 var _tom: ToonActor
 var _pivot: Node3D
-var _hole: MeshInstance3D
 var _bubble: PanelContainer
+var _portaling := false
 var _label: Label
 var _advance := false
 
 
 func _process(delta: float) -> void:
-	if is_instance_valid(_tom):
+	# A teleport pose owns the body. Idle would replace it on the same frame.
+	if is_instance_valid(_tom) and not _portaling:
 		_tom.set_locomotion(0.0, false, false, delta)
 	# The street keeps the player locked for the movie, so the body never gets
 	# an idle tick. The head still blinks on its own.
@@ -57,7 +68,7 @@ func play(host: Node, body: CharacterBody3D, player: ToonActor, camera: Camera3D
 	back.tween_property(fade, "color:a", 0.0, 0.35)
 	await back.finished
 	fade.queue_free()
-	await _pop_in()
+	await _teleport_in()
 	await _line("Good job! You completed your first ToonTask!", _BLACK, true)
 	await _line("Go to Toon Headquarters for your reward!", _TEAL, false)
 	await _send_off()
@@ -112,8 +123,7 @@ func _stand_cast() -> void:
 	var host := _host as Node3D
 	_pivot = Node3D.new()
 	_pivot.name = "RewardTomPivot"
-	_pivot.position = _street(TOM_PANDA) + Vector3(0.0, -1.15, 0.0)
-	_pivot.scale = Vector3(0.12, 0.12, 0.12)
+	_pivot.position = _street(TOM_PANDA)
 	host.add_child(_pivot)
 	# A second Tom. The shop actor keeps the interior greeting.
 	_tom = ToonActor.new()
@@ -121,33 +131,48 @@ func _stand_cast() -> void:
 	_pivot.add_child(_tom)
 	_tom.show_style(_tom_style())
 	_host.call("face_actor", _tom, TOM_HEADING)
-	_hole = MeshInstance3D.new()
-	_hole.name = "RewardHole"
-	var disc := CylinderMesh.new()
-	disc.top_radius = 1.15
-	disc.bottom_radius = 1.15
-	disc.height = 0.08
-	_hole.mesh = disc
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.02, 0.02, 0.02)
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.disable_receive_shadows = true
-	_hole.material_override = material
-	_hole.position = _street(TOM_PANDA) + Vector3(0.0, 0.04, 0.0)
-	_hole.scale = Vector3(0.2, 1.0, 0.2)
-	host.add_child(_hole)
+	# enterTeleportIn poses the last teleport frame and hides the toon.
+	_tom.visible = false
+	_tom.set_look_enabled(false)
+	_show_shadow(false)
+	_tom.pose_action("teleport", _tom.action_length("teleport"))
 
 
-func _pop_in() -> void:
-	var risen := create_tween()
-	risen.set_parallel(true)
-	risen.tween_property(_pivot, "position:y", FEET_Y, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	risen.tween_property(_pivot, "scale", Vector3.ONE, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	risen.tween_property(_hole, "scale", Vector3(1.0, 1.0, 1.0), 0.35)
-	await risen.finished
-	var shut := create_tween()
-	shut.tween_property(_hole, "scale", Vector3(0.05, 1.0, 0.05), 0.25)
-	await shut.finished
+## Toon.getTeleportInTrack. The hole opens in front of him, he leaps out, and it shuts.
+func _teleport_in() -> void:
+	if _tom == null or _pivot == null:
+		return
+	_portaling = true
+	var portal := _make_portal()
+	_pivot.add_child(portal)
+	portal.global_transform = _tom.global_transform
+	portal.global_position = _tom.to_global(Vector3(0.0, -2.4, 0.0))
+	portal.call("pose_at", _OUT_TIME)
+	var leap := _tom.action_length("leap")
+	var total := _IN_OPEN + _IN_HOLD + _IN_OPEN
+	if leap > _JUMP_FROM:
+		total = maxf(total, _IN_OPEN + (leap - _JUMP_FROM))
+	var elapsed := 0.0
+	var shown := false
+	while elapsed < total:
+		portal.call("pose_at", _arrival_hole_time(elapsed))
+		if elapsed >= _IN_OPEN and not shown:
+			shown = true
+			_tom.visible = true
+		if shown:
+			_tom.pose_action("leap", _JUMP_FROM + (elapsed - _IN_OPEN))
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		elapsed += get_process_delta_time()
+	if is_instance_valid(portal):
+		portal.queue_free()
+	_tom.end_action("leap")
+	_tom.end_action("teleport")
+	_tom.visible = true
+	_tom.set_look_enabled(true)
+	_show_shadow(true)
+	_portaling = false
 
 
 func _line(text: String, color: Color, warm: bool) -> void:
@@ -181,53 +206,23 @@ func _on_catcher(event: InputEvent) -> void:
 func _send_off() -> void:
 	_show_bubble("Have fun!", _BLACK)
 	var shown := 0.0
-	while shown < 0.9:
+	# The line sits for a second, then TeleportOut. The player turns after Tom is gone.
+	while shown < 1.0:
 		_place_bubble()
 		shown += get_process_delta_time()
 		await get_tree().process_frame
-	_host.call("face_actor", _player, FACING_HQ)
-	_host.call("face_actor", _tom, FACING_HQ)
-	var from_at := _camera.global_position
-	var from_look := _street(HQ_PANDA) + Vector3(0.0, 6.2, 0.0)
-	var behind := _behind_pair()
-	var to_at: Vector3 = behind["at"]
-	var to_look: Vector3 = behind["look"]
-	var hop := 0.0
-	while hop < 0.45:
-		var weight := hop / 0.45
-		_camera.global_position = from_at.lerp(to_at, weight)
-		_camera.look_at(from_look.lerp(to_look, weight), Vector3.UP)
-		_pivot.position.y = lerpf(FEET_Y, 2.55, 1.0 - pow(1.0 - weight, 2.0))
-		var disc := lerpf(0.15, 1.2, minf(weight * 1.6, 1.0))
-		_hole.scale = Vector3(disc, 1.0, disc)
-		_place_bubble()
-		hop += get_process_delta_time()
-		await get_tree().process_frame
-	var drop := 0.0
-	while drop < 0.5:
-		var weight := drop / 0.5
-		_pivot.position.y = lerpf(2.55, -1.25, weight * weight)
-		var shrunk := lerpf(1.0, 0.08, weight)
-		_pivot.scale = Vector3(shrunk, shrunk, shrunk)
-		_camera.look_at(to_look, Vector3.UP)
-		_place_bubble()
-		drop += get_process_delta_time()
-		await get_tree().process_frame
+	await _teleport_out()
 	if _bubble:
 		_bubble.queue_free()
 		_bubble = null
-	var close := 0.0
-	while close < 0.3:
-		var disc := lerpf(1.2, 0.02, close / 0.3)
-		_hole.scale = Vector3(disc, 1.0, disc)
-		close += get_process_delta_time()
-		await get_tree().process_frame
-	_hole.queue_free()
-	_pivot.queue_free()
+	_host.call("face_actor", _player, FACING_HQ)
+	if is_instance_valid(_pivot):
+		_pivot.queue_free()
 	_tom = null
+	_pivot = null
 	var follow := _follow_camera()
 	var settle_from := _camera.global_position
-	var settle_look := to_look
+	var settle_look := _street(HQ_PANDA) + Vector3(0.0, 3.4, 0.0)
 	var settle := 0.0
 	while settle < 0.45:
 		var weight := settle / 0.45
@@ -237,13 +232,81 @@ func _send_off() -> void:
 		await get_tree().process_frame
 
 
-func _behind_pair() -> Dictionary:
-	var mid := (_body.global_position + _pivot.global_position) * 0.5
-	mid.y = FEET_Y
-	return {
-		"at": mid + Vector3(-6.4, 2.7, 0.2),
-		"look": _street(HQ_PANDA) + Vector3(0.0, 4.8, 0.0),
-	}
+## Toon.getTeleportOutTrack. The hole starts in the right hand, drops to his
+## feet, and the teleport clip carries him in. The sound plays at half a second.
+func _teleport_out() -> void:
+	if _tom == null:
+		return
+	_portaling = true
+	_tom.set_look_enabled(false)
+	_show_shadow(false)
+	var portal := _make_portal()
+	var hand := _find(_tom, "def_joint_right_hold")
+	if hand == null:
+		_tom.add_child(portal)
+	else:
+		hand.add_child(portal)
+	portal.transform = Transform3D.IDENTITY
+	portal.call("pose_at", 0.0)
+	var sounded := false
+	var dropped := false
+	var elapsed := 0.0
+	while elapsed < _OUT_TIME:
+		_tom.set_hole_clip(true, _tom.global_position.y)
+		_tom.pose_action("teleport", elapsed)
+		portal.call("pose_at", elapsed)
+		if elapsed >= _SOUND_AT and not sounded:
+			sounded = true
+			_play_teleport_sound()
+		if elapsed >= _DROP_AT and not dropped:
+			dropped = true
+			portal.reparent(_tom, false)
+			portal.transform = Transform3D.IDENTITY
+		_place_bubble()
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		elapsed += get_process_delta_time()
+	if is_instance_valid(portal):
+		portal.queue_free()
+	if is_instance_valid(_tom):
+		_tom.set_hole_clip(false, 0.0)
+	_portaling = false
+
+
+func _arrival_hole_time(elapsed: float) -> float:
+	if elapsed < _IN_OPEN:
+		return lerpf(_OUT_TIME, 3.1, elapsed / _IN_OPEN)
+	if elapsed < _IN_OPEN + _IN_HOLD:
+		return 3.1
+	var shut := clampf((elapsed - _IN_OPEN - _IN_HOLD) / _IN_OPEN, 0.0, 1.0)
+	return lerpf(3.1, _OUT_TIME, shut)
+
+
+func _make_portal() -> Node3D:
+	var portal: Node3D = _PORTAL.new() as Node3D
+	portal.name = "TeleportPortal"
+	portal.call("setup")
+	return portal
+
+
+func _play_teleport_sound() -> void:
+	var stream := load(_TELEPORT_SFX) as AudioStream
+	if stream == null:
+		return
+	var player := ToonAudio.effect_player()
+	player.stream = stream
+	add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
+
+
+func _show_shadow(shown: bool) -> void:
+	if _tom == null:
+		return
+	var shadow := _find(_tom, "drop_shadow")
+	if shadow != null:
+		shadow.visible = shown
 
 
 func _follow_camera() -> Dictionary:

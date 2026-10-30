@@ -108,7 +108,7 @@ static func play_sfx(host: Node, path: String) -> void:
 	var parent: Node = tree.current_scene if tree.current_scene != null else tree.root
 	if parent == null:
 		return
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.effect_player()
 	player.stream = load(path)
 	player.finished.connect(player.queue_free)
 	parent.add_child(player)

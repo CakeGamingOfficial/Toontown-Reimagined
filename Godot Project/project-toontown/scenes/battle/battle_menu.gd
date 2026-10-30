@@ -230,10 +230,12 @@ func _show_detail(track: int, level: int) -> void:
 
 func _show_total() -> void:
 	var carried := 0
+	var limit := ToonLoadout.CARRY
 	if _loadout != null:
 		carried = _loadout.gag_count()
+		limit = _loadout.max_carry
 	_pad_title.text = "Total gags"
-	_pad_body.text = "%d / %d" % [carried, 20]
+	_pad_body.text = "%d / %d" % [carried, limit]
 
 
 func _paint_button(button: Button, color: Color) -> void:

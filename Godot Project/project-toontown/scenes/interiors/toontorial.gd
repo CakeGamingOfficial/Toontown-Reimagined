@@ -44,7 +44,7 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _billboards: Array[Dictionary] = []
-var _tags: Array[Dictionary] = []
+var _nametags: Nametags
 var _bubble: Control
 var _cutscene := false
 var _locked := false
@@ -123,6 +123,10 @@ func _ready() -> void:
 		close_landmark_doors(geometry)
 	if _tasks != null and _tasks.book_ready():
 		_open_plaza()
+	else:
+		# tutorial_mickey. A toon who already has the book comes back on the
+		# street instead of watching Mickey run in again.
+		_begin_arrival()
 	# The welcome card and the Flunky tag are created at the control origin.
 	# Place them before the first draw so they do not flash in the corner.
 	_place_tags()
@@ -142,7 +146,11 @@ func _process(delta: float) -> void:
 			tom.set_dialogue(delta)
 		else:
 			tom.set_locomotion(0.0, false, false, delta)
-	if not _camera_held and (not _cutscene or (_hq != null and _hq.inside())):
+	MagicWords.maintain(self)
+	var book_open := _book != null and _book.is_open()
+	if MagicWords.detached_camera() and not _cutscene and not _camera_held and not book_open:
+		MagicWords.fly_camera(_camera, delta)
+	elif not _camera_held and (not _cutscene or (_hq != null and _hq.inside())):
 		_place_camera()
 	_face_billboards()
 	_place_tags()
@@ -191,6 +199,7 @@ func _spawn_toons() -> void:
 		# Sit just above the floor so the capsule is not already inside it.
 		_body.position = START_POSITION + Vector3(0.0, 0.2, 0.0)
 		_player = _spawn(style, Vector3.ZERO, START_HEADING, _body)
+		_player.footsteps = true
 		_add_capsule()
 		_add_tag(_player, style.display_name(), "player")
 	var tom := _spawn(_tom_style(), TOM_POSITION, TOM_HEADING, self)
@@ -406,6 +415,11 @@ func _walk(delta: float) -> void:
 	var right_held := _KEYS.held("right")
 	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	# Right-click turns the side keys into a full run across the camera.
+	if MagicWords.detached_camera():
+		forward_held = false
+		back_held = false
+		left_held = false
+		right_held = false
 	var strafe := 0.0
 	if aim_held and not forward_held and not back_held:
 		if left_held:
@@ -440,6 +454,7 @@ func _walk(delta: float) -> void:
 	elif reversing:
 		speed = -REVERSE_SPEED
 	var forward := _forward(move_heading)
+	speed *= MagicWords.run_scale()
 	_body.velocity.x = forward.x * speed
 	_body.velocity.z = forward.z * speed
 	var on_floor := _body.is_on_floor()
@@ -465,7 +480,7 @@ func _walk(delta: float) -> void:
 	var void_y := -2.0
 	if _hq != null and _hq.inside():
 		void_y = -12.0
-	if _body.position.y < void_y:
+	if _body.position.y < void_y and not MagicWords.noclip():
 		_body.velocity = Vector3.ZERO
 		_body.position = _return_spot
 		_heading = _return_heading
@@ -757,6 +772,9 @@ func _ready_loadout() -> void:
 	_hud().add_child(_speed)
 	_speed.setup(_tasks)
 	_speed.phrase_said.connect(say_line)
+	var friends := FriendsList.new()
+	friends.name = "FriendsList"
+	_hud().add_child(friends)
 
 
 func tasks() -> ToonTasks:
@@ -814,7 +832,9 @@ func _spawn_flunky() -> void:
 	_flunky.name = "Flunky"
 	add_child(_flunky)
 	_flunky.pace_outside()
-	_add_tag(_flunky, "Flunky\nBossbot\nLevel 1", "cog")
+	var flunky_tag := _add_tag(_flunky, "Flunky\n%s\nLevel %d" % [Cog.dept_name("c"), _flunky.cog_level], "cog")
+	flunky_tag.set_meta("cog_name", "Flunky")
+	flunky_tag.set_meta("dept", "c")
 
 
 func _place_shop_shell() -> void:
@@ -829,8 +849,12 @@ func _place_shop_shell() -> void:
 	_show_shop_shell()
 
 
+func _in_toms_shop() -> bool:
+	return _body != null and not _plaza and _body.position.x > -16.2 and _body.position.z > -30.2 and _body.position.z < 1.2
+
+
 func _show_shop_shell() -> void:
-	var inside := _body != null and not _plaza and _body.position.x > -16.2 and _body.position.z > -30.2 and _body.position.z < 1.2
+	var inside := _in_toms_shop()
 	var room := _find(get_node_or_null("Geometry"), "Interior")
 	if room:
 		room.visible = inside
@@ -1235,82 +1259,57 @@ func _build_bubble() -> void:
 	_bubble = panel
 
 
-func _add_tag(actor: Node3D, text: String, kind: String, text_tint: Color = Color(0, 0, 0, 0)) -> void:
-	# phase_3/models/props/panel, stretched over the name. No dialog border.
-	# NPCs are tan with orange Impress BT. Members are gray with blue Impress BT.
-	# Cogs are olive with black Remington Portable.
-	var panel := PanelContainer.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var box := StyleBoxFlat.new()
-	var text_color := Color(0.22, 0.22, 0.78)
-	var face := ToonGui.font()
-	if kind == "npc":
-		box.bg_color = Color(0.86, 0.78, 0.58, 0.94)
-		text_color = text_tint if text_tint.a > 0.0 else Color(0.6, 0.4, 0.2)
-	elif kind == "cog":
-		box.bg_color = Color(0.69, 0.72, 0.55, 0.94)
-		text_color = Color(0.0, 0.0, 0.0)
-		face = ToonGui.suit_font()
-	else:
-		box.bg_color = Color(0.55, 0.55, 0.53, 0.94)
-	# The panel card is a rounded rectangle, not a capsule. The corners stay
-	# shallow so a long name keeps a flat top and bottom.
-	box.set_corner_radius_all(7)
-	box.content_margin_left = 14
-	box.content_margin_right = 14
-	box.content_margin_top = 4
-	box.content_margin_bottom = 4
-	panel.add_theme_stylebox_override("panel", box)
-	var label := Label.new()
-	label.text = text
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ToonGui.style_label(label, text_color, 16, Color(0, 0, 0, 0), 0)
-	if face:
-		label.add_theme_font_override("font", face)
-	panel.add_child(label)
-	panel.visible = false
+func _add_tag(actor: Node3D, text: String, kind: String, text_tint: Color = Color(0, 0, 0, 0)) -> Control:
+	return _nametag_board().add(actor, text, kind, text_tint)
+
+
+func _nametag_board() -> Nametags:
+	if _nametags == null:
+		_nametags = Nametags.new()
+		_nametags.name = "Nametags"
+		add_child(_nametags)
+		_nametags.occlude = _hide_nametag
+		_nametags.cog_clicked.connect(_on_cog_tag)
+	_nametags.camera = _camera
+	_nametags.layer = _hud()
+	return _nametags
+
+
+func _hide_nametag(actor: Node3D, point: Vector3) -> bool:
+	# Cog nametags stay up whenever the suit is on screen. The shop wall
+	# sits between the camera and the name, and that ray was hiding it.
+	if not (actor is Cog) and _tag_hidden(actor, point):
+		return true
+	return actor == _flunky and (_in_toms_shop() or (_battle != null and _battle.hides_flunky_tag()))
+
+
+func _on_cog_tag(actor: Node3D, tag: Control) -> void:
+	if in_cutscene() or not (actor is Cog):
+		return
+	var cog_name := String(tag.get_meta("cog_name", "Cog"))
+	var friends := _hud().get_node_or_null("FriendsList") as FriendsList
+	var choosing := friends != null and friends.picking()
+	var panel := _cog_panel()
+	panel.show_cog(actor as Cog, cog_name, String(tag.get_meta("dept", "c")))
+	# New Friend is waiting for a nametag. A cog is asked through that same dialog.
+	if choosing:
+		friends.offer_cog(cog_name)
+
+
+func _cog_panel() -> CogPanel:
+	var existing := _hud().get_node_or_null("CogPanel") as CogPanel
+	if existing != null:
+		return existing
+	var panel := CogPanel.new()
+	panel.name = "CogPanel"
 	_hud().add_child(panel)
-	# Measured once, from the resting head. Reading the live head makes the
-	# card bob with the idle and the talk cycle.
-	var lift := 4.6
-	if kind == "cog":
-		lift = 6.4
-	else:
-		var head := _find(actor, "def_head")
-		if head:
-			lift = head.global_position.y - actor.global_position.y + 1.25
-	_tags.append({"label": panel, "actor": actor, "lift": lift})
+	return panel
 
 
 func _place_tags() -> void:
-	if _camera == null:
+	if _camera == null or _nametags == null:
 		return
-	var kept: Array[Dictionary] = []
-	for item in _tags:
-		var label := item["label"] as Control
-		# Casting a freed actor errors. Flippy is freed when he runs into the tunnel.
-		var raw: Variant = item.get("actor")
-		if not is_instance_valid(raw):
-			if is_instance_valid(label):
-				label.queue_free()
-			continue
-		var actor := raw as Node3D
-		if actor == null or not actor.visible or not actor.is_visible_in_tree():
-			if is_instance_valid(label):
-				label.visible = false
-			kept.append(item)
-			continue
-		kept.append(item)
-		var lift := float(item.get("lift", 4.6))
-		var point := actor.global_position + Vector3(0.0, lift, 0.0)
-		if _tag_hidden(actor, point):
-			label.visible = false
-			continue
-		_place_control(label, point, Vector2(0, -8))
-		if actor == _flunky and (_body != null and _body.position.x > -16.5 or (_battle != null and _battle.hides_flunky_tag())):
-			label.visible = false
-	_tags = kept
+	_nametag_board().place()
 
 
 func _place_bubble() -> void:
@@ -1345,7 +1344,7 @@ func _ready_music() -> void:
 	if stream == null:
 		return
 	stream.loop = true
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.music_player()
 	player.name = "ToontorialMusic"
 	player.stream = stream
 	player.volume_db = linear_to_db(MUSIC_VOLUME)
@@ -1357,6 +1356,19 @@ func adopt_billboards(root: Node) -> void:
 	# The reward street is instantiated after _ready, so its trees and lamp
 	# heads are not in the list collected with the shop block.
 	_collect_billboards(root)
+
+
+func face_billboards() -> void:
+	_face_billboards()
+
+
+func _begin_arrival() -> void:
+	if _player == null or _body == null:
+		return
+	var movie := (load("res://scenes/interiors/tutorial_mickey.gd") as GDScript).new() as Node
+	movie.name = "MickeyMovie"
+	add_child(movie)
+	movie.call("play", self)
 
 
 func close_landmark_doors(root: Node) -> void:
@@ -1527,9 +1539,24 @@ func _collect_billboards(node: Node) -> void:
 func _face_billboards() -> void:
 	if _camera == null:
 		return
+	var kept: Array[Dictionary] = []
 	for item in _billboards:
-		var node := item["node"] as Node3D
+		var raw: Variant = item["node"]
+		if not is_instance_valid(raw):
+			continue
+		var node := raw as Node3D
+		if node == null:
+			continue
+		kept.append(item)
+		# Mickey's ears are sphere3. Yawing that joint like a shop sign
+		# swings the ears across his eyes for the whole cutscene, including
+		# while a line of dialogue is waiting for a click.
+		if String(node.name).begins_with("sphere3"):
+			continue
 		var rest := item["rest"] as Basis
+		var span := maxf(rest.x.length(), maxf(rest.y.length(), rest.z.length()))
+		if span < 0.05:
+			continue
 		var face := Vector3(-rest.y.x, 0.0, -rest.y.z)
 		var to_target := _camera.global_position - node.global_position
 		to_target.y = 0.0
@@ -1538,6 +1565,7 @@ func _face_billboards() -> void:
 		var turned := node.global_transform
 		turned.basis = rest.rotated(Vector3.UP, face.signed_angle_to(to_target, Vector3.UP))
 		node.global_transform = turned
+	_billboards = kept
 
 
 func _find(node: Node, wanted: String) -> Node3D:

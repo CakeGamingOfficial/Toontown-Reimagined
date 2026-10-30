@@ -76,7 +76,7 @@ func consider(body: CharacterBody3D) -> void:
 	var door := Vector2(_door_point.x - 4.0, _door_point.z)
 	if here.distance_to(door) > 6.0:
 		return
-	if not Input.is_physical_key_pressed(KEY_W):
+	if not _KEYS.held("forward"):
 		return
 	enter()
 
@@ -95,7 +95,7 @@ func consider_inside(body: CharacterBody3D) -> void:
 	if not at_entrance and not at_playground:
 		_exit_armed = true
 		return
-	if not _exit_armed or not Input.is_physical_key_pressed(KEY_W):
+	if not _exit_armed or not _KEYS.held("forward"):
 		return
 	_exit_armed = false
 	# Door 0 is the tutorial side. Door 1 opens onto the tunnel street.
@@ -119,7 +119,7 @@ func _approach_harry(body: CharacterBody3D) -> void:
 	var here := Vector2(body.global_position.x, body.global_position.z)
 	var there := Vector2(_harry.global_position.x, _harry.global_position.z)
 	var distance := here.distance_to(there)
-	var pushing := Input.is_physical_key_pressed(KEY_W) and body.get_real_velocity().length() < 0.4
+	var pushing := _KEYS.held("forward") and body.get_real_velocity().length() < 0.4
 	if distance < 8.0 or (distance < 12.0 and pushing):
 		_talking = true
 		_begin_talk()
@@ -289,7 +289,7 @@ func _play_sound(path: String) -> void:
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return
-	var speaker := AudioStreamPlayer.new()
+	var speaker := ToonAudio.effect_player()
 	speaker.stream = stream
 	speaker.volume_db = -4.0
 	add_child(speaker)

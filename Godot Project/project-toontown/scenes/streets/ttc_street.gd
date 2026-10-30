@@ -167,7 +167,7 @@ func _ready_music() -> void:
 		return
 	stream = stream.duplicate() as AudioStreamMP3
 	stream.loop = true
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.music_player()
 	player.name = "StreetMusic"
 	player.stream = stream
 	player.volume_db = linear_to_db(MUSIC_VOLUME)

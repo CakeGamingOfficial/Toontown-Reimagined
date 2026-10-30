@@ -24,10 +24,27 @@ const _SHORTS := [
 	preload("res://assets/toons/clothes/desat_shorts_4.png"),
 ]
 const _SKIRT := preload("res://assets/toons/clothes/desat_skirt_1.png")
+const _BODY_SHADER := preload("res://scenes/toons/toon_body.gdshader")
+const _FACE_SHADER := preload("res://scenes/toons/toon_face.gdshader")
+const _BODY_GHOST := preload("res://scenes/toons/toon_body_ghost.gdshader")
+const _FACE_GHOST := preload("res://scenes/toons/toon_face_ghost.gdshader")
+## Layer 20. The player's camera still sees it. A remote camera, once
+## multiplayer adds one, leaves this bit out of its cull mask.
+const LOCAL_GHOST_LAYER := 1 << 19
+const _GHOST_ALPHA := 0.4
 
 ## World NPCs fall onto collision the way the player does. The player's own
 ## toon stays off, because his CharacterBody already carries him.
 var follows_ground := false
+## True while ~ghost is on. Other clients hide this toon. The local one fades.
+var ghost_mode := false
+## LocalToon.soundWalk and soundRun. Only the toon you are playing hears them.
+var footsteps := false
+var _step_mode := ""
+var _walk_steps: AudioStreamPlayer
+var _run_steps: AudioStreamPlayer
+var _ghost_local := false
+var _saved_layers: Dictionary = {}
 ## Make a Toon only plays neutral. The run, jump, and gag clips are large, and
 ## reading them again on every option change freezes that idle.
 var load_extra_clips := true
@@ -191,6 +208,11 @@ func swap_style(style: ToonStyle) -> void:
 ## Clips load the first time this toon is asked to animate, so Pick a Toon never
 ## has to instance a blend-shape mesh.
 const _WALK_SPEED := 0.5
+## Toon.setSpeed: forward at RunCutOff plays the run loop. Walking, backing
+## up, and turning in place play the walk loop.
+const _RUN_CUTOFF := 8.0
+const _WALK_STEPS := "res://assets/audio/sfx/AV_footstep_walkloop.mp3"
+const _RUN_STEPS := "res://assets/audio/sfx/AV_footstep_runloop.mp3"
 
 
 ## DistributedBank walks the last few steps with the walk cycle, not the run.
@@ -209,7 +231,7 @@ func play_run(delta: float) -> void:
 	_locomotion_msec = Time.get_ticks_msec()
 	_ensure_clips()
 	if _play_bank("run", 1.0, delta):
-		return
+			return
 	_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
 
 
@@ -222,7 +244,9 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 	_look_enabled = _gesture == ""
 	if _gesture != "":
 		_play_bank(_gesture, _gesture_rate, delta, _gesture_loop)
+		_footsteps(0.0, false)
 		return
+	_footsteps(forward_speed, turning)
 	if jumping:
 		_land_left = 0.0
 		if _jump_kind == "":
@@ -249,6 +273,53 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 		_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
 	else:
 		_play_idle(delta)
+
+
+## LocalToon.trackAnimToSpeed starts the walk loop or the run loop when the
+## action changes, and stops both when the toon stands still.
+func _footsteps(speed: float, turning: bool) -> void:
+	if not footsteps:
+		_play_footsteps("")
+		return
+	var mode := ""
+	if speed >= _RUN_CUTOFF:
+		mode = "run"
+	elif absf(speed) > _WALK_SPEED or turning:
+		mode = "walk"
+	_play_footsteps(mode)
+
+
+func _play_footsteps(mode: String) -> void:
+	if mode == _step_mode:
+		return
+	_step_mode = mode
+	if mode != "" and _walk_steps == null:
+		_walk_steps = _loop_steps(_WALK_STEPS)
+		_run_steps = _loop_steps(_RUN_STEPS)
+	if _walk_steps != null:
+		if mode == "walk" and not _walk_steps.playing:
+			_walk_steps.play()
+		elif mode != "walk":
+			_walk_steps.stop()
+	if _run_steps != null:
+		if mode == "run" and not _run_steps.playing:
+			_run_steps.play()
+		elif mode != "run":
+			_run_steps.stop()
+
+
+func _loop_steps(path: String) -> AudioStreamPlayer:
+	var loaded := load(path) as AudioStream
+	if loaded == null:
+		return null
+	var stream := loaded.duplicate() as AudioStream
+	var mp3 := stream as AudioStreamMP3
+	if mp3:
+		mp3.loop = true
+	var player := ToonAudio.effect_player()
+	player.stream = stream
+	add_child(player)
+	return player
 
 
 ## Tutorial Tom's opening line loops tutorial-neutral: the gesturing body,
@@ -331,7 +402,7 @@ func _ensure_clips() -> void:
 		if not _idle_loaded:
 			_idle_missing = true
 	if not load_extra_clips:
-		return
+			return
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank"]:
 		if not _extra.has(suffix):
@@ -740,6 +811,83 @@ func _add_shadow() -> void:
 	joint.add_child(shadow)
 
 
+## ~ghost. The local player keeps a see-through toon. Anyone else does not
+## draw it: pass local_player false for a replicated avatar, or omit
+## LOCAL_GHOST_LAYER from that camera's cull mask.
+func set_ghost_mode(enabled: bool, local_player: bool) -> void:
+	ghost_mode = enabled
+	if enabled and not local_player:
+		_ghost_local = false
+		_show_ghost_body(false)
+		visible = false
+		return
+	visible = true
+	_ghost_local = enabled
+	_show_ghost_body(enabled)
+
+
+func _show_ghost_body(enabled: bool) -> void:
+	_ghost_visuals(self, enabled)
+	if not enabled:
+		_saved_layers.clear()
+
+
+func _ghost_visuals(node: Node, enabled: bool) -> void:
+	if node is GeometryInstance3D:
+		var visual := node as GeometryInstance3D
+		if enabled:
+			if not _saved_layers.has(visual):
+				_saved_layers[visual] = visual.layers
+			visual.layers = LOCAL_GHOST_LAYER
+		elif _saved_layers.has(visual):
+			visual.layers = int(_saved_layers[visual])
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		_ghost_shadow(mesh, enabled)
+		if mesh.material_override != null:
+			_ghost_shader(mesh.material_override, enabled)
+		if mesh.mesh != null:
+			for surface in mesh.mesh.get_surface_count():
+				var material := mesh.get_surface_override_material(surface)
+				if material != null:
+					_ghost_shader(material, enabled)
+	for child in node.get_children():
+		_ghost_visuals(child, enabled)
+
+
+func _ghost_shadow(mesh: MeshInstance3D, enabled: bool) -> void:
+	if mesh.name != "drop_shadow" or not (mesh.material_override is StandardMaterial3D):
+		return
+	var material := mesh.material_override as StandardMaterial3D
+	if enabled:
+		if not mesh.has_meta("solid_shadow"):
+			mesh.set_meta("solid_shadow", material.albedo_color.a)
+		var faded := material.albedo_color
+		faded.a = float(mesh.get_meta("solid_shadow")) * _GHOST_ALPHA
+		material.albedo_color = faded
+	elif mesh.has_meta("solid_shadow"):
+		var solid := material.albedo_color
+		solid.a = float(mesh.get_meta("solid_shadow"))
+		material.albedo_color = solid
+		mesh.remove_meta("solid_shadow")
+
+
+func _ghost_shader(material: Material, enabled: bool) -> void:
+	var shader_mat := material as ShaderMaterial
+	if shader_mat == null or shader_mat.shader == null:
+		return
+	var path := shader_mat.shader.resource_path
+	var face := path.contains("toon_face")
+	var body := path.contains("toon_body")
+	if not face and not body:
+		return
+	if enabled:
+		shader_mat.shader = _FACE_GHOST if face else _BODY_GHOST
+		shader_mat.set_shader_parameter("ghost_alpha", _GHOST_ALPHA)
+	elif path.contains("_ghost"):
+		shader_mat.shader = _FACE_SHADER if face else _BODY_SHADER
+
+
 ## Color and clothes only. The meshes and the idle clip stay where they are,
 ## so Make a Toon can change an option without dropping into the bind pose.
 func recolor(style: ToonStyle) -> void:
@@ -931,13 +1079,15 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 
 func _face_material(texture: Texture2D, color: Color, scissor: float, push: float) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
-	material.shader = preload("res://scenes/toons/toon_face.gdshader")
+	material.shader = _FACE_GHOST if _ghost_local else _FACE_SHADER
 	material.set_shader_parameter("albedo_color", color)
 	material.set_shader_parameter("scissor_threshold", scissor)
 	material.set_shader_parameter("surface_push", push)
 	material.set_shader_parameter("use_albedo_texture", 1.0 if texture else 0.0)
 	if texture:
 		material.set_shader_parameter("albedo_texture", texture)
+	if _ghost_local:
+		material.set_shader_parameter("ghost_alpha", _GHOST_ALPHA)
 	return material
 
 
@@ -972,13 +1122,15 @@ func _lit_surface(mesh: MeshInstance3D, shell: float, gloss: float) -> void:
 
 func _body_material(texture: Texture2D, color: Color, shell: float, gloss: float = 0.0) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
-	material.shader = preload("res://scenes/toons/toon_body.gdshader")
+	material.shader = _BODY_GHOST if _ghost_local else _BODY_SHADER
 	material.set_shader_parameter("albedo_color", color)
 	material.set_shader_parameter("shell", shell)
 	material.set_shader_parameter("gloss", gloss)
 	material.set_shader_parameter("use_albedo_texture", 1.0 if texture else 0.0)
 	if texture:
 		material.set_shader_parameter("albedo_texture", texture)
+	if _ghost_local:
+		material.set_shader_parameter("ghost_alpha", _GHOST_ALPHA)
 	return material
 
 
@@ -1239,6 +1391,8 @@ func _process(delta: float) -> void:
 	# Dogs still loop neutral there so the ears keep flopping.
 	if Time.get_ticks_msec() - _locomotion_msec > 100 and _style.species() == "d":
 		_tick_dog_ears(delta)
+	if footsteps and _step_mode != "" and Time.get_ticks_msec() - _locomotion_msec > 100:
+		_footsteps(0.0, false)
 
 
 func _prepare_face() -> void:

@@ -2,9 +2,9 @@ extends Node
 
 ## Place.enterTeleportIn plays Toon.getTeleportInTrack. A trolley task in
 ## Toontown Central pops up at an initial drop point. Logging in from Pick a
-## Toon uses the same hole, at the last playground or Cog HQ. The hole is the
-## same disc Tutorial Tom leaves through. Map teleports throw the portable
-## hole instead: Toon.getTeleportOutTrack, then getTeleportInTrack on arrival.
+## Toon uses that disc, at the last playground or Cog HQ. Map teleports, and
+## Tutorial Tom after the battle, throw the portable hole instead:
+## Toon.getTeleportOutTrack, then getTeleportInTrack on arrival.
 
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
@@ -65,6 +65,7 @@ const _CAM_DIST_MAX := 2.1
 var _body: CharacterBody3D
 var _player: ToonActor
 var _camera: Camera3D
+var _nametags: Nametags
 var _heading := 0.0
 var _hood := 0
 var _home := Vector3(-90.7, 0.35, 60.0)
@@ -218,7 +219,12 @@ func _process(delta: float) -> void:
 			_aim_tunnel_camera(_shot_origin, _shot_from, _shot_blend)
 		_place_line(delta)
 		return
-	_place_camera()
+	MagicWords.maintain(get_parent())
+	var book_open := _book != null and _book.is_open()
+	if MagicWords.detached_camera() and not book_open and not _bank_open:
+		MagicWords.fly_camera(_camera, delta)
+	else:
+		_place_camera()
 	_place_line(delta)
 
 
@@ -592,12 +598,13 @@ func _try_house_door() -> void:
 		var house := _DOORS.find_house(get_parent(), slot)
 		if house == null:
 			return
-		origin = _DOORS.find_origin(house)
+		origin = _DOORS.find_anchor(house)
 		if origin == null:
 			return
 		trigger = _DOORS.outside_trigger(house, origin)
 	var here := Vector2(_body.global_position.x, _body.global_position.z)
-	var near := here.distance_to(Vector2(trigger.x, trigger.z)) <= 2.0
+	var reach := _DOORS.OUTSIDE_REACH if not inside else 2.0
+	var near := here.distance_to(Vector2(trigger.x, trigger.z)) <= reach
 	if not near:
 		_door_ready = true
 		return
@@ -713,6 +720,8 @@ func _enter_house(slot: int) -> void:
 	_locked = true
 	var house := _DOORS.find_house(get_parent(), slot)
 	var door := _DOORS.find_door(house if house != null else get_parent())
+	if door == null and house != null:
+		door = _DOORS.find_anchor(house)
 	_DOORS.open(self, door)
 	await get_tree().create_timer(0.7).timeout
 	await _fade_black()
@@ -821,6 +830,7 @@ func _spawn(underground: bool) -> void:
 	_body.add_child(_player)
 	if style:
 		_player.show_style(style)
+	_player.footsteps = true
 	_face(_player, _heading)
 	_add_capsule()
 	_camera = Camera3D.new()
@@ -831,6 +841,7 @@ func _spawn(underground: bool) -> void:
 	_camera.current = true
 	get_parent().add_child(_camera)
 	_cache_eye_height()
+	_add_world_tags(style)
 	if underground:
 		_player.visible = false
 
@@ -1007,7 +1018,7 @@ func _play_teleport_sound() -> void:
 	var stream := load(_TELEPORT_SFX) as AudioStream
 	if stream == null:
 		return
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.effect_player()
 	player.stream = stream
 	add_child(player)
 	player.finished.connect(player.queue_free)
@@ -1074,6 +1085,9 @@ func _ready_hud() -> void:
 	_hud().add_child(chat)
 	chat.setup(_tasks)
 	chat.phrase_said.connect(say_line)
+	var friends := FriendsList.new()
+	friends.name = "FriendsList"
+	_hud().add_child(friends)
 
 
 func _walk(delta: float) -> void:
@@ -1085,6 +1099,11 @@ func _walk(delta: float) -> void:
 	var right_held := _KEYS.held("right")
 	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	# Right-click turns the side keys into a full run across the camera.
+	if MagicWords.detached_camera():
+		forward_held = false
+		back_held = false
+		left_held = false
+		right_held = false
 	var strafe := 0.0
 	if aim_held and not forward_held and not back_held:
 		if left_held:
@@ -1118,6 +1137,7 @@ func _walk(delta: float) -> void:
 		speed = FORWARD_SPEED
 	elif reversing:
 		speed = -REVERSE_SPEED
+	speed *= MagicWords.run_scale()
 	var forward := _forward(move_heading)
 	_body.velocity.x = forward.x * speed
 	_body.velocity.z = forward.z * speed
@@ -1141,7 +1161,7 @@ func _walk(delta: float) -> void:
 		_raise_onto_step()
 	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
-	if _body.position.y < _home.y - 8.0:
+	if _body.position.y < _home.y - 8.0 and not MagicWords.noclip():
 		_body.velocity = Vector3.ZERO
 		_body.position = _home
 		_heading = _home_heading
@@ -1239,7 +1259,34 @@ func _release_camera_mouse(force := false) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+func _place_nametag() -> void:
+	if _nametags == null or _camera == null:
+		return
+	_nametags.camera = _camera
+	_nametags.place()
+
+
+## The local toon, plus any clerk already standing in this area.
+func _add_world_tags(style: ToonStyle) -> void:
+	_nametags = Nametags.new()
+	_nametags.name = "Nametags"
+	add_child(_nametags)
+	_nametags.camera = _camera
+	_nametags.layer = _hud()
+	var spoken := "Toon" if style == null else style.display_name()
+	_nametags.add(_player, spoken, "player")
+	var host := get_parent()
+	if host == null:
+		return
+	for node in host.find_children("*", "ToonActor", true, false):
+		var actor := node as ToonActor
+		if actor == null or actor == _player or is_ancestor_of(actor):
+			continue
+		_nametags.add(actor, String(actor.name), "npc")
+
+
 func _place_line(delta: float) -> void:
+	_place_nametag()
 	if _line == null or _camera == null or _player == null:
 		return
 	_line_left = maxf(_line_left - delta, 0.0)
@@ -1572,6 +1619,8 @@ func _blackout() -> ColorRect:
 	fade.color = Color(0, 0, 0, 0)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# SpeedChat++ draws at 20–50. The iris has to cover that window.
+	fade.z_index = 80
 	_hud().add_child(fade)
 	return fade
 

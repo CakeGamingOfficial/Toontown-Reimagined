@@ -209,7 +209,7 @@ func _start_battle_music() -> void:
 		return
 	stream = stream.duplicate() as AudioStreamMP3
 	stream.loop = true
-	_battle_music = AudioStreamPlayer.new()
+	_battle_music = ToonAudio.music_player()
 	_battle_music.name = "BattleMusic"
 	_battle_music.stream = stream
 	_battle_music.volume_db = linear_to_db(BATTLE_VOLUME)
@@ -354,7 +354,7 @@ func _run_steps() -> AudioStreamPlayer:
 		return null
 	stream = stream.duplicate() as AudioStreamMP3
 	stream.loop = true
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.effect_player()
 	player.name = "RunSteps"
 	player.stream = stream
 	add_child(player)

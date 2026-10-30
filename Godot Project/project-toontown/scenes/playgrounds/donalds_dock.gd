@@ -65,7 +65,7 @@ func _ready_music() -> void:
 	if stream == null:
 		return
 	stream.loop = true
-	var player := AudioStreamPlayer.new()
+	var player := ToonAudio.music_player()
 	player.name = "PlaygroundMusic"
 	player.stream = stream
 	player.volume_db = linear_to_db(MUSIC_VOLUME)
@@ -292,7 +292,7 @@ func _sound(parent: Node, path: String) -> AudioStreamPlayer3D:
 	var stream := AudioStreamOggVorbis.load_from_file(path)
 	if stream == null:
 		return null
-	var player := AudioStreamPlayer3D.new()
+	var player := ToonAudio.effect_3d()
 	player.stream = stream
 	player.unit_size = 70.0
 	parent.add_child(player)

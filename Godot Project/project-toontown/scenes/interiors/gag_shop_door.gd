@@ -43,7 +43,7 @@ static func find_interior_door(host: Node) -> Node3D:
 static func outside_drop(building: Node3D, door: Node3D) -> Dictionary:
 	# Far enough past the front wall that the toon is not still inside the trigger.
 	var point := _approach(building, door, 6.5)
-	return {"point": point, "heading": _heading(point - door.global_position)}
+	return {"point": point, "heading": _heading(point - _doorway(door))}
 
 
 static func outside_trigger(building: Node3D, door: Node3D) -> Vector3:
@@ -91,6 +91,15 @@ static func _add_panels(door: Node3D, playground: int) -> void:
 	if source == null:
 		root.free()
 		return
+	# Every gag shop hangs the door on door_origin: (4, 0, 0), heading 180.
+	# The export left that node at the building origin and baked the flat
+	# card where the doorway actually is, so the panels have to take the
+	# same placement or they pop off the card and swing from the wrong edge.
+	var pivot := Node3D.new()
+	pivot.name = "DoorPivot"
+	pivot.position = Vector3(4.0, 0.0, 0.0)
+	pivot.basis = Basis(Vector3(0.0, 0.0, 1.0), PI)
+	door.add_child(pivot)
 	for part_name in _PANELS:
 		var part := _find_base(source, part_name)
 		if part == null:
@@ -100,7 +109,7 @@ static func _add_panels(door: Node3D, playground: int) -> void:
 		if old != null:
 			old.remove_child(part)
 		part.owner = null
-		door.add_child(part)
+		pivot.add_child(part)
 		part.name = part_name
 		part.transform = kept
 	root.free()
@@ -143,8 +152,11 @@ static func _tint_tree(node: Node, color: Color) -> void:
 
 static func _approach(building: Node3D, door: Node3D, gap: float) -> Vector3:
 	var forward := _forward(building, door)
+	# The door node sits on the left edge of the slab. The zone belongs in
+	# the middle of the doorway, or walking up to the door misses it.
+	var origin := _doorway(door)
 	if not door.has_meta("shop_shell"):
-		var measured := _facade(door, forward)
+		var measured := _facade(door, forward, origin)
 		if measured >= 0.0:
 			door.set_meta("shop_shell", measured)
 		else:
@@ -159,9 +171,26 @@ static func _approach(building: Node3D, door: Node3D, gap: float) -> Vector3:
 	var shell := 0.0
 	if door.has_meta("shop_shell"):
 		shell = float(door.get_meta("shop_shell"))
-	var point := door.global_position + forward * (shell + gap)
+	var point := origin + forward * (shell + gap)
 	point.y = door.global_position.y
 	return point
+
+
+## The painted slab is nine units wide and its node origin is the left edge.
+static func _doorway(door: Node3D) -> Vector3:
+	var center := door.global_position
+	var flat := _flat(door)
+	if flat is MeshInstance3D and (flat as MeshInstance3D).mesh != null:
+		var mesh := flat as MeshInstance3D
+		var box: AABB = mesh.global_transform * mesh.get_aabb()
+		center = box.get_center()
+	else:
+		var side := door.global_transform.basis.x
+		side.y = 0.0
+		if side.length_squared() > 0.0001:
+			center = door.global_position + side.normalized() * 4.0
+	center.y = door.global_position.y
+	return center
 
 
 static func _forward(building: Node3D, door: Node3D) -> Vector3:
@@ -175,14 +204,15 @@ static func _forward(building: Node3D, door: Node3D) -> Vector3:
 	else:
 		axis = axis.normalized()
 	var center := _center(building)
-	var outward := door.global_position + axis
-	if outward.distance_squared_to(center) < door.global_position.distance_squared_to(center):
+	var spot := _doorway(door)
+	var outward := spot + axis
+	if outward.distance_squared_to(center) < spot.distance_squared_to(center):
 		axis = -axis
 	door.set_meta("shop_forward", axis)
 	return axis
 
 
-static func _facade(door: Node3D, forward: Vector3) -> float:
+static func _facade(door: Node3D, forward: Vector3, origin: Vector3) -> float:
 	# -1 means the trimesh is not in the physics space yet. The caller retries.
 	var world := door.get_world_3d()
 	if world == null:
@@ -196,7 +226,7 @@ static func _facade(door: Node3D, forward: Vector3) -> float:
 		side = Vector3(-forward.z, 0.0, forward.x)
 	else:
 		side = side.normalized()
-	var chest := door.global_position + Vector3(0.0, 1.2, 0.0)
+	var chest := origin + Vector3(0.0, 1.2, 0.0)
 	var start := chest + forward * 24.0
 	var exclude: Array[RID] = []
 	var best := -1.0
@@ -211,8 +241,8 @@ static func _facade(door: Node3D, forward: Vector3) -> float:
 		if hit.is_empty():
 			break
 		var point: Vector3 = hit.position
-		var along := _xz_dot(point - door.global_position, forward)
-		var lateral := absf(_xz_dot(point - door.global_position, side))
+		var along := _xz_dot(point - origin, forward)
+		var lateral := absf(_xz_dot(point - origin, side))
 		# Outermost solid in the doorway. A roof hat's bounding box is ignored
 		# because the ray is at chest height and only counts real triangles.
 		if lateral <= 2.2 and along > best and along < 14.0:
@@ -291,7 +321,7 @@ static func _sound(host: Node, path: String) -> void:
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return
-	var speaker := AudioStreamPlayer.new()
+	var speaker := ToonAudio.effect_player()
 	speaker.stream = stream
 	speaker.volume_db = -4.0
 	host.add_child(speaker)

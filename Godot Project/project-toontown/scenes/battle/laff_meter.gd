@@ -109,6 +109,10 @@ func follow(loadout: ToonLoadout) -> void:
 	set_hp(loadout.hp, loadout.max_hp)
 
 
+func loadout() -> ToonLoadout:
+	return _followed
+
+
 func _on_laff(current: int, maximum: int) -> void:
 	set_hp(current, maximum)
 

@@ -123,6 +123,7 @@ func _blackout() -> ColorRect:
 	fade.color = Color(0, 0, 0, 0)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade.z_index = 80
 	var layer: CanvasLayer = null
 	if _host != null and _host.has_method("hud"):
 		layer = _host.call("hud") as CanvasLayer

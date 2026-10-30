@@ -11,13 +11,16 @@ config_version=5
 [application]
 
 config/name="Project Toontown"
-run/main_scene="uid://bmbhn4wtyb5oh"
+run/main_scene="uid://dh6s3kjjrtt0d"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+ToonCursor="*res://scenes/gui/toon_cursor.gd"
+ToonAudioBus="*res://scenes/audio/toon_audio.gd"
+DiscordPresence="*res://scenes/discord/discord_presence.gd"
 
 [dotnet]
 
