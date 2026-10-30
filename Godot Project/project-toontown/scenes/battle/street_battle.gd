@@ -2,18 +2,30 @@ class_name StreetBattle
 extends Node
 
 ## A one-toon street battle, the way DistributedBattle plays a round:
-## the toon picks a gag, that attack resolves, then the cog attacks.
-## It repeats until one of them runs out of health.
+## both walk onto the zone's battle cell, the toon picks a gag, that
+## attack resolves, then the cog attacks. It repeats until one of them
+## runs out of health.
 
 const APPROACH := 7.0
-const FLUNKY_LEVEL := 1
-# SuitBase max HP: (level + 1) * (level + 2). A level 1 Flunky has 6.
-const FLUNKY_HP := (FLUNKY_LEVEL + 1) * (FLUNKY_LEVEL + 2)
 # TownLoader.battleMusic. BattlePlace.enterBattle plays it at 0.9 and
 # stops the street track. exitBattle brings the street track back at 0.8.
 const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
 const BATTLE_VOLUME := 0.9
 const PLACE_VOLUME := 0.8
+# BattleBase points for one suit and one toon, and the face-off timing.
+# The suit walks to local (0, 5) heading 179. The toon runs to (0, -6) heading 0.
+const _SUIT_SPEED := 4.8
+const _SUIT_REACH := 5.0
+const _TOON_REACH := 6.0
+const _FACEOFF_TAUNT := 3.5
+const _FACEOFF_FOV := 30.0
+# BattleCamDefaultPos (0, -8.6, 16.5), menu lens 65, movie lens 80.
+const _MENU_FOV := 65.0
+const _MOVIE_FOV := 80.0
+const _MENU_BACK := 8.6
+const _MENU_HEIGHT := 16.5
+const _SUIT_HEIGHT := 4.88
+const _RUN_STEPS := "res://assets/audio/sfx/AV_footstep_runloop.mp3"
 const _ATTACKS: Array[Dictionary] = [
 	{
 		"name": "Pound Key!",
@@ -54,7 +66,9 @@ var _hp_fill: ColorRect
 var _marker: MeshInstance3D
 var _active := false
 var _cool := 0.0
-var _cog_hp := FLUNKY_HP
+var _cog_hp := 1
+var _cog_max_hp := 1
+var _level_label: Label
 var _gained: Dictionary = {}
 var _spent: Array[Vector2i] = []
 var _battle_music: AudioStreamPlayer
@@ -62,6 +76,7 @@ var _place_music: AudioStreamPlayer
 var _movie: BattleMovie
 var _dancing := false
 var _dance := 0.0
+var _place_fov := 52.0
 
 
 func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky, loadout: ToonLoadout, tasks: ToonTasks, camera: Camera3D, meter: LaffMeter, book: ShtickerBook, hud: CanvasLayer) -> void:
@@ -80,6 +95,7 @@ func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky,
 	_menu.visible = false
 	_hud.add_child(_menu)
 	_menu.setup(loadout)
+	_apply_cog_vitals()
 	_build_card()
 	_movie = BattleMovie.new()
 	_movie.name = "BattleMovie"
@@ -138,7 +154,7 @@ func _process(delta: float) -> void:
 func _run() -> void:
 	_gained.clear()
 	_spent.clear()
-	_cog_hp = FLUNKY_HP
+	_apply_cog_vitals()
 	_set_cog_bar()
 	if _book != null:
 		_book.close()
@@ -149,13 +165,13 @@ func _run() -> void:
 	_player.set_locomotion(0.0, false, false, 0.0)
 	_flunky.stop_for_battle()
 	_start_battle_music()
+	if _camera != null:
+		_place_fov = _camera.fov
 	_host.call("set_cutscene", true)
-	_separate()
-	_face_each_other()
+	await _face_off()
 	_ensure_marker()
 	_show_meter()
 	_loadout.grant_tutorial_accuracy()
-	await _say(_flunky.global_position + Vector3(0, 4.6, 0), "You're not going to like the way I work.", 2.0)
 	while _cog_hp > 0 and _loadout.hp > 0:
 		_aim(true)
 		var pick := await _menu.choose()
@@ -177,6 +193,8 @@ func _run() -> void:
 		_card.visible = false
 	_stop_battle_music()
 	_loadout.clear_tutorial_accuracy()
+	if _camera != null:
+		_camera.fov = _place_fov
 	_host.call("set_cutscene", false)
 	_active = false
 	_cool = 1.5
@@ -229,16 +247,119 @@ func _reward_movie() -> void:
 	movie.queue_free()
 
 
-func _separate() -> void:
-	var toon := _body.global_position
-	var cog := _flunky.global_position
-	var gap := Vector3(toon.x - cog.x, 0.0, toon.z - cog.z)
-	if gap.length() < 0.2:
-		gap = Vector3(1.0, 0.0, 0.0)
-	var mid := Vector3((toon.x + cog.x) * 0.5, 0.0, (toon.z + cog.z) * 0.5)
-	var dir := gap.normalized()
-	_body.global_position = mid + dir * 3.6 + Vector3(0, 0.2, 0)
-	_flunky.global_position = mid - dir * 3.6
+## The street's suit planner picks the cell. Whichever cog started the
+## fight walks onto it; a Flunky is only the tutorial's suit.
+func _zone_battle_cell() -> Vector3:
+	var found: Variant = _host.call("battle_cell")
+	return found as Vector3
+
+
+## DistributedBattle.__faceOff. The battle cell faces the cog. Both stay
+## put for the taunt, then the cog walks and the toon runs onto their points.
+func _face_off() -> void:
+	var cell := _zone_battle_cell()
+	var suit_pos := _flunky.global_position
+	var toon_pos := _body.global_position
+	var toward := Vector3(suit_pos.x - cell.x, 0.0, suit_pos.z - cell.z)
+	if toward.length() < 0.05:
+		toward = Vector3(toon_pos.x - cell.x, 0.0, toon_pos.z - cell.z)
+	if toward.length() < 0.05:
+		toward = Vector3(0.0, 0.0, -1.0)
+	toward = toward.normalized()
+	var battle_heading := _heading_toward(cell, cell + toward)
+	_host.call("face_actor", _player, _heading_toward(toon_pos, suit_pos))
+	_flunky.face_heading(_heading_toward(suit_pos, toon_pos))
+	if _camera != null:
+		_camera.fov = _FACEOFF_FOV
+		_aim_taunt(suit_pos)
+	await _say(_flunky.global_position + Vector3(0, 4.6, 0), "You're not going to like the way I work.", _FACEOFF_TAUNT, false, true)
+	if _camera != null:
+		_camera.fov = _MOVIE_FOV
+	var suit_dest := Vector3(cell.x + toward.x * _SUIT_REACH, suit_pos.y, cell.z + toward.z * _SUIT_REACH)
+	var toon_dest := Vector3(cell.x - toward.x * _TOON_REACH, toon_pos.y, cell.z - toward.z * _TOON_REACH)
+	if toon_pos.distance_squared_to(toon_dest) > 0.04:
+		_host.call("face_actor", _player, _heading_toward(toon_pos, toon_dest))
+	if suit_pos.distance_squared_to(suit_dest) > 0.04:
+		_flunky.face_heading(_heading_toward(suit_pos, suit_dest))
+	_aim_walk(cell, toward, suit_pos)
+	var facing := Vector3(cell.x - suit_pos.x, 0.0, cell.z - suit_pos.z)
+	if facing.length() < 0.001:
+		facing = -toward
+	else:
+		facing = facing.normalized()
+	var timed := Vector3(cell.x - facing.x * 6.0, 0.0, cell.z - facing.z * 6.0)
+	var distance := Vector2(timed.x - suit_pos.x, timed.z - suit_pos.z).length()
+	var duration := maxf(distance / _SUIT_SPEED, 0.05)
+	var steps := _run_steps()
+	var elapsed := 0.0
+	while elapsed < duration:
+		await get_tree().process_frame
+		var delta := get_process_delta_time()
+		elapsed += delta
+		var along := clampf(elapsed / duration, 0.0, 1.0)
+		_body.global_position.x = lerpf(toon_pos.x, toon_dest.x, along)
+		_body.global_position.z = lerpf(toon_pos.z, toon_dest.z, along)
+		_flunky.global_position.x = lerpf(suit_pos.x, suit_dest.x, along)
+		_flunky.global_position.z = lerpf(suit_pos.z, suit_dest.z, along)
+		_player.play_run(delta)
+		_flunky.play_walk(delta)
+	_body.global_position.x = toon_dest.x
+	_body.global_position.z = toon_dest.z
+	_flunky.global_position.x = suit_dest.x
+	_flunky.global_position.z = suit_dest.z
+	_host.call("face_actor", _player, battle_heading)
+	_flunky.face_heading(battle_heading + 179.0)
+	_player.set_locomotion(0.0, false, false, 0.0)
+	_flunky.stop_for_battle()
+	if steps != null:
+		steps.stop()
+		steps.queue_free()
+
+
+func _aim_taunt(suit_pos: Vector3) -> void:
+	var heading := _heading_toward(suit_pos, _body.global_position)
+	var axes := _heading_basis(heading)
+	var forward := axes * Vector3(0.0, 1.0, 0.0)
+	var right := axes * Vector3(1.0, 0.0, 0.0)
+	var side: float = 5.0 if randi() % 2 == 0 else -5.0
+	var chest := maxf(_SUIT_HEIGHT * 0.66, _SUIT_HEIGHT - 1.8)
+	var heights: Array[float] = [chest, 1.0, 11.0]
+	var height: float = heights[randi() % heights.size()]
+	var cam := suit_pos + right * side + forward * 16.0 + Vector3(0.0, height, 0.0)
+	_look_from(cam, suit_pos + Vector3(0.0, _SUIT_HEIGHT, 0.0))
+
+
+func _aim_walk(cell: Vector3, toward: Vector3, suit_pos: Vector3) -> void:
+	var ground_y := _body.global_position.y
+	var cam := Vector3(cell.x - toward.x * 10.0, ground_y + 4.0, cell.z - toward.z * 10.0)
+	_look_from(cam, suit_pos + Vector3(0.0, _SUIT_HEIGHT * 0.5, 0.0))
+
+
+func _look_from(pos: Vector3, at: Vector3) -> void:
+	if _camera == null:
+		return
+	_camera.global_position = pos
+	if pos.distance_squared_to(at) > 0.04:
+		_camera.look_at(at, Vector3.UP)
+
+
+func _heading_basis(heading: float) -> Basis:
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	return upright.rotated(Vector3.UP, deg_to_rad(heading))
+
+
+func _run_steps() -> AudioStreamPlayer:
+	var stream := load(_RUN_STEPS) as AudioStreamMP3
+	if stream == null:
+		return null
+	stream = stream.duplicate() as AudioStreamMP3
+	stream.loop = true
+	var player := AudioStreamPlayer.new()
+	player.name = "RunSteps"
+	player.stream = stream
+	add_child(player)
+	player.play()
+	return player
 
 
 func _face_each_other() -> void:
@@ -253,20 +374,27 @@ func _heading_toward(from: Vector3, to: Vector3) -> float:
 func _aim(menu_view: bool) -> void:
 	if _camera == null:
 		return
-	var toon := _body.global_position
-	var cog := _flunky.global_position
-	var forward := Vector3(cog.x - toon.x, 0.0, cog.z - toon.z)
+	var forward := _flunky.global_position - _body.global_position
+	forward.y = 0.0
 	if forward.length() < 0.1:
 		forward = Vector3(0, 0, -1)
-	forward = forward.normalized()
-	if menu_view:
-		_camera.global_position = toon - forward * 5.5 + Vector3(0, 7.0, 0)
-		_camera.look_at(cog + Vector3(0, 2.0, 0), Vector3.UP)
 	else:
+		forward = forward.normalized()
+	# The toon stands 6 units on the near side of the cell, so the cell is
+	# that far along the line toward the cog.
+	var origin := _body.global_position + forward * _TOON_REACH
+	origin.y = _body.global_position.y
+	if menu_view:
+		# BattleCamDefaultPos, pitched down toward the cell, menu lens 65.
+		_camera.fov = _MENU_FOV
+		_camera.global_position = origin - forward * _MENU_BACK + Vector3(0, _MENU_HEIGHT, 0)
+		_camera.look_at(origin + Vector3(0, 2.0, 0), Vector3.UP)
+	else:
+		# allGroupLowShot sits 15 units off the cell at height 3.
+		_camera.fov = _MOVIE_FOV
 		var side := forward.cross(Vector3.UP).normalized()
-		var mid := (toon + cog) * 0.5
-		_camera.global_position = mid + side * 8.5 + Vector3(0, 3.4, 0)
-		_camera.look_at(mid + Vector3(0, 1.8, 0), Vector3.UP)
+		_camera.global_position = origin + side * 15.0 + Vector3(0, 3.0, 0)
+		_camera.look_at(origin + Vector3(0, 1.8, 0), Vector3.UP)
 
 
 func _toon_attack(track: int, level: int) -> void:
@@ -290,13 +418,12 @@ func _toon_attack(track: int, level: int) -> void:
 			_floater(at, "MISSED", Color(1, 1, 1))
 			return
 		var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
-		var before := _cog_hp
 		_cog_hp = maxi(_cog_hp - damage, 0)
 		_set_cog_bar()
 		_pulse_marker()
-		var dealt := before - _cog_hp
-		if dealt > 0:
-			_floater(at + Vector3(0, 1.2, 0), "-%d" % dealt, Color(0.92, 0.08, 0.08))
+		# Suit.showHpText prints the gag's damage, even when that finishes the cog.
+		if damage > 0:
+			_floater(at + Vector3(0, 1.2, 0), "-%d" % damage, Color(0.92, 0.08, 0.08))
 	)
 
 
@@ -376,9 +503,10 @@ func _explode() -> void:
 func _reward(track: int, amount: int) -> void:
 	var name := ToonLoadout.TRACK_NAMES[track]
 	var points := "point" if amount == 1 else "points"
-	var exp := mini(_loadout.experience_of(track), ToonLoadout.NEXT_GAG)
+	var exp := _loadout.experience_of(track)
+	var next := _loadout.next_skill(track)
 	var body := "You received %d %s %s!\nWhen you get %d, you will get a new gag!\n\n%s  %d/%d" % [
-		amount, name, points, ToonLoadout.NEXT_GAG, name.to_upper(), exp, ToonLoadout.NEXT_GAG,
+		amount, name, points, next, name.to_upper(), exp, next,
 	]
 	await _notice(_player.name, body)
 
@@ -417,8 +545,9 @@ func _notice(title: String, body: String) -> void:
 	panel.queue_free()
 
 
-func _say(at: Vector3, text: String, seconds: float) -> void:
-	_aim(false)
+func _say(at: Vector3, text: String, seconds: float, aim: bool = true, tick_idle: bool = false) -> void:
+	if aim:
+		_aim(false)
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var box := _flat(Color(1, 1, 1, 0.96), Color(0, 0, 0), 3, 14)
@@ -438,7 +567,16 @@ func _say(at: Vector3, text: String, seconds: float) -> void:
 	if _camera != null and not _camera.is_position_behind(at):
 		var screen := _camera.unproject_position(at)
 		panel.position = screen - Vector2(panel.size.x * 0.5, panel.size.y + 8.0)
-	await get_tree().create_timer(seconds).timeout
+	if tick_idle:
+		var elapsed := 0.0
+		while elapsed < seconds:
+			await get_tree().process_frame
+			var delta := get_process_delta_time()
+			elapsed += delta
+			if _player != null:
+				_player.set_locomotion(0.0, false, false, delta)
+	else:
+		await get_tree().create_timer(seconds).timeout
 	panel.queue_free()
 
 
@@ -512,14 +650,14 @@ func _build_card() -> void:
 	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_card.size = Vector2(168, 72)
 	_card.add_theme_stylebox_override("panel", _flat(Color(0.78, 0.8, 0.84), Color(0.25, 0.25, 0.28), 3, 8))
-	var level := Label.new()
-	level.text = "Level %d" % FLUNKY_LEVEL
-	level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	level.position = Vector2(8, 6)
-	level.size = Vector2(152, 28)
-	level.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(level, Color(0.1, 0.1, 0.12), 18, Color(1, 1, 1, 0.4), 1)
-	_card.add_child(level)
+	_level_label = Label.new()
+	_level_label.text = "Level %d" % _flunky.cog_level
+	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_level_label.position = Vector2(8, 6)
+	_level_label.size = Vector2(152, 28)
+	_level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(_level_label, Color(0.1, 0.1, 0.12), 18, Color(1, 1, 1, 0.4), 1)
+	_card.add_child(_level_label)
 	var track := ColorRect.new()
 	track.color = Color(0.15, 0.15, 0.16)
 	track.position = Vector2(14, 42)
@@ -535,11 +673,18 @@ func _build_card() -> void:
 	_hud.add_child(_card)
 
 
+func _apply_cog_vitals() -> void:
+	_cog_max_hp = maxi(_flunky.max_hp(), 1)
+	_cog_hp = _cog_max_hp
+	if _level_label != null:
+		_level_label.text = "Level %d" % _flunky.cog_level
+
+
 func _set_cog_bar() -> void:
 	if _hp_fill == null:
 		return
-	var ratio := clampf(float(_cog_hp) / float(FLUNKY_HP), 0.0, 1.0)
-	_hp_fill.size.x = 140.0 * ratio
+	var ratio := clampf(float(_cog_hp) / float(_cog_max_hp), 0.0, 1.0)
+	_hp_fill.size = Vector2(140.0 * ratio, 16.0)
 	if ratio > 0.5:
 		_hp_fill.color = Color(0.2, 0.78, 0.22)
 	elif ratio > 0.25:

@@ -34,6 +34,19 @@ const _DAMAGE_MAX: Array = [
 	[4, 8, 12, 21, 30, 80, 105],
 	[10, 18, 30, 45, 60, 170, 180],
 ]
+# ToontownBattleGlobals.Levels. A gag's damage climbs from its minimum at
+# the first point to its maximum at the next point. The last gag of a track
+# runs on to MaxSkill (regMaxSkill + UberSkill).
+const _SKILL: Array = [
+	[0, 20, 200, 800, 2000, 6000, 10000],
+	[0, 20, 100, 800, 2000, 6000, 10000],
+	[0, 20, 100, 800, 2000, 6000, 10000],
+	[0, 40, 200, 1000, 2500, 7500, 10000],
+	[0, 10, 50, 400, 2000, 6000, 10000],
+	[0, 10, 50, 400, 2000, 6000, 10000],
+	[0, 20, 100, 500, 2000, 6000, 10000],
+]
+const _MAX_SKILL := 10500
 const _ACCURACY: Array = [
 	[70, 70, 70, 70, 70, 70, 100],
 	[0, 0, 0, 0, 0, 0, 0],
@@ -161,6 +174,19 @@ func experience_of(track: int) -> int:
 	return _exp[track]
 
 
+## InventoryNew.getCurAndNextExpValues. The bar runs up to the next gag's point.
+func next_skill(track: int) -> int:
+	var exp := experience_of(track)
+	if track < 0 or track >= _SKILL.size():
+		return _MAX_SKILL
+	var points: Array = _SKILL[track]
+	for amount in points:
+		var point := int(amount)
+		if exp < point:
+			return point
+	return _MAX_SKILL
+
+
 func add_experience(track: int, amount: int) -> void:
 	if track < 0 or track >= _exp.size():
 		return
@@ -175,6 +201,8 @@ func gag_count() -> int:
 	return total
 
 
+## ToontownBattleGlobals.getAvPropDamage. Experience between this gag's
+## skill point and the next one climbs from the minimum damage to the maximum.
 static func gag_damage(track: int, level: int, exp: int) -> int:
 	if track < 0 or track >= _DAMAGE_MIN.size():
 		return 0
@@ -184,12 +212,19 @@ static func gag_damage(track: int, level: int, exp: int) -> int:
 		return 0
 	var low := int(lows[level])
 	var high := int(highs[level])
-	if level > 0 or high <= low:
+	if high <= low:
 		return low
-	# getAvPropDamage at the start of a track: 0 experience deals the minimum.
-	var per := float(NEXT_GAG + 1) / float(high - low + 1)
-	var dealt := int(floor(float(clampi(exp, 0, NEXT_GAG)) / per)) + low
-	return clampi(dealt, low, high)
+	var points: Array = _SKILL[track]
+	var min_exp := int(points[level])
+	var max_exp := _MAX_SKILL
+	if level + 1 < points.size():
+		max_exp = int(points[level + 1])
+	var exp_val := mini(exp, max_exp)
+	var per_point := float(max_exp - min_exp + 1) / float(high - low + 1)
+	var dealt := int(floor(float(exp_val - min_exp) / per_point)) + low
+	if dealt <= 0:
+		return low
+	return dealt
 
 
 static func gag_accuracy(track: int, level: int) -> int:

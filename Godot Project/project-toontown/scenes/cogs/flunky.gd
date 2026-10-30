@@ -1,5 +1,5 @@
 class_name Flunky
-extends Node3D
+extends Cog
 
 ## The tutorial Flunky. He paces the shop window during the cutscene, then
 ## walks the street rectangle from DistributedTutorialSuit once the toon leaves.
@@ -89,6 +89,12 @@ func stop_for_battle() -> void:
 	_pacing = false
 	_wait = 0.0
 	_set_moving(false)
+
+
+## The face-off walks him onto the street's battle cell. The path stays stopped.
+func play_walk(delta: float) -> void:
+	_set_moving(true)
+	_pose(delta)
 
 
 func face_heading(heading: float) -> void:

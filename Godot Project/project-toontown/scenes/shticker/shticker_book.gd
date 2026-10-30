@@ -28,6 +28,14 @@ const _JAR := preload("res://assets/gui/tutorial/book/jar.png")
 const _PILL := preload("res://assets/toons/gui/QuitBtn_UP.png")
 const _PILL_DOWN := preload("res://assets/toons/gui/QuitBtn_DN.png")
 const _PILL_HOVER := preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _OK_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+const _OK_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+const _OK_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
+const _CANCEL_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _CANCEL_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _CANCEL_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
+const _PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
 const _ROW := preload("res://assets/gui/tutorial/InventoryRow.png")
 # InventoryNew places one icon from AvPropsNew on each well of InventoryRow.
 const _GAG_ICON: Array[Texture2D] = [
@@ -119,6 +127,9 @@ var _gag_names: Array[Label] = []
 var _gag_slots: Array[Control] = []
 var _gag_icons: Array[TextureRect] = []
 var _gag_counts: Array[Label] = []
+var _gag_meters: Array[ColorRect] = []
+var _gag_fills: Array[ColorRect] = []
+var _gag_exps: Array[Label] = []
 var _detail: Label
 var _totals: Label
 var _beans: Label
@@ -126,6 +137,10 @@ var _task_row: HBoxContainer
 var _here: Label
 var _go_home: TextureButton
 var _go_back: TextureButton
+var _switch_button: TextureButton
+var _quit_button: TextureButton
+var _exit_dialog: Control
+var _exit_accept: Callable
 var _map_picture: TextureRect
 var _page := 0
 var _open := false
@@ -365,6 +380,14 @@ func _build_options() -> Control:
 		sheet.add_child(button)
 		_bind_captions.append(caption)
 		_bind_buttons.append(button)
+	# Switch Toon throws the portable hole and returns to Pick a Toon.
+	# Quit Game writes the journal, then closes the window.
+	_switch_button = _pill("Switch Toon")
+	_switch_button.pressed.connect(_ask_switch)
+	sheet.add_child(_switch_button)
+	_quit_button = _pill("Quit Game")
+	_quit_button.pressed.connect(_ask_quit)
+	sheet.add_child(_quit_button)
 	return sheet
 
 
@@ -436,6 +459,25 @@ func _build_gags() -> Control:
 		name.clip_text = true
 		sheet.add_child(name)
 		_gag_names.append(name)
+		var meter := ColorRect.new()
+		meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		meter.color = Color(0, 0, 0, 0.45)
+		meter.visible = false
+		sheet.add_child(meter)
+		var fill := ColorRect.new()
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fill.color = ToonLoadout.TRACK_COLORS[track]
+		fill.visible = false
+		sheet.add_child(fill)
+		var exp_label := Label.new()
+		exp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		exp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		exp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		exp_label.visible = false
+		sheet.add_child(exp_label)
+		_gag_meters.append(meter)
+		_gag_fills.append(fill)
+		_gag_exps.append(exp_label)
 		for level in ToonLoadout.LEVEL_COUNT:
 			var slot := Control.new()
 			slot.mouse_filter = MOUSE_FILTER_STOP
@@ -608,6 +650,13 @@ func _on_bind(action: String) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _exit_dialog != null:
+		if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+			get_viewport().set_input_as_handled()
+			var key := event as InputEventKey
+			if event.is_action_pressed("ui_cancel") or key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
+				_close_exit()
+		return
 	if _listen == "":
 		return
 	if event.is_action_pressed("ui_cancel"):
@@ -663,6 +712,7 @@ func close() -> void:
 
 
 func _close() -> void:
+	_close_exit()
 	_open = false
 	_guided = false
 	_listen = ""
@@ -744,6 +794,35 @@ func _refresh_gags() -> void:
 			count.visible = owned
 			if owned:
 				count.text = str(_loadout.count_of(track, level))
+	for track in ToonLoadout.TRACK_COUNT:
+		_paint_exp_bar(track)
+
+
+func _paint_exp_bar(track: int) -> void:
+	if track < 0 or track >= _gag_meters.size():
+		return
+	var owned := false
+	if _loadout != null:
+		for level in ToonLoadout.LEVEL_COUNT:
+			if _loadout.unlocked(track, level):
+				owned = true
+				break
+	_gag_meters[track].visible = owned
+	_gag_fills[track].visible = owned
+	_gag_exps[track].visible = owned
+	if not owned or _loadout == null:
+		return
+	var exp := _loadout.experience_of(track)
+	var next := maxi(_loadout.next_skill(track), 1)
+	var meter := _gag_meters[track]
+	var ratio := clampf(float(exp) / float(next), 0.0, 1.0)
+	var fill := _gag_fills[track]
+	fill.position = meter.position
+	fill.size = Vector2(meter.size.x * ratio, meter.size.y)
+	var label := _gag_exps[track]
+	label.position = meter.position
+	label.size = meter.size
+	label.text = "%d/%d" % [exp, next]
 
 
 func _on_gag(track: int, level: int) -> void:
@@ -842,6 +921,133 @@ func _back_to_hood() -> void:
 	_travel(_LINKS.hood_of(zone))
 
 
+func _ask_switch() -> void:
+	_ask_confirm("Switch toons?", _leave_for_chooser)
+
+
+func _ask_quit() -> void:
+	_ask_confirm("Quit the game?", _leave_game)
+
+
+func _ask_confirm(message_text: String, action: Callable) -> void:
+	if _guided or _exit_dialog != null:
+		return
+	_exit_accept = action
+	var dialog := Control.new()
+	dialog.name = "ExitConfirm"
+	dialog.mouse_filter = MOUSE_FILTER_STOP
+	dialog.set_anchors_preset(PRESET_FULL_RECT)
+	_exit_dialog = dialog
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.mouse_filter = MOUSE_FILTER_STOP
+	dim.set_anchors_preset(PRESET_FULL_RECT)
+	dialog.add_child(dim)
+	var frame := TextureRect.new()
+	frame.texture = _DIALOG
+	frame.modulate = Color(1, 1, 0.75)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = MOUSE_FILTER_IGNORE
+	dialog.add_child(frame)
+	var message := Label.new()
+	message.text = message_text
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	message.mouse_filter = MOUSE_FILTER_IGNORE
+	dialog.add_child(message)
+	dialog.add_child(_exit_choice(_OK_UP, _OK_DOWN, _OK_HOVER, "OK", _accept_exit))
+	dialog.add_child(_exit_choice(_CANCEL_UP, _CANCEL_DOWN, _CANCEL_HOVER, "Cancel", _close_exit))
+	add_child(dialog)
+	move_child(dialog, get_child_count() - 1)
+	_layout_exit()
+
+
+func _exit_choice(up: Texture2D, down: Texture2D, hover: Texture2D, caption: String, action: Callable) -> Control:
+	var box := Control.new()
+	box.mouse_filter = MOUSE_FILTER_IGNORE
+	var button := TextureButton.new()
+	button.texture_normal = up
+	button.texture_pressed = down
+	button.texture_hover = hover
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.pressed.connect(action)
+	box.add_child(button)
+	var label := Label.new()
+	label.text = caption
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	box.add_child(label)
+	return box
+
+
+func _layout_exit() -> void:
+	if _exit_dialog == null or not is_instance_valid(_exit_dialog):
+		return
+	var view := get_viewport_rect().size
+	if view.y < 2.0:
+		return
+	_exit_dialog.position = Vector2.ZERO
+	_exit_dialog.size = view
+	var dim := _exit_dialog.get_child(0) as Control
+	dim.position = Vector2.ZERO
+	dim.size = view
+	ToonGui.place(_exit_dialog.get_child(1), view, -0.0281, -0.0426, 1.4792, 1.3047)
+	var message := _exit_dialog.get_child(2) as Label
+	var px := maxi(int(round(0.07 * view.y * 0.5)), 1)
+	ToonGui.style_label(message, Color(0.08, 0.08, 0.08), px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(message, view, 0.0, 0.08, 1.2, 0.22)
+	_place_exit_choice(_exit_dialog.get_child(3), view, -0.2)
+	_place_exit_choice(_exit_dialog.get_child(4), view, 0.2)
+
+
+func _place_exit_choice(box: Node, view: Vector2, x: float) -> void:
+	var host := box as Control
+	host.position = Vector2.ZERO
+	host.size = view
+	var button := box.get_child(0) as Control
+	var caption := box.get_child(1) as Label
+	ToonGui.place(button, view, x, -0.4, 0.1125, 0.1125)
+	var px := maxi(int(round(0.06 * view.y * 0.5)), 1)
+	ToonGui.style_label(caption, Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(caption, view, x, -0.5, 0.4, 0.1)
+
+
+func _close_exit() -> void:
+	_exit_accept = Callable()
+	if _exit_dialog != null and is_instance_valid(_exit_dialog):
+		_exit_dialog.queue_free()
+	_exit_dialog = null
+
+
+func _accept_exit() -> void:
+	var action := _exit_accept
+	_close_exit()
+	if action.is_valid():
+		action.call()
+
+
+func _leave_for_chooser() -> void:
+	var scene := get_tree().current_scene
+	var arrival: Node = scene.get_node_or_null("PlaygroundToon") if scene != null else null
+	if arrival != null and arrival.has_method("quit_to_chooser"):
+		close()
+		arrival.call("quit_to_chooser")
+		return
+	get_tree().change_scene_to_file(_PICK_SCENE)
+
+
+func _leave_game() -> void:
+	if _tasks != null and _tasks.in_playground:
+		_tasks.save()
+	if _loadout != null:
+		_loadout.save()
+	get_tree().quit()
+
+
 func _travel(hood: int) -> void:
 	if _guided:
 		return
@@ -929,6 +1135,11 @@ func _layout_options(page_size: Vector2, body_px: int) -> void:
 		button.size = Vector2(page_size.x * 0.28, row_h * 0.76)
 		var key_name := button.get_child(0) as Label
 		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), body_px, Color(0, 0, 0, 0), 0)
+	_switch_button.visible = not _guided
+	_quit_button.visible = not _guided
+	_place_pill(_switch_button, Vector2(page_size.x * 0.04, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)
+	_place_pill(_quit_button, Vector2(page_size.x * 0.52, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)
+	_layout_exit()
 
 
 func _layout_map(page_size: Vector2, body_px: int) -> void:
@@ -978,9 +1189,14 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 		row.position = Vector2(row_x, row_y)
 		row.size = Vector2(row_w, row_h)
 		var name := _gag_names[track]
-		name.position = Vector2(row_x + row_w * 0.025, row_y)
-		name.size = Vector2(row_w * 0.185, row_h)
+		name.position = Vector2(row_x + row_w * 0.02, row_y)
+		name.size = Vector2(row_w * 0.17, row_h * 0.52)
 		ToonGui.style_label(name, Color.WHITE, name_px, Color(0.08, 0.08, 0.12), 2)
+		var meter := _gag_meters[track]
+		meter.position = Vector2(row_x + row_w * 0.02, row_y + row_h * 0.58)
+		meter.size = Vector2(row_w * 0.16, row_h * 0.32)
+		_paint_exp_bar(track)
+		ToonGui.style_label(_gag_exps[track], Color.WHITE, maxi(int(row_h * 0.22), 8), Color(0, 0, 0), 1)
 		for level in ToonLoadout.LEVEL_COUNT:
 			var index := track * ToonLoadout.LEVEL_COUNT + level
 			var center := Vector2(row_x + _SLOT_CENTER[level] * row_w, row_y + row_h * 0.5)

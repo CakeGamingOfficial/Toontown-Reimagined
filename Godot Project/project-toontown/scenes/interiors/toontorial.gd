@@ -706,6 +706,14 @@ func face_actor(actor: Node3D, heading: float) -> void:
 		_heading = heading
 
 
+## SuitPlannerTutorialAI.requestBattle. A street owns the battle cell, the
+## way SuitPlannerBase.battlePosDict does for every zone. The cog who starts
+## the fight walks here; the cell is not his. Panda (35, 20, 0), through the
+## street backdrop at (-17, 42) heading 180.
+func battle_cell() -> Vector3:
+	return Vector3(-52.0, 0.0, -22.0)
+
+
 func _start_battle() -> void:
 	_battle = StreetBattle.new()
 	_battle.name = "StreetBattle"

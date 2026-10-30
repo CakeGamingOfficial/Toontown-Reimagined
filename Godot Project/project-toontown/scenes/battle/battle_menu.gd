@@ -126,6 +126,7 @@ func _rebuild() -> void:
 				break
 		if owned_track:
 			var exp := _loadout.experience_of(track)
+			var next := maxi(_loadout.next_skill(track), 1)
 			var bar := ColorRect.new()
 			bar.color = Color(0.15, 0.15, 0.18, 0.35)
 			bar.position = Vector2(4, 26)
@@ -135,11 +136,11 @@ func _rebuild() -> void:
 			var fill := ColorRect.new()
 			fill.color = ToonLoadout.TRACK_COLORS[track]
 			fill.position = Vector2(4, 26)
-			fill.size = Vector2(108.0 * clampf(float(exp) / float(ToonLoadout.NEXT_GAG), 0.0, 1.0), 12)
+			fill.size = Vector2(108.0 * clampf(float(exp) / float(next), 0.0, 1.0), 12)
 			fill.mouse_filter = MOUSE_FILTER_IGNORE
 			row.add_child(fill)
 			var exp_label := Label.new()
-			exp_label.text = "%d/%d" % [mini(exp, ToonLoadout.NEXT_GAG), ToonLoadout.NEXT_GAG]
+			exp_label.text = "%d/%d" % [exp, next]
 			exp_label.position = Vector2(4, 22)
 			exp_label.size = Vector2(108, 16)
 			exp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
