@@ -193,6 +193,26 @@ func swap_style(style: ToonStyle) -> void:
 const _WALK_SPEED := 0.5
 
 
+## DistributedBank walks the last few steps with the walk cycle, not the run.
+func play_walk(delta: float) -> void:
+	if _style == null:
+		return
+	_locomotion_msec = Time.get_ticks_msec()
+	_ensure_clips()
+	_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
+
+
+## DistributedBattle.__faceOff loops run while the toon moves onto the battle cell.
+func play_run(delta: float) -> void:
+	if _style == null:
+		return
+	_locomotion_msec = Time.get_ticks_msec()
+	_ensure_clips()
+	if _play_bank("run", 1.0, delta):
+		return
+	_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
+
+
 func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: float) -> void:
 	if _style == null:
 		return
@@ -313,7 +333,7 @@ func _ensure_clips() -> void:
 	if not load_extra_clips:
 		return
 	# Extra clips have to load with the walk, while the joints are still at rest.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []

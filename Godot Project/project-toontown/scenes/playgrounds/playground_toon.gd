@@ -15,6 +15,17 @@ const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
 const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
+const _PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
+const _JAR_MODEL := "res://assets/props/jellybean_jar.glb"
+# Toon.getJar: pitch 290, half a unit forward and up, in the right hand's space.
+const _JAR_XFORM := Transform3D(
+	Basis(
+		Vector3(1.0, 0.0, 0.0),
+		Vector3(0.0, 0.3420201, -0.9396926),
+		Vector3(0.0, 0.9396926, 0.3420201)
+	),
+	Vector3(0.0, 0.5, 0.5)
+)
 # Toon.getTeleportOutTrack / getTeleportInTrack, in seconds.
 const _OUT_TIME := 3.4
 const _SOUND_AT := 0.5
@@ -45,6 +56,7 @@ const HARD_LOCK := 0.3
 # floats over the 45-degree plaza stairs.
 const BODY_RADIUS := 0.35
 const STEP_HEIGHT := 0.55
+const _CAM_PITCH_HOME := 12.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
 const _CAM_DIST_MIN := 0.38
@@ -66,9 +78,21 @@ var _portaling := false
 var _tunnel_ready := false
 var _door_ready := false
 var _bank_ready := false
+var _bank_open := false
+var _jar_beans: Node3D
+var _bean_rest := Basis.IDENTITY
 # Walk up to the jellybean bank. The sphere opens the counter, the way
 # DistributedBank listens for enter on bankSphere.
 const _BANK_REACH := 4.0
+# __takeOutToonJar stands at (0, -3.125 * (FTScale + 0.2), 0). Every bank is scale 1.
+const _BANK_STAND := 3.75
+const _BANK_WALK := 0.5
+const _BANK_ANIM := 3.8
+const _BANK_GUI_AT := 3.0
+const _BANK_JAR_IN := 1.5
+const _BANK_PUT := 2.0
+const _BANK_PING_LO := 48.0 / 24.0
+const _BANK_PING_HI := 92.0 / 24.0
 var _from_door := ""
 var _shop_trip := ""
 var _tunnels: Array[Dictionary] = []
@@ -84,8 +108,12 @@ var _line: PanelContainer
 var _line_label: Label
 var _line_left := 0.0
 var _cam_yaw := 0.0
-var _cam_pitch := 0.0
+var _cam_pitch := 12.0
 var _cam_distance := 1.0
+var _cam_steering := false
+var _right_yaw := 0.0
+var _running := false
+var _reversing := false
 var _active := false
 
 
@@ -178,6 +206,8 @@ func _keep_quests() -> void:
 func _process(delta: float) -> void:
 	if not _active or _player == null:
 		return
+	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
+		_release_camera_mouse(true)
 	if _portaling:
 		_place_camera()
 		_place_line(delta)
@@ -203,7 +233,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not _active or _filming or _locked:
+	if not _active:
+		return
+	_steer_camera(event)
+	if _filming or _locked:
 		return
 	if _book != null and _tasks != null and _tasks.book_ready() and _book_hotkey(event):
 		_book.toggle_hotkey()
@@ -357,16 +390,187 @@ func _try_bank() -> void:
 	_bank_ready = false
 	_locked = true
 	_body.velocity = Vector3.ZERO
-	var panel := _BANK_GUI.new() as Node
-	panel.name = "BankGui"
-	panel.connect("finished", _close_bank)
-	_hud().add_child(panel)
+	_use_bank(bank)
 
 
-func _close_bank() -> void:
+## __takeOutToonJar walks to the machine, grows the jar, and plays "bank".
+## The counter opens 3 seconds in. Closing it runs __putAwayToonJar backward.
+func _use_bank(bank: Node3D) -> void:
+	if _player == null or _body == null:
+		_locked = false
+		return
+	var stand := bank.to_global(Vector3(0.0, -_BANK_STAND, 0.0))
+	stand.y = _body.global_position.y
+	var face := bank.global_transform.basis * Vector3(0.0, 1.0, 0.0)
+	face.y = 0.0
+	var aim := _heading
+	if face.length_squared() > 0.0001:
+		aim = _heading_toward(face)
+	var start := _body.global_position
+	var start_heading := _heading
+	var elapsed := 0.0
+	var delta := 0.0
+	var ping := _BANK_PING_LO
+	var ping_dir := 1.0
+	var jar: Node3D = null
+	var shown := false
+	while true:
+		if elapsed < _BANK_WALK:
+			var weight := _ease_in_out(elapsed / _BANK_WALK)
+			_body.global_position = start.lerp(stand, weight)
+			_heading = rad_to_deg(lerp_angle(deg_to_rad(start_heading), deg_to_rad(aim), weight))
+			_face(_player, _heading)
+			_player.play_walk(delta)
+		else:
+			if jar == null:
+				_body.global_position = stand
+				_heading = aim
+				_face(_player, _heading)
+				jar = _attach_jar()
+				_player.set_look_enabled(false)
+			var anim_time := elapsed - _BANK_WALK
+			if anim_time < _BANK_ANIM:
+				_player.pose_action("bank", anim_time)
+			else:
+				_player.pose_action("bank", ping)
+			_set_jar_scale(jar, _ease_out(clampf(anim_time / _BANK_JAR_IN, 0.0, 1.0)))
+			_face_jar_beans(jar)
+			if not shown and elapsed >= _BANK_GUI_AT:
+				shown = true
+				_open_bank_gui()
+			if shown and not _bank_open:
+				break
+		_place_camera()
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		delta = get_process_delta_time()
+		elapsed += delta
+		if elapsed - _BANK_WALK >= _BANK_ANIM:
+			ping += ping_dir * delta
+			if ping >= _BANK_PING_HI:
+				ping = _BANK_PING_HI
+				ping_dir = -1.0
+			elif ping <= _BANK_PING_LO:
+				ping = _BANK_PING_LO
+				ping_dir = 1.0
+	var put := 0.0
+	while put < _BANK_PUT:
+		var along := clampf(put / _BANK_PUT, 0.0, 1.0)
+		_player.pose_action("bank", lerpf(2.0, 0.0, along))
+		if jar != null:
+			_set_jar_scale(jar, 1.0 - _ease_in(along))
+			_face_jar_beans(jar)
+		_place_camera()
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		put += get_process_delta_time()
+	if jar != null and is_instance_valid(jar):
+		jar.queue_free()
+	_jar_beans = null
+	_player.end_action("bank")
+	_player.set_look_enabled(true)
 	_locked = false
 	if _book != null:
 		_book.refresh_jar()
+
+
+func _open_bank_gui() -> void:
+	_bank_open = true
+	var panel := _BANK_GUI.new() as Node
+	panel.name = "BankGui"
+	panel.connect("finished", _bank_gui_closed)
+	_hud().add_child(panel)
+
+
+func _bank_gui_closed() -> void:
+	_bank_open = false
+	if _book != null:
+		_book.refresh_jar()
+
+
+func _attach_jar() -> Node3D:
+	var jar := Node3D.new()
+	jar.name = "JellybeanJar"
+	var packed := load(_JAR_MODEL) as PackedScene
+	if packed != null:
+		jar.add_child(packed.instantiate())
+	var hand := _find(_player, "def_joint_right_hold")
+	if hand == null:
+		_player.add_child(jar)
+	else:
+		hand.add_child(jar)
+	_jar_beans = _find_billboard(jar)
+	_bean_rest = Basis.IDENTITY
+	if _jar_beans != null:
+		_bean_rest = _jar_beans.transform.basis
+		if _jar_beans is MeshInstance3D:
+			_show_both_sides(_jar_beans as MeshInstance3D)
+	_set_jar_scale(jar, 0.0)
+	return jar
+
+
+func _set_jar_scale(jar: Node3D, amount: float) -> void:
+	jar.transform = Transform3D(_JAR_XFORM.basis.scaled(Vector3.ONE * amount), _JAR_XFORM.origin)
+
+
+## The beans are an axial billboard. Yaw that card toward the camera after the jar scale.
+func _face_jar_beans(jar: Node3D) -> void:
+	if _jar_beans == null or _camera == null or not is_instance_valid(_jar_beans):
+		return
+	if jar.scale.x < 0.02:
+		return
+	var parent := _jar_beans.get_parent() as Node3D
+	if parent == null:
+		return
+	var rest := parent.global_transform.basis * _bean_rest
+	var face := Vector3(-rest.y.x, 0.0, -rest.y.z)
+	var to_target := _camera.global_position - _jar_beans.global_position
+	to_target.y = 0.0
+	if face.length() < 0.0001 or to_target.length() < 0.0001:
+		return
+	var turned := _jar_beans.global_transform
+	turned.basis = rest.rotated(Vector3.UP, face.signed_angle_to(to_target, Vector3.UP))
+	_jar_beans.global_transform = turned
+
+
+func _find_billboard(root: Node) -> Node3D:
+	if root is Node3D and String(root.name).contains("billboard"):
+		return root as Node3D
+	for child in root.get_children():
+		var found := _find_billboard(child)
+		if found != null:
+			return found
+	return null
+
+
+func _show_both_sides(mesh_instance: MeshInstance3D) -> void:
+	if mesh_instance.mesh == null:
+		return
+	for index in mesh_instance.mesh.get_surface_count():
+		var material := mesh_instance.mesh.surface_get_material(index)
+		if material is BaseMaterial3D:
+			var sided := (material as BaseMaterial3D).duplicate() as BaseMaterial3D
+			sided.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mesh_instance.set_surface_override_material(index, sided)
+
+
+func _ease_in_out(t: float) -> float:
+	var c := clampf(t, 0.0, 1.0)
+	if c < 0.5:
+		return 2.0 * c * c
+	return -2.0 * c * c + 4.0 * c - 1.0
+
+
+func _ease_out(t: float) -> float:
+	var c := clampf(t, 0.0, 1.0)
+	return c * (2.0 - c)
+
+
+func _ease_in(t: float) -> float:
+	var c := clampf(t, 0.0, 1.0)
+	return c * c
 
 
 func _try_house_door() -> void:
@@ -665,8 +869,36 @@ func _pop_up() -> void:
 ## MapPage teleports throw the hole, then jump in. The scene changes when the
 ## track finishes, and the next place plays the jump back out.
 func teleport_to_hood(hood: int) -> void:
-	if _portaling or not _active or _player == null or _body == null:
+	if not await _play_teleport_out():
 		return
+	portal_in = true
+	teleport_in = true
+	if _tasks != null:
+		_tasks.note_hood(hood)
+	get_tree().change_scene_to_file(_PLACES.scene_for(hood))
+
+
+## Place.__handleBookCloseExit plays TeleportOut, fades, then leaves the shard.
+## Here the next screen is Pick a Toon.
+func quit_to_chooser() -> void:
+	if not await _play_teleport_out():
+		return
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hud().add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 1.0, 1.0)
+	await tween.finished
+	if not is_inside_tree():
+		return
+	get_tree().change_scene_to_file(_PICK_SCENE)
+
+
+func _play_teleport_out() -> bool:
+	if _portaling or not _active or _player == null or _body == null:
+		return false
 	if _book != null:
 		_book.close()
 	_locked = true
@@ -695,19 +927,19 @@ func teleport_to_hood(hood: int) -> void:
 			_play_teleport_sound()
 		if elapsed >= _DROP_AT and not dropped:
 			dropped = true
-			portal.reparent(_player, true)
+			# reparentTo keeps the local transform, so the hole leaves the hand
+			# and sits on the toon. The portal clip then opens where the jump lands.
+			portal.reparent(_player, false)
+			portal.transform = Transform3D.IDENTITY
 		_place_camera()
 		await get_tree().process_frame
 		if not is_inside_tree():
-			return
+			return false
 		elapsed += get_process_delta_time()
 	if is_instance_valid(portal):
 		portal.queue_free()
-	portal_in = true
-	teleport_in = true
-	if _tasks != null:
-		_tasks.note_hood(hood)
-	get_tree().change_scene_to_file(_PLACES.scene_for(hood))
+	_player.set_hole_clip(false, 0.0)
+	return true
 
 
 func _portal_in() -> void:
@@ -847,21 +1079,46 @@ func _ready_hud() -> void:
 func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
-	var turn := 0.0
-	if _KEYS.held("left"):
-		turn += 1.0
-	if _KEYS.held("right"):
-		turn -= 1.0
-	_heading += turn * TURN_SPEED * delta
-	var speed := 0.0
 	var forward_held := _KEYS.held("forward")
 	var back_held := _KEYS.held("back")
+	var left_held := _KEYS.held("left")
+	var right_held := _KEYS.held("right")
+	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	# Right-click turns the side keys into a full run across the camera.
+	var strafe := 0.0
+	if aim_held and not forward_held and not back_held:
+		if left_held:
+			strafe += 1.0
+		if right_held:
+			strafe -= 1.0
+	var turn := 0.0
+	if strafe == 0.0:
+		if left_held:
+			turn += 1.0
+		if right_held:
+			turn -= 1.0
+	_heading += turn * TURN_SPEED * delta
+	var speed := 0.0
 	var turning := turn != 0.0
-	if forward_held and not back_held:
+	var running := forward_held and not back_held
+	var reversing := back_held and not forward_held
+	# A right-click orbit made while standing is the new forward or back.
+	# Adopt it on the first step, without waiting for another drag.
+	if (running and not _running) or (reversing and not _reversing):
+		_adopt_right_aim()
+	_running = running
+	_reversing = reversing
+	var move_heading := _heading
+	var face_heading := _heading
+	if strafe != 0.0:
+		move_heading = _heading + _cam_yaw + 90.0 * strafe
+		face_heading = move_heading
 		speed = FORWARD_SPEED
-	elif back_held and not forward_held:
+	elif running:
+		speed = FORWARD_SPEED
+	elif reversing:
 		speed = -REVERSE_SPEED
-	var forward := _forward(_heading)
+	var forward := _forward(move_heading)
 	_body.velocity.x = forward.x * speed
 	_body.velocity.z = forward.z * speed
 	var on_floor := _body.is_on_floor()
@@ -896,31 +1153,39 @@ func _walk(delta: float) -> void:
 			_jump_lock = HARD_LOCK
 		elif impact < -5.0:
 			_jump_lock = JUMP_LOCK
-	_face(_player, _heading)
+	_face(_player, face_heading)
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 
 
 func _place_camera() -> void:
 	if _camera == null or _player == null:
 		return
+	# The camera rides a sphere around the resting head and always looks at
+	# it, so a vertical drag orbits over the toon instead of tilting onto
+	# the ground.
 	var feet := _player.global_position
 	var orbit := _heading + _cam_yaw
 	var forward := _forward(orbit)
-	var eye := feet + Vector3(0.0, _eye_height, 0.0)
+	var target := feet + Vector3(0.0, _eye_height, 0.0)
 	var distance := 9.0 * (_eye_height / 3.0) * _cam_distance
 	var pitch := deg_to_rad(_cam_pitch)
-	var back := forward * distance * cos(pitch)
-	_camera.global_position = eye - Vector3(back.x, 0.0, back.z) + Vector3(0.0, distance * sin(pitch), 0.0)
-	_camera.look_at(eye + forward * 1.5, Vector3.UP)
+	var horizontal := distance * cos(pitch)
+	_camera.global_position = target - forward * horizontal + Vector3(0.0, distance * sin(pitch), 0.0)
+	if _camera.global_position.distance_squared_to(target) > 0.04:
+		_camera.look_at(target, Vector3.UP)
 
 
 func _steer_camera(event: InputEvent) -> void:
-	if _locked:
-		return
-	if _book != null and _book.is_open():
+	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
+		_release_camera_mouse(true)
 		return
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
+		var drag := button.button_index == MOUSE_BUTTON_LEFT or button.button_index == MOUSE_BUTTON_RIGHT
+		if drag and button.pressed:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		elif drag:
+			_release_camera_mouse()
 		if not button.pressed:
 			return
 		if button.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -929,7 +1194,8 @@ func _steer_camera(event: InputEvent) -> void:
 			_cam_distance = minf(_CAM_DIST_MAX, _cam_distance + 0.14)
 		elif button.button_index == MOUSE_BUTTON_MIDDLE:
 			_cam_yaw = 0.0
-			_cam_pitch = 0.0
+			_right_yaw = 0.0
+			_cam_pitch = _CAM_PITCH_HOME
 			_cam_distance = 1.0
 		return
 	if event is InputEventMouseMotion:
@@ -939,11 +1205,38 @@ func _steer_camera(event: InputEvent) -> void:
 		if not left and not right:
 			return
 		var yaw := -motion.relative.x * 0.18
-		_cam_pitch = clampf(_cam_pitch - motion.relative.y * 0.12, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
-		if right and _KEYS.held("forward"):
+		# Down looks down. The camera climbs the sphere and stays aimed at the toon.
+		_cam_pitch = clampf(_cam_pitch + motion.relative.y * 0.1, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
+		var steering := _KEYS.held("forward") or _KEYS.held("back")
+		if right and steering:
+			# Forward and back keep the camera behind the toon and follow the drag.
+			if not _cam_steering:
+				_heading += _cam_yaw
+				_cam_yaw = 0.0
+				_cam_steering = true
 			_heading += yaw
+			_right_yaw = 0.0
 		else:
+			_cam_steering = false
 			_cam_yaw += yaw
+			if right:
+				_right_yaw += yaw
+
+
+func _adopt_right_aim() -> void:
+	if absf(_right_yaw) < 0.01:
+		return
+	_heading += _right_yaw
+	_cam_yaw -= _right_yaw
+	_right_yaw = 0.0
+
+
+func _release_camera_mouse(force := false) -> void:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	if not force and (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)):
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _place_line(delta: float) -> void:

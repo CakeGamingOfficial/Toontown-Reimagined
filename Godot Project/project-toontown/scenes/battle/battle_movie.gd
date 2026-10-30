@@ -716,23 +716,24 @@ func tick_shot(delta: float) -> void:
 	_shot_time += delta
 	var toon_height := 3.5
 	if _shot == "toon":
+		# avatarCloseUpThrowShot is 3 aside and 8 ahead. The cut to the cog
+		# uses the wider three-quarter, still 8 ahead.
 		if _shot_time < _shot_open:
-			_frame(_player, _flunky, _shot_side * 3.0, 4.6, toon_height * 0.66)
+			_frame(_player, _flunky, _shot_side * 3.0, 8.0, toon_height * 0.66)
 		else:
-			_frame(_flunky, _player, -_shot_side * 4.0, 4.4, _SUIT_HEIGHT * 0.66)
+			_frame(_flunky, _player, -_shot_side * 5.2, 8.0, _SUIT_HEIGHT * 0.66)
 	elif _shot == "cog":
 		if _shot_time < _shot_open:
-			_frame(_flunky, _player, _shot_side * 3.4, 4.8, _SUIT_HEIGHT * 0.55)
+			_frame(_flunky, _player, _shot_side * 3.0, 8.0, _SUIT_HEIGHT * 0.66)
 		else:
-			_frame(_player, _flunky, -_shot_side * 3.0, 4.2, toon_height * 0.66)
+			_frame(_player, _flunky, -_shot_side * 5.2, 8.0, toon_height * 0.66)
 	elif _shot == "death":
-		# BattleCamDefaultFov is 80, and the suit close-up sits about 8 units
-		# out. Step further back once the pieces leave his body.
+		# BattleCamDefaultFov is 80. Step further back once the pieces leave.
 		var side := _shot_side * (6.0 if _shot_time < _shot_open else 9.0)
-		var ahead := 8.0 if _shot_time < _shot_open else 12.0
+		var ahead := 10.0 if _shot_time < _shot_open else 14.0
 		_frame(_flunky, _player, side, ahead, _SUIT_HEIGHT * 0.66)
 	else:
-		_frame(_player, _flunky, _shot_side * 2.0, -6.5, toon_height * 0.85)
+		_frame(_player, _flunky, _shot_side * 5.0, -10.0, toon_height * 0.85)
 
 
 func _begin_shot(mode: String, open_for: float) -> void:
@@ -740,7 +741,7 @@ func _begin_shot(mode: String, open_for: float) -> void:
 	_shot_time = 0.0
 	_shot_open = open_for
 	_shot_side = 1.0 if randi() % 2 == 0 else -1.0
-	if mode == "death" and _camera != null and _saved_fov < 0.0:
+	if _camera != null and _saved_fov < 0.0:
 		_saved_fov = _camera.fov
 		_camera.fov = 80.0
 	tick_shot(0.0)
