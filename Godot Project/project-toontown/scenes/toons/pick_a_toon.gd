@@ -21,8 +21,7 @@ const _AREAS: Array[Rect2] = [
 const _TILT: Array[float] = [7.0, -11.0, 1.0, -5.0, 3.5, -5.0]
 # tt_m_gui_pat_mainGui draws the square background on a card that is exactly 4:3.
 const _CARD_ASPECT := 4.0 / 3.0
-# QuitBtn in pick_a_toon_gui: a 0.425 by 0.1083 card, placed at (1.08, 0, -0.907) and scaled 1.05.
-const _QUIT_CENTER := Vector2(1.08, -0.907)
+# QuitBtn in pick_a_toon_gui: a 0.425 by 0.1083 card, scaled 1.05.
 const _QUIT_SIZE := Vector2(0.425 * 1.05, 0.108333 * 1.05)
 const _TEAL := Color(0.0, 1.0, 0.8, 1.0)
 const _YELLOW := Color(1.0, 0.9, 0.1, 1.0)
@@ -62,21 +61,19 @@ func _play_theme() -> void:
 
 
 func _build() -> void:
-	var sky := ColorRect.new()
-	sky.color = Color(37.0 / 255.0, 94.0 / 255.0, 199.0 / 255.0)
-	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(sky)
+	var crop := ColorRect.new()
+	crop.color = Color(0, 0, 0)
+	crop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	crop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(crop)
 
-	var background := ColorRect.new()
+	var background := TextureRect.new()
 	background.name = "Background"
-	background.color = Color.WHITE
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	background.texture = preload("res://assets/toons/gui/tt_t_gui_pat_background.png")
+	background.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_SCALE
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var material := ShaderMaterial.new()
-	material.shader = preload("res://scenes/toons/pick_a_toon_background.gdshader")
-	material.set_shader_parameter("background_texture", preload("res://assets/toons/gui/tt_t_gui_pat_background.png"))
-	background.material = material
 	add_child(background)
 
 	var title := Label.new()
@@ -98,9 +95,11 @@ func _build() -> void:
 	quit.texture_hover = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
 	quit.ignore_texture_size = true
 	quit.stretch_mode = TextureButton.STRETCH_SCALE
+	quit.clip_contents = true
 	quit.pressed.connect(func() -> void:
 		get_tree().quit()
 	)
+	ToonGui.button_sounds(quit)
 	add_child(quit)
 	var quit_label := Label.new()
 	quit_label.name = "QuitLabel"
@@ -124,30 +123,34 @@ func _layout() -> void:
 	if size.y < 2.0:
 		return
 	var card := _card_rect()
-	var background := get_node_or_null("Background") as ColorRect
-	if background and background.material is ShaderMaterial:
-		var material := background.material as ShaderMaterial
-		material.set_shader_parameter("card", Vector4(
-			card.position.x / size.x,
-			card.position.y / size.y,
-			card.size.x / size.x,
-			card.size.y / size.y))
+	var background := get_node_or_null("Background") as TextureRect
+	if background:
+		background.position = card.position
+		background.size = card.size
 	var title := get_node_or_null("Title") as Label
 	if title:
-		title.offset_top = size.y * 0.02
-		title.offset_bottom = size.y * 0.14
-		ToonGui.style_title(title, _YELLOW, int(size.y * 0.078))
+		title.offset_top = card.position.y + card.size.y * 0.02
+		title.offset_bottom = card.position.y + card.size.y * 0.14
+		ToonGui.style_title(title, _YELLOW, int(card.size.y * 0.078))
 	var quit := get_node_or_null("Quit") as TextureButton
 	if quit:
-		# One aspect unit is half the card height, matching aspect2d.
+		# The visible screen is the 4:3 card. The button sits in that corner,
+		# and the caption is sized to the button so it stays inside it.
 		var unit := card.size.y * 0.5
 		var quit_size := _QUIT_SIZE * unit
-		var center := card.position + card.size * 0.5 + Vector2(_QUIT_CENTER.x, -_QUIT_CENTER.y) * unit
-		quit.position = center - quit_size * 0.5
+		var margin := Vector2(0.04, 0.04) * unit
+		quit.position = card.position + Vector2(card.size.x - quit_size.x - margin.x, card.size.y - quit_size.y - margin.y)
 		quit.size = quit_size
 		var quit_label := quit.get_node_or_null("QuitLabel") as Label
 		if quit_label:
-			ToonGui.style_sign(quit_label, _YELLOW, int(quit_size.y * 0.42), Color(0, 0, 0), int(quit_size.y * 0.06))
+			quit_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+			quit_label.offset_left = 0.0
+			quit_label.offset_top = 0.0
+			quit_label.offset_right = 0.0
+			quit_label.offset_bottom = 0.0
+			quit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			quit_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			ToonGui.style_sign(quit_label, _YELLOW, int(quit_size.y * 0.52), Color(0, 0, 0), int(quit_size.y * 0.08))
 	for index in ToonRoster.SLOT_COUNT:
 		var panel := get_node_or_null("Slot%d" % index) as Control
 		if panel == null:
@@ -164,6 +167,7 @@ func _slot(index: int) -> Control:
 	var button := Button.new()
 	button.flat = true
 	button.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ToonGui.button_sounds(button)
 	panel.add_child(button)
 
 	var toon := ToonRoster.get_slot(index)
@@ -240,6 +244,7 @@ func _slot(index: int) -> Control:
 	trash.ignore_texture_size = true
 	trash.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	trash.pressed.connect(_ask_delete.bind(index))
+	ToonGui.button_sounds(trash)
 	panel.add_child(trash)
 	return panel
 
@@ -402,6 +407,7 @@ func _dialog_choice(up: Texture2D, down: Texture2D, caption: String, left: float
 	button.anchor_top = 0.0
 	button.anchor_bottom = 0.62
 	button.pressed.connect(action)
+	ToonGui.button_sounds(button)
 	box.add_child(button)
 	var label := Label.new()
 	label.text = caption

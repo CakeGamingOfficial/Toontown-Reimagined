@@ -77,6 +77,44 @@ static func style_label(label: Label, color: Color, px: int, outline: Color, out
 	label.add_theme_constant_override("outline_size", maxi(outline_px, 0))
 
 
+const CLICK_SFX := "res://assets/toons/audio/GUI_create_toon_fwd.mp3"
+const ROLLOVER_SFX := "res://assets/toons/audio/GUI_rollover.mp3"
+
+
+## DirectGui's default click and rollover, used by every Make a Toon and Pick a Toon button.
+static func button_sounds(button: BaseButton) -> void:
+	button.mouse_entered.connect(func() -> void:
+		if button.disabled:
+			return
+		play_sfx(button, ROLLOVER_SFX)
+	)
+	button.pressed.connect(func() -> void:
+		play_sfx(button, CLICK_SFX)
+	)
+
+
+static func play_sfx(host: Node, path: String) -> void:
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return
+	# A click can rebuild the shop and pull the button out of the tree before
+	# this runs. The scene root still can play it.
+	var tree: SceneTree = null
+	if host != null and is_instance_valid(host) and host.is_inside_tree():
+		tree = host.get_tree()
+	if tree == null:
+		tree = Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	var parent: Node = tree.current_scene if tree.current_scene != null else tree.root
+	if parent == null:
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = load(path)
+	player.finished.connect(player.queue_free)
+	parent.add_child(player)
+	player.play()
+
+
 static func place(control: Control, view: Vector2, x: float, z: float, width: float, height: float) -> void:
 	var unit := view.y * 0.5
 	var center := Vector2(view.x * 0.5 + x * unit, view.y * 0.5 - z * unit)

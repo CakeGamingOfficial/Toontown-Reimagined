@@ -20,7 +20,6 @@ const _TITLE_COLORS: Array[Color] = [
 	Color(0, 0.98, 0.5),
 ]
 const _TITLE_SCALES: Array[float] = [0.18, 0.18, 0.18, 0.16, 0.15]
-const _SFX_FWD := "res://assets/toons/audio/GUI_create_toon_fwd.mp3"
 const _SFX_BACK := "res://assets/toons/audio/GUI_create_toon_back.mp3"
 const _SFX_ENTER: Array[String] = [
 	"",
@@ -70,7 +69,6 @@ var _slide: Control
 var _shop_box: Control
 var _dropping := false
 var _leaving := false
-var _drop_hit := false
 var _room_tween: Tween
 var _title: Label
 var _next: TextureButton
@@ -83,6 +81,7 @@ var _rotate_right: Control
 var _spin := 0.0
 var _placed: Array = []
 var _typing := false
+var _submitted_name := ""
 var _name_edit: LineEdit
 var _name_view: Label
 var _name_caret: ColorRect
@@ -397,6 +396,16 @@ func _species_heads() -> void:
 		var chosen := _style != null and _style.species() == code
 		var fur := ToonStyle.fur_color(_style.head_color) if _style else Color.WHITE
 		button.modulate = fur if chosen else fur.darkened(0.45)
+		button.mouse_filter = Control.MOUSE_FILTER_STOP
+		button.z_index = 2
+		# Picking a head rebuilds this page inside the pressed handler, so the
+		# click has to start on the menu itself before that button is removed.
+		button.mouse_entered.connect(func() -> void:
+			ToonGui.play_sfx(self, ToonGui.ROLLOVER_SFX)
+		)
+		button.button_down.connect(func() -> void:
+			ToonGui.play_sfx(self, ToonGui.CLICK_SFX)
+		)
 		button.pressed.connect(_pick_species.bind(code))
 		_shop_box.add_child(button)
 		_track(button, -1.16 + float(column) * 0.24, 0.58 - float(row) * 0.26, 0.2, 0.2)
@@ -470,9 +479,7 @@ func _build_type_name() -> void:
 	_name_view.resized.connect(_refresh_typed_name)
 	_panel_text(panel, "All new names must be\napproved by the Toon Council.", 0.51, 0.45, 0.72, 0.12, ink, 0.042)
 	_panel_text(panel, "Be creative and remember:\nno Disney-related names, please.", 0.51, 0.58, 0.72, 0.11, Color(1, 0.95, 0.35), 0.034)
-	_panel_socket(panel, "Submit", 0.508, 0.758, 0.336, 0.066, func() -> void:
-		_on_typed_name(_name_edit.text if _name_edit else "")
-	)
+	_panel_socket(panel, "Submit", 0.508, 0.758, 0.336, 0.066, _submit_typed_name)
 	_panel_socket(panel, "Pick-A-Name", 0.508, 0.859, 0.332, 0.066, func() -> void:
 		_typing = false
 		_load_name_lists()
@@ -506,7 +513,8 @@ func _build_pick_name() -> void:
 		_typing = true
 		_show_shop()
 	)
-	_apply_picked()
+	if _submitted_name.is_empty():
+		_apply_picked()
 
 
 func _begin_panel(x: float, z: float, width: float, height: float) -> Control:
@@ -583,7 +591,9 @@ func _panel_socket(host: Control, caption: String, cx: float, cy: float, w: floa
 	button.stretch_mode = TextureButton.STRETCH_SCALE
 	button.focus_mode = Control.FOCUS_NONE
 	button.custom_minimum_size = Vector2.ZERO
+	button.z_index = 2
 	button.pressed.connect(action)
+	ToonGui.button_sounds(button)
 	var art_w := 63.0
 	var art_h := 31.0
 	var yellow_w := 58.0 / art_w
@@ -622,6 +632,7 @@ func _panel_check(host: Control, cx: float, cy: float, on: bool, toggled: Callab
 	# The card already paints the empty dot. The green disk only covers it when the part is on.
 	mark.modulate = Color(1, 1, 1, 1) if on else Color(1, 1, 1, 0)
 	mark.pressed.connect(toggled)
+	ToonGui.button_sounds(mark)
 	_pin(host, mark, cx, cy, 0.048, 0.048)
 
 
@@ -663,6 +674,7 @@ func _panel_column(host: Control, cx: float, cy: float, w: float, h: float, tint
 		button.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
 		button.add_theme_color_override("font_disabled_color", Color(0.4, 0.8, 0.4, 0.0))
 		button.pressed.connect(changed.bind("set", item_index))
+		ToonGui.button_sounds(button)
 		_pin(host, button, cx, row_cy, w, row_h)
 		var row_button := button
 		row_button.resized.connect(func() -> void:
@@ -691,6 +703,8 @@ func _column_back(host: Control, cx: float, cy: float, w: float, h: float, tint:
 func _column_cap(host: Control, cx: float, cy: float, flip: bool, step: int, enabled: bool, changed: Callable) -> void:
 	var cap := TextureButton.new()
 	cap.texture_normal = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelArrowUp.png")
+	cap.texture_pressed = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelArrowDown.png")
+	cap.texture_hover = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelArrowHover.png")
 	cap.flip_v = flip
 	cap.ignore_texture_size = true
 	cap.stretch_mode = TextureButton.STRETCH_SCALE
@@ -699,6 +713,7 @@ func _column_cap(host: Control, cx: float, cy: float, flip: bool, step: int, ena
 	cap.disabled = not enabled
 	if enabled:
 		cap.pressed.connect(func() -> void: changed.call("step", step))
+		ToonGui.button_sounds(cap)
 	# The green dome is 77 by 18 inside a 95 by 31 card. The socket is about 36 by 9 texels.
 	var box_w := 0.141 / (77.0 / 95.0)
 	var box_h := 0.035 / (18.0 / 31.0)
@@ -766,6 +781,7 @@ func _shuffle_button(x: float, z: float, action: Callable) -> void:
 	button.stretch_mode = TextureButton.STRETCH_SCALE
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(action)
+	ToonGui.button_sounds(button)
 	_shop_box.add_child(button)
 	_track(button, x, z, 0.30, 0.1275)
 	_hover_grow(button, 1.05)
@@ -805,6 +821,7 @@ func _arrow_button(x: float, z: float, width: float, height: float, flip: bool, 
 		if _shop == 3:
 			_show_shop()
 	)
+	ToonGui.button_sounds(button)
 	# halfButtonScale is 0.6 and the hover scale is 0.7.
 	button.mouse_entered.connect(func() -> void: box.scale = Vector2(0.7 / 0.6, 0.7 / 0.6))
 	button.mouse_exited.connect(func() -> void: box.scale = Vector2.ONE)
@@ -825,9 +842,15 @@ func _rotate_button(left: bool) -> Control:
 	button.flat = true
 	button.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var direction := 1.6 if left else -1.6
-	button.button_down.connect(func() -> void: _spin = direction)
+	button.button_down.connect(func() -> void:
+		_spin = direction
+		ToonGui.play_sfx(button, ToonGui.CLICK_SFX)
+	)
 	button.button_up.connect(func() -> void: _spin = 0.0)
-	button.mouse_entered.connect(func() -> void: box.scale = Vector2(1.25, 1.25))
+	button.mouse_entered.connect(func() -> void:
+		box.scale = Vector2(1.25, 1.25)
+		ToonGui.play_sfx(button, ToonGui.ROLLOVER_SFX)
+	)
 	button.mouse_exited.connect(func() -> void: box.scale = Vector2.ONE)
 	box.add_child(button)
 	_track(box, -0.319 if left else 0.320, -0.657 if left else -0.654, 0.107, 0.107)
@@ -1034,10 +1057,12 @@ func _transition_to(target: int) -> void:
 	if target == _shop or target < 0 or target >= _TITLES.size():
 		return
 	_dropping = true
-	_drop_hit = false
 	var forward := target > _shop
-	_play_sfx(_SFX_FWD if forward else _SFX_BACK)
+	if not forward:
+		_play_sfx(_SFX_BACK)
 	_play_sfx(_SFX_ENTER[target])
+	# The original drop starts the crash as the walls leave, not when they land.
+	_play_crash()
 	var leaving_walls := _piece(_ROOM_WALLS[_shop])
 	var leaving_props := _piece(_ROOM_PROPS[_shop])
 	var arriving_walls := _piece(_ROOM_WALLS[target])
@@ -1058,9 +1083,6 @@ func _transition_to(target: int) -> void:
 		var drop_scale := _curve(_DROP_SCALE, frame)
 		_pose_piece(arriving_walls, drop_y, drop_scale)
 		_pose_piece(arriving_props, drop_y, drop_scale)
-		if not _drop_hit and frame >= 5.0:
-			_drop_hit = true
-			_play_crash()
 	, 0.0, 20.0, 20.0 / 24.0)
 	_room_tween.tween_callback(func() -> void:
 		_dropping = false
@@ -1144,7 +1166,8 @@ func _on_next() -> void:
 		_title.text = "TYPE  A  NAME"
 		return
 	ToonRoster.set_slot(ToonRoster.pending_slot, _style)
-	get_tree().change_scene_to_file(PICK_SCENE)
+	ToonRoster.select_slot(ToonRoster.pending_slot)
+	get_tree().change_scene_to_file("res://scenes/interiors/toontorial.tscn")
 
 
 func _cancel_to_chooser() -> void:
@@ -1338,7 +1361,23 @@ func _load_name_lists() -> void:
 	_suffix_i = randi() % maxi(_suffixes.size(), 1)
 
 
+func _submit_typed_name() -> void:
+	if _name_edit == null or not is_instance_valid(_name_edit):
+		return
+	_on_typed_name(_name_edit.text)
+	var typed := _name_edit.text.strip_edges()
+	if typed.is_empty():
+		return
+	# Submit leaves Type a Name and keeps this name. The lists take over again
+	# only after the player shuffles or scrolls one.
+	_submitted_name = typed
+	_typing = false
+	_show_shop()
+
+
 func _picked_name() -> String:
+	if not _submitted_name.is_empty():
+		return _submitted_name
 	var title := _at(_titles, _title_i) if _title_on else ""
 	var first := _at(_firsts, _first_i) if _first_on else ""
 	var last := ToonNames.last_name(_at(_prefixes, _prefix_i), _at(_suffixes, _suffix_i)) if _last_on else ""
@@ -1349,6 +1388,7 @@ func _picked_name() -> String:
 		return given
 	return given + "\n" + last
 func _apply_picked() -> void:
+	_submitted_name = ""
 	if _style == null:
 		return
 	var title := _at(_titles, _title_i) if _title_on else ""
@@ -1453,6 +1493,7 @@ func _flipped_arrow() -> Control:
 	button.flat = true
 	button.set_anchors_preset(Control.PRESET_FULL_RECT)
 	button.pressed.connect(_on_back)
+	ToonGui.button_sounds(button)
 	box.add_child(button)
 	return box
 
@@ -1506,6 +1547,7 @@ func _image_button(up: Texture2D, down: Texture2D) -> TextureButton:
 	button.texture_pressed = down
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	ToonGui.button_sounds(button)
 	return button
 
 
