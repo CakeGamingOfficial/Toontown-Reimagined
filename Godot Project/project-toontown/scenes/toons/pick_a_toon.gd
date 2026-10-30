@@ -19,6 +19,11 @@ const _AREAS: Array[Rect2] = [
 	Rect2(0.701, 0.556, 0.256, 0.324),
 ]
 const _TILT: Array[float] = [7.0, -11.0, 1.0, -5.0, 3.5, -5.0]
+# tt_m_gui_pat_mainGui draws the square background on a card that is exactly 4:3.
+const _CARD_ASPECT := 4.0 / 3.0
+# QuitBtn in pick_a_toon_gui: a 0.425 by 0.1083 card, placed at (1.08, 0, -0.907) and scaled 1.05.
+const _QUIT_CENTER := Vector2(1.08, -0.907)
+const _QUIT_SIZE := Vector2(0.425 * 1.05, 0.108333 * 1.05)
 const _TEAL := Color(0.0, 1.0, 0.8, 1.0)
 const _YELLOW := Color(1.0, 0.9, 0.1, 1.0)
 # ToontownStart and enterChooseAvatar loop tt_theme at 0.9 on this screen.
@@ -27,6 +32,8 @@ const THEME_VOLUME := 0.9
 
 var _confirm: Control
 var _confirm_slot := -1
+var _leaving := false
+static var arrive_from_black := false
 
 
 func _ready() -> void:
@@ -35,6 +42,9 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_layout()
 	_play_theme()
+	if arrive_from_black:
+		arrive_from_black = false
+		_fade_in()
 
 
 func _play_theme() -> void:
@@ -53,17 +63,20 @@ func _play_theme() -> void:
 
 func _build() -> void:
 	var sky := ColorRect.new()
-	sky.color = Color(0.09, 0.35, 0.78)
+	sky.color = Color(37.0 / 255.0, 94.0 / 255.0, 199.0 / 255.0)
 	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
 	sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sky)
 
-	var background := TextureRect.new()
-	background.texture = preload("res://assets/toons/gui/tt_t_gui_pat_background.png")
+	var background := ColorRect.new()
+	background.name = "Background"
+	background.color = Color.WHITE
 	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_SCALE
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://scenes/toons/pick_a_toon_background.gdshader")
+	material.set_shader_parameter("background_texture", preload("res://assets/toons/gui/tt_t_gui_pat_background.png"))
+	background.material = material
 	add_child(background)
 
 	var title := Label.new()
@@ -99,9 +112,26 @@ func _build() -> void:
 	quit.add_child(quit_label)
 
 
+func _card_rect() -> Rect2:
+	if size.x / size.y >= _CARD_ASPECT:
+		var width := size.y * _CARD_ASPECT
+		return Rect2((size.x - width) * 0.5, 0.0, width, size.y)
+	var height := size.x / _CARD_ASPECT
+	return Rect2(0.0, (size.y - height) * 0.5, size.x, height)
+
+
 func _layout() -> void:
 	if size.y < 2.0:
 		return
+	var card := _card_rect()
+	var background := get_node_or_null("Background") as ColorRect
+	if background and background.material is ShaderMaterial:
+		var material := background.material as ShaderMaterial
+		material.set_shader_parameter("card", Vector4(
+			card.position.x / size.x,
+			card.position.y / size.y,
+			card.size.x / size.x,
+			card.size.y / size.y))
 	var title := get_node_or_null("Title") as Label
 	if title:
 		title.offset_top = size.y * 0.02
@@ -109,19 +139,22 @@ func _layout() -> void:
 		ToonGui.style_title(title, _YELLOW, int(size.y * 0.078))
 	var quit := get_node_or_null("Quit") as TextureButton
 	if quit:
-		var quit_size := Vector2(size.y * 0.16, size.y * 0.075)
-		quit.position = Vector2(size.x - quit_size.x - size.y * 0.03, size.y - quit_size.y - size.y * 0.025)
+		# One aspect unit is half the card height, matching aspect2d.
+		var unit := card.size.y * 0.5
+		var quit_size := _QUIT_SIZE * unit
+		var center := card.position + card.size * 0.5 + Vector2(_QUIT_CENTER.x, -_QUIT_CENTER.y) * unit
+		quit.position = center - quit_size * 0.5
 		quit.size = quit_size
 		var quit_label := quit.get_node_or_null("QuitLabel") as Label
 		if quit_label:
-			ToonGui.style_sign(quit_label, _YELLOW, int(size.y * 0.032), Color(0, 0, 0), int(size.y * 0.004))
+			ToonGui.style_sign(quit_label, _YELLOW, int(quit_size.y * 0.42), Color(0, 0, 0), int(quit_size.y * 0.06))
 	for index in ToonRoster.SLOT_COUNT:
 		var panel := get_node_or_null("Slot%d" % index) as Control
 		if panel == null:
 			continue
 		var area := _AREAS[index]
-		panel.position = Vector2(area.position.x * size.x, area.position.y * size.y)
-		panel.size = Vector2(area.size.x * size.x, area.size.y * size.y)
+		panel.position = card.position + Vector2(area.position.x * card.size.x, area.position.y * card.size.y)
+		panel.size = Vector2(area.size.x * card.size.x, area.size.y * card.size.y)
 		_layout_slot(panel, index)
 
 
@@ -274,9 +307,34 @@ func _add_head(parent: Control, style: ToonStyle) -> void:
 	camera.look_at_from_position(camera.position, focus, Vector3.UP)
 
 
+func _fade_in() -> void:
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 1)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.z_index = 20
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 0.0, 0.5)
+	tween.finished.connect(fade.queue_free)
+
+
 func _make_toon(index: int) -> void:
+	if _leaving:
+		return
+	_leaving = true
 	ToonRoster.pending_slot = index
-	get_tree().change_scene_to_file(MAKE_SCENE)
+	# The original chooser fades out, then Make a Toon fades in.
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 1.0, 0.5)
+	tween.finished.connect(func() -> void:
+		get_tree().change_scene_to_file(MAKE_SCENE)
+	)
 
 
 func _play(index: int) -> void:

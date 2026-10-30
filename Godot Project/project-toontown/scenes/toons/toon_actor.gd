@@ -28,6 +28,9 @@ const _SKIRT := preload("res://assets/toons/clothes/desat_skirt_1.png")
 ## World NPCs fall onto collision the way the player does. The player's own
 ## toon stays off, because his CharacterBody already carries him.
 var follows_ground := false
+## Make a Toon only plays neutral. The run, jump, and gag clips are large, and
+## reading them again on every option change freezes that idle.
+var load_extra_clips := true
 var _ground := Grounded.new()
 
 var _style: ToonStyle
@@ -169,6 +172,18 @@ func show_style(style: ToonStyle) -> void:
 	_add_shadow()
 
 
+## A new head, torso, or legs. The idle clock keeps going, so the toon does not
+## snap back to the first frame of neutral while the new parts come in.
+func swap_style(style: ToonStyle) -> void:
+	var clock := _idle_time
+	var playing := _clip == "idle" and _idle_frames > 0
+	show_style(style)
+	if playing:
+		_clip = "idle"
+		_idle_time = clock
+	set_locomotion(0.0, false, false, 0.0)
+
+
 ## Standing still loops neutral. Moving forward loops run. Backing up loops the
 ## walk cycle backward. Turning in place keeps that walk playing forward.
 ## A jump from a stand loops jump-idle. A jump while running loops running-jump-idle.
@@ -285,7 +300,9 @@ func set_expression(mood: String) -> void:
 func _ensure_clips() -> void:
 	# Load every clip while the joints are still in the standing pose. A later
 	# load would record an already-posed joint as the rest pose.
-	if not _walk_loaded and not _walk_missing:
+	if not load_extra_clips:
+		_walk_missing = true
+	elif not _walk_loaded and not _walk_missing:
 		_load_walk()
 		if not _walk_loaded:
 			_walk_missing = true
@@ -293,6 +310,8 @@ func _ensure_clips() -> void:
 		_load_idle()
 		if not _idle_loaded:
 			_idle_missing = true
+	if not load_extra_clips:
+		return
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap"]:
 		if not _extra.has(suffix):
@@ -496,9 +515,15 @@ func _load_clip(suffix: String, clips: Array, joints: Array) -> int:
 	return frame_count
 
 
+static var _clip_cache: Dictionary = {}
+
+
 func _read_walk(path: String) -> Dictionary:
+	if _clip_cache.has(path):
+		return _clip_cache[path]
 	var result := {"surfaces": {}, "joints": {}}
 	if not FileAccess.file_exists(path):
+		_clip_cache[path] = result
 		return result
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
@@ -552,6 +577,7 @@ func _read_walk(path: String) -> Dictionary:
 	file.close()
 	result["surfaces"] = surfaces_by_name
 	result["joints"] = joints
+	_clip_cache[path] = result
 	return result
 
 
@@ -692,6 +718,60 @@ func _add_shadow() -> void:
 	shadow.material_override = material
 	shadow.position = Vector3(0.0, 0.0, 0.05)
 	joint.add_child(shadow)
+
+
+## Color and clothes only. The meshes and the idle clip stay where they are,
+## so Make a Toon can change an option without dropping into the bind pose.
+func recolor(style: ToonStyle) -> void:
+	_style = style
+	_recolor(self)
+
+
+func _recolor(node: Node) -> void:
+	if node is MeshInstance3D and _style != null:
+		var mesh := node as MeshInstance3D
+		var material := mesh.material_override as ShaderMaterial
+		if material != null:
+			var part := _part_name(mesh)
+			var color := Color.WHITE
+			var texture: Texture2D = null
+			var paint := false
+			if part == "hands":
+				color = ToonStyle.fur_color(_style.glove_color)
+				paint = true
+			elif part == "arms" or part == "neck":
+				color = ToonStyle.fur_color(_style.arm_color)
+				paint = true
+			elif part == "legs" or part == "feet":
+				color = ToonStyle.fur_color(_style.leg_color)
+				paint = true
+			elif part.begins_with("ears"):
+				color = Color.BLACK if _style.species() == "d" else ToonStyle.fur_color(_style.head_color)
+				paint = true
+			elif part.begins_with("head"):
+				color = ToonStyle.fur_color(_style.head_color)
+				paint = true
+			elif part == "torso-top":
+				color = ToonStyle.clothes_color(_style.top_color)
+				texture = _SHIRT[clampi(_style.top_tex, 0, _SHIRT.size() - 1)]
+				paint = true
+			elif part == "sleeves":
+				color = ToonStyle.clothes_color(_style.top_color)
+				texture = _SLEEVE[clampi(_style.top_tex, 0, _SLEEVE.size() - 1)]
+				paint = true
+			elif part.begins_with("torso-bot"):
+				color = ToonStyle.clothes_color(_style.bot_color)
+				if part.ends_with("cap"):
+					color = color.darkened(0.35)
+				texture = _bottom_texture(_style)
+				paint = true
+			if paint:
+				material.set_shader_parameter("albedo_color", color)
+				material.set_shader_parameter("use_albedo_texture", 1.0 if texture else 0.0)
+				if texture:
+					material.set_shader_parameter("albedo_texture", texture)
+	for child in node.get_children():
+		_recolor(child)
 
 
 func _paint(node: Node, style: ToonStyle) -> void:

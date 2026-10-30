@@ -238,6 +238,7 @@ func _spawn(style: ToonStyle, where: Vector3, heading: float, parent: Node) -> T
 	actor.position = where
 	actor.show_style(style)
 	_face(actor, heading)
+	actor.set_locomotion(0.0, false, false, 0.0)
 	return actor
 
 

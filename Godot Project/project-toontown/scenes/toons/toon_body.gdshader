@@ -1,19 +1,19 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, specular_disabled, ambient_light_disabled;
 
-// Soft key light, the way the original client lit a toon: a sun from the
-// upper front, with enough fill that the shadow side stays colored.
+// A camera-facing fill. The old upper-left key left a shadow across the
+// visible side and held the fur at about three quarters of its color.
 // Clothes pass a shell push so the body underneath cannot show through.
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap, repeat_disable;
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float use_albedo_texture = 0.0;
 uniform float shell = 0.0;
-// View space: left, up, and toward the camera. A world light lit the
-// Create a Toon face from the side because that camera is not on +Z.
-uniform vec3 light_direction = vec3(-0.45, 0.75, 0.5);
-uniform float ambient = 0.42;
-uniform float key_light = 0.58;
-uniform float wrap = 0.28;
+// View space: a little from the left, from above, and toward the camera.
+// A world light lit the Create a Toon face from the side because that camera is not on +Z.
+uniform vec3 light_direction = vec3(0.1, 0.35, 1.0);
+uniform float ambient = 0.82;
+uniform float key_light = 0.18;
+uniform float wrap = 0.8;
 // Nose only. Fur and the muzzle stay matte; the original nose carries a highlight.
 uniform float gloss = 0.0;
 // TeleportOut clips the body on a plane at the toon's feet. The mesh is still

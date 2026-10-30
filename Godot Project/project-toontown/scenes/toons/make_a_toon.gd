@@ -4,6 +4,7 @@ extends Control
 ## The toon is the original head, torso, and legs. Done saves the slot.
 
 const PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
+const _CHOOSER := preload("res://scenes/toons/pick_a_toon.gd")
 const _TITLES: PackedStringArray = [
 	"CHOOSE  BOY  OR  GIRL",
 	"CHOOSE  YOUR  TYPE",
@@ -19,13 +20,6 @@ const _TITLE_COLORS: Array[Color] = [
 	Color(0, 0.98, 0.5),
 ]
 const _TITLE_SCALES: Array[float] = [0.18, 0.18, 0.18, 0.16, 0.15]
-const _ROOMS: Array = [
-	["genderAll"],
-	["bodyAll"],
-	["colorAll"],
-	["clothWalls", "clothProps"],
-	["nameAll"],
-]
 const _SFX_FWD := "res://assets/toons/audio/GUI_create_toon_fwd.mp3"
 const _SFX_BACK := "res://assets/toons/audio/GUI_create_toon_back.mp3"
 const _SFX_ENTER: Array[String] = [
@@ -43,6 +37,29 @@ const _SFX_CRASH: Array[String] = [
 	"res://assets/toons/audio/tt_s_ara_mat_crash_woodGlass.mp3",
 ]
 const _OUTLINE := Color(0.02, 0.08, 0.16)
+## roomAnim_roomDrop, roomSquish, and propSquish, 24 fps. The egg channel k
+## scales Panda Z only. The room root turns that into Godot's up axis, so on
+## these pieces it is local Z. The drop hits the floor on frame 5.
+const _DROP_Y: PackedFloat32Array = [15, 15, 14.6828, 12.8618, 8.38508, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const _DROP_SCALE: PackedFloat32Array = [1, 1, 1, 1, 1, 0.757422, 0.805925, 0.900352, 0.998161, 1.05681, 1.03752, 0.973827, 0.931636, 0.940088, 0.970044, 1, 1, 1, 1, 1, 1]
+const _SQUISH_Y: PackedFloat32Array = [0, 0, 0, 0, 0, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1]
+const _SQUISH_SCALE: PackedFloat32Array = [1, 1, 0.978795, 0.857423, 0.558954, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+const _PROP_Y: PackedFloat32Array = [0, 0, 0, 0, 0, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391, -0.637391]
+const _PROP_SCALE: PackedFloat32Array = [1, 1, 0.980802, 0.961603, 0.816513, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const _ROOM_PARENTS: PackedStringArray = ["genderAll", "bodyAll", "colorAll", "cothAll", "nameAll"]
+const _ROOM_WALLS: PackedStringArray = ["genderWalls", "bodyWalls", "colorWalls", "clothWalls", "nameWalls"]
+const _ROOM_PROPS: PackedStringArray = ["genderProps", "bodyProps", "colorProps", "clothProps", "nameProps"]
+const _SPECIES_HEADS: Array[Texture2D] = [
+	preload("res://assets/gui/tutorial/laff/doghead.png"),
+	preload("res://assets/gui/tutorial/laff/cathead.png"),
+	preload("res://assets/gui/tutorial/laff/horsehead.png"),
+	preload("res://assets/gui/tutorial/laff/mousehead.png"),
+	preload("res://assets/gui/tutorial/laff/bunnyhead.png"),
+	preload("res://assets/gui/tutorial/laff/duckhead.png"),
+	preload("res://assets/gui/tutorial/laff/monkeyhead.png"),
+	preload("res://assets/gui/tutorial/laff/bearhead.png"),
+	preload("res://assets/gui/tutorial/laff/pighead.png"),
+]
 
 var _shop := 0
 var _style: ToonStyle
@@ -51,9 +68,15 @@ var _room: Node3D
 var _viewport: SubViewport
 var _slide: Control
 var _shop_box: Control
-var _transitioning := false
+var _dropping := false
+var _leaving := false
+var _drop_hit := false
+var _room_tween: Tween
 var _title: Label
 var _next: TextureButton
+var _next_caption: Label
+var _cancel_caption: Label
+var _back_caption: Label
 var _back: Control
 var _rotate_left: Control
 var _rotate_right: Control
@@ -61,6 +84,8 @@ var _spin := 0.0
 var _placed: Array = []
 var _typing := false
 var _name_edit: LineEdit
+var _name_view: Label
+var _name_caret: ColorRect
 var _titles: PackedStringArray = PackedStringArray()
 var _firsts: PackedStringArray = PackedStringArray()
 var _prefixes: PackedStringArray = PackedStringArray()
@@ -73,6 +98,14 @@ var _title_on := false
 var _first_on := true
 var _last_on := true
 var _name_gender := ""
+var _body_key := ""
+var _mesh_key := ""
+## 0 stays put. -1 rides the left edge and 1 rides the right edge.
+var _dock := 0
+var _name_panel: Control
+var _scan_left := 1.0
+var _toon_left_cached := NAN
+var _gap_view := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -82,6 +115,7 @@ func _ready() -> void:
 	_show_shop()
 	resized.connect(_layout)
 	_layout()
+	_fade_in()
 	var player := AudioStreamPlayer.new()
 	player.stream = preload("res://assets/toons/audio/create_a_toon.ogg")
 	player.volume_db = -4.0
@@ -95,6 +129,7 @@ func _process(delta: float) -> void:
 		_actor.set_locomotion(0.0, false, false, delta)
 	if _spin != 0.0 and _actor:
 		_actor.global_rotate(Vector3.UP, _spin * delta)
+	_blink_name_caret()
 
 
 func _build_view() -> void:
@@ -130,6 +165,7 @@ func _build_view() -> void:
 		if leftover:
 			leftover.visible = false
 	_actor = ToonActor.new()
+	_actor.load_extra_clips = false
 	_viewport.add_child(_actor)
 	var camera := Camera3D.new()
 	camera.name = "MatCamera"
@@ -156,20 +192,28 @@ func _build_chrome() -> void:
 	_shop_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_slide.add_child(_shop_box)
 
+	# Bottom bar is at (0.01, -0.86). Cancel is a 0.16 card. Next and Back use
+	# the wider arrow card at scale 0.3, which lands on the same 0.16 size.
 	var cancel := _image_button(
 		preload("res://assets/toons/gui/tt_t_gui_mat_closeUp.png"),
 		preload("res://assets/toons/gui/tt_t_gui_mat_closeDown.png")
 	)
 	cancel.name = "Cancel"
-	cancel.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file(PICK_SCENE)
-	)
+	cancel.pressed.connect(_cancel_to_chooser)
 	add_child(cancel)
-	_track(cancel, 0, 0, 0.34, 0.34)
+	_dock = -1
+	_track(cancel, -1.169, -0.871, 0.16, 0.16)
+	_hover_grow(cancel, 0.7 / 0.6)
+	_cancel_caption = _hover_caption(cancel, "Cancel", -1.169, -0.756)
 
 	_back = _flipped_arrow()
 	add_child(_back)
-	_track(_back, 0, 0, 0.30, 0.30)
+	_dock = 1
+	_track(_back, 0.835, -0.878, 0.16, 0.16)
+	var back_hit := _back.get_child(1) as BaseButton
+	back_hit.mouse_entered.connect(func() -> void: _back.scale = Vector2(0.35 / 0.3, 0.35 / 0.3))
+	back_hit.mouse_exited.connect(func() -> void: _back.scale = Vector2.ONE)
+	_back_caption = _hover_caption(back_hit, "Back", 0.835, -0.763)
 
 	_next = _image_button(
 		preload("res://assets/toons/gui/tt_t_gui_mat_nextUp.png"),
@@ -177,8 +221,11 @@ func _build_chrome() -> void:
 	)
 	_next.pressed.connect(_on_next)
 	add_child(_next)
-	_track(_next, 0, 0, 0.30, 0.30)
+	_track(_next, 1.175, -0.878, 0.16, 0.16)
+	_hover_grow(_next, 0.35 / 0.3)
+	_next_caption = _hover_caption(_next, "Next", 1.175, -0.763)
 
+	_dock = 0
 	_rotate_left = _rotate_button(true)
 	_shop_box.add_child(_rotate_left)
 	_rotate_right = _rotate_button(false)
@@ -206,11 +253,19 @@ func _show_shop() -> void:
 	_next.texture_pressed = preload("res://assets/toons/gui/tt_t_gui_mat_okDown.png") if done else preload("res://assets/toons/gui/tt_t_gui_mat_nextDown.png")
 	_next.texture_disabled = preload("res://assets/toons/gui/tt_t_gui_mat_nextDisabled.png") if not done else preload("res://assets/toons/gui/tt_t_gui_mat_okUp.png")
 	_next.disabled = _style == null
+	if _next_caption:
+		_next_caption.text = "Done" if done else "Next"
 	_back.visible = _shop > 0
+	if _back_caption:
+		_back_caption.visible = _back.visible
+		if not _back.visible:
+			_back_caption.modulate.a = 0.0
 	var spinning := _shop > 0 and _shop < 4
 	_rotate_left.visible = spinning
 	_rotate_right.visible = spinning
-	_show_room(_shop)
+	if not _dropping:
+		_settle_pieces()
+		_show_room(_shop)
 	_pose_toon()
 	match _shop:
 		0:
@@ -227,14 +282,31 @@ func _show_shop() -> void:
 
 
 func _show_room(shop: int) -> void:
-	for group_name in ["genderAll", "bodyAll", "colorAll", "clothWalls", "clothProps", "nameAll"]:
+	for group_name in _ROOM_PARENTS:
 		var group := _find(_room, group_name)
 		if group:
 			group.visible = false
-	for group_name in _ROOMS[shop]:
+	for group_name in _ROOM_WALLS:
 		var group := _find(_room, group_name)
 		if group:
-			group.visible = true
+			group.visible = false
+	for group_name in _ROOM_PROPS:
+		var group := _find(_room, group_name)
+		if group:
+			group.visible = false
+	_reveal_room(shop)
+
+
+func _reveal_room(shop: int) -> void:
+	var parent := _find(_room, _ROOM_PARENTS[shop])
+	if parent:
+		parent.visible = true
+	var walls := _find(_room, _ROOM_WALLS[shop])
+	var props := _find(_room, _ROOM_PROPS[shop])
+	if walls:
+		walls.visible = true
+	if props:
+		props.visible = true
 
 
 func _pose_toon() -> void:
@@ -244,29 +316,53 @@ func _pose_toon() -> void:
 		_actor.position = Vector3(1.55, 0.0, 4.05)
 	else:
 		_actor.position = Vector3(-1.62, 0.0, 3.49)
-	if _style:
-		_actor.show_style(_style)
-		if _shop == 4:
-			_actor.rotate_y(deg_to_rad(-55.0))
+	if _style == null:
+		return
+	var mesh := "%s|%s|%s" % [_style.head, _style.torso, _style.legs]
+	var paint := "%d|%d|%d|%d|%d|%d|%d" % [
+		_style.top_tex, _style.top_color, _style.bot_tex, _style.bot_color,
+		_style.head_color, _style.arm_color, _style.leg_color,
+	]
+	var key := mesh + "|" + paint
+	if mesh != _mesh_key:
+		_mesh_key = mesh
+		_body_key = key
+		_actor.swap_style(_style)
+	elif key != _body_key:
+		_body_key = key
+		_actor.recolor(_style)
+	_stand_toon()
+
+
+func _stand_toon() -> void:
+	if _actor == null or _style == null:
+		return
+	var extra := deg_to_rad(-55.0) if _shop == 4 else 0.0
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	upright = upright.rotated(Vector3.UP, PI + extra)
+	_actor.transform.basis = upright.scaled(Vector3.ONE * _style.body_scale())
 
 
 func _build_gender() -> void:
+	_dock = 0
 	var boy := _image_button(
 		preload("res://assets/toons/gui/tt_t_gui_mat_boyUp.png"),
 		preload("res://assets/toons/gui/tt_t_gui_mat_boyDown.png")
 	)
 	boy.pressed.connect(_start_gender.bind("m"))
 	_shop_box.add_child(boy)
-	_track(boy, -0.42, -0.78, 0.52, 0.52)
-	_hover_caption(boy, "Boy", -0.42, -0.48)
+	_track(boy, -0.4, -0.8, 0.32, 0.32)
+	_hover_grow(boy, 0.7 / 0.6)
+	_hover_caption(boy, "Boy", -0.4, -0.61)
 	var girl := _image_button(
 		preload("res://assets/toons/gui/tt_t_gui_mat_girlUp.png"),
 		preload("res://assets/toons/gui/tt_t_gui_mat_girlDown.png")
 	)
 	girl.pressed.connect(_start_gender.bind("f"))
 	_shop_box.add_child(girl)
-	_track(girl, 0.42, -0.78, 0.52, 0.52)
-	_hover_caption(girl, "Girl", 0.42, -0.48)
+	_track(girl, 0.4, -0.8, 0.32, 0.32)
+	_hover_grow(girl, 0.7 / 0.6)
+	_hover_caption(girl, "Girl", 0.4, -0.61)
 
 
 func _start_gender(gender: String) -> void:
@@ -276,31 +372,57 @@ func _start_gender(gender: String) -> void:
 
 
 func _build_body() -> void:
-	var x := _right(0.52)
-	_choice_row(x, 0.34, 1.05, -1.0, "Head", _cycle_head.bind(-1), _cycle_head.bind(1))
-	_choice_row(x, 0.08, 0.9, 2.0, "Body", _cycle_torso.bind(-1), _cycle_torso.bind(1))
-	_choice_row(x, -0.18, 0.9, -2.0, "Legs", _cycle_legs.bind(-1), _cycle_legs.bind(1))
-	_shuffle_button(x, -0.48, _shuffle_body)
+	_dock = -1
+	_species_heads()
+	_dock = 1
+	# BodyShop frames hang off (0.98, 0.416). Head, body, and legs stay on
+	# their original cards. Species is the head grid, so that row is not repeated.
+	_choice_row(0.98, 0.116, 0.9, 2.0, "Head", _cycle_head.bind(-1), _cycle_head.bind(1))
+	_choice_row(0.98, -0.084, 0.9, -2.0, "Body", _cycle_torso.bind(-1), _cycle_torso.bind(1))
+	_choice_row(0.98, -0.284, 0.9, 3.0, "Legs", _cycle_legs.bind(-1), _cycle_legs.bind(1))
+	_shuffle_button(0.98, -0.584, _shuffle_body)
+
+
+func _species_heads() -> void:
+	var columns := 3
+	for index in ToonStyle.SPECIES.size():
+		var code := String(ToonStyle.SPECIES[index])
+		var column := index % columns
+		var row := index / columns
+		var button := TextureButton.new()
+		button.texture_normal = _SPECIES_HEADS[index]
+		button.ignore_texture_size = true
+		button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		button.focus_mode = Control.FOCUS_NONE
+		var chosen := _style != null and _style.species() == code
+		var fur := ToonStyle.fur_color(_style.head_color) if _style else Color.WHITE
+		button.modulate = fur if chosen else fur.darkened(0.45)
+		button.pressed.connect(_pick_species.bind(code))
+		_shop_box.add_child(button)
+		_track(button, -1.16 + float(column) * 0.24, 0.58 - float(row) * 0.26, 0.2, 0.2)
+		if chosen:
+			button.scale = Vector2(1.12, 1.12)
 
 
 func _build_color() -> void:
-	var x := _right(0.55)
-	_choice_row(x, 0.42, 1.15, 0.0, "Toon Color", _cycle_all_color.bind(-1), _cycle_all_color.bind(1))
-	_choice_row(x, 0.16, 0.9, 2.0, "Head", _cycle_part_color.bind("head", -1), _cycle_part_color.bind("head", 1))
-	_choice_row(x, -0.08, 0.9, -2.0, "Body", _cycle_part_color.bind("arm", -1), _cycle_part_color.bind("arm", 1))
-	_choice_row(x, -0.32, 0.9, 3.0, "Legs", _cycle_part_color.bind("leg", -1), _cycle_part_color.bind("leg", 1))
-	_shuffle_button(x, -0.58, _shuffle_color)
+	_dock = 1
+	_choice_row(0.98, 0.343, 1.3, 0.0, "Toon Color", _cycle_all_color.bind(-1), _cycle_all_color.bind(1))
+	_choice_row(0.98, 0.116, 0.9, 2.0, "Head", _cycle_part_color.bind("head", -1), _cycle_part_color.bind("head", 1))
+	_choice_row(0.98, -0.084, 0.9, -2.0, "Body", _cycle_part_color.bind("arm", -1), _cycle_part_color.bind("arm", 1))
+	_choice_row(0.98, -0.284, 0.9, 3.0, "Legs", _cycle_part_color.bind("leg", -1), _cycle_part_color.bind("leg", 1))
+	_shuffle_button(0.98, -0.584, _shuffle_color)
 
 
 func _build_clothes() -> void:
-	var x := _right(0.58)
+	_dock = 1
 	var bottom := "Skirts" if _style != null and _style.gender == "f" else "Shorts"
-	_choice_row(x, 0.12, 1.15, 3.0, "Shirts", _style.cycle_top.bind(-1), _style.cycle_top.bind(1))
-	_choice_row(x, -0.18, 1.15, -2.0, bottom, _style.cycle_bottom.bind(-1), _style.cycle_bottom.bind(1))
-	_shuffle_button(x, -0.52, _shuffle_clothes)
+	_choice_row(0.98, 0.016, 1.2, 3.0, "Shirts", _style.cycle_top.bind(-1), _style.cycle_top.bind(1))
+	_choice_row(0.98, -0.234, 1.2, -2.0, bottom, _style.cycle_bottom.bind(-1), _style.cycle_bottom.bind(1))
+	_shuffle_button(0.98, -0.584, _shuffle_clothes)
 
 
 func _build_name() -> void:
+	_dock = -1
 	if _typing:
 		_build_type_name()
 	else:
@@ -308,69 +430,79 @@ func _build_name() -> void:
 
 
 func _build_type_name() -> void:
-	var panel := _begin_panel(-0.28, 0.02, 1.35, 1.35)
+	var panel := _begin_panel(-0.42, -0.065, 1.40, 1.307)
+	_name_panel = panel
 	_place_art(panel, preload("res://assets/toons/gui/tt_t_gui_mat_typeNamePanel.png"))
-	var title := _panel_label(panel, "Please type your name:", 0.08, 0.06, 0.92, 0.18, Color(1, 0.92, 0.15), 0.05)
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var ink := Color(1, 0.92, 0.15)
+	# Fractions are measured on the panel card, so the words sit on the art
+	# instead of floating in screen space.
+	_panel_text(panel, "Please type your name:", 0.51, 0.15, 0.72, 0.07, ink, 0.055)
 	_name_edit = LineEdit.new()
-	_name_edit.anchor_left = 0.30
-	_name_edit.anchor_right = 0.72
-	_name_edit.anchor_top = 0.22
-	_name_edit.anchor_bottom = 0.34
-	_name_edit.text = _style.display_name() if _style and _style.display_name() != "Unnamed Toon" else ""
+	_name_edit.text = ""
 	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_edit.max_length = 24
-	_name_edit.add_theme_font_override("font", ToonGui.font())
-	_name_edit.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
-	_name_edit.add_theme_color_override("caret_color", Color(0.08, 0.08, 0.1))
-	_name_edit.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	_name_edit.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_name_edit.custom_minimum_size = Vector2.ZERO
+	_name_edit.focus_mode = Control.FOCUS_ALL
+	# The field keeps the keystrokes. The label draws them, so a long name can
+	# break onto a second centered line the way the pick-a-name preview does.
+	_name_edit.modulate = Color(1, 1, 1, 0)
+	var blank := StyleBoxEmpty.new()
+	_name_edit.add_theme_stylebox_override("normal", blank)
+	_name_edit.add_theme_stylebox_override("focus", blank)
+	_name_edit.add_theme_stylebox_override("read_only", blank)
 	_name_edit.text_changed.connect(_on_typed_name)
 	_name_edit.text_submitted.connect(func(_text: String) -> void:
 		_on_typed_name(_name_edit.text)
 	)
-	panel.add_child(_name_edit)
-	_panel_label(panel, "All new names must be\napproved by the Toon Council.", 0.08, 0.38, 0.92, 0.54, Color(1, 0.92, 0.15), 0.04)
-	_panel_label(panel, "Be creative and remember:\nno Disney-related names, please.", 0.08, 0.50, 0.92, 0.68, Color(1, 0.95, 0.35), 0.038)
-	_yellow_button(panel, "Submit", 0.22, 0.70, 0.78, 0.82, func() -> void:
+	_pin(panel, _name_edit, 0.51, 0.283, 0.42, 0.125)
+	_name_view = Label.new()
+	_name_view.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_view.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_name_view.mouse_filter = Control.MOUSE_FILTER_STOP
+	_name_view.add_theme_constant_override("line_spacing", 0)
+	_name_view.gui_input.connect(_on_name_click)
+	_pin(panel, _name_view, 0.51, 0.283, 0.42, 0.125)
+	_name_caret = ColorRect.new()
+	_name_caret.color = Color(0.08, 0.08, 0.1)
+	_name_caret.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_name_caret.visible = false
+	panel.add_child(_name_caret)
+	_name_view.resized.connect(_refresh_typed_name)
+	_panel_text(panel, "All new names must be\napproved by the Toon Council.", 0.51, 0.45, 0.72, 0.12, ink, 0.042)
+	_panel_text(panel, "Be creative and remember:\nno Disney-related names, please.", 0.51, 0.58, 0.72, 0.11, Color(1, 0.95, 0.35), 0.034)
+	_panel_socket(panel, "Submit", 0.508, 0.758, 0.336, 0.066, func() -> void:
 		_on_typed_name(_name_edit.text if _name_edit else "")
 	)
-	_yellow_button(panel, "Pick-A-Name", 0.18, 0.84, 0.82, 0.96, func() -> void:
+	_panel_socket(panel, "Pick-A-Name", 0.508, 0.859, 0.332, 0.066, func() -> void:
 		_typing = false
 		_load_name_lists()
 		_show_shop()
 	)
+	_name_edit.grab_focus.call_deferred()
 
 
 func _build_pick_name() -> void:
 	_load_name_lists()
-	var panel := _begin_panel(-0.38, 0.02, 1.52, 1.52)
-	_name_wash(panel, 0.08, Color(1.0, 0.73, 0.78), _title_on)
-	_name_wash(panel, 0.31, Color(0.72, 0.93, 0.55), _first_on)
-	_name_wash(panel, 0.545, Color(0.80, 0.66, 0.95), _last_on)
-	_name_wash(panel, 0.75, Color(0.68, 0.80, 0.98), _last_on)
+	var panel := _begin_panel(-0.42, -0.0301, 1.70, 1.587)
+	_name_panel = panel
 	_place_art(panel, preload("res://assets/toons/gui/tt_t_gui_mat_namePanel.png"))
-	var result := _panel_label(panel, _picked_name(), 0.30, 0.16, 0.72, 0.35, Color(0.08, 0.08, 0.1), 0.034, Color(0, 0, 0, 0))
+	var result := _panel_text(panel, _picked_name(), 0.514, 0.217, 0.34, 0.10, Color(0.08, 0.08, 0.1), 0.036)
 	result.name = "PickedName"
-	if not _title_on:
-		_panel_label(panel, "Title", 0.08, 0.44, 0.22, 0.56, Color(0.05, 0.22, 0.45), 0.038, Color(0, 0, 0, 0))
-	_name_check(panel, 0.155, 0.352, _title_on, func() -> void: _set_title("toggle", not _title_on))
-	_name_check(panel, 0.30, 0.352, _first_on, func() -> void: _set_first("toggle", not _first_on))
-	var first_label := _panel_label(panel, "First", 0.36, 0.325, 0.52, 0.415, Color(0.05, 0.22, 0.45), 0.028, Color(0, 0, 0, 0))
-	first_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	first_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	first_label.z_index = 5
-	_name_check(panel, 0.56, 0.352, _last_on, func() -> void: _set_last("toggle", not _last_on))
-	var last_label := _panel_label(panel, "Last", 0.62, 0.325, 0.80, 0.415, Color(0.05, 0.22, 0.45), 0.028, Color(0, 0, 0, 0))
-	last_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	last_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	last_label.z_index = 5
-	_name_column(panel, 0.08, _titles, _title_i, _title_on, _set_title, HORIZONTAL_ALIGNMENT_CENTER)
-	_name_column(panel, 0.31, _firsts, _first_i, _first_on, _set_first, HORIZONTAL_ALIGNMENT_CENTER)
-	_name_column(panel, 0.545, _prefixes, _prefix_i, _last_on, _set_prefix, HORIZONTAL_ALIGNMENT_RIGHT)
-	_name_column(panel, 0.75, _suffixes, _suffix_i, _last_on, _set_suffix, HORIZONTAL_ALIGNMENT_LEFT)
-	_yellow_button(panel, "Shuffle", 0.36, 0.715, 0.64, 0.795, _shuffle_name)
-	_yellow_button(panel, "Type-A-Name", 0.34, 0.805, 0.66, 0.875, func() -> void:
+	var blue := Color(0.0, 0.25, 0.5)
+	_panel_check(panel, 0.094, 0.336, _title_on, func() -> void: _set_title("toggle", not _title_on))
+	_panel_text(panel, "Title", 0.20, 0.336, 0.16, 0.055, blue, 0.042, HORIZONTAL_ALIGNMENT_LEFT)
+	_panel_check(panel, 0.332, 0.336, _first_on, func() -> void: _set_first("toggle", not _first_on))
+	_panel_text(panel, "First", 0.44, 0.336, 0.16, 0.055, blue, 0.042, HORIZONTAL_ALIGNMENT_LEFT)
+	_panel_check(panel, 0.688, 0.336, _last_on, func() -> void: _set_last("toggle", not _last_on))
+	_panel_text(panel, "Last", 0.79, 0.336, 0.14, 0.055, blue, 0.042, HORIZONTAL_ALIGNMENT_LEFT)
+	# Five rows at the original forceHeight, so the first and last names sit
+	# near the arrows with the same gap the original list leaves.
+	_panel_column(panel, 0.162, 0.513, 0.15, 0.189, Color(1.0, 0.8, 0.8), _titles, _title_i, _title_on, _set_title, HORIZONTAL_ALIGNMENT_CENTER)
+	_panel_column(panel, 0.397, 0.513, 0.15, 0.189, Color(0.8, 1.0, 0.8), _firsts, _first_i, _first_on, _set_first, HORIZONTAL_ALIGNMENT_CENTER)
+	_panel_column(panel, 0.633, 0.513, 0.15, 0.189, Color(0.8, 0.8, 1.0), _prefixes, _prefix_i, _last_on, _set_prefix, HORIZONTAL_ALIGNMENT_RIGHT)
+	_panel_column(panel, 0.838, 0.513, 0.15, 0.189, Color(0.8, 0.8, 1.0), _suffixes, _suffix_i, _last_on, _set_suffix, HORIZONTAL_ALIGNMENT_LEFT)
+	_panel_socket(panel, "Shuffle", 0.506, 0.730, 0.281, 0.059, _shuffle_name)
+	_panel_socket(panel, "Type-A-Name", 0.506, 0.816, 0.281, 0.059, func() -> void:
 		_typing = true
 		_show_shop()
 	)
@@ -414,89 +546,111 @@ func _panel_label(panel: Control, text: String, left: float, top: float, right: 
 	return label
 
 
-func _yellow_button(panel: Control, caption: String, left: float, top: float, right: float, bottom: float, action: Callable) -> void:
+func _pin(host: Control, node: Control, cx: float, cy: float, w: float, h: float) -> void:
+	host.add_child(node)
+	node.anchor_left = cx - w * 0.5
+	node.anchor_top = cy - h * 0.5
+	node.anchor_right = cx + w * 0.5
+	node.anchor_bottom = cy + h * 0.5
+	node.offset_left = 0.0
+	node.offset_top = 0.0
+	node.offset_right = 0.0
+	node.offset_bottom = 0.0
+
+
+func _panel_text(host: Control, text: String, cx: float, cy: float, w: float, h: float, color: Color, font_ratio: float, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pin(host, label, cx, cy, w, h)
+	label.resized.connect(func() -> void:
+		ToonGui.style_label(label, color, maxi(int(host.size.y * font_ratio), 1), Color(0, 0, 0, 0), 0)
+	)
+	return label
+
+
+func _panel_socket(host: Control, caption: String, cx: float, cy: float, w: float, h: float, action: Callable) -> void:
+	# cx/cy/w/h are the socket. The yellow art has a clear margin, so the
+	# button is grown until that yellow lands on the socket.
 	var button := TextureButton.new()
-	button.texture_normal = preload("res://assets/toons/gui/QuitBtn_UP.png")
-	button.texture_pressed = preload("res://assets/toons/gui/QuitBtn_DN.png")
-	button.texture_hover = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+	button.texture_normal = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelSquareUp.png")
+	button.texture_pressed = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelSquareDown.png")
+	button.texture_hover = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelSquareHover.png")
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
-	button.anchor_left = left
-	button.anchor_top = top
-	button.anchor_right = right
-	button.anchor_bottom = bottom
-	button.offset_left = 8
-	button.offset_top = 4
-	button.offset_right = -8
-	button.offset_bottom = -4
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = Vector2.ZERO
 	button.pressed.connect(action)
-	panel.add_child(button)
+	var art_w := 63.0
+	var art_h := 31.0
+	var yellow_w := 58.0 / art_w
+	var yellow_h := 25.0 / art_h
+	var box_w := w / yellow_w
+	var box_h := h / yellow_h
+	var box_cx := cx + (0.5 - 30.5 / art_w) * box_w
+	var box_cy := cy + (0.5 - 15.0 / art_h) * box_h
+	_pin(host, button, box_cx, box_cy, box_w, box_h)
 	var label := Label.new()
 	label.text = caption
-	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.anchor_left = 2.0 / art_w
+	label.anchor_top = 3.0 / art_h
+	label.anchor_right = 60.0 / art_w
+	label.anchor_bottom = 28.0 / art_h
+	label.offset_left = 0.0
+	label.offset_top = 0.0
+	label.offset_right = 0.0
+	label.offset_bottom = 0.0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(label)
 	button.resized.connect(func() -> void:
-		ToonGui.style_label(label, Color(0.12, 0.1, 0.08), int(button.size.y * 0.42), Color(1, 1, 1, 0), 0)
+		ToonGui.style_label(label, Color(0.05, 0.16, 0.42), maxi(int(button.size.y * 0.42), 1), Color(1, 1, 1, 0), 0)
 	)
 
 
-func _name_wash(panel: Control, left: float, color: Color, enabled: bool) -> void:
-	var wash := ColorRect.new()
-	wash.color = color
-	wash.anchor_left = left
-	wash.anchor_right = left + 0.16
-	wash.anchor_top = 0.41
-	wash.anchor_bottom = 0.63
-	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wash.modulate = Color(1, 1, 1, 1.0 if enabled else 0.28)
-	panel.add_child(wash)
-
-
-func _name_check(panel: Control, left: float, top: float, on: bool, toggled: Callable) -> void:
-	if not on:
-		return
+func _panel_check(host: Control, cx: float, cy: float, on: bool, toggled: Callable) -> void:
 	var mark := TextureButton.new()
 	mark.texture_normal = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelCircle.png")
 	mark.ignore_texture_size = true
 	mark.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	mark.anchor_left = left
-	mark.anchor_right = left + 0.042
-	mark.anchor_top = top
-	mark.anchor_bottom = top + 0.042
+	mark.focus_mode = Control.FOCUS_NONE
+	mark.custom_minimum_size = Vector2.ZERO
+	# The card already paints the empty dot. The green disk only covers it when the part is on.
+	mark.modulate = Color(1, 1, 1, 1) if on else Color(1, 1, 1, 0)
 	mark.pressed.connect(toggled)
-	panel.add_child(mark)
+	_pin(host, mark, cx, cy, 0.048, 0.048)
 
 
-func _name_column(panel: Control, left: float, values: PackedStringArray, index: int, enabled: bool, changed: Callable, align: HorizontalAlignment) -> void:
-	var rows := 5
-	var top := 0.41
-	var height := 0.22
-	for row in rows:
+func _panel_column(host: Control, cx: float, cy: float, w: float, h: float, tint: Color, values: PackedStringArray, index: int, enabled: bool, changed: Callable, align: HorizontalAlignment) -> void:
+	# The window is 46 by 57 texels. One texel of overlap covers the filtered
+	# edge without reaching the arrow grooves or closing the gap between the
+	# two last-name columns.
+	var back_w := 48.0 / 256.0
+	var back_h := 59.0 / 256.0
+	_column_back(host, cx, 132.5 / 256.0, back_w, back_h, tint)
+	# The sockets are the dark grooves just outside the window, y 93–101 and 162–170.
+	_column_cap(host, cx, 0.379, false, -1, enabled, changed)
+	_column_cap(host, cx, 0.648, true, 1, enabled, changed)
+	var row_h := h / 5.0
+	var top := cy - h * 0.5
+	for row in 5:
 		var offset := row - 2
 		var item_index := 0 if values.is_empty() else posmod(index + offset, values.size())
+		var row_cy := top + row_h * (float(row) + 0.5)
 		if offset == 0 and enabled:
 			var mark := ColorRect.new()
-			mark.color = Color(1.0, 0.15, 0.85, 0.55)
-			var row_top := top + height * float(row) / float(rows)
-			var row_bottom := top + height * float(row + 1) / float(rows)
-			mark.anchor_left = left
-			mark.anchor_right = left + 0.16
-			mark.anchor_top = lerpf(row_top, row_bottom, 0.28)
-			mark.anchor_bottom = lerpf(row_top, row_bottom, 0.78)
+			mark.color = Color(1.0, 0.0, 1.0, 0.45)
 			mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			panel.add_child(mark)
+			_pin(host, mark, cx, row_cy, back_w, row_h * 1.05)
 		var button := Button.new()
 		button.flat = true
 		button.focus_mode = Control.FOCUS_NONE
 		button.text = _at(values, item_index) if enabled else ""
 		button.alignment = align
-		button.anchor_left = left
-		button.anchor_right = left + 0.16
-		button.anchor_top = top + height * float(row) / float(rows)
-		button.anchor_bottom = top + height * float(row + 1) / float(rows)
 		button.disabled = not enabled or values.is_empty()
 		var empty := StyleBoxEmpty.new()
 		button.add_theme_stylebox_override("normal", empty)
@@ -504,31 +658,88 @@ func _name_column(panel: Control, left: float, values: PackedStringArray, index:
 		button.add_theme_stylebox_override("pressed", empty)
 		button.add_theme_stylebox_override("disabled", empty)
 		button.add_theme_stylebox_override("focus", empty)
-		button.pressed.connect(changed.bind("set", item_index))
-		panel.add_child(button)
-		_style_name_button(panel, button)
-
-
-func _style_name_button(panel: Control, button: Button) -> void:
-	panel.resized.connect(func() -> void:
-		var px := int(panel.size.y * 0.038)
-		button.add_theme_font_override("font", ToonGui.font())
-		button.add_theme_font_size_override("font_size", maxi(px, 1))
+		button.add_theme_color_override("font_hover_color", Color(1, 1, 0))
+		button.add_theme_color_override("font_pressed_color", Color(0.5, 0.9, 1))
 		button.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
-		button.add_theme_constant_override("outline_size", 0)
+		button.add_theme_color_override("font_disabled_color", Color(0.4, 0.8, 0.4, 0.0))
+		button.pressed.connect(changed.bind("set", item_index))
+		_pin(host, button, cx, row_cy, w, row_h)
+		var row_button := button
+		row_button.resized.connect(func() -> void:
+			row_button.add_theme_font_override("font", ToonGui.font())
+			row_button.add_theme_font_size_override("font_size", maxi(int(host.size.y * 0.034), 1))
+			row_button.add_theme_constant_override("outline_size", 0)
+		)
+	if enabled:
+		_column_wheel(host, cx, cy, 0.18, 0.24, changed)
+
+
+func _column_back(host: Control, cx: float, cy: float, w: float, h: float, tint: Color) -> void:
+	var panel := Panel.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = tint
+	style.set_content_margin_all(0)
+	panel.add_theme_stylebox_override("panel", style)
+	_pin(host, panel, cx, cy, w, h)
+	panel.resized.connect(func() -> void:
+		var radius := maxi(int(host.size.y * (4.0 / 256.0)), 2)
+		style.set_corner_radius_all(radius)
 	)
 
 
-func _choice_row(x: float, z: float, scale: float, rot: float, caption: String, previous: Callable, next: Callable) -> void:
-	var width := 0.92 * scale
-	var height := 0.30 * scale
-	var frame := TextureRect.new()
-	frame.texture = preload("res://assets/toons/gui/tt_t_gui_mat_shuffleFrame.png")
-	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	frame.stretch_mode = TextureRect.STRETCH_SCALE
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+func _column_cap(host: Control, cx: float, cy: float, flip: bool, step: int, enabled: bool, changed: Callable) -> void:
+	var cap := TextureButton.new()
+	cap.texture_normal = preload("res://assets/toons/gui/tt_t_gui_mat_namePanelArrowUp.png")
+	cap.flip_v = flip
+	cap.ignore_texture_size = true
+	cap.stretch_mode = TextureButton.STRETCH_SCALE
+	cap.focus_mode = Control.FOCUS_NONE
+	cap.custom_minimum_size = Vector2.ZERO
+	cap.disabled = not enabled
+	if enabled:
+		cap.pressed.connect(func() -> void: changed.call("step", step))
+	# The green dome is 77 by 18 inside a 95 by 31 card. The socket is about 36 by 9 texels.
+	var box_w := 0.141 / (77.0 / 95.0)
+	var box_h := 0.035 / (18.0 / 31.0)
+	var box_cx := cx + (0.5 - 47.0 / 95.0) * box_w
+	_pin(host, cap, box_cx, cy, box_w, box_h)
+
+
+func _column_wheel(host: Control, cx: float, cy: float, w: float, h: float, changed: Callable) -> void:
+	var strip := Control.new()
+	strip.mouse_filter = Control.MOUSE_FILTER_PASS
+	_pin(host, strip, cx, cy, w, h)
+	strip.gui_input.connect(func(event: InputEvent) -> void:
+		if not (event is InputEventMouseButton) or not (event as InputEventMouseButton).pressed:
+			return
+		var button := event as InputEventMouseButton
+		var step := 0
+		if button.button_index == MOUSE_BUTTON_WHEEL_UP:
+			step = -1
+		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			step = 1
+		if step == 0:
+			return
+		changed.call("step", step)
+		strip.accept_event()
+	)
+
+
+func _choice_row(x: float, z: float, frame_scale: float, rot: float, caption: String, previous: Callable, next: Callable) -> void:
+	# shuffleFrame is 0.875 by 0.3667, drawn at halfButtonScale 0.6, then the frame scale.
+	var width := 0.875 * 0.6 * frame_scale
+	var height := 0.3667 * 0.6 * frame_scale
+	var frame := Control.new()
 	_shop_box.add_child(frame)
 	_track(frame, x, z, width, height, rot)
+	var image := TextureRect.new()
+	image.texture = preload("res://assets/toons/gui/tt_t_gui_mat_shuffleFrame.png")
+	image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(image)
 	var label := Label.new()
 	label.text = caption
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -537,12 +748,14 @@ func _choice_row(x: float, z: float, scale: float, rot: float, caption: String, 
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.add_child(label)
 	frame.resized.connect(func() -> void:
-		var px := int(frame.size.y * 0.42)
-		ToonGui.style_label(label, Color.WHITE, px, _OUTLINE, maxi(px / 7, 2))
+		var px := int(0.0625 * frame_scale * size.y * 0.5)
+		ToonGui.style_label(label, Color.WHITE, maxi(px, 1), _OUTLINE, maxi(px / 8, 1))
 	)
-	var arrow_w := height * 0.85
-	_arrow_button(x - width * 0.36, z, arrow_w, false, previous, rot)
-	_arrow_button(x + width * 0.36, z, arrow_w, true, next, rot)
+	var arrow_w := 0.1 * 0.6 * frame_scale
+	var arrow_h := 0.1833 * 0.6 * frame_scale
+	var arrow_x := 0.2 * frame_scale
+	_arrow_button(x - arrow_x, z, arrow_w, arrow_h, false, previous, rot)
+	_arrow_button(x + arrow_x, z, arrow_w, arrow_h, true, next, rot)
 
 
 func _shuffle_button(x: float, z: float, action: Callable) -> void:
@@ -551,9 +764,11 @@ func _shuffle_button(x: float, z: float, action: Callable) -> void:
 	button.texture_pressed = preload("res://assets/toons/gui/tt_t_gui_mat_shuffleDown.png")
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(action)
 	_shop_box.add_child(button)
-	_track(button, x, z, 0.72, 0.22)
+	_track(button, x, z, 0.30, 0.1275)
+	_hover_grow(button, 1.05)
 	var label := Label.new()
 	label.text = "Shuffle"
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -562,14 +777,15 @@ func _shuffle_button(x: float, z: float, action: Callable) -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(label)
 	button.resized.connect(func() -> void:
-		ToonGui.style_label(label, Color.WHITE, int(button.size.y * 0.46), _OUTLINE, maxi(int(button.size.y * 0.08), 2))
+		var px := int(0.08 * size.y * 0.5)
+		ToonGui.style_label(label, Color.WHITE, maxi(px, 1), _OUTLINE, maxi(px / 8, 1))
 	)
 
 
-func _arrow_button(x: float, z: float, size: float, flip: bool, action: Callable, rot: float) -> void:
+func _arrow_button(x: float, z: float, width: float, height: float, flip: bool, action: Callable, rot: float) -> void:
 	var box := Control.new()
 	_shop_box.add_child(box)
-	_track(box, x, z, size, size, rot)
+	_track(box, x, z, width, height, rot)
 	var image := TextureRect.new()
 	image.texture = preload("res://assets/toons/gui/tt_t_gui_mat_shuffleArrowUp.png")
 	image.flip_h = flip
@@ -589,6 +805,9 @@ func _arrow_button(x: float, z: float, size: float, flip: bool, action: Callable
 		if _shop == 3:
 			_show_shop()
 	)
+	# halfButtonScale is 0.6 and the hover scale is 0.7.
+	button.mouse_entered.connect(func() -> void: box.scale = Vector2(0.7 / 0.6, 0.7 / 0.6))
+	button.mouse_exited.connect(func() -> void: box.scale = Vector2.ONE)
 	box.add_child(button)
 
 
@@ -608,78 +827,115 @@ func _rotate_button(left: bool) -> Control:
 	var direction := 1.6 if left else -1.6
 	button.button_down.connect(func() -> void: _spin = direction)
 	button.button_up.connect(func() -> void: _spin = 0.0)
+	button.mouse_entered.connect(func() -> void: box.scale = Vector2(1.25, 1.25))
+	button.mouse_exited.connect(func() -> void: box.scale = Vector2.ONE)
 	box.add_child(button)
-	_track(box, -0.34 if left else 0.34, -0.62, 0.28, 0.28)
+	_track(box, -0.319 if left else 0.320, -0.657 if left else -0.654, 0.107, 0.107)
 	return box
+
+
+func _name_gap_x(panel_width: float) -> float:
+	# Halfway between the left edge and the toon's left side. The toon keeps
+	# idling, so the edge is measured once per window size. Measuring again on
+	# every scroll walks the posed mesh and slides the whole panel.
+	var edge := size.x / maxf(size.y, 1.0)
+	var half := panel_width * 0.5
+	if _gap_view != size or is_nan(_toon_left_cached):
+		_gap_view = size
+		_toon_left_cached = _toon_left_aspect()
+	var toon_left := _toon_left_cached
+	var x := (toon_left - edge) * 0.5
+	var low := -edge + half + 0.03
+	var high := toon_left - half - 0.03
+	if high >= low:
+		x = clampf(x, low, high)
+	return x
+
+
+func _toon_left_aspect() -> float:
+	var edge := size.x / maxf(size.y, 1.0)
+	var camera := _viewport.get_node_or_null("MatCamera") as Camera3D if _viewport else null
+	if camera == null or _actor == null or _viewport.size.x < 2:
+		return edge * 0.35
+	_scan_left = 1.0
+	_scan_toon(_actor, camera)
+	if _scan_left >= 0.98:
+		return edge * 0.35
+	var unit := size.y * 0.5
+	return (_scan_left * size.x - size.x * 0.5) / unit
+
+
+func _scan_toon(node: Node, camera: Camera3D) -> void:
+	if String(node.name) == "drop_shadow":
+		return
+	if node is MeshInstance3D:
+		var mesh_node := node as MeshInstance3D
+		if mesh_node.mesh:
+			var bounds := mesh_node.global_transform * mesh_node.mesh.get_aabb()
+			var vp := Vector2(_viewport.size)
+			for corner in 8:
+				var point := bounds.get_endpoint(corner)
+				if camera.is_position_behind(point):
+					continue
+				_scan_left = minf(_scan_left, camera.unproject_position(point).x / vp.x)
+	for child in node.get_children():
+		_scan_toon(child, camera)
 
 
 func _layout() -> void:
 	if size.y < 2.0:
 		return
-	var edge := _aspect()
-	_move(_back, edge - 0.52, -0.90)
-	_move(_next, edge - 0.22, -0.90)
-	for item in _placed:
-		var control: Control = item[0]
-		if control == _back or control == _next:
-			continue
-		if control.name == "Cancel":
-			_move(control, -edge + 0.24, -0.90)
+	# The stored coordinates sit on a 4:3 screen. Wider windows push the side
+	# columns out so they keep that same gap from the screen edge.
+	var extra := maxf(size.x / size.y - 4.0 / 3.0, 0.0)
 	for item in _placed:
 		var control: Control = item[0]
 		if not is_instance_valid(control):
 			continue
-		ToonGui.place(control, size, item[1], item[2], item[3], item[4])
+		var dock := int(item[6]) if item.size() > 6 else 0
+		var x := float(item[1]) + float(dock) * extra
+		if control == _name_panel:
+			x = _name_gap_x(float(item[3]))
+		ToonGui.place(control, size, x, item[2], item[3], item[4])
 		control.rotation_degrees = item[5]
-	if _slide and not _transitioning:
+	if _slide:
 		_slide.position = Vector2.ZERO
-		_slide.size = size
-	elif _slide:
 		_slide.size = size
 	if _title:
 		_title.position = Vector2(0, size.y * 0.012)
 		_title.size = Vector2(size.x, size.y * 0.12)
 		var px := int(_TITLE_SCALES[_shop] * size.y * 0.5)
 		ToonGui.style_title(_title, _TITLE_COLORS[_shop], px)
-	if _name_edit:
-		_name_edit.add_theme_font_size_override("font_size", int(size.y * 0.035))
-
-
-func _move(control: Control, x: float, z: float) -> void:
-	for item in _placed:
-		if item[0] == control:
-			item[1] = x
-			item[2] = z
-			return
+	_refresh_typed_name()
 
 
 func _track(control: Control, x: float, z: float, width: float, height: float, rot: float = 0.0) -> void:
-	_placed.append([control, x, z, width, height, rot])
-
-
-func _right(margin: float) -> float:
-	return _aspect() - margin
-
-
-func _aspect() -> float:
-	return size.x / maxf(size.y, 1.0)
+	_placed.append([control, x, z, width, height, rot, _dock])
 
 
 func _cycle_head(step: int) -> void:
-	var heads := _all_heads()
-	var index := heads.find(_style.head)
-	if index < 0:
-		index = 0
+	var heads := ToonStyle.heads_for(_style.species())
+	var index := 0
+	for item in heads.size():
+		if String(heads[item]) == _style.head:
+			index = item
 	_style.head = String(heads[posmod(index + step, heads.size())])
 	_refresh()
 
 
-func _all_heads() -> PackedStringArray:
-	var heads := PackedStringArray()
-	for species_code in ToonStyle.SPECIES:
-		for head in ToonStyle.heads_for(species_code):
-			heads.append(String(head))
-	return heads
+func _pick_species(code: String) -> void:
+	if _style == null:
+		return
+	var suffix := _style.head.substr(1)
+	var heads := ToonStyle.heads_for(code)
+	var chosen := String(heads[0])
+	for head in heads:
+		if String(head).substr(1) == suffix:
+			chosen = String(head)
+			break
+	_style.head = chosen
+	_refresh()
+	_show_shop()
 
 
 func _cycle_torso(step: int) -> void:
@@ -720,12 +976,13 @@ func _step_color(current: int, step: int) -> int:
 func _shuffle_body() -> void:
 	if _style == null:
 		return
-	var heads := _all_heads()
+	var code := String(ToonStyle.SPECIES[randi() % ToonStyle.SPECIES.size()])
+	var heads := ToonStyle.heads_for(code)
 	_style.head = String(heads[randi() % heads.size()])
 	var bottom := "d" if _style.wears_skirt() else "s"
 	_style.torso = ToonStyle.SIZES[randi() % 3] + bottom
 	_style.legs = ToonStyle.SIZES[randi() % 3]
-	_refresh()
+	_show_shop()
 
 
 func _shuffle_color() -> void:
@@ -768,60 +1025,93 @@ func _place_camera(camera: Camera3D) -> void:
 
 
 func _on_back() -> void:
-	if _transitioning or _shop == 0:
+	if _shop == 0:
 		return
 	_transition_to(_shop - 1)
 
 
 func _transition_to(target: int) -> void:
-	if _transitioning or target == _shop:
+	if target == _shop or target < 0 or target >= _TITLES.size():
 		return
-	_transitioning = true
+	_dropping = true
+	_drop_hit = false
 	var forward := target > _shop
-	# Forward and back are the menu whooshes. Body, color, and clothes also
-	# play the sting for that shop. The room squishes away and the next one
-	# drops in, which is when a crash plays.
 	_play_sfx(_SFX_FWD if forward else _SFX_BACK)
 	_play_sfx(_SFX_ENTER[target])
-	var leaving := _room_nodes(_shop)
-	var arriving := _room_nodes(target)
-	for node in arriving:
-		node.scale = Vector3.ONE
-		node.position = Vector3(0, 6.5, 0)
-		node.visible = true
-	var room := create_tween()
-	room.set_parallel(true)
-	for node in leaving:
-		room.tween_property(node, "scale", Vector3(1, 0.02, 1), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	for node in arriving:
-		room.tween_property(node, "position:y", 0.0, 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	room.chain().tween_callback(_play_crash)
-	var exit_x := -size.x if forward else size.x
-	var enter_x := -exit_x
-	var gui := create_tween()
-	gui.tween_property(_slide, "position:x", exit_x, 0.28).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	gui.tween_callback(func() -> void:
-		for node in leaving:
-			node.visible = false
-			node.scale = Vector3.ONE
-			node.position = Vector3.ZERO
-		_shop = target
-		_show_shop()
-		_slide.position.x = enter_x
-	)
-	gui.tween_property(_slide, "position:x", 0.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	gui.tween_callback(func() -> void:
-		_transitioning = false
+	var leaving_walls := _piece(_ROOM_WALLS[_shop])
+	var leaving_props := _piece(_ROOM_PROPS[_shop])
+	var arriving_walls := _piece(_ROOM_WALLS[target])
+	var arriving_props := _piece(_ROOM_PROPS[target])
+	_release_other_rooms(_ROOM_WALLS[_shop], _ROOM_WALLS[target])
+	_reveal_room(target)
+	_pose_piece(arriving_walls, 15.0, 1.0)
+	_pose_piece(arriving_props, 15.0, 1.0)
+	_shop = target
+	_show_shop()
+	if _room_tween != null and _room_tween.is_valid():
+		_room_tween.kill()
+	_room_tween = create_tween()
+	_room_tween.tween_method(func(frame: float) -> void:
+		_pose_piece(leaving_walls, _curve(_SQUISH_Y, frame), _curve(_SQUISH_SCALE, frame))
+		_pose_piece(leaving_props, _curve(_PROP_Y, frame), _curve(_PROP_SCALE, frame))
+		var drop_y := _curve(_DROP_Y, frame)
+		var drop_scale := _curve(_DROP_SCALE, frame)
+		_pose_piece(arriving_walls, drop_y, drop_scale)
+		_pose_piece(arriving_props, drop_y, drop_scale)
+		if not _drop_hit and frame >= 5.0:
+			_drop_hit = true
+			_play_crash()
+	, 0.0, 20.0, 20.0 / 24.0)
+	_room_tween.tween_callback(func() -> void:
+		_dropping = false
+		_settle_pieces()
+		_show_room(_shop)
 	)
 
 
-func _room_nodes(shop: int) -> Array[Node3D]:
-	var nodes: Array[Node3D] = []
-	for group_name in _ROOMS[shop]:
-		var group := _find(_room, group_name)
-		if group:
-			nodes.append(group)
-	return nodes
+func _piece(node_name: String) -> Node3D:
+	return _find(_room, node_name) as Node3D
+
+
+func _pose_piece(node: Node3D, height: float, amount: float) -> void:
+	if node == null:
+		return
+	# Local Z is up. Scaling every axis pulls the room into its middle.
+	node.position = Vector3(0.0, 0.0, height)
+	node.scale = Vector3(1.0, 1.0, amount)
+
+
+func _curve(values: PackedFloat32Array, frame: float) -> float:
+	if values.is_empty():
+		return 0.0
+	var index := clampi(int(frame), 0, values.size() - 1)
+	var following := mini(index + 1, values.size() - 1)
+	return lerpf(values[index], values[following], frame - float(index))
+
+
+func _release_other_rooms(leaving: String, arriving: String) -> void:
+	for index in _ROOM_WALLS.size():
+		var walls_name := _ROOM_WALLS[index]
+		if walls_name == leaving or walls_name == arriving:
+			continue
+		var walls := _piece(walls_name)
+		var props := _piece(_ROOM_PROPS[index])
+		_pose_piece(walls, 0.0, 1.0)
+		_pose_piece(props, 0.0, 1.0)
+		if walls:
+			walls.visible = false
+		if props:
+			props.visible = false
+		var parent := _find(_room, _ROOM_PARENTS[index])
+		if parent:
+			parent.visible = false
+
+
+func _settle_pieces() -> void:
+	for node_name in _ROOM_WALLS:
+		_pose_piece(_piece(node_name), 0.0, 1.0)
+	for node_name in _ROOM_PROPS:
+		_pose_piece(_piece(node_name), 0.0, 1.0)
 
 
 func _play_crash() -> void:
@@ -839,10 +1129,14 @@ func _play_sfx(path: String) -> void:
 
 
 func _on_next() -> void:
-	if _style == null or _transitioning:
+	if _style == null:
 		return
 	if _shop < _TITLES.size() - 1:
 		_transition_to(_shop + 1)
+		return
+	# A second click in the same drop would skip naming. Done waits until this
+	# room has landed; Next and Back do not.
+	if _dropping:
 		return
 	_style.first_name = _style.first_name.strip_edges()
 	_style.last_name = _style.last_name.strip_edges()
@@ -851,6 +1145,153 @@ func _on_next() -> void:
 		return
 	ToonRoster.set_slot(ToonRoster.pending_slot, _style)
 	get_tree().change_scene_to_file(PICK_SCENE)
+
+
+func _cancel_to_chooser() -> void:
+	if _leaving:
+		return
+	_leaving = true
+	_CHOOSER.arrive_from_black = true
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.z_index = 20
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 1.0, 0.5)
+	tween.finished.connect(func() -> void:
+		get_tree().change_scene_to_file(PICK_SCENE)
+	)
+
+
+func _fade_in() -> void:
+	# Pick a Toon fades out, then this screen fades in. Both use the original
+	# half-second transition.
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 1)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 0.0, 0.5)
+	tween.finished.connect(fade.queue_free)
+
+
+func _name_font_px() -> int:
+	# The pick-a-name preview is 0.036 of the taller card. Match that size on
+	# this shorter card.
+	if _name_view == null or not is_instance_valid(_name_view):
+		return 16
+	var panel := _name_view.get_parent() as Control
+	var panel_h := panel.size.y if panel != null else _name_view.size.y
+	return maxi(int(panel_h * 0.036 * 1.587 / 1.307), 1)
+
+
+func _split_typed(text: String, width: float, px: int) -> PackedStringArray:
+	var font := ToonGui.font()
+	if text.is_empty() or width < 4.0 or font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x <= width:
+		return PackedStringArray([text])
+	var split_at := -1
+	for index in text.length():
+		if text[index] != " ":
+			continue
+		if font.get_string_size(text.substr(0, index), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x <= width:
+			split_at = index
+	if split_at > 0:
+		return PackedStringArray([text.substr(0, split_at), text.substr(split_at + 1)])
+	var cut := text.length()
+	while cut > 1 and font.get_string_size(text.substr(0, cut), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > width:
+		cut -= 1
+	return PackedStringArray([text.substr(0, cut), text.substr(cut)])
+
+
+func _refresh_typed_name() -> void:
+	if _name_view == null or _name_edit == null:
+		return
+	if not is_instance_valid(_name_view) or not is_instance_valid(_name_edit):
+		return
+	var px := _name_font_px()
+	ToonGui.style_label(_name_view, Color(0.08, 0.08, 0.1), px, Color(0, 0, 0, 0), 0)
+	var lines := _split_typed(_name_edit.text, _name_view.size.x * 0.94, px)
+	_name_view.text = "\n".join(lines)
+	_place_name_caret()
+
+
+func _place_name_caret() -> void:
+	if _name_caret == null or _name_view == null or _name_edit == null:
+		return
+	if not is_instance_valid(_name_caret) or not is_instance_valid(_name_view) or not is_instance_valid(_name_edit):
+		return
+	var px := _name_font_px()
+	var font := ToonGui.font()
+	var text := _name_edit.text
+	var lines := _split_typed(text, _name_view.size.x * 0.94, px)
+	var caret := clampi(_name_edit.caret_column, 0, text.length())
+	var line := 0
+	var column := caret
+	if lines.size() > 1:
+		var first := lines[0]
+		var broke_on_space := text.length() > first.length() and text[first.length()] == " "
+		var boundary := first.length()
+		if caret <= boundary:
+			column = caret
+		else:
+			line = 1
+			column = caret - boundary - (1 if broke_on_space else 0)
+	var shown := lines[line] if line < lines.size() else ""
+	column = clampi(column, 0, shown.length())
+	var line_w := font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+	var before_w := font.get_string_size(shown.substr(0, column), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+	var line_h := font.get_height(px)
+	var block_h := line_h * lines.size()
+	var top := _name_view.position.y + (_name_view.size.y - block_h) * 0.5
+	var left := _name_view.position.x + (_name_view.size.x - line_w) * 0.5
+	_name_caret.position = Vector2(left + before_w, top + line_h * line)
+	_name_caret.size = Vector2(maxi(2, int(px * 0.06)), line_h * 0.82)
+
+
+func _blink_name_caret() -> void:
+	if _name_caret == null or _name_edit == null:
+		return
+	if not is_instance_valid(_name_caret) or not is_instance_valid(_name_edit):
+		return
+	var focused := _name_edit.has_focus()
+	if focused:
+		_place_name_caret()
+	_name_caret.visible = focused and int(Time.get_ticks_msec() / 530.0) % 2 == 0
+
+
+func _on_name_click(event: InputEvent) -> void:
+	if _name_edit == null or not is_instance_valid(_name_edit):
+		return
+	if not (event is InputEventMouseButton):
+		return
+	var click := event as InputEventMouseButton
+	if not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	_name_edit.grab_focus()
+	var px := _name_font_px()
+	var font := ToonGui.font()
+	var text := _name_edit.text
+	var lines := _split_typed(text, _name_view.size.x * 0.94, px)
+	var line_h := font.get_height(px)
+	var block_h := line_h * lines.size()
+	var top := (_name_view.size.y - block_h) * 0.5
+	var line := 0 if lines.size() < 2 or click.position.y < top + line_h else 1
+	var shown := lines[line]
+	var line_w := font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+	var left := (_name_view.size.x - line_w) * 0.5
+	var column := shown.length()
+	for index in shown.length():
+		var width := font.get_string_size(shown.substr(0, index + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+		if click.position.x < left + width - font.get_string_size(shown.substr(index, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x * 0.5:
+			column = index
+			break
+	var first := lines[0]
+	var broke_on_space := lines.size() > 1 and text.length() > first.length() and text[first.length()] == " "
+	_name_edit.caret_column = column if line == 0 else first.length() + column + (1 if broke_on_space else 0)
+	_place_name_caret()
 
 
 func _on_typed_name(value: String) -> void:
@@ -870,6 +1311,7 @@ func _on_typed_name(value: String) -> void:
 	else:
 		_style.first_name = parts[0]
 		_style.last_name = " ".join(parts.slice(1))
+	_refresh_typed_name()
 
 
 func _clean_name(value: String) -> String:
@@ -901,8 +1343,10 @@ func _picked_name() -> String:
 	var first := _at(_firsts, _first_i) if _first_on else ""
 	var last := ToonNames.last_name(_at(_prefixes, _prefix_i), _at(_suffixes, _suffix_i)) if _last_on else ""
 	var given := ToonNames.join_name(title, first, "")
-	if given.is_empty() and last.is_empty():
-		return " "
+	if given.is_empty():
+		return last
+	if last.is_empty():
+		return given
 	return given + "\n" + last
 func _apply_picked() -> void:
 	if _style == null:
@@ -1013,23 +1457,46 @@ func _flipped_arrow() -> Control:
 	return box
 
 
-func _hover_caption(button: BaseButton, text: String, x: float, z: float) -> void:
+func _hover_caption(button: BaseButton, text: String, x: float, z: float) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.modulate = Color(1, 1, 1, 0)
-	_shop_box.add_child(label)
-	_track(label, x, z, 0.46, 0.12)
+	label.z_index = 8
+	# Place against the full screen. A caption parented to the Back card is
+	# positioned with screen coordinates and lands outside that small card.
+	var host: Node = button
+	while host != null and host != self and host != _shop_box:
+		host = host.get_parent()
+	if host == null:
+		host = self
+	host.add_child(label)
+	_track(label, x, z, 0.5, 0.1)
 	button.mouse_entered.connect(func() -> void:
+		if button.disabled:
+			return
 		label.modulate.a = 1.0
 	)
 	button.mouse_exited.connect(func() -> void:
 		label.modulate.a = 0.0
 	)
 	label.resized.connect(func() -> void:
-		ToonGui.style_label(label, Color.WHITE, int(label.size.y * 0.7), Color(0, 0, 0), maxi(int(label.size.y * 0.12), 1))
+		var px := int(0.08 * size.y * 0.5)
+		ToonGui.style_label(label, Color.WHITE, maxi(px, 1), Color(0, 0, 0), maxi(px / 8, 1))
+	)
+	return label
+
+
+func _hover_grow(button: Control, amount: float) -> void:
+	button.mouse_entered.connect(func() -> void:
+		if button is BaseButton and (button as BaseButton).disabled:
+			return
+		button.scale = Vector2(amount, amount)
+	)
+	button.mouse_exited.connect(func() -> void:
+		button.scale = Vector2.ONE
 	)
 
 
