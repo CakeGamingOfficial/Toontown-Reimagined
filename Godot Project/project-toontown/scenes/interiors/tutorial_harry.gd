@@ -20,10 +20,10 @@ var _music_db := 0.0
 var _arrow_mode := ""
 var _world: PanelContainer
 var _world_label: Label
-var _world_arrow: Label
+var _world_arrow: TextureRect
 var _chat: Control
 var _chat_label: Label
-var _chat_arrow: Label
+var _chat_arrow: TextureRect
 var _arrows: Array[TextureRect] = []
 
 
@@ -273,9 +273,9 @@ func _build_world_bubble() -> void:
 	box.set_border_width_all(3)
 	box.set_corner_radius_all(18)
 	box.content_margin_left = 16
-	box.content_margin_right = 16
+	box.content_margin_right = 28
 	box.content_margin_top = 10
-	box.content_margin_bottom = 8
+	box.content_margin_bottom = 16
 	panel.add_theme_stylebox_override("panel", box)
 	var column := VBoxContainer.new()
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -286,14 +286,10 @@ func _build_world_bubble() -> void:
 	_world_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(_world_label, _BLACK, 22, Color(0, 0, 0, 0), 0)
 	column.add_child(_world_label)
-	_world_arrow = Label.new()
-	_world_arrow.text = "►"
-	_world_arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_world_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(_world_arrow, Color(0.15, 0.45, 0.9), 16, Color(0, 0, 0, 0), 0)
-	column.add_child(_world_arrow)
 	_hud().add_child(panel)
 	_world = panel
+	_world_arrow = ToonGui.attach_next_arrow(panel)
+	_world_arrow.visible = false
 
 
 func _show_world(text: String, color: Color, confirm: bool) -> void:
@@ -364,9 +360,9 @@ func _build_book_chat() -> void:
 	bubble_box.set_border_width_all(3)
 	bubble_box.set_corner_radius_all(14)
 	bubble_box.content_margin_left = 12
-	bubble_box.content_margin_right = 12
+	bubble_box.content_margin_right = 26
 	bubble_box.content_margin_top = 8
-	bubble_box.content_margin_bottom = 6
+	bubble_box.content_margin_bottom = 16
 	bubble.add_theme_stylebox_override("panel", bubble_box)
 	panel.add_child(bubble)
 	bubble.name = "Speech"
@@ -378,12 +374,8 @@ func _build_book_chat() -> void:
 	_chat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(_chat_label, _BLACK, 18, Color(0, 0, 0, 0), 0)
 	column.add_child(_chat_label)
-	_chat_arrow = Label.new()
-	_chat_arrow.text = "►"
-	_chat_arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_chat_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(_chat_arrow, Color(0.15, 0.45, 0.9), 14, Color(0, 0, 0, 0), 0)
-	column.add_child(_chat_arrow)
+	_chat_arrow = ToonGui.attach_next_arrow(bubble)
+	_chat_arrow.visible = false
 	book.add_child(panel)
 	_chat = panel
 

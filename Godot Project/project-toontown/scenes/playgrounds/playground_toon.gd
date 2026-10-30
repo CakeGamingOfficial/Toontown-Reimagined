@@ -56,7 +56,7 @@ const HARD_LOCK := 0.3
 # floats over the 45-degree plaza stairs.
 const BODY_RADIUS := 0.35
 const STEP_HEIGHT := 0.55
-const _CAM_PITCH_HOME := 12.0
+const _CAM_PITCH_HOME := 0.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
 const _CAM_DIST_MIN := 0.38
@@ -109,7 +109,7 @@ var _line: PanelContainer
 var _line_label: Label
 var _line_left := 0.0
 var _cam_yaw := 0.0
-var _cam_pitch := 12.0
+var _cam_pitch := 0.0
 var _cam_distance := 1.0
 var _cam_steering := false
 var _right_yaw := 0.0
@@ -1180,9 +1180,9 @@ func _walk(delta: float) -> void:
 func _place_camera() -> void:
 	if _camera == null or _player == null:
 		return
-	# The camera rides a sphere around the resting head and always looks at
-	# it, so a vertical drag orbits over the toon instead of tilting onto
-	# the ground.
+	# LocalAvatar camera 0 sits at the clamped toon height and 3 heights
+	# behind, looking level. A drag rides that same sphere, so the default
+	# view grows with a tall toon and stays put for a short one.
 	var feet := _player.global_position
 	var orbit := _heading + _cam_yaw
 	var forward := _forward(orbit)
@@ -1367,9 +1367,7 @@ func _cache_eye_height() -> void:
 	_eye_height = 3.0
 	if _player == null:
 		return
-	var head := _find(_player, "def_head")
-	if head:
-		_eye_height = maxf(head.global_position.y - _player.global_position.y, 3.0)
+	_eye_height = _player.clamped_height()
 
 
 func _face(actor: Node3D, heading: float) -> void:

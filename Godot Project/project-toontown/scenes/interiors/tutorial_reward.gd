@@ -38,6 +38,7 @@ var _tom: ToonActor
 var _pivot: Node3D
 var _bubble: PanelContainer
 var _portaling := false
+var _arrow: TextureRect
 var _label: Label
 var _advance := false
 
@@ -176,7 +177,7 @@ func _teleport_in() -> void:
 
 
 func _line(text: String, color: Color, warm: bool) -> void:
-	_show_bubble(text, color)
+	_show_bubble(text, color, true)
 	_advance = false
 	var catcher := ColorRect.new()
 	catcher.color = Color(0, 0, 0, 0)
@@ -204,7 +205,7 @@ func _on_catcher(event: InputEvent) -> void:
 
 
 func _send_off() -> void:
-	_show_bubble("Have fun!", _BLACK)
+	_show_bubble("Have fun!", _BLACK, false)
 	var shown := 0.0
 	# The line sits for a second, then TeleportOut. The player turns after Tom is gone.
 	while shown < 1.0:
@@ -312,9 +313,8 @@ func _show_shadow(shown: bool) -> void:
 func _follow_camera() -> Dictionary:
 	var feet := _body.global_position
 	var height := 3.0
-	var head := _find(_player, "def_head")
-	if head:
-		height = maxf(head.global_position.y - feet.y, 3.0)
+	if _player:
+		height = _player.clamped_height()
 	var forward := Vector3(1.0, 0.0, 0.0)
 	var eye := feet + Vector3(0.0, height, 0.0)
 	return {
@@ -334,7 +334,7 @@ func _aim_wide() -> void:
 	_camera.look_at(_street(HQ_PANDA) + Vector3(0.0, 3.4, 0.0), Vector3.UP)
 
 
-func _show_bubble(text: String, color: Color) -> void:
+func _show_bubble(text: String, color: Color, clickable: bool = false) -> void:
 	if _bubble == null:
 		_bubble = PanelContainer.new()
 		_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -344,9 +344,9 @@ func _show_bubble(text: String, color: Color) -> void:
 		box.set_border_width_all(3)
 		box.set_corner_radius_all(14)
 		box.content_margin_left = 14
-		box.content_margin_right = 18
+		box.content_margin_right = 28
 		box.content_margin_top = 8
-		box.content_margin_bottom = 8
+		box.content_margin_bottom = 16
 		_bubble.add_theme_stylebox_override("panel", box)
 		_label = Label.new()
 		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -354,8 +354,11 @@ func _show_bubble(text: String, color: Color) -> void:
 		ToonGui.style_label(_label, color, 22, Color(0, 0, 0, 0), 0)
 		_bubble.add_child(_label)
 		_hud().add_child(_bubble)
+		_arrow = ToonGui.attach_next_arrow(_bubble)
 	_label.text = text
 	_label.add_theme_color_override("font_color", color)
+	if _arrow:
+		_arrow.visible = clickable
 	_place_bubble()
 
 

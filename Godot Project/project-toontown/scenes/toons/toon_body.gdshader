@@ -1,18 +1,17 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, specular_disabled, ambient_light_disabled;
 
-// A camera-facing fill. The old upper-left key left a shadow across the
-// visible side and held the fur at about three quarters of its color.
 // Clothes pass a shell push so the body underneath cannot show through.
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap, repeat_disable;
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float use_albedo_texture = 0.0;
 uniform float shell = 0.0;
-// View space: a little from the left, from above, and toward the camera.
-// A world light lit the Create a Toon face from the side because that camera is not on +Z.
-uniform vec3 light_direction = vec3(0.1, 0.35, 1.0);
-uniform float ambient = 0.82;
-uniform float key_light = 0.18;
+// View space, mostly from above and a little from the camera. A camera-straight
+// key turned the silhouette into a dark outline and left the front flat. This
+// one lights the tops and leaves a soft shadow under the chin, arms, and clothes.
+uniform vec3 light_direction = vec3(-0.1, 1.0, 0.5);
+uniform float ambient = 0.72;
+uniform float key_light = 0.28;
 uniform float wrap = 0.8;
 // Nose only. Fur and the muzzle stay matte; the original nose carries a highlight.
 uniform float gloss = 0.0;
