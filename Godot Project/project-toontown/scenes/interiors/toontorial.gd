@@ -735,6 +735,8 @@ func _ready_loadout() -> void:
 	add_child(_briefing)
 	_briefing.setup(self, _panel, _meter, _loadout)
 	_tasks = ToonTasks.for_selected()
+	if _tasks.has_laff_meter():
+		_dock_meter()
 	_book = ShtickerBook.new()
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
@@ -748,6 +750,17 @@ func _ready_loadout() -> void:
 
 func tasks() -> ToonTasks:
 	return _tasks
+
+
+func _dock_meter() -> void:
+	if _meter == null:
+		return
+	var view := get_viewport().get_visible_rect().size
+	if view.y < 2.0:
+		return
+	var pixels := view.y * 0.15
+	_meter.visible = true
+	_meter.place(LaffMeter.corner(view, pixels), pixels)
 
 
 func shticker() -> ShtickerBook:
@@ -1164,9 +1177,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey:
 		var key := event as InputEventKey
+		if key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
+			if _book != null and _tasks != null and _tasks.book_ready():
+				_book.toggle_hotkey()
+				get_viewport().set_input_as_handled()
+				return
 		if key.pressed and not key.echo and key.keycode == KEY_I:
 			if _book != null and _tasks != null and _tasks.book_ready():
-				_book.open_to_gags()
 				return
 			_panel.visible = not _panel.visible
 			_panel.scale = Vector2.ONE
@@ -1334,6 +1351,7 @@ func close_landmark_doors(root: Node) -> void:
 				other = candidate
 				break
 		_close_one_landmark_door(door, other)
+	_patch_hq_ground(root)
 
 
 func _gather_hq_doors(node: Node, found: Array[Node3D]) -> void:
@@ -1353,53 +1371,85 @@ func _under_hq(node: Node) -> bool:
 	return false
 
 
-func _close_one_landmark_door(door: Node3D, other: Node3D) -> void:
-	# A closed HQ door is the painted flat. The swinging panels and the black
-	# frame hole stay hidden, the same way Toontown Central leaves them.
+func _close_one_landmark_door(door: Node3D, _other: Node3D) -> void:
+	# The painted flat faces the street. The swinging panels are the same
+	# doors seen up close, so they stay. Only the black frame hole is hidden.
+	# Shifting or scaling the flat buried it in the wall and left the arch empty.
 	var flat := _find_door_part(door, "door_flat")
-	for prefix in ["doorFrameHoleRight", "doorFrameHoleLeft", "leftDoor", "rightDoor"]:
+	for prefix in ["doorFrameHoleRight", "doorFrameHoleLeft"]:
 		var part := _find_door_part(door, prefix)
 		if part == null:
 			continue
-		if flat != null and prefix.begins_with("doorFrameHole") and flat.is_ancestor_of(part):
+		if flat != null and flat.is_ancestor_of(part):
 			var kept := part.global_transform
 			part.reparent(door)
 			part.global_transform = kept
 		part.visible = false
-	if flat == null:
-		return
-	flat.visible = true
-	_show_both_sides_tree(flat)
-	if flat.has_meta("door_seated") or other == null:
-		return
-	flat.set_meta("door_seated", true)
-	# The flat is painted at the back of the arch, so the left jamb reads as a
-	# gap. Bring it out to the face of the arch and tuck it under the trim.
-	var outward := flat.global_position - other.global_position
-	outward.y = 0.0
-	if outward.length() > 0.01:
-		flat.global_position += outward.normalized() * 0.64
-	# The painted card is wider than it is tall. Grow that axis so the left
-	# edge tucks under the trim instead of leaving a seam.
-	var card := _first_mesh(flat)
-	if card == null or card.mesh == null:
-		return
-	var size := card.mesh.get_aabb().size
-	var grown := card.scale
-	if size.y >= size.x and size.y >= size.z:
-		grown.y *= 1.06
-	elif size.z >= size.x and size.z >= size.y:
-		grown.z *= 1.06
-	else:
-		grown.x *= 1.06
-	card.scale = grown
+	if flat:
+		flat.visible = true
+		_show_both_sides_tree(flat)
+	for prefix in ["leftDoor", "rightDoor"]:
+		var panel := _find_door_part(door, prefix)
+		if panel:
+			panel.visible = true
+			_show_both_sides_tree(panel)
 
 
-func _first_mesh(node: Node) -> MeshInstance3D:
-	if node is MeshInstance3D:
+func _patch_hq_ground(street: Node) -> void:
+	# The street tiles stop just inside the shop-side door, so the HQ sits over
+	# a void. The gap is fixed in the door's own space: door_0's local Y runs
+	# out through that doorway, and local X runs along the front of the building.
+	var door: Node3D = null
+	for child_door in _hq_doors(street):
+		if String(child_door.name) == "door_0":
+			door = child_door
+			break
+	if door == null or door.get_node_or_null("HQGroundPatch") != null:
+		return
+	var body := StaticBody3D.new()
+	body.name = "HQGroundPatch"
+	var visual := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(10.6, 11.0, 0.04)
+	visual.mesh = box
+	var material := _sidewalk_material(street)
+	if material:
+		visual.material_override = material
+	body.add_child(visual)
+	var shape := CollisionShape3D.new()
+	var solid := BoxShape3D.new()
+	# Local Z is up. Keep a full slab under the patch so the capsule can stand on it.
+	solid.size = Vector3(box.size.x, box.size.y, 1.0)
+	shape.shape = solid
+	shape.position = Vector3(0.0, 0.0, -0.48)
+	body.add_child(shape)
+	door.add_child(body)
+	body.position = Vector3(4.85, -4.79, 0.0)
+
+
+func _hq_doors(street: Node) -> Array[Node3D]:
+	var doors: Array[Node3D] = []
+	_gather_hq_doors(street, doors)
+	return doors
+
+
+func _sidewalk_material(root: Node) -> Material:
+	var mesh_instance := _find_sidewalk(root)
+	if mesh_instance == null or mesh_instance.mesh == null:
+		return null
+	var material := mesh_instance.mesh.surface_get_material(0)
+	if material == null:
+		material = mesh_instance.get_active_material(0)
+	if material == null:
+		return null
+	return material.duplicate() as Material
+
+
+func _find_sidewalk(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D and String(node.name).contains("sidewalk"):
 		return node as MeshInstance3D
 	for child in node.get_children():
-		var found := _first_mesh(child)
+		var found := _find_sidewalk(child)
 		if found:
 			return found
 	return null

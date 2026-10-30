@@ -101,21 +101,27 @@ func _run() -> void:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("ui_accept"):
 		_advance = true
-	if not _bubble_on or _host == null:
+	if not _bubble_on or _host == null or _bubble == null:
 		return
 	var camera := _host.get_node_or_null("Camera") as Camera3D
 	var tom := _host.get_node_or_null("Tutorial Tom") as Node3D
 	if camera == null or tom == null or not tom.visible:
 		_bubble.visible = false
 		return
-	var point := tom.global_position + Vector3(0.2, 5.2, 0.0)
-	if camera.is_position_behind(point):
-		_bubble.visible = false
-		return
 	_bubble.visible = true
 	_bubble.reset_size()
-	var screen := camera.unproject_position(point)
-	_bubble.position = screen + Vector2(30, -_bubble.size.y - 78)
+	var view := _view()
+	var screen := Vector2(view.x * 0.58, view.y * 0.28)
+	var head := tom.find_child("def_head", true, false) as Node3D
+	var point := tom.global_position + Vector3(0.2, 4.0, 0.0)
+	if head:
+		point = head.global_position + Vector3(0.15, 0.7, 0.0)
+	if not camera.is_position_behind(point):
+		screen = camera.unproject_position(point) + Vector2(36, -_bubble.size.y - 8)
+	var pos := screen
+	pos.x = clampf(pos.x, 20.0, maxf(20.0, view.x - _bubble.size.x - 20.0))
+	pos.y = clampf(pos.y, 20.0, maxf(20.0, view.y - _bubble.size.y - 20.0))
+	_bubble.position = pos
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -174,8 +180,6 @@ func _line(text: String, color: Color, poster: String) -> void:
 
 
 func _hand_over_gags() -> void:
-	_loadout.set_gag(ToonLoadout.THROW, 0, 0, true)
-	_loadout.set_gag(ToonLoadout.SQUIRT, 0, 0, true)
 	_panel.refresh()
 	var view := _view()
 	_panel.position = Vector2((view.x - _panel.size.x) * 0.5, view.y * 0.12)
@@ -187,13 +191,13 @@ func _hand_over_gags() -> void:
 	await opened.finished
 	await _gesture("rstart", 1.8, false)
 	_gesture("rhand", 1.1, true)
-	await _fly(_FLOWER, ToonLoadout.SQUIRT, 0)
+	await _fly("squirting-flower", _FLOWER, ToonLoadout.SQUIRT, 0)
 	await _gesture("rstart", -1.5, false)
 	_clear_gesture()
 	await get_tree().create_timer(0.25).timeout
 	await _gesture("rstart", 1.8, false)
 	_gesture("rhand", 1.1, true)
-	await _fly(_CUPCAKE, ToonLoadout.THROW, 0)
+	await _fly("tart", _CUPCAKE, ToonLoadout.THROW, 0)
 	await _gesture("rstart", -1.5, false)
 	_clear_gesture()
 	await get_tree().create_timer(1.1).timeout
@@ -204,24 +208,115 @@ func _hand_over_gags() -> void:
 	_panel.scale = Vector2.ONE
 
 
-func _fly(texture: Texture2D, track: int, level: int) -> void:
+func _fly(prop_name: String, texture: Texture2D, track: int, level: int) -> void:
+	var tom := _tom()
+	var camera := _host.get_node_or_null("Camera") as Camera3D
+	var prop := _make_prop(prop_name)
+	var start := _hand_point(tom)
+	prop.global_position = start
+	prop.scale = Vector3.ONE * 0.28
+	var slot := _panel.slot_center(track, level)
+	var end := start
+	if camera:
+		end = camera.project_position(slot, 2.2)
+	var carry := create_tween()
+	carry.tween_method(_carry_prop.bind(prop, start, end, camera), 0.0, 1.0, 0.62)
+	await carry.finished
+	var from := slot
+	if camera and is_instance_valid(prop) and not camera.is_position_behind(prop.global_position):
+		from = camera.unproject_position(prop.global_position)
+	if is_instance_valid(prop):
+		prop.visible = false
+	var icon := _flat_icon(texture, from)
+	var settle := create_tween()
+	settle.tween_method(_settle_icon.bind(icon, from, slot), 0.0, 1.0, 0.32)
+	await settle.finished
+	if is_instance_valid(prop):
+		prop.queue_free()
+	if is_instance_valid(icon):
+		icon.queue_free()
+	_loadout.set_gag(track, level, 1, true)
+	_panel.refresh()
+
+
+func _carry_prop(weight: float, prop: Node3D, start: Vector3, end: Vector3, camera: Camera3D) -> void:
+	if not is_instance_valid(prop):
+		return
+	prop.global_position = start.lerp(end, weight * weight)
+	_face_camera(prop, camera)
+	var grow := smoothstep(0.0, 0.35, weight)
+	var shrink := smoothstep(0.55, 1.0, weight)
+	prop.scale = Vector3.ONE * lerpf(0.28, 0.9, grow) * lerpf(1.0, 0.38, shrink)
+
+
+func _settle_icon(weight: float, icon: TextureRect, from: Vector2, slot: Vector2) -> void:
+	if not is_instance_valid(icon):
+		return
+	var side := lerpf(70.0, 34.0, weight)
+	icon.size = Vector2(side, side)
+	icon.global_position = from.lerp(slot, weight) - icon.size * 0.5
+
+
+func _make_prop(prop_name: String) -> Node3D:
+	var root := Node3D.new()
+	root.name = prop_name
+	var packed := load("res://assets/battle/props/%s.glb" % prop_name) as PackedScene
+	if packed:
+		var model := packed.instantiate()
+		root.add_child(model)
+		_two_sided(model)
+	_host.add_child(root)
+	return root
+
+
+func _two_sided(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			_unlock_surfaces(mesh)
+	for child in node.get_children():
+		_two_sided(child)
+
+
+func _unlock_surfaces(mesh: MeshInstance3D) -> void:
+	for surface in mesh.mesh.get_surface_count():
+		var material := mesh.get_active_material(surface)
+		if material is StandardMaterial3D:
+			var copy := (material as StandardMaterial3D).duplicate() as StandardMaterial3D
+			copy.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mesh.set_surface_override_material(surface, copy)
+
+
+func _hand_point(tom: ToonActor) -> Vector3:
+	if tom == null:
+		return Vector3(1.0, 2.8, -21.6)
+	var hand := tom.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand:
+		return hand.global_position
+	return tom.global_position + Vector3(0.45, 2.7, 0.35)
+
+
+func _face_camera(prop: Node3D, camera: Camera3D) -> void:
+	if camera == null:
+		return
+	var flat := camera.global_position - prop.global_position
+	flat.y = 0.0
+	if flat.length_squared() < 0.0001:
+		return
+	prop.look_at(prop.global_position + flat.normalized(), Vector3.UP)
+
+
+func _flat_icon(texture: Texture2D, at: Vector2) -> TextureRect:
 	var icon := TextureRect.new()
 	icon.texture = texture
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.size = Vector2(110, 110)
-	icon.position = _panel.position + Vector2(120, _panel.size.y - 30)
+	icon.size = Vector2(70, 70)
+	icon.global_position = at - icon.size * 0.5
+	icon.z_index = 40
 	_hud().add_child(icon)
-	var target := _panel.slot_center(track, level) - icon.size * 0.2
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(icon, "global_position", target, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tween.tween_property(icon, "size", Vector2(36, 36), 0.7)
-	await tween.finished
-	_loadout.set_gag(track, level, 1, true)
-	_panel.refresh()
-	icon.queue_free()
+	return icon
 
 
 func _present_laff() -> void:
@@ -229,17 +324,19 @@ func _present_laff() -> void:
 	var big := view.y * 0.46
 	var small := view.y * 0.15
 	var shown := Vector2(view.x * 0.3, view.y * 0.4)
-	var dock := Vector2(small * 0.5 + 28.0, view.y - small * 0.5 - 28.0)
-	_meter.set_hp(15, 15)
+	var dock := LaffMeter.corner(view, small)
+	_meter.set_hp(15, 15, true)
 	_meter.visible = true
 	_meter.place(shown, big)
+	_meter.pulse(true)
 	await _gesture("rstart", 1.0, false)
 	_gesture("rhand", 1.0, true)
 	await _line("Oh! You also need a Laff meter!", _BLACK, "")
 	await _line("When you run out of Laff, you'll turn sad!", _TEAL, "")
 	_expression("sad")
+	_meter.pulse(false)
 	for current in range(14, -1, -1):
-		_meter.set_hp(current, 15)
+		_meter.set_hp(current, 15, true)
 		await get_tree().create_timer(0.07).timeout
 	await _line("A happy Toon is a healthy Toon, you know.", _PINK, "")
 	_expression("normal")
@@ -290,8 +387,11 @@ func _build_poster() -> void:
 
 func _build_bubble() -> void:
 	_bubble = PanelContainer.new()
-	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bubble.mouse_filter = Control.MOUSE_FILTER_STOP
+	_bubble.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_bubble.z_index = 60
 	_bubble.visible = false
+	_bubble.gui_input.connect(_click_bubble)
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(1, 1, 1, 0.98)
 	box.border_color = Color(0.1, 0.1, 0.12)
@@ -304,9 +404,9 @@ func _build_bubble() -> void:
 	_bubble.add_theme_stylebox_override("panel", box)
 	_label = Label.new()
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_label.custom_minimum_size = Vector2(280, 0)
+	_label.custom_minimum_size = Vector2(420, 0)
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(_label, _BLACK, 22, Color(0, 0, 0, 0), 0)
+	ToonGui.style_label(_label, _BLACK, 26, Color(0, 0, 0, 0), 0)
 	_bubble.add_child(_label)
 	var arrow := Label.new()
 	arrow.text = ">"
@@ -319,6 +419,12 @@ func _build_bubble() -> void:
 	ToonGui.style_label(arrow, Color(0.15, 0.45, 0.85), 16, Color(0, 0, 0, 0), 0)
 	_bubble.add_child(arrow)
 	_hud().add_child(_bubble)
+
+
+func _click_bubble(event: InputEvent) -> void:
+	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		_advance = true
+		_bubble.accept_event()
 
 
 func _build_quest() -> void:

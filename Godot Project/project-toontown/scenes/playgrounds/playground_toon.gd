@@ -141,9 +141,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey:
 		var key := event as InputEventKey
-		if key.pressed and not key.echo and key.keycode == KEY_I:
+		if key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
 			if _book != null and _tasks != null and _tasks.book_ready():
-				_book.open_to_gags()
+				_book.toggle_hotkey()
+				get_viewport().set_input_as_handled()
 
 
 func show_notice(message: String) -> void:
@@ -355,7 +356,7 @@ func _ready_hud() -> void:
 	_hud().add_child(_meter)
 	var view := get_viewport().get_visible_rect().size
 	var pixels := view.y * 0.15
-	_meter.place(Vector2(pixels * 0.5 + 28.0, view.y - pixels * 0.5 - 28.0), pixels)
+	_meter.place(LaffMeter.corner(view, pixels), pixels)
 	_book = ShtickerBook.new()
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)

@@ -502,7 +502,7 @@ func _show_meter() -> void:
 	var view := _hud.get_viewport().get_visible_rect().size
 	var pixels := view.y * 0.15
 	_meter.visible = true
-	_meter.place(Vector2(pixels * 0.5 + 28.0, view.y - pixels * 0.5 - 28.0), pixels)
+	_meter.place(LaffMeter.corner(view, pixels), pixels)
 	_meter.set_hp(_loadout.hp, _loadout.max_hp)
 
 

@@ -102,6 +102,17 @@ static func for_selected() -> ToonLoadout:
 	return loadout
 
 
+static func reset_slot(index: int) -> void:
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return
+	var loadout := ToonLoadout.new()
+	loadout._slot = index
+	loadout._blank()
+	loadout.hp = START_HP
+	loadout.max_hp = START_HP
+	loadout.save()
+
+
 func gag_name(track: int, level: int) -> String:
 	if track < 0 or track >= GAG_NAMES.size():
 		return ""

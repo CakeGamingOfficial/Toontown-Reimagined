@@ -31,6 +31,9 @@ static func set_slot(index: int, style: ToonStyle) -> void:
 		return
 	_slots[index] = style
 	_save()
+	# A new toon must not inherit the journal or gags of whoever used this slot.
+	ToonTasks.reset_slot(index)
+	ToonLoadout.reset_slot(index)
 
 
 static func clear_slot(index: int) -> void:
@@ -41,6 +44,8 @@ static func clear_slot(index: int) -> void:
 	if _selected == index:
 		_selected = -1
 	_save()
+	ToonTasks.reset_slot(index)
+	ToonLoadout.reset_slot(index)
 
 
 static func selected_style() -> ToonStyle:

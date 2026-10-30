@@ -54,6 +54,20 @@ static func for_selected() -> ToonTasks:
 	return tasks
 
 
+## Make a Toon and deleting a slot both start the journal over.
+static func reset_slot(index: int) -> void:
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return
+	var tasks := ToonTasks.new()
+	tasks._slot = index
+	tasks.save()
+
+
+## Tom hands over the Laff meter before the first task. After that it stays up.
+func has_laff_meter() -> bool:
+	return has_book or not _active.is_empty() or not _done.is_empty()
+
+
 func assign(quest_id: int) -> void:
 	if not CATALOG.has(quest_id) or _is_active(quest_id) or _done.has(quest_id):
 		return
