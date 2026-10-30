@@ -23,9 +23,10 @@ const _SCENES: Dictionary = {
 	11000: "res://scenes/cog_hq/sellbot_courtyard.tscn",
 	12000: "res://scenes/cog_hq/cashbot_trainyard.tscn",
 	13000: "res://scenes/cog_hq/lawbot_courtyard.tscn",
-	16000: "res://scenes/playgrounds/toon_estate.tscn",
 	17000: "res://scenes/playgrounds/chip_n_dales_minigolf.tscn",
 }
+
+const ESTATE := 16000
 
 
 static func hood_of(zone_id: int) -> int:
@@ -34,12 +35,32 @@ static func hood_of(zone_id: int) -> int:
 
 static func scene_for(hood: int) -> String:
 	var key := hood_of(hood)
+	if key == ESTATE:
+		return estate_scene(ToonRoster.selected_index())
 	if _SCENES.has(key):
 		return String(_SCENES[key])
 	return String(_SCENES[TTC])
 
 
+static func estate_scene(slot: int) -> String:
+	return "res://scenes/playgrounds/estates/toon_estate_%d.tscn" % clampi(slot, 0, 5)
+
+
+static func house_scene(slot: int) -> String:
+	return "res://scenes/interiors/estates/house_interior_%d.tscn" % clampi(slot, 0, 5)
+
+
+static func is_estate(path: String) -> bool:
+	return path.contains("toon_estate")
+
+
+static func is_house(path: String) -> bool:
+	return path.contains("house_interior")
+
+
 static func hood_for_scene(path: String) -> int:
+	if is_house(path) or is_estate(path):
+		return ESTATE
 	var keys: Array = _SCENES.keys()
 	for i in keys.size():
 		var key := int(keys[i])

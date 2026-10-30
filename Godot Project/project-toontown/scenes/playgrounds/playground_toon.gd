@@ -7,9 +7,16 @@ extends Node
 
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
+const _TITLE := preload("res://scenes/places/zone_title.gd")
+const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _DOORS := preload("res://scenes/interiors/house_door.gd")
+# HouseGlobals.houseDrops headings, one lot per Pick a Toon slot.
+const _ESTATE_HEADING: Array[float] = [-90.0, 116.565, 77.1957, 356.6, 248.962, 36.8699]
 
 static var from_toontorial := false
 static var teleport_in := false
+# "in" loads this toon's house. "out" returns to the yard in front of the door.
+static var door_trip := ""
 
 const FORWARD_SPEED := 20.0
 const REVERSE_SPEED := 10.0
@@ -40,7 +47,14 @@ var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
 var _filming := false
+var _tunnel_ready := false
+var _door_ready := false
+var _from_door := ""
 var _tunnels: Array[Dictionary] = []
+var _shot := false
+var _shot_origin: Node3D
+var _shot_from := Vector3.ZERO
+var _shot_blend := 0.0
 var _tasks: ToonTasks
 var _loadout: ToonLoadout
 var _book: ShtickerBook
@@ -68,8 +82,11 @@ func _ready() -> void:
 	_tasks = ToonTasks.for_selected()
 	var arriving := from_toontorial
 	var logging_in := teleport_in
+	var from_door := door_trip
 	from_toontorial = false
 	teleport_in = false
+	door_trip = ""
+	_from_door = from_door
 	var incoming := _LINKS.arriving()
 	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
@@ -86,6 +103,16 @@ func _ready() -> void:
 	_collect_tunnels(get_parent())
 	_spawn(arriving or logging_in)
 	_ready_hud()
+	if from_door != "":
+		if _tasks.in_playground:
+			_tasks.note_hood(_hood)
+		_fade_in()
+		_DOORS.play_close(self)
+		_locked = false
+		_place_camera()
+		return
+	if arriving or logging_in or not trip.is_empty():
+		_show_zone_title()
 	if not trip.is_empty():
 		var origin := _match_arrival(String(trip["from_code"]), int(trip["from_zone"]))
 		if origin != null:
@@ -121,29 +148,30 @@ func _keep_quests() -> void:
 func _process(delta: float) -> void:
 	if not _active or _player == null:
 		return
-	_place_camera()
-	_place_line(delta)
 	if _filming:
 		_player.set_locomotion(_LINKS.run_speed(), false, false, delta)
+		if _shot and is_instance_valid(_shot_origin):
+			_aim_tunnel_camera(_shot_origin, _shot_from, _shot_blend)
 		_place_line(delta)
 		return
+	_place_camera()
+	_place_line(delta)
 
 
 func _physics_process(delta: float) -> void:
 	if not _active or _locked:
 		return
 	_walk(delta)
-
-
 	_try_tunnel()
+	_try_house_door()
 func _unhandled_input(event: InputEvent) -> void:
 	if not _active or _filming or _locked:
 		return
-	if event is InputEventKey:
-		var key := event as InputEventKey
-		if key.pressed and not key.echo and key.keycode == KEY_I:
-			if _book != null and _tasks != null and _tasks.book_ready():
-				_book.open_to_gags()
+	if event is InputEventKey and _KEYS.event_is(event, "book"):
+		if _book != null and _book.is_open():
+			_book.close()
+		elif _book != null and _tasks != null and _tasks.book_ready():
+			_book.open_to_gags()
 
 
 func show_notice(message: String) -> void:
@@ -199,6 +227,13 @@ func _current_hood() -> int:
 
 
 func _arrival_spot() -> Dictionary:
+	var scene_path := _scene_path()
+	if _PLACES.is_house(scene_path):
+		return _house_drop()
+	if _hood == _PLACES.ESTATE and _from_door == "out":
+		return _estate_door_drop()
+	if _hood == _PLACES.ESTATE:
+		return _estate_drop()
 	if _hood == _PLACES.TTC:
 		return {"point": _PLACES.drop_for(_hood), "heading": _PLACES.heading_for(_hood)}
 	if _PLACES.has_drop(_hood):
@@ -207,6 +242,135 @@ func _arrival_spot() -> Dictionary:
 			"heading": _PLACES.heading_for(_hood),
 		}
 	return _view_drop()
+
+
+func _scene_path() -> String:
+	var current := get_tree().current_scene
+	if current != null and not current.scene_file_path.is_empty():
+		return current.scene_file_path
+	if get_parent() != null:
+		return get_parent().scene_file_path
+	return ""
+
+
+func _estate_slot() -> int:
+	var host := get_parent()
+	if host != null and "estate_slot" in host:
+		return clampi(int(host.get("estate_slot")), 0, 5)
+	return clampi(ToonRoster.selected_index(), 0, 5)
+
+
+func _house_drop() -> Dictionary:
+	# DistributedDoor.avatarExitTrack finishes at (-doorX, -6) on the interior
+	# door, facing into the room.
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.35, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _snap_drop(point), "heading": float(drop["heading"])}
+
+
+func _estate_door_drop() -> Dictionary:
+	var house := _DOORS.find_house(get_parent(), _estate_slot())
+	if house == null:
+		return _estate_drop()
+	var origin := _DOORS.find_origin(house)
+	if origin == null:
+		return _estate_drop()
+	var drop: Dictionary = _DOORS.outside_drop(house, origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _snap_drop(point), "heading": float(drop["heading"])}
+
+
+func _try_house_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_house(scene_path)
+	if not inside and not _PLACES.is_estate(scene_path):
+		return
+	var slot := _estate_slot()
+	var origin: Node3D
+	var trigger := Vector3.ZERO
+	if inside:
+		origin = _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		trigger = _DOORS.inside_trigger(origin)
+	else:
+		var house := _DOORS.find_house(get_parent(), slot)
+		if house == null:
+			return
+		origin = _DOORS.find_origin(house)
+		if origin == null:
+			return
+		trigger = _DOORS.outside_trigger(house, origin)
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	var near := here.distance_to(Vector2(trigger.x, trigger.z)) <= 2.0
+	if not near:
+		_door_ready = true
+		return
+	if not _door_ready or not _KEYS.held("forward"):
+		return
+	_door_ready = false
+	if inside:
+		_leave_house(slot)
+	else:
+		_enter_house(slot)
+
+
+func _enter_house(slot: int) -> void:
+	_locked = true
+	var house := _DOORS.find_house(get_parent(), slot)
+	var door := _DOORS.find_door(house if house != null else get_parent())
+	_DOORS.open(self, door)
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	door_trip = "in"
+	get_tree().change_scene_to_file(_PLACES.house_scene(slot))
+
+
+func _leave_house(slot: int) -> void:
+	_locked = true
+	_DOORS.open(self, _DOORS.find_door(get_parent()))
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	door_trip = "out"
+	get_tree().change_scene_to_file(_PLACES.estate_scene(slot))
+
+
+func _fade_black() -> void:
+	var fade := _blackout()
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 1.0, 0.45)
+	await tween.finished
+
+
+func _estate_drop() -> Dictionary:
+	# Estate._teleportToHouse stands the toon at setPosHpr(house, 17, 3, 0, 125, 0, 0).
+	var slot := 0
+	var host := get_parent()
+	if host != null and "estate_slot" in host:
+		slot = clampi(int(host.get("estate_slot")), 0, 5)
+	var house := _find_house(host, "esHouse_%d" % slot)
+	var heading := _ESTATE_HEADING[slot] + 125.0
+	if house == null:
+		return {"point": _snap_drop(Vector3(23.875, 10.44, 13.052)), "heading": 7.52}
+	var point := house.to_global(Vector3(17.0, 3.0, 0.0))
+	return {"point": _snap_drop(point), "heading": heading}
+
+
+func _find_house(node: Node, wanted: String) -> Node3D:
+	if node == null:
+		return null
+	if str(node.name) == wanted and node is Node3D:
+		return node as Node3D
+	for child in node.get_children():
+		var found := _find_house(child, wanted)
+		if found != null:
+			return found
+	return null
 
 
 func _view_drop() -> Dictionary:
@@ -371,14 +535,14 @@ func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
 	var turn := 0.0
-	if Input.is_physical_key_pressed(KEY_A):
+	if _KEYS.held("left"):
 		turn += 1.0
-	if Input.is_physical_key_pressed(KEY_D):
+	if _KEYS.held("right"):
 		turn -= 1.0
 	_heading += turn * TURN_SPEED * delta
 	var speed := 0.0
-	var forward_held := Input.is_physical_key_pressed(KEY_W)
-	var back_held := Input.is_physical_key_pressed(KEY_S)
+	var forward_held := _KEYS.held("forward")
+	var back_held := _KEYS.held("back")
 	var turning := turn != 0.0
 	if forward_held and not back_held:
 		speed = FORWARD_SPEED
@@ -393,7 +557,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if Input.is_physical_key_pressed(KEY_CTRL) and _jump_lock <= 0.0:
+		if _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -463,7 +627,7 @@ func _steer_camera(event: InputEvent) -> void:
 			return
 		var yaw := -motion.relative.x * 0.18
 		_cam_pitch = clampf(_cam_pitch - motion.relative.y * 0.12, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
-		if right and Input.is_physical_key_pressed(KEY_W):
+		if right and _KEYS.held("forward"):
 			_heading += yaw
 		else:
 			_cam_yaw += yaw
@@ -580,24 +744,31 @@ func _hud() -> CanvasLayer:
 ## LocalToon.tunnelOut plays getTunnelOutToonTrack, then Place loads the
 ## other zone with how = tunnelIn. +Y of tunnel_origin points out of the shaft.
 func _try_tunnel() -> void:
-	if _filming or _body == null or not Input.is_physical_key_pressed(KEY_W):
+	if _filming or _body == null:
 		return
 	var best := -1
-	var best_gap := 9.0
+	var best_gap := 20.0
 	for i in _tunnels.size():
 		var entry: Dictionary = _tunnels[i]
 		var origin: Node3D = entry["origin"]
 		if not is_instance_valid(origin):
 			continue
 		var local := _LINKS.local_on(origin, _body.global_position)
-		if local.y < 0.5 or local.y > 8.0 or absf(local.x) > 7.0:
+		if not _LINKS.in_mouth(local):
 			continue
 		var gap := Vector2(local.x, local.y).length()
 		if gap < best_gap:
 			best_gap = gap
 			best = i
+	# HoodMgr listens for enter on the sphere, not overlap. Coming out of the
+	# shaft leaves the toon on the sidewalk, and the trip cannot start again
+	# until they have stepped clear and walked back in.
 	if best < 0:
+		_tunnel_ready = true
 		return
+	if not _tunnel_ready or not _KEYS.held("forward"):
+		return
+	_tunnel_ready = false
 	var chosen: Dictionary = _tunnels[best]
 	_filming = true
 	_locked = true
@@ -607,6 +778,8 @@ func _try_tunnel() -> void:
 
 func _leave_tunnel(entry: Dictionary) -> void:
 	var origin: Node3D = entry["origin"]
+	var scene_path := String(entry["scene"])
+	_LINKS.request_scene(scene_path)
 	var lateral := _LINKS.local_on(origin, _body.global_position).x
 	await _tunnel_out(origin, lateral)
 	if not is_inside_tree():
@@ -615,37 +788,47 @@ func _leave_tunnel(entry: Dictionary) -> void:
 	_LINKS.depart(from_zone, _LINKS.code_for_zone(from_zone), lateral)
 	if _tasks != null:
 		_tasks.note_hood(_LINKS.hood_of(int(entry["dest_zone"])))
-	get_tree().change_scene_to_file(String(entry["scene"]))
+	var packed := await _wait_scene(scene_path)
+	if packed != null:
+		get_tree().change_scene_to_packed(packed)
+	else:
+		get_tree().change_scene_to_file(scene_path)
 
 
+## LocalToon.tunnelOut is a short straight run plus a 2 second pivot. The
+## clock is wall time, so a slow frame skips ahead instead of stretching the
+## movie. The follow camera stays off; the shot is the tunnel mouth.
 func _tunnel_out(origin: Node3D, lateral: float) -> void:
 	var start := _LINKS.local_on(origin, _body.global_position)
 	var start_x := clampf(lateral * 0.95, -10.0, 10.0)
 	var straight := maxf(absf(start.y - (-6.0)) / _LINKS.run_speed(), 0.15)
-	var pivot_dur := 2.0
-	var total := straight + pivot_dur
+	var total := straight + 2.0
 	var fade := _blackout()
 	fade.color.a = 0.0
-	var cam_from := _camera.global_position
-	var elapsed := 0.0
-	var previous := Time.get_ticks_msec()
-	while elapsed < total:
+	_begin_shot(origin, _camera.global_position if _camera != null else Vector3.ZERO)
+	var started := Time.get_ticks_msec()
+	while true:
 		await get_tree().process_frame
 		if not is_instance_valid(origin) or _body == null:
+			_shot = false
 			return
-		var now := Time.get_ticks_msec()
-		var delta := clampf(float(now - previous) / 1000.0, 0.0, 0.05)
-		previous = now
-		elapsed += delta
-		var point := _out_point(origin, start, start_x, straight, elapsed)
-		_body.global_position = point
+		var elapsed := float(Time.get_ticks_msec() - started) / 1000.0
+		var done := elapsed >= total
+		if done:
+			elapsed = total
+		_body.global_position = _out_point(origin, start, start_x, straight, elapsed)
 		_heading = _heading_toward(_out_facing(origin, start, start_x, straight, elapsed))
 		_face(_player, _heading)
-		_aim_tunnel_camera(origin, cam_from, clampf(elapsed / 1.0, 0.0, 1.0))
+		_shot_blend = clampf(elapsed / 1.0, 0.0, 1.0)
 		if elapsed >= total - 0.5:
 			fade.color.a = clampf((elapsed - (total - 0.5)) / 0.4, 0.0, 1.0)
+		if done:
+			break
+	_shot = false
 
 
+## getTunnelInToonTrack is 0.8 seconds already swung, a 2 second unwind, then
+## 0.55 seconds straight out to local Y 5.
 func _tunnel_in(origin: Node3D, lateral: float) -> void:
 	var end_x := clampf(lateral * 0.8, -10.0, 10.0)
 	var fade := _blackout()
@@ -653,27 +836,72 @@ func _tunnel_in(origin: Node3D, lateral: float) -> void:
 	_body.global_position = _in_point(origin, end_x, 0.0)
 	_heading = _heading_toward(origin.global_basis.y)
 	_face(_player, _heading)
-	_aim_tunnel_camera(origin, _camera.global_position, 1.0)
+	_begin_shot(origin, _camera.global_position if _camera != null else Vector3.ZERO)
+	_shot_blend = 1.0
 	var total := _LINKS.in_length()
-	var elapsed := 0.0
-	var previous := Time.get_ticks_msec()
-	while elapsed < total:
+	var started := Time.get_ticks_msec()
+	while true:
 		await get_tree().process_frame
 		if not is_instance_valid(origin) or _body == null:
+			_shot = false
 			return
-		var now := Time.get_ticks_msec()
-		var delta := clampf(float(now - previous) / 1000.0, 0.0, 0.05)
-		previous = now
-		elapsed += delta
+		var elapsed := float(Time.get_ticks_msec() - started) / 1000.0
+		var done := elapsed >= total
+		if done:
+			elapsed = total
 		_body.global_position = _in_point(origin, end_x, elapsed)
 		_heading = _heading_toward(_in_facing(origin, end_x, elapsed))
 		_face(_player, _heading)
-		_aim_tunnel_camera(origin, _camera.global_position, 1.0)
 		fade.color.a = 1.0 - clampf(elapsed / 0.4, 0.0, 1.0)
+		if done:
+			break
+	_shot = false
 	fade.queue_free()
 	_home = _body.global_position
 	_home_heading = _heading
 	_snap_feet()
+
+
+func _begin_shot(origin: Node3D, cam_from: Vector3) -> void:
+	_shot = true
+	_shot_origin = origin
+	_shot_from = cam_from
+	_shot_blend = 0.0
+	_aim_tunnel_camera(origin, cam_from, 0.0)
+
+
+func _wait_scene(path: String) -> PackedScene:
+	var started := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - started < 20000:
+		var packed := _LINKS.take_scene(path)
+		if packed != null:
+			return packed
+		var status := ResourceLoader.load_threaded_get_status(path)
+		if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			return null
+		await get_tree().process_frame
+	return null
+
+
+## Hood.doSpawnTitleText. A tunnel or a teleport into a street, playground, or
+## Cog HQ shows the two-line sign. A door that stays in the same playground
+## does not load this scene again, so it does not show the title.
+func _show_zone_title() -> void:
+	var scene_path := ""
+	var current := get_tree().current_scene
+	if current != null:
+		scene_path = current.scene_file_path
+	if scene_path.is_empty() and get_parent() != null:
+		scene_path = get_parent().scene_file_path
+	var info := _TITLE.caption(scene_path)
+	# EstateHood.spawnTitleText does nothing. Go Home still uses the map line.
+	if info.is_empty() or _PLACES.is_estate(scene_path) or _PLACES.is_house(scene_path) or _hud().get_node_or_null("ZoneTitle") != null:
+		return
+	var title := _TITLE.new() as Control
+	title.name = "ZoneTitle"
+	_hud().add_child(title)
+	var tint: Color = info["color"]
+	title.call("open", String(info["text"]), tint)
 
 
 func _out_point(origin: Node3D, start: Vector3, start_x: float, straight: float, elapsed: float) -> Vector3:
@@ -753,6 +981,7 @@ func _walk_tunnels(node: Node) -> void:
 		var scene := _LINKS.scene_for_zone(int(parsed["zone"]))
 		var from_zone := _zone_above(node)
 		if origin != null and scene != "" and from_zone >= 1000:
+			_LINKS.request_scene(scene)
 			_tunnels.append({
 				"origin": origin,
 				"dest_zone": int(parsed["zone"]),

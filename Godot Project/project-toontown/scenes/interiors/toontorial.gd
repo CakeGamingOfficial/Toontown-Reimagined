@@ -8,6 +8,7 @@ const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const MUSIC_PATH := "res://assets/neighborhoods/tutorial_zone/audio/TC_SZ.ogg"
 const MUSIC_VOLUME := 0.8
 
@@ -65,6 +66,7 @@ var _return_spot := Vector3(-22.0, -0.4, -24.5)
 var _return_heading := 180.0
 var _gate: StaticBody3D
 var _shaft: Node3D
+var _tunnel_ready := false
 var _door_dialog: Control
 var _door_stopped := false
 var _gate_armed := true
@@ -397,10 +399,10 @@ func _add_floor_slab(faces: PackedVector3Array) -> void:
 func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
-	var forward_held := Input.is_physical_key_pressed(KEY_W)
-	var back_held := Input.is_physical_key_pressed(KEY_S)
-	var left_held := Input.is_physical_key_pressed(KEY_A)
-	var right_held := Input.is_physical_key_pressed(KEY_D)
+	var forward_held := _KEYS.held("forward")
+	var back_held := _KEYS.held("back")
+	var left_held := _KEYS.held("left")
+	var right_held := _KEYS.held("right")
 	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	# Right-click turns the side keys into a full run across the camera.
 	var strafe := 0.0
@@ -445,7 +447,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if Input.is_physical_key_pressed(KEY_CTRL) and _jump_lock <= 0.0:
+		if _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -552,7 +554,7 @@ func _steer_camera(event: InputEvent) -> void:
 		var yaw := -motion.relative.x * 0.18
 		# Down looks down. The camera climbs the sphere and stays aimed at the toon.
 		_cam_pitch = clampf(_cam_pitch + motion.relative.y * 0.1, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
-		var steering := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_S)
+		var steering := _KEYS.held("forward") or _KEYS.held("back")
 		if right and steering:
 			# Forward and back keep the camera behind the toon and follow the drag.
 			if not _cam_steering:
@@ -887,12 +889,15 @@ func _approach_tom() -> void:
 	var here := Vector2(_body.position.x, _body.position.z)
 	var there := Vector2(tom.position.x, tom.position.z)
 	var distance := here.distance_to(there)
-	var pushing := Input.is_physical_key_pressed(KEY_W) and _body.get_real_velocity().length() < 0.4
+	var pushing := _KEYS.held("forward") and _body.get_real_velocity().length() < 0.4
 	if distance < 8.0 or (distance < 12.0 and pushing):
 		_briefing.start()
 
 
 func _open_plaza() -> void:
+	# The playground loads while the toon is still on the street, so the
+	# tunnel iris is not stuck on a black screen.
+	_LINKS.request_scene(_PLACES.scene_for(_PLACES.TTC))
 	# A toon who already has the book comes back on the street outside HQ,
 	# looking down toward the tunnel, instead of starting over in the shop.
 	if get_node_or_null("TutorialStreet") == null:
@@ -957,7 +962,7 @@ func _consider_flippy() -> void:
 	var here := Vector2(_body.global_position.x, _body.global_position.z)
 	var there := Vector2(flippy.global_position.x, flippy.global_position.z)
 	var distance := here.distance_to(there)
-	var pushing := Input.is_physical_key_pressed(KEY_W) and _body.get_real_velocity().length() < 0.4
+	var pushing := _KEYS.held("forward") and _body.get_real_velocity().length() < 0.4
 	if distance < 8.0 or (distance < 12.0 and pushing):
 		var movie := TutorialFlippy.new()
 		movie.name = "FlippyMovie"
@@ -1004,7 +1009,7 @@ func _try_door() -> void:
 	if not _briefing.finished:
 		_try_locked_door(here)
 		return
-	if not Input.is_physical_key_pressed(KEY_W):
+	if not _KEYS.held("forward"):
 		return
 	if here.distance_to(_DOOR) > 4.5 or _body.position.x < -16.5:
 		return
@@ -1049,7 +1054,7 @@ func _pushing_the_gate() -> bool:
 		var hit := _body.get_slide_collision(index)
 		if hit.get_collider() == _gate:
 			return true
-	return Input.is_physical_key_pressed(KEY_W) and Vector2(_body.position.x, _body.position.z).distance_to(_DOOR) < 2.6
+	return _KEYS.held("forward") and Vector2(_body.position.x, _body.position.z).distance_to(_DOOR) < 2.6
 
 
 func show_notice(message: String) -> void:
@@ -1140,14 +1145,16 @@ func _try_tunnel() -> void:
 		return
 	if not _tasks.met_flippy or get_node_or_null("TunnelExit") != null:
 		return
-	if not Input.is_physical_key_pressed(KEY_W):
-		return
 	var origin := _shaft_origin()
 	if origin == null:
 		return
 	var local := _LINKS.local_on(origin, _body.global_position)
-	if local.y < 0.5 or local.y > 8.0 or absf(local.x) > 7.0:
+	if not _LINKS.in_mouth(local):
+		_tunnel_ready = true
 		return
+	if not _tunnel_ready or not _KEYS.held("forward"):
+		return
+	_tunnel_ready = false
 	var exit: Node = (load("res://scenes/interiors/tutorial_tunnel.gd") as GDScript).new()
 	exit.name = "TunnelExit"
 	add_child(exit)
@@ -1162,17 +1169,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _battle != null and _battle.active():
 		return
-	if event is InputEventKey:
-		var key := event as InputEventKey
-		if key.pressed and not key.echo and key.keycode == KEY_I:
-			if _book != null and _tasks != null and _tasks.book_ready():
-				_book.open_to_gags()
-				return
-			_panel.visible = not _panel.visible
-			_panel.scale = Vector2.ONE
-			if _panel.visible:
-				var view := get_viewport().get_visible_rect().size
-				_panel.position = (view - _panel.size) * 0.5
+	if event is InputEventKey and _KEYS.event_is(event, "book"):
+		if _book != null and _book.is_open():
+			_book.close()
+			return
+		if _book != null and _tasks != null and _tasks.book_ready():
+			_book.open_to_gags()
+			return
+		_panel.visible = not _panel.visible
+		_panel.scale = Vector2.ONE
+		if _panel.visible:
+			var view := get_viewport().get_visible_rect().size
+			_panel.position = (view - _panel.size) * 0.5
 
 
 

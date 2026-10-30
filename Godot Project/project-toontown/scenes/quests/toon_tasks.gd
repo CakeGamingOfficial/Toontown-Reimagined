@@ -41,6 +41,7 @@ var met_flippy := false
 var in_playground := false
 ## Hood id from DistributedToonAI.setLocation. 2000 is Toontown Central.
 var last_hood := 0
+var visited: Array[int] = []
 
 var _slot := -1
 var _active: Array[Dictionary] = []
@@ -158,10 +159,25 @@ func note_hood(hood: int) -> void:
 	if not in_playground:
 		return
 	var canonical := hood - posmod(hood, 1000)
-	if canonical < 1000 or canonical == last_hood:
+	if canonical < 1000:
+		return
+	if canonical == last_hood:
+		_remember(canonical)
 		return
 	last_hood = canonical
+	_remember(canonical)
 	save()
+
+
+func has_visited(hood: int) -> bool:
+	return visited.has(hood - posmod(hood, 1000))
+
+
+func _remember(hood: int) -> void:
+	var canonical := hood - posmod(hood, 1000)
+	if canonical < 1000 or visited.has(canonical):
+		return
+	visited.append(canonical)
 
 
 ## One task at a time in the toontorial. SpeedChat's MY TASKS reads these lines.
@@ -195,7 +211,7 @@ func save() -> void:
 		"met_flippy": met_flippy,
 		"in_playground": in_playground,
 		"last_hood": last_hood,
-		"active": active,
+		"visited": visited.duplicate(),
 		"done": _done.duplicate(),
 	}
 	root["slots"] = slots
@@ -223,6 +239,7 @@ func _remove(quest_id: int) -> void:
 func _load() -> void:
 	_active = []
 	_done = []
+	visited = []
 	has_book = false
 	met_flippy = false
 	in_playground = false
@@ -242,6 +259,10 @@ func _load() -> void:
 		last_hood = 2000
 	for quest_id in stored.get("done", []):
 		_done.append(int(quest_id))
+	for item in stored.get("visited", []):
+		_remember(int(item))
+	if visited.is_empty() and in_playground:
+		_remember(last_hood)
 	for entry in stored.get("active", []):
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue

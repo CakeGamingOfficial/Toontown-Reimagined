@@ -36,9 +36,16 @@ func play(host: Node) -> void:
 	if host.has_method("set_cutscene"):
 		host.call("set_cutscene", true)
 	_body.velocity = Vector3.ZERO
+	_LINKS.request_scene(_PLAYGROUND)
 	await _tunnel_out(origin)
+	if not is_inside_tree():
+		return
+	var packed := await _wait_scene()
 	_ARRIVAL.from_toontorial = true
-	get_tree().change_scene_to_file(_PLAYGROUND)
+	if packed != null:
+		get_tree().change_scene_to_packed(packed)
+	else:
+		get_tree().change_scene_to_file(_PLAYGROUND)
 
 
 func _tunnel_out(origin: Node3D) -> void:
@@ -51,16 +58,19 @@ func _tunnel_out(origin: Node3D) -> void:
 	var cam_from := Vector3.ZERO
 	if _camera != null:
 		cam_from = _camera.global_position
-	var elapsed := 0.0
-	var previous := Time.get_ticks_msec()
-	while elapsed < total:
+	var started := Time.get_ticks_msec()
+	var previous := started
+	while true:
 		await get_tree().process_frame
 		if not is_instance_valid(origin) or not is_instance_valid(_body):
 			return
 		var now := Time.get_ticks_msec()
-		var delta := clampf(float(now - previous) / 1000.0, 0.0, 0.05)
+		var elapsed := float(now - started) / 1000.0
+		var frame := clampf(float(now - previous) / 1000.0, 0.0, 0.1)
 		previous = now
-		elapsed += delta
+		var done := elapsed >= total
+		if done:
+			elapsed = total
 		var local := _LINKS.out_local(start, start_x, straight, elapsed)
 		_body.global_position = _LINKS.world_on(origin, local)
 		var ahead := _LINKS.out_local(start, start_x, straight, elapsed + 0.05)
@@ -71,10 +81,25 @@ func _tunnel_out(origin: Node3D) -> void:
 			facing = step.normalized()
 		_face(_LINKS.heading_of(facing))
 		if is_instance_valid(_player):
-			_player.set_locomotion(_LINKS.run_speed(), false, false, delta)
+			_player.set_locomotion(_LINKS.run_speed(), false, false, frame)
 		_aim_camera(origin, cam_from, clampf(elapsed / 1.0, 0.0, 1.0))
 		if elapsed >= total - 0.5:
 			fade.color.a = clampf((elapsed - (total - 0.5)) / 0.4, 0.0, 1.0)
+		if done:
+			break
+
+
+func _wait_scene() -> PackedScene:
+	var started := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - started < 20000:
+		var packed := _LINKS.take_scene(_PLAYGROUND)
+		if packed != null:
+			return packed
+		var status := ResourceLoader.load_threaded_get_status(_PLAYGROUND)
+		if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			return null
+		await get_tree().process_frame
+	return null
 
 
 func _aim_camera(origin: Node3D, cam_from: Vector3, blend: float) -> void:

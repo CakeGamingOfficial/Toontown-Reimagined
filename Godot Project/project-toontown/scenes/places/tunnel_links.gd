@@ -103,6 +103,36 @@ static func scene_for_zone(zone_id: int) -> String:
 	return ""
 
 
+static func zone_for_scene(path: String) -> int:
+	var keys: Array = _BRANCH.keys()
+	for i in keys.size():
+		var key := int(keys[i])
+		if String(_BRANCH[key]) == path:
+			return key
+	return 0
+
+
+## Start the destination while the tunnel movie is still playing, so the iris
+## is the only black frame. A scene that is already in the cache is skipped.
+static func request_scene(path: String) -> void:
+	if path.is_empty() or ResourceLoader.has_cached(path):
+		return
+	var status := ResourceLoader.load_threaded_get_status(path)
+	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS or status == ResourceLoader.THREAD_LOAD_LOADED:
+		return
+	ResourceLoader.load_threaded_request(path)
+
+
+static func take_scene(path: String) -> PackedScene:
+	if path.is_empty():
+		return null
+	if ResourceLoader.has_cached(path):
+		return load(path) as PackedScene
+	if ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_LOADED:
+		return null
+	return ResourceLoader.load_threaded_get(path) as PackedScene
+
+
 static func code_for_zone(zone_id: int) -> String:
 	var hood := hood_of(zone_id)
 	if _CODE.has(hood):
@@ -112,6 +142,13 @@ static func code_for_zone(zone_id: int) -> String:
 
 static func run_speed() -> float:
 	return _FORWARD
+
+
+## tunnel_origin +Y points out of the shaft onto the street. The original
+## tunnel_sphere sits inside the opening, and tunnel in finishes at local Y 5
+## on the sidewalk. The trip starts only after the toon steps into the shaft.
+static func in_mouth(local: Vector3) -> bool:
+	return local.y <= -0.35 and local.y >= -8.5 and absf(local.x) <= 7.0 and absf(local.z) <= 4.0
 
 
 const _PIVOT_X := -14.0

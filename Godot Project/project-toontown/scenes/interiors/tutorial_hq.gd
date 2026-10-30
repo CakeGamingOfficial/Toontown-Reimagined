@@ -5,6 +5,7 @@ extends Node
 ## the way DistributedHQInterior.generate leaves them. HQ Harry stands on
 ## npc_origin_0.
 
+const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const INTERIOR_PATH := "res://assets/interiors/hq/hq_interior.glb"
 const COLLISION_PATH := "res://assets/interiors/hq/collision.json"
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"

@@ -6,11 +6,15 @@ extends Node3D
 ## A zones_path turns on the original visgroup stash for that street.
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
+const _DOORS := preload("res://scenes/interiors/house_door.gd")
+const _PLACES := preload("res://scenes/places/hood_places.gd")
 const MUSIC_VOLUME := 0.8
 
 @export var music_path := ""
 @export var sky_kind := "tt"
 @export var zones_path := ""
+# Pick a Toon slot that owns this estate. -1 keeps every house lot.
+@export var estate_slot := -1
 
 var _zones: Dictionary = {}
 var _zone_nodes: Dictionary = {}
@@ -24,9 +28,35 @@ func _ready() -> void:
 	_ready_zones()
 	if Engine.is_editor_hint():
 		return
+	if estate_slot >= 0:
+		_keep_estate_house(estate_slot)
+		_DOORS.ensure_exterior(self, estate_slot)
+		var house := _DOORS.find_house(self, estate_slot)
+		if house != null:
+			_DOORS.seal(house)
+	elif _PLACES.is_house(scene_file_path):
+		_DOORS.seal(self)
 	_ready_music()
 	_ready_billboards()
 	_attach_returning_toon()
+
+
+func _keep_estate_house(slot: int) -> void:
+	# EstateLoader.loadHouses builds six lots. A toon's own estate keeps the
+	# lot at HouseGlobals.houseDrops[slot] and leaves the others empty.
+	var kept := "esHouse_%d" % clampi(slot, 0, 5)
+	var extra: Array[Node] = []
+	_collect_other_houses(self, kept, extra)
+	for house in extra:
+		house.free()
+
+
+func _collect_other_houses(node: Node, kept: String, extra: Array[Node]) -> void:
+	for child in node.get_children():
+		if str(child.name).begins_with("esHouse_") and str(child.name) != kept:
+			extra.append(child)
+		else:
+			_collect_other_houses(child, kept, extra)
 
 
 func _attach_returning_toon() -> void:
