@@ -791,13 +791,18 @@ func _refresh_map() -> void:
 		zone = _PLACES.hood_for_scene(scene_path)
 	var hood_id := _LINKS.hood_of(zone) if zone > 0 else 0
 	var on_street := zone > 0 and zone != hood_id
-	_go_back.visible = on_street and not _guided
+	var at_home := _PLACES.is_estate(scene_path) or _PLACES.is_house(scene_path)
+	var dest := hood_id
+	if at_home and _tasks != null:
+		dest = _tasks.return_hood()
+	# MapPage shows Back to Playground everywhere except a playground itself.
+	# The estate yard and the house are not playgrounds.
+	_go_back.visible = not _guided and (on_street or (at_home and dest > 0))
 	var back_caption := _go_back.get_child(0) as Label
-	if hood_id >= 10000:
+	if dest >= 10000 and dest < 16000:
 		back_caption.text = "Back to Cog Headquarters"
 	else:
 		back_caption.text = "Back to Playground"
-	var at_home := hood_id == 16000
 	_go_home.visible = not _guided and _tasks != null and _tasks.in_playground and not at_home
 
 
@@ -823,6 +828,14 @@ func _back_to_hood() -> void:
 	var current := get_tree().current_scene
 	if current != null:
 		scene_path = current.scene_file_path
+	if _PLACES.is_estate(scene_path) or _PLACES.is_house(scene_path):
+		if _tasks == null:
+			return
+		var dest := _tasks.return_hood()
+		if dest == 0:
+			return
+		_travel(dest)
+		return
 	var zone := _LINKS.zone_for_scene(scene_path)
 	if zone == 0:
 		return
@@ -831,6 +844,12 @@ func _back_to_hood() -> void:
 
 func _travel(hood: int) -> void:
 	if _guided:
+		return
+	var scene := get_tree().current_scene
+	var arrival: Node = scene.get_node_or_null("PlaygroundToon") if scene != null else null
+	if arrival != null and arrival.has_method("teleport_to_hood"):
+		close()
+		arrival.call("teleport_to_hood", hood)
 		return
 	_ARRIVAL.teleport_in = true
 	if _tasks != null:

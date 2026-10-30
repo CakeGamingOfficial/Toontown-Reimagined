@@ -3,19 +3,33 @@ extends Node
 ## Place.enterTeleportIn plays Toon.getTeleportInTrack. A trolley task in
 ## Toontown Central pops up at an initial drop point. Logging in from Pick a
 ## Toon uses the same hole, at the last playground or Cog HQ. The hole is the
-## same disc Tutorial Tom leaves through.
+## same disc Tutorial Tom leaves through. Map teleports throw the portable
+## hole instead: Toon.getTeleportOutTrack, then getTeleportInTrack on arrival.
 
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
+const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
+const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
+const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
+# Toon.getTeleportOutTrack / getTeleportInTrack, in seconds.
+const _OUT_TIME := 3.4
+const _SOUND_AT := 0.5
+const _DROP_AT := 1.708
+const _IN_OPEN := 0.3
+const _IN_HOLD := 0.6
+const _JUMP_FROM := 0.45
 # HouseGlobals.houseDrops headings, one lot per Pick a Toon slot.
 const _ESTATE_HEADING: Array[float] = [-90.0, 116.565, 77.1957, 356.6, 248.962, 36.8699]
 
 static var from_toontorial := false
 static var teleport_in := false
+# Set with teleport_in when the map threw a portal. Arrival then plays
+# getTeleportInTrack instead of the login disc.
+static var portal_in := false
 # "in" loads this toon's house. "out" returns to the yard in front of the door.
 static var door_trip := ""
 
@@ -48,6 +62,7 @@ var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
 var _filming := false
+var _portaling := false
 var _tunnel_ready := false
 var _door_ready := false
 var _bank_ready := false
@@ -55,6 +70,7 @@ var _bank_ready := false
 # DistributedBank listens for enter on bankSphere.
 const _BANK_REACH := 4.0
 var _from_door := ""
+var _shop_trip := ""
 var _tunnels: Array[Dictionary] = []
 var _shot := false
 var _shot_origin: Node3D
@@ -87,11 +103,16 @@ func _ready() -> void:
 	_tasks = ToonTasks.for_selected()
 	var arriving := from_toontorial
 	var logging_in := teleport_in
+	var from_portal := portal_in
 	var from_door := door_trip
+	var from_shop := String(_SHOP.trip)
 	from_toontorial = false
 	teleport_in = false
+	portal_in = false
 	door_trip = ""
+	_SHOP.trip = ""
 	_from_door = from_door
+	_shop_trip = from_shop
 	var incoming := _LINKS.arriving()
 	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
@@ -101,6 +122,7 @@ func _ready() -> void:
 		trip = _LINKS.take()
 	_active = true
 	_hood = _current_hood()
+	_SHOP.prepare(get_parent(), _hood)
 	var window := get_tree().root
 	if not window.close_requested.is_connected(_keep_quests):
 		window.close_requested.connect(_keep_quests)
@@ -108,7 +130,7 @@ func _ready() -> void:
 	_collect_tunnels(get_parent())
 	_spawn(arriving or logging_in)
 	_ready_hud()
-	if from_door != "":
+	if from_door != "" or from_shop != "":
 		if _tasks.in_playground:
 			_tasks.note_hood(_hood)
 		_fade_in()
@@ -133,8 +155,11 @@ func _ready() -> void:
 	elif _tasks.in_playground:
 		_tasks.note_hood(_hood)
 	if arriving or logging_in:
-		_fade_in()
-		await _pop_up()
+		if from_portal:
+			await _portal_in()
+		else:
+			_fade_in()
+			await _pop_up()
 	_locked = false
 	_place_camera()
 
@@ -153,6 +178,10 @@ func _keep_quests() -> void:
 func _process(delta: float) -> void:
 	if not _active or _player == null:
 		return
+	if _portaling:
+		_place_camera()
+		_place_line(delta)
+		return
 	if _filming:
 		_player.set_locomotion(_LINKS.run_speed(), false, false, delta)
 		if _shot and is_instance_valid(_shot_origin):
@@ -169,6 +198,7 @@ func _physics_process(delta: float) -> void:
 	_walk(delta)
 	_try_tunnel()
 	_try_house_door()
+	_try_gag_door()
 	_try_bank()
 
 
@@ -247,6 +277,10 @@ func _current_hood() -> int:
 
 func _arrival_spot() -> Dictionary:
 	var scene_path := _scene_path()
+	if _shop_trip == "out":
+		return _shop_outside_drop()
+	if _PLACES.is_gag_shop(scene_path):
+		return _shop_inside_drop()
 	if _PLACES.is_house(scene_path):
 		return _house_drop()
 	if _hood == _PLACES.ESTATE and _from_door == "out":
@@ -370,6 +404,105 @@ func _try_house_door() -> void:
 		_leave_house(slot)
 	else:
 		_enter_house(slot)
+
+
+func _try_gag_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_gag_shop(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	if inside:
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		# The round door is the doorway. Standing against it is close enough.
+		trigger = origin.global_position
+	else:
+		var building := _SHOP.find_building(get_parent())
+		if building == null:
+			return
+		var door := _SHOP.find_exterior_door(building)
+		if door == null:
+			return
+		trigger = _SHOP.outside_trigger(building, door)
+		reach = 2.4
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_door_ready = true
+		return
+	if not _door_ready or not _KEYS.held("forward"):
+		return
+	_door_ready = false
+	if inside:
+		_leave_shop()
+	else:
+		_enter_shop()
+
+
+func _enter_shop() -> void:
+	_locked = true
+	var building := _SHOP.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _SHOP.find_exterior_door(building)
+	_SHOP.open(self, door)
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_SHOP.hood = _hood
+	_SHOP.trip = "in"
+	get_tree().change_scene_to_file(_PLACES.gag_shop_scene())
+
+
+func _leave_shop() -> void:
+	_locked = true
+	_SHOP.open(self, _SHOP.find_interior_door(get_parent()))
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_SHOP.trip = "out"
+	get_tree().change_scene_to_file(_PLACES.scene_for(_SHOP.hood))
+
+
+func _shop_inside_drop() -> Dictionary:
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _shop_outside_drop() -> Dictionary:
+	var building := _SHOP.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var door := _SHOP.find_exterior_door(building)
+	if door == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _SHOP.outside_drop(building, door)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _shop_floor(point: Vector3) -> Vector3:
+	# A tall ray lands on the awning or the shop ceiling. Start just overhead.
+	var parent := get_parent() as Node3D
+	if parent == null:
+		return point
+	var world := parent.get_world_3d()
+	if world == null:
+		return point
+	var query := PhysicsRayQueryParameters3D.create(point + Vector3(0.0, 2.0, 0.0), point + Vector3(0.0, -6.0, 0.0))
+	query.collide_with_areas = false
+	var hit := world.direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return point
+	var landed: Vector3 = hit["position"]
+	if landed.y > point.y + 1.2:
+		return point
+	landed.y += 0.05
+	return landed
 
 
 func _enter_house(slot: int) -> void:
@@ -527,6 +660,134 @@ func _pop_up() -> void:
 	pivot.queue_free()
 	hole.queue_free()
 	_cache_eye_height()
+
+
+## MapPage teleports throw the hole, then jump in. The scene changes when the
+## track finishes, and the next place plays the jump back out.
+func teleport_to_hood(hood: int) -> void:
+	if _portaling or not _active or _player == null or _body == null:
+		return
+	if _book != null:
+		_book.close()
+	_locked = true
+	_filming = true
+	_portaling = true
+	_body.velocity = Vector3.ZERO
+	_player.set_look_enabled(false)
+	_show_shadow(false)
+	var portal := _make_portal()
+	var hand := _find(_player, "def_joint_right_hold")
+	if hand == null:
+		_player.add_child(portal)
+	else:
+		hand.add_child(portal)
+	portal.transform = Transform3D.IDENTITY
+	portal.call("pose_at", 0.0)
+	var sounded := false
+	var dropped := false
+	var elapsed := 0.0
+	while elapsed < _OUT_TIME:
+		_player.set_hole_clip(true, _player.global_position.y)
+		_player.pose_action("teleport", elapsed)
+		portal.call("pose_at", elapsed)
+		if elapsed >= _SOUND_AT and not sounded:
+			sounded = true
+			_play_teleport_sound()
+		if elapsed >= _DROP_AT and not dropped:
+			dropped = true
+			portal.reparent(_player, true)
+		_place_camera()
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		elapsed += get_process_delta_time()
+	if is_instance_valid(portal):
+		portal.queue_free()
+	portal_in = true
+	teleport_in = true
+	if _tasks != null:
+		_tasks.note_hood(hood)
+	get_tree().change_scene_to_file(_PLACES.scene_for(hood))
+
+
+func _portal_in() -> void:
+	if _player == null or _body == null:
+		return
+	_portaling = true
+	_filming = true
+	_locked = true
+	_player.set_look_enabled(false)
+	_show_shadow(false)
+	_player.pose_action("teleport", _player.action_length("teleport"))
+	var portal := _make_portal()
+	_body.add_child(portal)
+	portal.global_transform = _player.global_transform
+	portal.global_position = _player.to_global(Vector3(0.0, -2.4, 0.0))
+	portal.call("pose_at", _OUT_TIME)
+	var leap := _player.action_length("leap")
+	var total := _IN_OPEN + _IN_HOLD + _IN_OPEN
+	if leap > _JUMP_FROM:
+		total = maxf(total, _IN_OPEN + (leap - _JUMP_FROM))
+	var elapsed := 0.0
+	var shown := false
+	while elapsed < total:
+		portal.call("pose_at", _arrival_hole_time(elapsed))
+		if elapsed >= _IN_OPEN and not shown:
+			shown = true
+			_player.visible = true
+		if shown:
+			_player.pose_action("leap", _JUMP_FROM + (elapsed - _IN_OPEN))
+		_place_camera()
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		elapsed += get_process_delta_time()
+	if is_instance_valid(portal):
+		portal.queue_free()
+	_player.end_action("leap")
+	_player.end_action("teleport")
+	_player.visible = true
+	_player.set_look_enabled(true)
+	_show_shadow(true)
+	_face(_player, _heading)
+	_portaling = false
+	_filming = false
+	_cache_eye_height()
+
+
+func _arrival_hole_time(elapsed: float) -> float:
+	if elapsed < _IN_OPEN:
+		return lerpf(_OUT_TIME, 3.1, elapsed / _IN_OPEN)
+	if elapsed < _IN_OPEN + _IN_HOLD:
+		return 3.1
+	var shut := clampf((elapsed - _IN_OPEN - _IN_HOLD) / _IN_OPEN, 0.0, 1.0)
+	return lerpf(3.1, _OUT_TIME, shut)
+
+
+func _make_portal() -> Node3D:
+	var portal: Node3D = _PORTAL.new() as Node3D
+	portal.name = "TeleportPortal"
+	portal.call("setup")
+	return portal
+
+
+func _play_teleport_sound() -> void:
+	var stream := load(_TELEPORT_SFX) as AudioStream
+	if stream == null:
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
+
+
+func _show_shadow(shown: bool) -> void:
+	if _player == null:
+		return
+	var shadow := _find(_player, "drop_shadow")
+	if shadow != null:
+		shadow.visible = shown
 
 
 func _hole() -> MeshInstance3D:

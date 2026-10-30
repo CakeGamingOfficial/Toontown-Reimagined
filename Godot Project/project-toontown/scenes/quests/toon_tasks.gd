@@ -169,11 +169,12 @@ func note_playground() -> void:
 
 
 ## setLocation writes the playground or Cog HQ the toon is standing in.
+## The estate uses a dynamic zone, so going home does not replace lastHood.
 func note_hood(hood: int) -> void:
 	if not in_playground:
 		return
 	var canonical := hood - posmod(hood, 1000)
-	if canonical < 1000:
+	if canonical < 1000 or canonical == 16000:
 		return
 	if canonical == last_hood:
 		_remember(canonical)
@@ -181,6 +182,26 @@ func note_hood(hood: int) -> void:
 	last_hood = canonical
 	_remember(canonical)
 	save()
+
+
+## MapPage.backToSafeZone teleports to lastHood. A visit home leaves that hood
+## in place. An older save may have stored the estate itself; skip that.
+func return_hood() -> int:
+	if _returnable(last_hood):
+		return last_hood
+	var found := 0
+	for hood in visited:
+		if _returnable(hood):
+			found = hood
+	if found != 0:
+		return found
+	if in_playground:
+		return 2000
+	return 0
+
+
+func _returnable(hood: int) -> bool:
+	return hood >= 1000 and hood != 16000
 
 
 func has_visited(hood: int) -> bool:
@@ -226,6 +247,7 @@ func save() -> void:
 		"in_playground": in_playground,
 		"last_hood": last_hood,
 		"visited": visited.duplicate(),
+		"active": active,
 		"done": _done.duplicate(),
 	}
 	root["slots"] = slots
@@ -287,6 +309,19 @@ func _load() -> void:
 			"id": quest_id,
 			"progress": int(entry.get("progress", 0)),
 		})
+	var repaired := false
+	# Finishing the Flunky task is what ends the toontorial. A save that kept
+	# that and lost the playground flag must not start Tom's lesson over.
+	if _done.has(101) and not in_playground:
+		in_playground = true
+		if last_hood == 0:
+			last_hood = 2000
+		repaired = true
+	if _done.has(101) and not _done.has(110) and not _is_active(110):
+		_active.append({"id": 110, "progress": 0})
+		repaired = true
+	if repaired:
+		save()
 
 
 func _read_file() -> Dictionary:

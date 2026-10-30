@@ -294,7 +294,7 @@ func _ensure_clips() -> void:
 		if not _idle_loaded:
 			_idle_missing = true
 	# Extra clips have to load with the walk, while the joints are still at rest.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -337,6 +337,8 @@ func action_length(suffix: String) -> float:
 
 
 func pose_action(suffix: String, elapsed: float) -> void:
+	# A held pose owns the ears too. The idle flop would replace them after a tenth of a second.
+	_locomotion_msec = Time.get_ticks_msec()
 	_ensure_clips()
 	var bank: Dictionary = _extra.get(suffix, {})
 	var frames := int(bank.get("frames", 0))
@@ -350,6 +352,39 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	_posing = true
 	_clip = suffix
 	_pose_clip(clips, bank["joints"], frame, following, blend)
+
+
+func set_look_enabled(enabled: bool) -> void:
+	if enabled:
+		_look_enabled = true
+		return
+	_hold_head()
+
+
+## enterTeleportOut clips the geom on a plane through the toon's feet.
+func set_hole_clip(enabled: bool, floor_y: float) -> void:
+	_apply_hole_clip(self, 1.0 if enabled else 0.0, floor_y)
+
+
+func _apply_hole_clip(node: Node, enabled: float, floor_y: float) -> void:
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		_clip_material(mesh_instance.material_override, enabled, floor_y)
+		var mesh := mesh_instance.mesh
+		if mesh != null:
+			for index in mesh.get_surface_count():
+				_clip_material(mesh.surface_get_material(index), enabled, floor_y)
+				_clip_material(mesh_instance.get_surface_override_material(index), enabled, floor_y)
+	for child in node.get_children():
+		_apply_hole_clip(child, enabled, floor_y)
+
+
+func _clip_material(material: Material, enabled: float, floor_y: float) -> void:
+	var shader_material := material as ShaderMaterial
+	if shader_material == null:
+		return
+	shader_material.set_shader_parameter("hole_clip", enabled)
+	shader_material.set_shader_parameter("hole_floor", floor_y)
 
 
 func end_action(suffix: String) -> void:

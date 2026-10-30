@@ -16,12 +16,21 @@ uniform float key_light = 0.58;
 uniform float wrap = 0.28;
 // Nose only. Fur and the muzzle stay matte; the original nose carries a highlight.
 uniform float gloss = 0.0;
+// TeleportOut clips the body on a plane at the toon's feet. The mesh is still
+// in Panda's Z-up space; the actor basis has already turned that into world Y.
+uniform float hole_clip = 0.0;
+uniform float hole_floor = 0.0;
+varying vec3 hole_world;
 
 void vertex() {
 	VERTEX += NORMAL * shell;
+	hole_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
 void fragment() {
+	if (hole_clip > 0.5 && hole_world.y < hole_floor) {
+		discard;
+	}
 	vec3 color = albedo_color.rgb;
 	if (use_albedo_texture > 0.5) {
 		color *= texture(albedo_texture, UV).rgb;

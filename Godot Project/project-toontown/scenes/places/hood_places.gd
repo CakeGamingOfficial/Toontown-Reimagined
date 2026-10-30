@@ -9,6 +9,8 @@ extends RefCounted
 ## ToontownCentralInitialDropPoints[0].
 
 const TTC := 2000
+const GAG_SHOP := "res://scenes/interiors/gag_shop.tscn"
+const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 
 const _SCENES: Dictionary = {
 	1000: "res://scenes/playgrounds/donalds_dock.tscn",
@@ -58,7 +60,17 @@ static func is_house(path: String) -> bool:
 	return path.contains("house_interior")
 
 
+static func gag_shop_scene() -> String:
+	return GAG_SHOP
+
+
+static func is_gag_shop(path: String) -> bool:
+	return path.ends_with("gag_shop.tscn")
+
+
 static func hood_for_scene(path: String) -> int:
+	if is_gag_shop(path):
+		return int(_SHOP.hood)
 	if is_house(path) or is_estate(path):
 		return ESTATE
 	var keys: Array = _SCENES.keys()

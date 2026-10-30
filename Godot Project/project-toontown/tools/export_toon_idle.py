@@ -29,7 +29,7 @@ import export_toontown_central as exporter
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = Filename.from_os_specific(
-    r"C:\Users\Kyle\Desktop\Programming\Projects\Miscellaneous\Project Toontown\Original Toontown Assets\Game Assets"
+    r"G:\Toontown-Reimagined\Original Toontown Assets\Game Assets"
 )
 OUT = ROOT / "assets" / "toons" / "anims"
 PARTS_DIR = OUT.parent / "parts"
