@@ -30,6 +30,8 @@ func _ready() -> void:
 	_ready_music()
 	_close_flat_doors(self)
 	_ready_billboards()
+	if preload("res://scenes/places/tunnel_links.gd").arriving():
+		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
 func _notification(what: int) -> void:

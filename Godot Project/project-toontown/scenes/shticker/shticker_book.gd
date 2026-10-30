@@ -31,6 +31,7 @@ var _task_row: HBoxContainer
 var _page := 0
 var _open := false
 var _guided := false
+var _open_armed := false
 var _next_armed := false
 var _close_armed := false
 var _pulse: Tween
@@ -62,8 +63,10 @@ func present_button() -> void:
 	if _tasks != null:
 		_tasks.grant_book()
 	_guided = true
+	_open_armed = false
 	_close_armed = false
 	_next_armed = false
+	_lock_button(true)
 	if _pulse != null and _pulse.is_valid():
 		_pulse.kill()
 	_button.visible = true
@@ -86,6 +89,11 @@ func present_button() -> void:
 	_pulse.tween_property(_button, "scale", Vector2(1.12, 1.12), 0.35).set_trans(Tween.TRANS_SINE)
 	_pulse.tween_property(_button, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_SINE)
 	_pulse.set_loops()
+
+
+func arm_open() -> void:
+	_open_armed = true
+	_lock_button(false)
 
 
 func arm_next() -> void:
@@ -290,6 +298,10 @@ func _on_button() -> void:
 			return
 		_close()
 		return
+	# The reward movie shows the button before the arrows. A click then
+	# opens the book before the cutscene is waiting, and it never continues.
+	if _guided and not _open_armed:
+		return
 	_open_book()
 
 
@@ -363,6 +375,12 @@ func _show_page(index: int) -> void:
 		_tabs[tab_index].disabled = _guided or tab_index == index
 		_tabs[tab_index].mouse_filter = MOUSE_FILTER_IGNORE if _guided else MOUSE_FILTER_STOP
 	_apply_arrows()
+
+
+func _lock_button(locked: bool) -> void:
+	if _button == null:
+		return
+	_button.mouse_filter = MOUSE_FILTER_IGNORE if locked else MOUSE_FILTER_STOP
 
 
 func _apply_arrows() -> void:

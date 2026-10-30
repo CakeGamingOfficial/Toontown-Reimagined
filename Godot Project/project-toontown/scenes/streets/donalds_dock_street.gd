@@ -18,6 +18,8 @@ func _ready() -> void:
 	_ready_sky()
 	_ready_billboards()
 	_close_hq_doors(self)
+	if preload("res://scenes/places/tunnel_links.gd").arriving():
+		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
 func _process(_delta: float) -> void:

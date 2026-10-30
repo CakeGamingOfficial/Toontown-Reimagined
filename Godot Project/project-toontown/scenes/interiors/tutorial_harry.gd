@@ -54,7 +54,9 @@ func play(host: Node, harry: ToonActor) -> void:
 	_aim_button()
 	_show_world("Open it and I'll show you a couple of useful pages.", _BLACK, false)
 	if book != null:
-		await book.book_opened
+		book.arm_open()
+		if not book.is_open():
+			await book.book_opened
 	_arrows_off()
 	_hide_world()
 	await _lower_hand()
@@ -486,6 +488,7 @@ func _aim_button() -> void:
 	var book := _book()
 	if book == null:
 		return
+	book.arm_open()
 	_ensure_arrows(book)
 	if _arrows.size() < 2:
 		return

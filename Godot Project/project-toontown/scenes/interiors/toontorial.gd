@@ -6,6 +6,7 @@ extends Node3D
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const MUSIC_PATH := "res://assets/neighborhoods/tutorial_zone/audio/TC_SZ.ogg"
 const MUSIC_VOLUME := 0.8
@@ -59,6 +60,7 @@ var _battle: StreetBattle
 var _return_spot := Vector3(-22.0, 0.2, -24.5)
 var _return_heading := 180.0
 var _gate: StaticBody3D
+var _shaft: Node3D
 var _door_dialog: Control
 var _door_stopped := false
 var _gate_armed := true
@@ -73,9 +75,6 @@ const _CAM_DIST_MIN := 0.38
 const _CAM_DIST_MAX := 2.1
 const _DOOR := Vector2(-14.2, -24.5)
 const _NEED_GAGS := "You need gags! Go talk to\nTutorial Tom!"
-# linktunnel_tt_0 tunnel_origin, a step into the shaft. Local -Y of that
-# origin is +X here, which is the way Flippy runs.
-const _TUNNEL_MOUTH := Vector2(122.4, -0.15)
 
 
 func _ready() -> void:
@@ -932,6 +931,21 @@ func _close_need_gags() -> void:
 		_body.position.x = _DOOR.x + 1.1
 
 
+func _shaft_origin() -> Node3D:
+	if is_instance_valid(_shaft):
+		return _shaft
+	# The shop glb has its own copy of the shaft. The one the toon walks into
+	# is on the street that opens after the book.
+	var street := get_node_or_null("TutorialStreet")
+	if street == null:
+		return null
+	var link := _LINKS.find_link(street, "tt", 0)
+	if link == null:
+		return null
+	_shaft = _LINKS.origin_under(link)
+	return _shaft
+
+
 func _try_tunnel() -> void:
 	if _cutscene or _locked or _fading or _body == null or _tasks == null:
 		return
@@ -939,8 +953,11 @@ func _try_tunnel() -> void:
 		return
 	if not Input.is_physical_key_pressed(KEY_W):
 		return
-	var here := Vector2(_body.global_position.x, _body.global_position.z)
-	if here.distance_to(_TUNNEL_MOUTH) > 3.4:
+	var origin := _shaft_origin()
+	if origin == null:
+		return
+	var local := _LINKS.local_on(origin, _body.global_position)
+	if local.y < 0.5 or local.y > 8.0 or absf(local.x) > 7.0:
 		return
 	var exit: Node = (load("res://scenes/interiors/tutorial_tunnel.gd") as GDScript).new()
 	exit.name = "TunnelExit"

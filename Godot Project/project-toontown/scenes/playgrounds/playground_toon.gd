@@ -6,6 +6,7 @@ extends Node
 ## same disc Tutorial Tom leaves through.
 
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 
 static var from_toontorial := false
 static var teleport_in := false
@@ -38,6 +39,8 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
+var _filming := false
+var _tunnels: Array[Dictionary] = []
 var _tasks: ToonTasks
 var _loadout: ToonLoadout
 var _book: ShtickerBook
@@ -67,17 +70,32 @@ func _ready() -> void:
 	var logging_in := teleport_in
 	from_toontorial = false
 	teleport_in = false
-	if not arriving and not logging_in and not _tasks.in_playground:
+	var incoming := _LINKS.arriving()
+	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
+	var trip: Dictionary = {}
+	if incoming:
+		trip = _LINKS.take()
 	_active = true
 	_hood = _current_hood()
 	var window := get_tree().root
 	if not window.close_requested.is_connected(_keep_quests):
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
+	_collect_tunnels(get_parent())
 	_spawn(arriving or logging_in)
 	_ready_hud()
+	if not trip.is_empty():
+		var origin := _match_arrival(String(trip["from_code"]), int(trip["from_zone"]))
+		if origin != null:
+			_filming = true
+			_locked = true
+			await _tunnel_in(origin, float(trip["lateral"]))
+			_filming = false
+		_locked = false
+		_place_camera()
+		return
 	if arriving:
 		_tasks.note_playground()
 	elif _tasks.in_playground:
@@ -105,6 +123,10 @@ func _process(delta: float) -> void:
 		return
 	_place_camera()
 	_place_line(delta)
+	if _filming:
+		_player.set_locomotion(_LINKS.run_speed(), false, false, delta)
+		_place_line(delta)
+		return
 
 
 func _physics_process(delta: float) -> void:
@@ -113,11 +135,9 @@ func _physics_process(delta: float) -> void:
 	_walk(delta)
 
 
+	_try_tunnel()
 func _unhandled_input(event: InputEvent) -> void:
-	if not _active:
-		return
-	_steer_camera(event)
-	if _locked:
+	if not _active or _filming or _locked:
 		return
 	if event is InputEventKey:
 		var key := event as InputEventKey
@@ -555,6 +575,225 @@ func _hud() -> CanvasLayer:
 		layer.name = "Hud"
 		add_child(layer)
 	return layer
+
+
+## LocalToon.tunnelOut plays getTunnelOutToonTrack, then Place loads the
+## other zone with how = tunnelIn. +Y of tunnel_origin points out of the shaft.
+func _try_tunnel() -> void:
+	if _filming or _body == null or not Input.is_physical_key_pressed(KEY_W):
+		return
+	var best := -1
+	var best_gap := 9.0
+	for i in _tunnels.size():
+		var entry: Dictionary = _tunnels[i]
+		var origin: Node3D = entry["origin"]
+		if not is_instance_valid(origin):
+			continue
+		var local := _LINKS.local_on(origin, _body.global_position)
+		if local.y < 0.5 or local.y > 8.0 or absf(local.x) > 7.0:
+			continue
+		var gap := Vector2(local.x, local.y).length()
+		if gap < best_gap:
+			best_gap = gap
+			best = i
+	if best < 0:
+		return
+	var chosen: Dictionary = _tunnels[best]
+	_filming = true
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	_leave_tunnel(chosen)
+
+
+func _leave_tunnel(entry: Dictionary) -> void:
+	var origin: Node3D = entry["origin"]
+	var lateral := _LINKS.local_on(origin, _body.global_position).x
+	await _tunnel_out(origin, lateral)
+	if not is_inside_tree():
+		return
+	var from_zone := int(entry["from_zone"])
+	_LINKS.depart(from_zone, _LINKS.code_for_zone(from_zone), lateral)
+	if _tasks != null:
+		_tasks.note_hood(_LINKS.hood_of(int(entry["dest_zone"])))
+	get_tree().change_scene_to_file(String(entry["scene"]))
+
+
+func _tunnel_out(origin: Node3D, lateral: float) -> void:
+	var start := _LINKS.local_on(origin, _body.global_position)
+	var start_x := clampf(lateral * 0.95, -10.0, 10.0)
+	var straight := maxf(absf(start.y - (-6.0)) / _LINKS.run_speed(), 0.15)
+	var pivot_dur := 2.0
+	var total := straight + pivot_dur
+	var fade := _blackout()
+	fade.color.a = 0.0
+	var cam_from := _camera.global_position
+	var elapsed := 0.0
+	var previous := Time.get_ticks_msec()
+	while elapsed < total:
+		await get_tree().process_frame
+		if not is_instance_valid(origin) or _body == null:
+			return
+		var now := Time.get_ticks_msec()
+		var delta := clampf(float(now - previous) / 1000.0, 0.0, 0.05)
+		previous = now
+		elapsed += delta
+		var point := _out_point(origin, start, start_x, straight, elapsed)
+		_body.global_position = point
+		_heading = _heading_toward(_out_facing(origin, start, start_x, straight, elapsed))
+		_face(_player, _heading)
+		_aim_tunnel_camera(origin, cam_from, clampf(elapsed / 1.0, 0.0, 1.0))
+		if elapsed >= total - 0.5:
+			fade.color.a = clampf((elapsed - (total - 0.5)) / 0.4, 0.0, 1.0)
+
+
+func _tunnel_in(origin: Node3D, lateral: float) -> void:
+	var end_x := clampf(lateral * 0.8, -10.0, 10.0)
+	var fade := _blackout()
+	fade.color.a = 1.0
+	_body.global_position = _in_point(origin, end_x, 0.0)
+	_heading = _heading_toward(origin.global_basis.y)
+	_face(_player, _heading)
+	_aim_tunnel_camera(origin, _camera.global_position, 1.0)
+	var total := _LINKS.in_length()
+	var elapsed := 0.0
+	var previous := Time.get_ticks_msec()
+	while elapsed < total:
+		await get_tree().process_frame
+		if not is_instance_valid(origin) or _body == null:
+			return
+		var now := Time.get_ticks_msec()
+		var delta := clampf(float(now - previous) / 1000.0, 0.0, 0.05)
+		previous = now
+		elapsed += delta
+		_body.global_position = _in_point(origin, end_x, elapsed)
+		_heading = _heading_toward(_in_facing(origin, end_x, elapsed))
+		_face(_player, _heading)
+		_aim_tunnel_camera(origin, _camera.global_position, 1.0)
+		fade.color.a = 1.0 - clampf(elapsed / 0.4, 0.0, 1.0)
+	fade.queue_free()
+	_home = _body.global_position
+	_home_heading = _heading
+	_snap_feet()
+
+
+func _out_point(origin: Node3D, start: Vector3, start_x: float, straight: float, elapsed: float) -> Vector3:
+	return _LINKS.world_on(origin, _LINKS.out_local(start, start_x, straight, elapsed))
+
+
+func _out_facing(origin: Node3D, start: Vector3, start_x: float, straight: float, elapsed: float) -> Vector3:
+	var ahead := _out_point(origin, start, start_x, straight, elapsed + 0.05)
+	var here := _out_point(origin, start, start_x, straight, elapsed)
+	var step := ahead - here
+	step.y = 0.0
+	if step.length_squared() < 0.0001:
+		return -origin.global_basis.y
+	return step.normalized()
+
+
+func _in_point(origin: Node3D, end_x: float, elapsed: float) -> Vector3:
+	return _LINKS.world_on(origin, _LINKS.in_local(end_x, elapsed))
+
+
+func _in_facing(origin: Node3D, end_x: float, elapsed: float) -> Vector3:
+	var ahead := _in_point(origin, end_x, elapsed + 0.05)
+	var here := _in_point(origin, end_x, elapsed)
+	var step := ahead - here
+	step.y = 0.0
+	if step.length_squared() < 0.0001:
+		return origin.global_basis.y
+	return step.normalized()
+
+
+func _aim_tunnel_camera(origin: Node3D, cam_from: Vector3, blend: float) -> void:
+	if _camera == null:
+		return
+	var settle := _LINKS.world_on(origin, Vector3(0.0, 20.0, 12.0))
+	var focus := _LINKS.world_on(origin, Vector3(0.0, 0.0, 3.0))
+	var eased := blend * blend * (3.0 - 2.0 * blend)
+	_camera.global_position = cam_from.lerp(settle, eased)
+	if _camera.global_position.distance_squared_to(focus) > 0.01:
+		_camera.look_at(focus, Vector3.UP)
+
+
+func _snap_feet() -> void:
+	var space := _body.get_world_3d().direct_space_state
+	var from := _body.global_position + Vector3(0.0, 2.0, 0.0)
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3(0.0, -8.0, 0.0))
+	query.exclude = [_body.get_rid()]
+	query.collide_with_areas = false
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return
+	var point: Vector3 = hit["position"]
+	_body.global_position.y = point.y + 0.05
+	_home = _body.global_position
+
+
+func _blackout() -> ColorRect:
+	var existing := _hud().get_node_or_null("TunnelFade") as ColorRect
+	if existing != null:
+		return existing
+	var fade := ColorRect.new()
+	fade.name = "TunnelFade"
+	fade.color = Color(0, 0, 0, 0)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hud().add_child(fade)
+	return fade
+
+
+func _collect_tunnels(root: Node) -> void:
+	_walk_tunnels(root)
+
+
+func _walk_tunnels(node: Node) -> void:
+	var parsed := _parse_link(String(node.name))
+	if not parsed.is_empty():
+		var origin := _LINKS.origin_under(node)
+		var scene := _LINKS.scene_for_zone(int(parsed["zone"]))
+		var from_zone := _zone_above(node)
+		if origin != null and scene != "" and from_zone >= 1000:
+			_tunnels.append({
+				"origin": origin,
+				"dest_zone": int(parsed["zone"]),
+				"from_zone": from_zone,
+				"scene": scene,
+			})
+	for child in node.get_children():
+		_walk_tunnels(child)
+
+
+func _match_arrival(code: String, zone: int) -> Node3D:
+	var link := _LINKS.find_link(get_parent(), code, zone)
+	if link == null:
+		return null
+	return _LINKS.origin_under(link)
+
+
+func _parse_link(node_name: String) -> Dictionary:
+	if not node_name.begins_with("linktunnel_"):
+		return {}
+	var parts := node_name.split("_")
+	if parts.size() < 3:
+		return {}
+	var zone_text := parts[2].split("@")[0]
+	if not zone_text.is_valid_int():
+		return {}
+	return {"code": parts[1], "zone": int(zone_text)}
+
+
+func _zone_above(node: Node) -> int:
+	var cursor := node.get_parent()
+	while cursor != null:
+		var part := String(cursor.name).split("_")[0]
+		if part.is_valid_int():
+			return int(part)
+		cursor = cursor.get_parent()
+	return 0
+
+
+func _heading_toward(dir: Vector3) -> float:
+	return _LINKS.heading_of(dir)
 
 
 func _find(root: Node, node_name: String) -> Node3D:
