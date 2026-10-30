@@ -35,6 +35,10 @@ var _advance := false
 func _process(delta: float) -> void:
 	if is_instance_valid(_tom):
 		_tom.set_locomotion(0.0, false, false, delta)
+	# The street keeps the player locked for the movie, so the body never gets
+	# an idle tick. The head still blinks on its own.
+	if is_instance_valid(_player):
+		_player.set_locomotion(0.0, false, false, delta)
 
 
 func play(host: Node, body: CharacterBody3D, player: ToonActor, camera: Camera3D) -> void:
@@ -74,6 +78,10 @@ func _show_plaza() -> void:
 			zone.name = "TutorialStreet"
 			host.add_child(zone)
 			_hide_named(zone, "sky")
+			if _host.has_method("adopt_billboards"):
+				_host.call("adopt_billboards", zone)
+			if _host.has_method("close_landmark_doors"):
+				_host.call("close_landmark_doors", zone)
 	var interior := host.get_node_or_null("Geometry") as Node3D
 	if interior:
 		interior.visible = false
@@ -85,17 +93,12 @@ func _show_plaza() -> void:
 	var flunky := host.get_node_or_null("Flunky") as Node3D
 	if flunky:
 		flunky.visible = false
-	if host.get_node_or_null("PlazaFloor") == null:
-		var slab := StaticBody3D.new()
-		slab.name = "PlazaFloor"
-		var box := BoxShape3D.new()
-		# The tunnel, where Flippy stands, sits past the playground end of the street.
-		box.size = Vector3(360.0, 1.0, 180.0)
-		var collision := CollisionShape3D.new()
-		collision.shape = box
-		collision.position = Vector3(20.0, -0.5, 0.0)
-		slab.add_child(collision)
-		host.add_child(slab)
+	if _host.has_method("open_plaza"):
+		_host.call("open_plaza")
+	if _host.has_method("lay_ground"):
+		_host.call("lay_ground", "res://assets/neighborhoods/tutorial_zone/street_floor.json", 0.0, "PlazaFloor")
+	if _host.has_method("add_solid"):
+		_host.call("add_solid", "res://assets/neighborhoods/tutorial_zone/street_walls.json", "PlazaWalls")
 	var feet := _street(PLAYER_PANDA)
 	if _host.has_method("note_plaza"):
 		_host.call("note_plaza", feet, FACING_HQ)

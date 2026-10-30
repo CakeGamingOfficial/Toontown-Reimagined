@@ -29,6 +29,10 @@ const JUMP_LOCK := 0.2
 const HARD_LAND := -30.0
 const HARD_LOCK := 0.3
 const COLLISION_PATH := "res://assets/interiors/toontorial/collision.json"
+const STREET_FLOOR_PATH := "res://assets/interiors/toontorial/street_floor.json"
+const PROP_COLLISION_PATH := "res://assets/interiors/toontorial/prop_collision.json"
+const STREET_WALL_PATH := "res://assets/interiors/toontorial/street_walls.json"
+const SHOP_SHELL_PATH := "res://assets/interiors/toontorial/shop_shell.json"
 
 var _camera: Camera3D
 var _player: ToonActor
@@ -56,17 +60,24 @@ var _line_label: Label
 var _line_left := 0.0
 var _flunky: Flunky
 var _battle: StreetBattle
-var _return_spot := Vector3(-22.0, 0.2, -24.5)
+var _return_spot := Vector3(-22.0, -0.4, -24.5)
 var _return_heading := 180.0
 var _gate: StaticBody3D
 var _door_dialog: Control
 var _door_stopped := false
 var _gate_armed := true
 var _hq
+var _shop: Node3D
+var _plaza := false
 var _cam_yaw := 0.0
-var _cam_pitch := 0.0
+var _cam_pitch := 12.0
 var _cam_distance := 1.0
 var _camera_held := false
+var _cam_steering := false
+var _right_yaw := 0.0
+var _running := false
+var _reversing := false
+const _CAM_PITCH_HOME := 12.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
 const _CAM_DIST_MIN := 0.38
@@ -99,15 +110,29 @@ func _ready() -> void:
 	_ready_loadout()
 	_spawn_flunky()
 	_add_outside_floor()
+	add_solid(PROP_COLLISION_PATH, "ShopProps")
+	add_solid(STREET_WALL_PATH, "StreetWalls")
+	add_solid(SHOP_SHELL_PATH, "ShopShell")
 	_build_exit_gate()
 	_start_battle()
+	_place_shop_shell()
 	_place_camera()
+	var geometry := get_node_or_null("Geometry")
+	if geometry:
+		close_landmark_doors(geometry)
 	if _tasks != null and _tasks.book_ready():
 		_open_plaza()
+	# The welcome card and the Flunky tag are created at the control origin.
+	# Place them before the first draw so they do not flash in the corner.
+	_place_tags()
+	_place_bubble()
 
 
 func _process(delta: float) -> void:
 	TOONTOWN_SKY.ensure(self, "tt")
+	if _cutscene or _locked or _fading or (_book != null and _book.is_open()):
+		_release_camera_mouse(true)
+	_show_shop_shell()
 	var tom := get_node_or_null("Tutorial Tom") as ToonActor
 	if tom:
 		# The welcome and the quest movie both keep him in the talk cycle
@@ -266,9 +291,16 @@ func _build_collision() -> void:
 	for triangle in parsed.get("triangles", []):
 		if triangle.size() < 9:
 			continue
-		faces.append(Vector3(float(triangle[0]), float(triangle[1]), float(triangle[2])))
-		faces.append(Vector3(float(triangle[3]), float(triangle[4]), float(triangle[5])))
-		faces.append(Vector3(float(triangle[6]), float(triangle[7]), float(triangle[8])))
+		var a := Vector3(float(triangle[0]), float(triangle[1]), float(triangle[2]))
+		var b := Vector3(float(triangle[3]), float(triangle[4]), float(triangle[5]))
+		var c := Vector3(float(triangle[6]), float(triangle[7]), float(triangle[8]))
+		# Prop polygons in this file run from the floor to the ceiling.
+		# The room shell stays. Props are the meshes themselves.
+		if not _keep_room_shell(a, b, c):
+			continue
+		faces.append(a)
+		faces.append(b)
+		faces.append(c)
 	if faces.is_empty():
 		return
 	var shape := ConcavePolygonShape3D.new()
@@ -281,6 +313,54 @@ func _build_collision() -> void:
 	solid.add_child(collision)
 	add_child(solid)
 	_add_floor_slab(faces)
+
+
+func _keep_room_shell(a: Vector3, b: Vector3, c: Vector3) -> bool:
+	var high_y := maxf(a.y, maxf(b.y, c.y))
+	var low_y := minf(a.y, minf(b.y, c.y))
+	if high_y < 0.35 and absf(a.y - b.y) < 0.05 and absf(a.y - c.y) < 0.05:
+		return true
+	if low_y > 11.0:
+		return true
+	if _on_axis(a, b, c, 0, -16.0) or _on_axis(a, b, c, 0, -15.0) or _on_axis(a, b, c, 0, 12.0):
+		return true
+	if _on_axis(a, b, c, 2, 0.0) or _on_axis(a, b, c, 2, -20.0) or _on_axis(a, b, c, 2, -29.0):
+		return true
+	return false
+
+
+func _on_axis(a: Vector3, b: Vector3, c: Vector3, axis: int, value: float) -> bool:
+	return absf(_component(a, axis) - value) <= 0.45 and absf(_component(b, axis) - value) <= 0.45 and absf(_component(c, axis) - value) <= 0.45
+
+
+func _component(point: Vector3, axis: int) -> float:
+	return point.x if axis == 0 else point.z
+
+
+func add_solid(path: String, node_name: String) -> void:
+	if get_node_or_null(node_name) != null or not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var faces := PackedVector3Array()
+	for triangle in parsed.get("triangles", []):
+		if triangle.size() < 9:
+			continue
+		faces.append(Vector3(float(triangle[0]), float(triangle[1]), float(triangle[2])))
+		faces.append(Vector3(float(triangle[3]), float(triangle[4]), float(triangle[5])))
+		faces.append(Vector3(float(triangle[6]), float(triangle[7]), float(triangle[8])))
+	if faces.is_empty():
+		return
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.set_faces(faces)
+	var solid := StaticBody3D.new()
+	solid.name = node_name
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	solid.add_child(collision)
+	add_child(solid)
 
 
 func _add_floor_slab(faces: PackedVector3Array) -> void:
@@ -318,21 +398,46 @@ func _add_floor_slab(faces: PackedVector3Array) -> void:
 func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
-	var turn := 0.0
-	if Input.is_physical_key_pressed(KEY_A):
-		turn += 1.0
-	if Input.is_physical_key_pressed(KEY_D):
-		turn -= 1.0
-	_heading += turn * TURN_SPEED * delta
-	var speed := 0.0
 	var forward_held := Input.is_physical_key_pressed(KEY_W)
 	var back_held := Input.is_physical_key_pressed(KEY_S)
+	var left_held := Input.is_physical_key_pressed(KEY_A)
+	var right_held := Input.is_physical_key_pressed(KEY_D)
+	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	# Right-click turns the side keys into a full run across the camera.
+	var strafe := 0.0
+	if aim_held and not forward_held and not back_held:
+		if left_held:
+			strafe += 1.0
+		if right_held:
+			strafe -= 1.0
+	var turn := 0.0
+	if strafe == 0.0:
+		if left_held:
+			turn += 1.0
+		if right_held:
+			turn -= 1.0
+	_heading += turn * TURN_SPEED * delta
+	var speed := 0.0
 	var turning := turn != 0.0
-	if forward_held and not back_held:
+	var running := forward_held and not back_held
+	var reversing := back_held and not forward_held
+	# A right-click orbit made while standing is the new forward or back.
+	# Adopt it on the first step, without waiting for another drag.
+	if (running and not _running) or (reversing and not _reversing):
+		_adopt_right_aim()
+	_running = running
+	_reversing = reversing
+	var move_heading := _heading
+	var face_heading := _heading
+	if strafe != 0.0:
+		move_heading = _heading + _cam_yaw + 90.0 * strafe
+		face_heading = move_heading
 		speed = FORWARD_SPEED
-	elif back_held and not forward_held:
+	elif running:
+		speed = FORWARD_SPEED
+	elif reversing:
 		speed = -REVERSE_SPEED
-	var forward := _forward(_heading)
+	var forward := _forward(move_heading)
 	_body.velocity.x = forward.x * speed
 	_body.velocity.z = forward.z * speed
 	var on_floor := _body.is_on_floor()
@@ -354,8 +459,8 @@ func _walk(delta: float) -> void:
 	# Snap would glue a rising toon back onto the floor.
 	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
-	# The HQ pit floor is at -5. The street reset would pull a toon back up the stairs.
-	var void_y := -1.0
+	# Sidewalks sit at -0.5. Anything under -2 has left the street. The HQ pit is at -5.
+	var void_y := -2.0
 	if _hq != null and _hq.inside():
 		void_y = -12.0
 	if _body.position.y < void_y:
@@ -370,7 +475,7 @@ func _walk(delta: float) -> void:
 			_jump_lock = HARD_LOCK
 		elif impact < -5.0:
 			_jump_lock = JUMP_LOCK
-	_face(_player, _heading)
+	_face(_player, face_heading)
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 
 
@@ -384,15 +489,18 @@ func _place_camera() -> void:
 		heading = _heading
 	# Eye height is the resting head, taken once. Reading the live head follows
 	# the idle, run, and jump, and that bob is what makes the camera sick.
+	# The camera rides a sphere around that point and always looks at it, so a
+	# vertical drag orbits over the toon instead of tilting onto the ground.
 	var height := _eye_height
 	var orbit := heading + _cam_yaw
 	var forward := _forward(orbit)
-	var eye := feet + Vector3(0.0, height, 0.0)
+	var target := feet + Vector3(0.0, height, 0.0)
 	var distance := 9.0 * (height / 3.0) * _cam_distance
 	var pitch := deg_to_rad(_cam_pitch)
-	var back := forward * distance * cos(pitch)
-	_camera.global_position = eye - Vector3(back.x, 0.0, back.z) + Vector3(0.0, distance * sin(pitch), 0.0)
-	_camera.look_at(eye + forward * 1.5, Vector3.UP)
+	var horizontal := distance * cos(pitch)
+	_camera.global_position = target - forward * horizontal + Vector3(0.0, distance * sin(pitch), 0.0)
+	if _camera.global_position.distance_squared_to(target) > 0.04:
+		_camera.look_at(target, Vector3.UP)
 
 
 func _cache_eye_height() -> void:
@@ -414,12 +522,16 @@ func _face(actor: Node3D, heading: float) -> void:
 
 
 func _steer_camera(event: InputEvent) -> void:
-	if _cutscene or _locked or _fading:
-		return
-	if _book != null and _book.is_open():
+	if _cutscene or _locked or _fading or (_book != null and _book.is_open()):
+		_release_camera_mouse(true)
 		return
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
+		var drag := button.button_index == MOUSE_BUTTON_LEFT or button.button_index == MOUSE_BUTTON_RIGHT
+		if drag and button.pressed:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		elif drag:
+			_release_camera_mouse()
 		if not button.pressed:
 			return
 		if button.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -428,7 +540,8 @@ func _steer_camera(event: InputEvent) -> void:
 			_cam_distance = minf(_CAM_DIST_MAX, _cam_distance + 0.14)
 		elif button.button_index == MOUSE_BUTTON_MIDDLE:
 			_cam_yaw = 0.0
-			_cam_pitch = 0.0
+			_right_yaw = 0.0
+			_cam_pitch = _CAM_PITCH_HOME
 			_cam_distance = 1.0
 		return
 	if event is InputEventMouseMotion:
@@ -438,13 +551,38 @@ func _steer_camera(event: InputEvent) -> void:
 		if not left and not right:
 			return
 		var yaw := -motion.relative.x * 0.18
-		_cam_pitch = clampf(_cam_pitch - motion.relative.y * 0.12, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
-		if right and Input.is_physical_key_pressed(KEY_W):
-			# Steering: the toon turns with the camera, so forward follows it.
+		# Down looks down. The camera climbs the sphere and stays aimed at the toon.
+		_cam_pitch = clampf(_cam_pitch + motion.relative.y * 0.1, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
+		var steering := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_S)
+		if right and steering:
+			# Forward and back keep the camera behind the toon and follow the drag.
+			if not _cam_steering:
+				_heading += _cam_yaw
+				_cam_yaw = 0.0
+				_cam_steering = true
 			_heading += yaw
+			_right_yaw = 0.0
 		else:
-			# Looking around, or a right-drag while standing still. The facing stays.
+			_cam_steering = false
 			_cam_yaw += yaw
+			if right:
+				_right_yaw += yaw
+
+
+func _adopt_right_aim() -> void:
+	if absf(_right_yaw) < 0.01:
+		return
+	_heading += _right_yaw
+	_cam_yaw -= _right_yaw
+	_right_yaw = 0.0
+
+
+func _release_camera_mouse(force := false) -> void:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	if not force and (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)):
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _tag_hidden(actor: Node3D, point: Vector3) -> bool:
@@ -656,6 +794,68 @@ func _spawn_flunky() -> void:
 	_add_tag(_flunky, "Flunky\nBossbot\nLevel 1", "cog")
 
 
+func _place_shop_shell() -> void:
+	# TT_A1 is the shop Tom is standing in. The room export leaves the shell out
+	# so it does not box in the interior. It goes back on once you step outside.
+	var packed := load("res://assets/interiors/toontorial/tutorial_shop.glb") as PackedScene
+	if packed == null:
+		return
+	_shop = packed.instantiate()
+	_shop.name = "TutorialShop"
+	add_child(_shop)
+	_show_shop_shell()
+
+
+func _show_shop_shell() -> void:
+	var inside := _body != null and not _plaza and _body.position.x > -16.2 and _body.position.z > -30.2 and _body.position.z < 1.2
+	var room := _find(get_node_or_null("Geometry"), "Interior")
+	if room:
+		room.visible = inside
+	var tom := get_node_or_null("Tutorial Tom") as Node3D
+	if tom:
+		tom.visible = inside
+	if _shop:
+		_shop.visible = not inside and not _plaza
+	var shell := get_node_or_null("ShopShell") as CollisionObject3D
+	if shell:
+		shell.collision_layer = 0 if inside or _plaza else 1
+
+
+func open_plaza() -> void:
+	# The reward street replaces the shop block. Leave the shop collision on and
+	# it becomes a wall in the middle of that street, because the mesh is hidden.
+	_plaza = true
+	if _shop:
+		_shop.visible = false
+	for node_name in ["InteriorCollision", "Floor", "OutsideFloor", "ExitGate", "ShopProps", "StreetWalls", "ShopShell"]:
+		var body := get_node_or_null(node_name) as CollisionObject3D
+		if body:
+			body.collision_layer = 0
+			body.collision_mask = 0
+
+
+func lay_ground(path: String, top: float, node_name: String) -> void:
+	if get_node_or_null(node_name) != null:
+		return
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_ARRAY:
+		return
+	var slab := StaticBody3D.new()
+	slab.name = node_name
+	for entry in parsed:
+		if typeof(entry) != TYPE_ARRAY or entry.size() < 4:
+			continue
+		var box := BoxShape3D.new()
+		box.size = Vector3(float(entry[2]), 1.0, float(entry[3]))
+		var collision := CollisionShape3D.new()
+		collision.shape = box
+		collision.position = Vector3(float(entry[0]), top - 0.5, float(entry[1]))
+		slab.add_child(collision)
+	add_child(slab)
+
+
 func _build_exit_gate() -> void:
 	# TutorialBuildingAI locks the inside door with TALK_TO_TOM until the
 	# gag handoff. The wall fills the doorway the exit check uses.
@@ -672,17 +872,11 @@ func _build_exit_gate() -> void:
 
 
 func _add_outside_floor() -> void:
-	# The street mesh is already outside the window. This slab is what the
-	# toon stands on after walking through the door.
-	var slab := StaticBody3D.new()
-	slab.name = "OutsideFloor"
-	var box := BoxShape3D.new()
-	box.size = Vector3(120.0, 1.0, 90.0)
-	var collision := CollisionShape3D.new()
-	collision.shape = box
-	collision.position = Vector3(-50.0, -0.5, -18.0)
-	slab.add_child(collision)
-	add_child(slab)
+	# One box used to cover only the shop side of the street. Past it, both
+	# sides of HQ and the tunnel, the toon fell and the void check sent them
+	# back to Tom's door. Each box is a street, sidewalk, or grass tile.
+	# Tops share the sidewalk height so a curb is not a wall.
+	lay_ground(STREET_FLOOR_PATH, -0.5, "OutsideFloor")
 
 
 func _approach_tom() -> void:
@@ -710,6 +904,8 @@ func _open_plaza() -> void:
 		zone.name = "TutorialStreet"
 		add_child(zone)
 		_hide_named(zone, "sky")
+		adopt_billboards(zone)
+		close_landmark_doors(zone)
 	var interior := get_node_or_null("Geometry") as Node3D
 	if interior:
 		interior.visible = false
@@ -719,16 +915,6 @@ func _open_plaza() -> void:
 		tom.visible = false
 	if _flunky:
 		_flunky.visible = false
-	if get_node_or_null("PlazaFloor") == null:
-		var slab := StaticBody3D.new()
-		slab.name = "PlazaFloor"
-		var box := BoxShape3D.new()
-		box.size = Vector3(360.0, 1.0, 180.0)
-		var collision := CollisionShape3D.new()
-		collision.shape = box
-		collision.position = Vector3(20.0, -0.5, 0.0)
-		slab.add_child(collision)
-		add_child(slab)
 	prepare_hq()
 	var placed := false
 	if _hq != null and _hq.has_method("stand_at_tunnel"):
@@ -741,6 +927,9 @@ func _open_plaza() -> void:
 		if _flunky:
 			_flunky.visible = true
 		return
+	open_plaza()
+	lay_ground("res://assets/neighborhoods/tutorial_zone/street_floor.json", 0.0, "PlazaFloor")
+	add_solid("res://assets/neighborhoods/tutorial_zone/street_walls.json", "PlazaWalls")
 	if _body:
 		_body.velocity = Vector3.ZERO
 	settle_camera()
@@ -830,7 +1019,7 @@ func _try_door() -> void:
 	var tween := create_tween()
 	tween.tween_property(fade, "color:a", 1.0, 0.3)
 	tween.tween_callback(func() -> void:
-		_body.position = Vector3(-22.0, 0.2, -24.5)
+		_body.position = Vector3(-22.0, -0.4, -24.5)
 		_heading = 180.0
 		_face(_player, _heading)
 		# The window pace is only the cutscene. Move him while the screen is black.
@@ -989,6 +1178,7 @@ func _build_bubble() -> void:
 	label.custom_minimum_size = Vector2(280, 0)
 	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), 22, Color(0, 0, 0, 0), 0)
 	panel.add_child(label)
+	panel.visible = false
 	_hud().add_child(panel)
 	_bubble = panel
 
@@ -1027,6 +1217,7 @@ func _add_tag(actor: Node3D, text: String, kind: String, text_tint: Color = Colo
 	if face:
 		label.add_theme_font_override("font", face)
 	panel.add_child(label)
+	panel.visible = false
 	_hud().add_child(panel)
 	# Measured once, from the resting head. Reading the live head makes the
 	# card bob with the idle and the talk cycle.
@@ -1085,10 +1276,14 @@ func _place_control(control: Control, world: Vector3, nudge: Vector2) -> void:
 	if _camera.is_position_behind(world):
 		control.visible = false
 		return
-	control.visible = true
+	var view := _camera.get_viewport().get_visible_rect().size
+	if view.x < 2.0 or view.y < 2.0:
+		control.visible = false
+		return
 	control.reset_size()
 	var screen := _camera.unproject_position(world)
 	control.position = screen - control.size * Vector2(0.5, 1.0) + nudge
+	control.visible = true
 
 
 func _ready_music() -> void:
@@ -1106,9 +1301,140 @@ func _ready_music() -> void:
 	player.play()
 
 
+func adopt_billboards(root: Node) -> void:
+	# The reward street is instantiated after _ready, so its trees and lamp
+	# heads are not in the list collected with the shop block.
+	_collect_billboards(root)
+
+
+func close_landmark_doors(root: Node) -> void:
+	var doors: Array[Node3D] = []
+	_gather_hq_doors(root, doors)
+	for door in doors:
+		var other: Node3D = null
+		for candidate in doors:
+			if candidate != door:
+				other = candidate
+				break
+		_close_one_landmark_door(door, other)
+
+
+func _gather_hq_doors(node: Node, found: Array[Node3D]) -> void:
+	var node_name := String(node.name)
+	if (node_name == "door_0" or node_name == "door_1") and node is Node3D and _under_hq(node):
+		found.append(node as Node3D)
+	for child in node.get_children():
+		_gather_hq_doors(child, found)
+
+
+func _under_hq(node: Node) -> bool:
+	var parent := node.get_parent()
+	while parent != null:
+		if String(parent.name).contains("hqTT"):
+			return true
+		parent = parent.get_parent()
+	return false
+
+
+func _close_one_landmark_door(door: Node3D, other: Node3D) -> void:
+	# A closed HQ door is the painted flat. The swinging panels and the black
+	# frame hole stay hidden, the same way Toontown Central leaves them.
+	var flat := _find_door_part(door, "door_flat")
+	for prefix in ["doorFrameHoleRight", "doorFrameHoleLeft", "leftDoor", "rightDoor"]:
+		var part := _find_door_part(door, prefix)
+		if part == null:
+			continue
+		if flat != null and prefix.begins_with("doorFrameHole") and flat.is_ancestor_of(part):
+			var kept := part.global_transform
+			part.reparent(door)
+			part.global_transform = kept
+		part.visible = false
+	if flat == null:
+		return
+	flat.visible = true
+	_show_both_sides_tree(flat)
+	if flat.has_meta("door_seated") or other == null:
+		return
+	flat.set_meta("door_seated", true)
+	# The flat is painted at the back of the arch, so the left jamb reads as a
+	# gap. Bring it out to the face of the arch and tuck it under the trim.
+	var outward := flat.global_position - other.global_position
+	outward.y = 0.0
+	if outward.length() > 0.01:
+		flat.global_position += outward.normalized() * 0.64
+	# The painted card is wider than it is tall. Grow that axis so the left
+	# edge tucks under the trim instead of leaving a seam.
+	var card := _first_mesh(flat)
+	if card == null or card.mesh == null:
+		return
+	var size := card.mesh.get_aabb().size
+	var grown := card.scale
+	if size.y >= size.x and size.y >= size.z:
+		grown.y *= 1.06
+	elif size.z >= size.x and size.z >= size.y:
+		grown.z *= 1.06
+	else:
+		grown.x *= 1.06
+	card.scale = grown
+
+
+func _first_mesh(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D:
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _first_mesh(child)
+		if found:
+			return found
+	return null
+
+
+func _find_door_part(door: Node, prefix: String) -> Node3D:
+	if String(door.name).begins_with(prefix) and door is Node3D:
+		return door as Node3D
+	for child in door.get_children():
+		var found := _find_door_part(child, prefix)
+		if found:
+			return found
+	return null
+
+
+func _show_both_sides_tree(node: Node) -> void:
+	if node is MeshInstance3D:
+		_show_both_sides(node as MeshInstance3D)
+	for child in node.get_children():
+		if String(child.name).begins_with("doorFrameHole"):
+			continue
+		_show_both_sides_tree(child)
+
+
+func _show_both_sides(mesh_instance: MeshInstance3D) -> void:
+	var mesh := mesh_instance.mesh
+	if mesh == null:
+		return
+	for surface in mesh.get_surface_count():
+		var material := mesh.surface_get_material(surface)
+		if material == null:
+			material = mesh_instance.get_active_material(surface)
+		if material is StandardMaterial3D:
+			var standard := (material as StandardMaterial3D).duplicate() as StandardMaterial3D
+			standard.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mesh.surface_set_material(surface, standard)
+
+
 func _collect_billboards(node: Node) -> void:
 	if node is Node3D and str(node.name).contains("__billboard"):
-		_billboards.append({"node": node, "rest": (node as Node3D).global_transform.basis})
+		var already := false
+		for item in _billboards:
+			if item["node"] == node:
+				already = true
+				break
+		if not already:
+			_billboards.append({"node": node, "rest": (node as Node3D).global_transform.basis})
+			if node is MeshInstance3D:
+				_show_both_sides(node as MeshInstance3D)
+			for child in node.get_children():
+				if child is MeshInstance3D:
+					_show_both_sides(child as MeshInstance3D)
 	for child in node.get_children():
 		_collect_billboards(child)
 

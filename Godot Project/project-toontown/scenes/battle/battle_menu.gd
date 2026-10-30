@@ -215,7 +215,7 @@ func _show_detail(track: int, level: int) -> void:
 		return
 	var exp := _loadout.experience_of(track)
 	var damage := ToonLoadout.gag_damage(track, level, exp)
-	var accuracy := ToonLoadout.gag_accuracy(track, level)
+	var accuracy := _loadout.rolled_accuracy(track, level)
 	_pad_title.text = _loadout.gag_name(track, level)
 	_pad_body.text = "%d / %d\nAccuracy: %s\nDamage: %d\nAffects: %s\nSkill Credit: %d" % [
 		_loadout.count_of(track, level),

@@ -7,7 +7,8 @@ extends Node
 
 const APPROACH := 7.0
 const FLUNKY_LEVEL := 1
-const FLUNKY_HP := 6
+# SuitBase max HP: (level + 1) * (level + 2). A level 1 Flunky has 6.
+const FLUNKY_HP := (FLUNKY_LEVEL + 1) * (FLUNKY_LEVEL + 2)
 # TownLoader.battleMusic. BattlePlace.enterBattle plays it at 0.9 and
 # stops the street track. exitBattle brings the street track back at 0.8.
 const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
@@ -105,6 +106,11 @@ func consider(where: Vector3) -> void:
 	_run()
 
 
+func _exit_tree() -> void:
+	if _loadout != null:
+		_loadout.clear_tutorial_accuracy()
+
+
 func _process(delta: float) -> void:
 	if _cool > 0.0:
 		_cool = maxf(_cool - delta, 0.0)
@@ -148,6 +154,7 @@ func _run() -> void:
 	_face_each_other()
 	_ensure_marker()
 	_show_meter()
+	_loadout.grant_tutorial_accuracy()
 	await _say(_flunky.global_position + Vector3(0, 4.6, 0), "You're not going to like the way I work.", 2.0)
 	while _cog_hp > 0 and _loadout.hp > 0:
 		_aim(true)
@@ -157,6 +164,8 @@ func _run() -> void:
 		if _cog_hp <= 0 or _loadout.hp <= 0:
 			break
 		await _cog_attack()
+	# Combat is over. Take the sure-hit bonus off before the reward or a retry.
+	_loadout.clear_tutorial_accuracy()
 	if _cog_hp <= 0:
 		await _defeat_cog()
 		_marker.visible = false
@@ -167,6 +176,7 @@ func _run() -> void:
 		_marker.visible = false
 		_card.visible = false
 	_stop_battle_music()
+	_loadout.clear_tutorial_accuracy()
 	_host.call("set_cutscene", false)
 	_active = false
 	_cool = 1.5
@@ -267,7 +277,7 @@ func _toon_attack(track: int, level: int) -> void:
 	_aim(false)
 	var hit := true
 	if track != ToonLoadout.TOON_UP:
-		hit = randi() % 100 < ToonLoadout.gag_accuracy(track, level)
+		hit = randi() % 100 < _loadout.rolled_accuracy(track, level)
 	var at := _flunky.global_position + Vector3(0, 3.4, 0)
 	await _movie.play_gag(track, level, hit, func() -> void:
 		if track == ToonLoadout.TOON_UP:
