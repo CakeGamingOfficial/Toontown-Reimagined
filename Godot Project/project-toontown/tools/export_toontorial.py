@@ -158,6 +158,8 @@ def load_store() -> tuple[NodePath, DNAStorage]:
     street_np = NodePath(street)
     street_np.setPosHpr(-17, 42, -0.5, 180, 0, 0)
     for pattern in (
+        # The street front of this room is exported on its own as tutorial_shop.glb
+        # and shown once the toon steps outside. Stashing it here keeps it out of the room.
         "**/tb2:toon_landmark_TT_A1_DNARoot",
         "**/tb1:toon_landmark_hqTT_DNARoot/**/door_flat_0",
     ):

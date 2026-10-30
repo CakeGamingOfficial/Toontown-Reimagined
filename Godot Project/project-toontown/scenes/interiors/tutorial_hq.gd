@@ -247,14 +247,12 @@ func _show_street() -> void:
 
 
 func _seal_front_door() -> void:
-	# Closed HQ doors keep the frame holes hidden. The flat stays up.
+	# Both exterior doors. Door 1 faces the tunnel; leaving its frame hole up
+	# paints that opening black. Door 0's flat sits behind the jamb and leaves
+	# a gap on the left until it is brought out to the arch.
 	var street := _host.get_node_or_null("TutorialStreet") as Node
-	if street == null:
-		return
-	for hole_name in ["doorFrameHoleRight_0", "doorFrameHoleLeft_0"]:
-		var hole := _find(street, hole_name)
-		if hole:
-			hole.visible = false
+	if street != null and _host.has_method("close_landmark_doors"):
+		_host.call("close_landmark_doors", street)
 
 
 func _play_open() -> void:
@@ -498,7 +496,6 @@ func _build_collision() -> void:
 	if faces.is_empty():
 		return
 	var floors := PackedVector3Array()
-	var walls := PackedVector3Array()
 	for index in range(0, faces.size(), 3):
 		var a := faces[index]
 		var b := faces[index + 1]
@@ -507,26 +504,42 @@ func _build_collision() -> void:
 		var length := normal.length()
 		if length < 0.0001:
 			continue
-		# Stair ramps are 45 degrees. Walls stay in the trimesh.
+		# Stair ramps are 45 degrees. Walls and railings come from the meshes.
 		if normal.y > length * 0.5:
 			floors.append(a)
 			floors.append(b)
 			floors.append(c)
-		else:
-			walls.append(a)
-			walls.append(b)
-			walls.append(c)
-	if not walls.is_empty():
-		var shape := ConcavePolygonShape3D.new()
-		shape.backface_collision = true
-		shape.set_faces(walls)
-		var solid := StaticBody3D.new()
-		solid.name = "HQCollision"
-		var collision := CollisionShape3D.new()
-		collision.shape = shape
-		solid.add_child(collision)
-		_room.add_child(solid)
+	# The collision polygons for the walls and the pit railing do not follow
+	# the model. The meshes do. Floors stay on the stair prisms below.
+	_add_model_collision()
 	_add_floor(floors)
+
+
+func _add_model_collision() -> void:
+	const PATH := "res://assets/interiors/hq/solid_collision.json"
+	if _room == null or _room.get_node_or_null("HQWalls") != null or not FileAccess.file_exists(PATH):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var faces := PackedVector3Array()
+	for triangle in parsed.get("triangles", []):
+		if triangle.size() < 9:
+			continue
+		faces.append(Vector3(float(triangle[0]), float(triangle[1]), float(triangle[2])))
+		faces.append(Vector3(float(triangle[3]), float(triangle[4]), float(triangle[5])))
+		faces.append(Vector3(float(triangle[6]), float(triangle[7]), float(triangle[8])))
+	if faces.is_empty():
+		return
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.set_faces(faces)
+	var solid := StaticBody3D.new()
+	solid.name = "HQWalls"
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	solid.add_child(collision)
+	_room.add_child(solid)
 
 
 # Stepped boxes turn each riser into a wall, so the toon can walk down and

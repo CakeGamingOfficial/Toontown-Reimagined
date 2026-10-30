@@ -76,6 +76,22 @@ var _counts: Array = []
 var _unlocked: Array = []
 var _exp: Array[int] = []
 var _slot := -1
+# The tutorial Flunky fight sets this. It is not written into the save.
+var _tutorial_accuracy := false
+
+
+func grant_tutorial_accuracy() -> void:
+	_tutorial_accuracy = true
+
+
+func clear_tutorial_accuracy() -> void:
+	_tutorial_accuracy = false
+
+
+func rolled_accuracy(track: int, level: int) -> int:
+	if _tutorial_accuracy:
+		return 100
+	return gag_accuracy(track, level)
 
 
 static func for_selected() -> ToonLoadout:
