@@ -67,9 +67,9 @@ func play(host: Node, flippy: ToonActor) -> void:
 	await _line("Oh! You don't know how to use SpeedChat!", _BLACK)
 	var chat := _speed()
 	if chat != null:
-		await chat.present_speed_button()
+		await chat.present_dock()
 	_aim_button()
-	_show("Click on that button up there to say something.", _BLACK)
+	_show("Click on the button to say something.", _BLACK)
 	if chat != null:
 		await chat.menu_opened
 	_arrows_off()
@@ -80,10 +80,10 @@ func play(host: Node, flippy: ToonActor) -> void:
 	await get_tree().create_timer(0.45).timeout
 	await _line("Very good!", _BLACK)
 	await _line("Where you're going, there will be plenty of Toons to talk to.", _TEAL)
-	await _line("If you want to chat with other Toons using the keyboard, there's another button you can use...", _TEAL)
-	if chat != null:
-		await chat.present_chat_button()
-	await _line("That one is called the SpeedChat+ button, where you can type to talk. Click on it later to learn more.", _TEAL)
+	_aim_entry()
+	await _line("If you want to chat with other Toons using the keyboard, type in the box and press Enter.", _TEAL)
+	await _line("This is SpeedChat++. Phrases and typed lines both show up here.", _TEAL)
+	_arrows_off()
 	await _line("Hope that helps! I have a feeling I'll be seeing you later.", _TEAL)
 	_hide_bubble()
 	if host.has_method("tasks"):
@@ -155,6 +155,7 @@ func _show(text: String, color: Color) -> void:
 	_label.text = text
 	_label.add_theme_color_override("font_color", color)
 	_bubble.visible = true
+	ToonSpeech.speak(_flippy, text)
 	_place_bubble()
 
 
@@ -251,10 +252,20 @@ func _aim_button() -> void:
 	var chat := _speed()
 	if chat == null:
 		return
+	_point_at(chat.speed_center())
+
+
+func _aim_entry() -> void:
+	var chat := _speed()
+	if chat == null:
+		return
+	_point_at(chat.entry_center())
+
+
+func _point_at(at: Vector2) -> void:
 	_ensure_arrows()
 	if _arrows.size() < 2:
 		return
-	var at := chat.speed_center()
 	_point(_arrows[0], at, at + Vector2(78.0, 8.0))
 	_point(_arrows[1], at, at + Vector2(6.0, 72.0))
 

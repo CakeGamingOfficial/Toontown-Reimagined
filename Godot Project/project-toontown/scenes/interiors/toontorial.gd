@@ -49,6 +49,7 @@ var _bubble: Control
 var _cutscene := false
 var _locked := false
 var _welcome_done := false
+var _welcome_voiced := false
 var _fading := false
 var _loadout: ToonLoadout
 var _panel: GagPanel
@@ -650,13 +651,17 @@ func hud() -> CanvasLayer:
 	return _hud()
 
 
-func set_cutscene(active: bool) -> void:
+func set_cutscene(active: bool, hide_player: bool = true) -> void:
 	_cutscene = active
 	_locked = active
-	# The close-up is aimed through the spot the player walks to. The quest
-	# camera leaves them out of the shot, so the actor stays hidden until it ends.
-	if _player:
-		_player.visible = not active
+	if _player == null:
+		return
+	# Quest close-ups look through the spot the player walks to, so those
+	# shots hide the actor. The arrival and the battle keep them in frame.
+	if not active:
+		_player.visible = true
+	elif hide_player:
+		_player.visible = false
 
 
 func in_cutscene() -> bool:
@@ -826,6 +831,7 @@ func say_line(text: String) -> void:
 	_line_left = maxf(2.8, float(text.length()) * 0.045)
 	_line.visible = _book == null or not _book.is_open()
 	_place_line()
+	ToonSpeech.speak(_player, text)
 
 
 func _spawn_flunky() -> void:
@@ -1322,6 +1328,9 @@ func _place_bubble() -> void:
 		return
 	var point := tom.global_position + Vector3(0.0, 5.1, 0.0)
 	_place_control(_bubble, point, Vector2(150, -70))
+	if _bubble.visible and not _welcome_voiced:
+		_welcome_voiced = true
+		ToonSpeech.speak(tom, WELCOME)
 
 
 func _place_control(control: Control, world: Vector3, nudge: Vector2) -> void:

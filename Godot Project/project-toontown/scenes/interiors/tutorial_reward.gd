@@ -357,6 +357,7 @@ func _show_bubble(text: String, color: Color, clickable: bool = false) -> void:
 		_arrow = ToonGui.attach_next_arrow(_bubble)
 	_label.text = text
 	_label.add_theme_color_override("font_color", color)
+	ToonSpeech.speak(_tom, text)
 	if _arrow:
 		_arrow.visible = clickable
 	_place_bubble()

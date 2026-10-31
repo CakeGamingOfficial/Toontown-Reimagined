@@ -149,6 +149,31 @@ func present_speed_button() -> void:
 	_layout_buttons()
 
 
+## Flippy hands over SpeedChat++. The green phrase button sits in the dock
+## beside the line where you type, instead of the old pair of corner buttons.
+func present_dock() -> void:
+	_shown = true
+	_chat_live = true
+	_plus_ready = true
+	_flying = true
+	if _dock != null:
+		_dock.modulate.a = 0.0
+	_show_dock()
+	_layout_dock()
+	if _dock != null:
+		var fade := create_tween()
+		fade.tween_property(_dock, "modulate:a", 1.0, 0.45)
+		await fade.finished
+	_flying = false
+	_layout_buttons()
+
+
+func entry_center() -> Vector2:
+	if _entry == null or not _entry.is_visible_in_tree():
+		return speed_center()
+	return _entry.get_global_rect().get_center()
+
+
 func present_chat_button() -> void:
 	_flying = true
 	_chat_btn.visible = true

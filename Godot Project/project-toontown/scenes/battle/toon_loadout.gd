@@ -181,7 +181,11 @@ func experience_of(track: int) -> int:
 
 ## InventoryNew.getCurAndNextExpValues. The bar runs up to the next gag's point.
 func next_skill(track: int) -> int:
-	var exp := experience_of(track)
+	return goal_for(track, experience_of(track))
+
+
+## The next ToontownBattleGlobals.Levels point above this much experience.
+func goal_for(track: int, exp: int) -> int:
 	if track < 0 or track >= _SKILL.size():
 		return _MAX_SKILL
 	var points: Array = _SKILL[track]

@@ -1,10 +1,19 @@
 class_name Nametags
 extends Node
 
-## The white see-through name card from phase_3/models/props/panel.
-## One board can follow every toon and cog in an area.
+## One board can follow every toon and cog in an area. Cog names sit on
+## phase_3/models/props/panel, tinted with the CCSuit nametag colors.
 
 const _TAG_BODY := ["legs", "hands", "torso", "arms", "node", "drop_shadow", "CorpIcon"]
+## phase_3/models/props/panel, the card NametagGlobals.setNametagCard installs.
+const _NAME_PANEL := preload("res://assets/gui/nametag/name_panel.png")
+# NametagGlobals CCSuit card and name colors. Ready, rollover, depressed.
+const _SUIT_CARD := Color(0.8, 0.8, 0.8, 0.5)
+const _SUIT_CARD_OVER := Color(1.0, 1.0, 1.0, 1.0)
+const _SUIT_CARD_DOWN := Color(0.2, 0.2, 0.2, 0.6)
+const _SUIT_INK := Color(0.0, 0.0, 0.0, 1.0)
+const _SUIT_INK_OVER := Color(0.5, 0.5, 0.5, 1.0)
+const _SUIT_INK_DOWN := Color(1.0, 1.0, 1.0, 1.0)
 
 var camera: Camera3D
 var layer: CanvasLayer
@@ -20,21 +29,24 @@ var _tags: Array[Dictionary] = []
 func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color = Color(0, 0, 0, 0)) -> Control:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(1.0, 1.0, 1.0, 0.55)
 	var text_color := Color(0.25, 0.28, 0.75)
 	var face := ToonGui.font()
 	if kind == "npc":
 		text_color = text_tint if text_tint.a > 0.0 else Color(0.93, 0.45, 0.14)
 	elif kind == "cog":
-		text_color = Color.BLACK
+		text_color = _SUIT_INK
 		face = ToonGui.suit_font()
-	box.set_corner_radius_all(4)
-	box.content_margin_left = 4
-	box.content_margin_right = 4
-	box.content_margin_top = 1
-	box.content_margin_bottom = 1
-	panel.add_theme_stylebox_override("panel", box)
+	if kind == "cog":
+		panel.add_theme_stylebox_override("panel", _suit_card())
+	else:
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(1.0, 1.0, 1.0, 0.55)
+		box.set_corner_radius_all(4)
+		box.content_margin_left = 4
+		box.content_margin_right = 4
+		box.content_margin_top = 1
+		box.content_margin_bottom = 1
+		panel.add_theme_stylebox_override("panel", box)
 	var label := Label.new()
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -50,6 +62,8 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 		panel.z_index = 35
 		panel.set_meta("cog_name", text.get_slice("\n", 0))
 		panel.gui_input.connect(_on_cog_tag.bind(panel, actor))
+		panel.mouse_entered.connect(_suit_look.bind(panel, label, true))
+		panel.mouse_exited.connect(_suit_look.bind(panel, label, false))
 	if layer != null:
 		layer.add_child(panel)
 	# Measured once, from the resting head. A live head would bob the card.
@@ -96,7 +110,18 @@ func place() -> void:
 
 func _on_cog_tag(event: InputEvent, tag: Control, actor: Node3D) -> void:
 	var mouse := event as InputEventMouseButton
-	if mouse == null or not mouse.pressed or mouse.button_index != MOUSE_BUTTON_LEFT:
+	if mouse == null or mouse.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var label := tag.get_child(0) as Label
+	if mouse.pressed:
+		tag.set_meta("suit_down", true)
+		if label != null:
+			_suit_colors(tag, label, _SUIT_CARD_DOWN, _SUIT_INK_DOWN)
+	else:
+		tag.set_meta("suit_down", false)
+		if label != null:
+			_suit_look(tag, label, true)
+	if not mouse.pressed:
 		return
 	var host := get_parent()
 	if host != null and host.has_method("in_cutscene") and bool(host.call("in_cutscene")):
@@ -132,16 +157,51 @@ func _fit(panel: Control, point: Vector3) -> void:
 	if label:
 		label.add_theme_font_size_override("font_size", px)
 		label.add_theme_constant_override("line_spacing", -maxi(int(px * 0.12), 1))
-	var box := panel.get_theme_stylebox("panel") as StyleBoxFlat
-	if box == null:
-		return
-	box.set_corner_radius_all(maxi(int(px * 0.22), 3))
 	var side := maxi(int(px * 0.24), 3)
 	var vert := maxi(int(px * 0.048), 1)
-	box.content_margin_left = side
-	box.content_margin_right = side
-	box.content_margin_top = vert
-	box.content_margin_bottom = vert
+	var flat := panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if flat != null:
+		flat.set_corner_radius_all(maxi(int(px * 0.22), 3))
+		flat.content_margin_left = side
+		flat.content_margin_right = side
+		flat.content_margin_top = vert
+		flat.content_margin_bottom = vert
+		return
+	var card := panel.get_theme_stylebox("panel") as StyleBoxTexture
+	if card == null:
+		return
+	card.content_margin_left = side
+	card.content_margin_right = side
+	card.content_margin_top = vert
+	card.content_margin_bottom = vert
+
+
+## panel.bam is a rounded quad. CCSuit tints it gray until the pointer is over it.
+func _suit_card() -> StyleBoxTexture:
+	var card := StyleBoxTexture.new()
+	card.texture = _NAME_PANEL
+	var corner := 8
+	card.texture_margin_left = corner
+	card.texture_margin_right = corner
+	card.texture_margin_top = corner
+	card.texture_margin_bottom = corner
+	card.modulate_color = _SUIT_CARD
+	return card
+
+
+func _suit_look(panel: Control, label: Label, over: bool) -> void:
+	if over and bool(panel.get_meta("suit_down", false)):
+		return
+	if not over:
+		panel.set_meta("suit_down", false)
+	_suit_colors(panel, label, _SUIT_CARD_OVER if over else _SUIT_CARD, _SUIT_INK_OVER if over else _SUIT_INK)
+
+
+func _suit_colors(panel: Control, label: Label, card: Color, ink: Color) -> void:
+	var box := panel.get_theme_stylebox("panel") as StyleBoxTexture
+	if box != null:
+		box.modulate_color = card
+	label.add_theme_color_override("font_color", ink)
 
 
 func _place(control: Control, world: Vector3) -> void:

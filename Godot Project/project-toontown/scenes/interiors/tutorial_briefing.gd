@@ -13,7 +13,6 @@ const _POSTERS := {
 }
 const _CUPCAKE := preload("res://assets/gui/tutorial/gags/inventory_tart.png")
 const _FLOWER := preload("res://assets/gui/tutorial/gags/inventory_squirt_flower.png")
-const _QUEST := preload("res://assets/gui/tutorial/quest_card.png")
 const _BLACK := Color(0.08, 0.08, 0.1)
 const _TEAL := Color(0.0, 0.58, 0.64)
 const _PINK := Color(0.84, 0.27, 0.45)
@@ -23,12 +22,15 @@ var finished := false
 
 var _host: Node3D
 var _panel: GagPanel
+var _inventory_view: SubViewport
+var _inventory_card: MeshInstance3D
+var _inventory_text: Control
 var _meter: LaffMeter
 var _loadout: ToonLoadout
 var _poster: MeshInstance3D
 var _bubble: PanelContainer
 var _label: Label
-var _quest: Control
+var _quest: QuestPoster
 var _advance := false
 var _bubble_on := false
 # Height above Tom's feet, taken once from the resting head. The talk cycle
@@ -94,8 +96,7 @@ func _run() -> void:
 	var tasks := _host.call("tasks") as ToonTasks
 	if tasks != null:
 		tasks.assign(101)
-	_quest.position = Vector2(_view().x * 0.18, _view().y * 0.16)
-	_quest.scale = Vector2(1.45, 1.45)
+	_show_first_task()
 	_quest.visible = true
 	await _line("Here is your first ToonTask!", _TEAL, "")
 	_quest.visible = false
@@ -113,6 +114,7 @@ func _run() -> void:
 
 
 func _process(_delta: float) -> void:
+	_sync_inventory_text()
 	if Input.is_action_just_pressed("ui_accept"):
 		_advance = true
 	if not _bubble_on or _host == null or _bubble == null:
@@ -195,6 +197,7 @@ func _gesture(suffix: String, rate: float, loop: bool) -> void:
 
 func _line(text: String, color: Color, poster: String) -> void:
 	_show_poster(poster)
+	ToonSpeech.speak(_tom(), text)
 	_label.text = text
 	_label.add_theme_color_override("font_color", color)
 	_bubble_on = true
@@ -205,14 +208,18 @@ func _line(text: String, color: Color, poster: String) -> void:
 
 
 func _hand_over_gags() -> void:
-	_panel.refresh()
+	# LERP_SCALE inventory 3 .01 3 over one second, from the 0.01 it starts at.
 	var view := _view()
-	_panel.position = Vector2((view.x - _panel.size.x) * 0.5, view.y * 0.12)
-	_panel.pivot_offset = _panel.size * 0.5
-	_panel.scale = Vector2(0.15, 0.15)
+	_panel.layout_quest(view)
+	# The inventory is a camera child at y 7.42, farther away than Tom, so he
+	# draws in front of the rows that cross his body.
+	_seat_inventory(view)
+	var tiny := _panel.opening_scale()
+	_panel.scale = Vector2(tiny, tiny)
 	_panel.visible = true
+	_sync_inventory_text()
 	var opened := create_tween()
-	opened.tween_property(_panel, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	opened.tween_property(_panel, "scale", Vector2.ONE, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await opened.finished
 	# quest_assign_101 seats each prop on def_joint_right_hold, plays the
 	# hand out, holds it, then flies the model into the inventory icon.
@@ -223,11 +230,110 @@ func _hand_over_gags() -> void:
 	# leaves it about half that wide.
 	await _offer("tart", Vector3(0.19, 0.02, 0.0), Vector3(0.0, 0.0, 349.38), 0.67, Vector3(-1.37, 4.56, 0.0), Vector3(329.53, 39.81, 346.76), 0.6, Vector3(-1.66, 7.42, -0.36), Vector3(0.0, 30.0, 30.0), 0.12, _CUPCAKE, ToonLoadout.THROW, 0)
 	await get_tree().create_timer(1.1).timeout
-	var closed := create_tween()
-	closed.tween_property(_panel, "scale", Vector2(0.15, 0.15), 0.25)
-	await closed.finished
 	_panel.visible = false
 	_panel.scale = Vector2.ONE
+	_clear_inventory()
+
+
+## Parent the inventory picture to the camera the way quest_assign_101 does.
+## A HUD control always paints over Tom. This card sits at the inventory's
+## depth, so the depth buffer lets Tom cover the rows behind him.
+func _seat_inventory(view: Vector2) -> void:
+	var camera := _host.get_node_or_null("Camera") as Camera3D
+	if camera == null:
+		return
+	var port := SubViewport.new()
+	port.name = "InventoryView"
+	port.transparent_bg = true
+	port.gui_disable_input = true
+	port.handle_input_locally = false
+	port.size = Vector2i(maxi(int(view.x), 2), maxi(int(view.y), 2))
+	port.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(port)
+	var holder := _panel.get_parent()
+	if holder != null:
+		holder.remove_child(_panel)
+	port.add_child(_panel)
+	_inventory_view = port
+	# The shot steps the camera back, so Tom is farther than the quest's 7.42.
+	# Sit the card just behind him. The picture already fills the view, so the
+	# rows stay the same size and his body covers the ones he stands over.
+	var dist := 7.42
+	var tom := _tom()
+	if tom != null:
+		dist = camera.global_position.distance_to(tom.global_position) + 0.35
+	var half := dist * tan(deg_to_rad(camera.fov * 0.5))
+	var aspect := view.x / maxf(view.y, 1.0)
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(half * 2.0, (half * 2.0) / aspect)
+	var card := MeshInstance3D.new()
+	card.name = "InventoryCard"
+	card.mesh = mesh
+	card.position = Vector3(0.0, 0.0, -dist)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.albedo_texture = port.get_texture()
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	card.material_override = material
+	camera.add_child(card)
+	_inventory_card = card
+	# The compatibility renderer leaves Label glyphs out of a transparent
+	# SubViewport. The words stay on the HUD, matched to the card's scale.
+	_lift_inventory_text(view)
+
+
+func _lift_inventory_text(view: Vector2) -> void:
+	var sheet := Control.new()
+	sheet.name = "InventoryText"
+	sheet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sheet.z_index = 15
+	sheet.position = Vector2.ZERO
+	sheet.size = view
+	sheet.pivot_offset = _panel.pivot_offset
+	var labels: Array[Node] = []
+	for child in _panel.get_children():
+		if child is Label:
+			labels.append(child)
+	for child in labels:
+		_panel.remove_child(child)
+		sheet.add_child(child)
+	_hud().add_child(sheet)
+	_inventory_text = sheet
+
+
+func _sync_inventory_text() -> void:
+	if _inventory_text == null or not is_instance_valid(_inventory_text) or not is_instance_valid(_panel):
+		return
+	_inventory_text.scale = _panel.scale
+	_inventory_text.pivot_offset = _panel.pivot_offset
+	_inventory_text.visible = _panel.visible
+
+
+func _clear_inventory() -> void:
+	if _inventory_text != null and is_instance_valid(_inventory_text) and is_instance_valid(_panel):
+		var labels: Array[Node] = []
+		for child in _inventory_text.get_children():
+			labels.append(child)
+		for child in labels:
+			_inventory_text.remove_child(child)
+			_panel.add_child(child)
+		_inventory_text.queue_free()
+	_inventory_text = null
+	if _inventory_card != null and is_instance_valid(_inventory_card):
+		_inventory_card.queue_free()
+	_inventory_card = null
+	var hud := _hud()
+	if _panel != null and _panel.get_parent() != hud:
+		var holder := _panel.get_parent()
+		if holder != null:
+			holder.remove_child(_panel)
+		hud.add_child(_panel)
+	if _inventory_view != null and is_instance_valid(_inventory_view):
+		_inventory_view.queue_free()
+	_inventory_view = null
 
 
 func _offer(prop_name: String, pos: Vector3, hpr: Vector3, amount: float, show_pos: Vector3, show_hpr: Vector3, show_scale: float, slot_pos: Vector3, slot_hpr: Vector3, slot_scale: float, texture: Texture2D, track: int, level: int) -> void:
@@ -270,6 +376,8 @@ func _fly(prop: Node3D, texture: Texture2D, track: int, level: int, show_pos: Ve
 		prop.queue_free()
 	if is_instance_valid(icon):
 		icon.queue_free()
+	# QuestParser.parseAddInventory plays tick_counter as the gag lands.
+	ToonGui.play_sfx(self, "res://assets/audio/sfx/tick_counter.ogg")
 	_loadout.set_gag(track, level, 1, true)
 	_panel.refresh()
 
@@ -815,60 +923,26 @@ func _click_bubble(event: InputEvent) -> void:
 
 
 func _build_quest() -> void:
-	_quest = Control.new()
-	_quest.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_quest = QuestPoster.new()
+	_quest.name = "FirstTask"
 	_quest.visible = false
-	_quest.custom_minimum_size = Vector2(280, 220)
-	_quest.size = _quest.custom_minimum_size
-	var card := TextureRect.new()
-	card.texture = _QUEST
-	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	card.stretch_mode = TextureRect.STRETCH_SCALE
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.size = _quest.size
-	_quest.add_child(card)
-	var title := Label.new()
-	title.text = "WANTED"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(40, 28)
-	title.size = Vector2(200, 28)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(title, Color(0.25, 0.16, 0.08), 20, Color(0, 0, 0, 0), 0)
-	_quest.add_child(title)
-	var mark := Panel.new()
-	mark.position = Vector2(24, 36)
-	mark.size = Vector2(22, 22)
-	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var red := StyleBoxFlat.new()
-	red.bg_color = Color(0.82, 0.16, 0.16)
-	red.set_corner_radius_all(11)
-	mark.add_theme_stylebox_override("panel", red)
-	_quest.add_child(mark)
-	var count := Label.new()
-	count.text = "1"
-	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	count.size = mark.size
-	count.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(count, Color.WHITE, 14, Color(0, 0, 0), 1)
-	mark.add_child(count)
-	var who := Label.new()
-	who.text = "A Flunky"
-	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	who.position = Vector2(40, 108)
-	who.size = Vector2(200, 28)
-	who.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(who, Color(0.22, 0.16, 0.1), 20, Color(0, 0, 0, 0), 0)
-	_quest.add_child(who)
-	var where := Label.new()
-	where.text = "Anywhere"
-	where.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	where.position = Vector2(40, 140)
-	where.size = Vector2(200, 24)
-	where.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(where, Color(0.28, 0.22, 0.14), 16, Color(0, 0, 0, 0), 0)
-	_quest.add_child(where)
+	_quest.gui_input.connect(_click_bubble)
 	_hud().add_child(_quest)
+
+
+## showQuestsOnscreenTutorial drops the task page to z -0.2. The first poster
+## sits at (-0.45, 0.25), so its center lands at (-0.45, 0.05).
+func _show_first_task() -> void:
+	var view := _view()
+	var unit := view.y * 0.5
+	var card := Vector2(0.8 * 1.06, 0.58 * 1.06) * unit
+	var center := Vector2(view.x * 0.5 - 0.45 * unit, view.y * 0.5 - 0.05 * unit)
+	_quest.position = center - card * 0.5
+	var task: Dictionary = (ToonTasks.CATALOG[101] as Dictionary).duplicate()
+	task["progress"] = 0
+	task["ready"] = false
+	_quest.layout(card)
+	_quest.show_task(task)
 
 
 func _hud() -> CanvasLayer:

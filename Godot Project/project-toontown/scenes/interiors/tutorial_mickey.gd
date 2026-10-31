@@ -55,8 +55,11 @@ func play(host: Node) -> void:
 		return
 	host.call("add_nametag", _mickey, "Mickey", Color(0.6, 0.4, 0.2))
 	host.call("adopt_billboards", _mickey)
-	host.call("set_cutscene", true)
+	# tutorial_mickey poses localToon in the shot. A quest close-up hides
+	# the player; this run-in does not.
+	host.call("set_cutscene", true, false)
 	host.call("hold_camera", true)
+	_toon.visible = true
 	host.call("place_player", _HOME, 0.0)
 	_stand_mickey(_HOME, 0.0)
 	_aim_camera()
@@ -159,6 +162,7 @@ func _move() -> void:
 	elif _step == 11:
 		mickey_pos = _MICKEY_END.lerp(_HOME, _ease(_time / 2.0))
 		mickey_h = -180.0
+	_toon.visible = true
 	_host.call("place_player", toon_pos, toon_h)
 	_stand_mickey(mickey_pos, mickey_h)
 
@@ -263,6 +267,7 @@ func _show_line(text: String, speaker: Node3D) -> void:
 	label.text = text
 	_bubble.visible = true
 	_waiting = true
+	ToonSpeech.speak(speaker, text)
 	_place_bubble()
 
 

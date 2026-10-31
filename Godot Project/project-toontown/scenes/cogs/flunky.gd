@@ -6,6 +6,7 @@ extends Cog
 
 const _MODEL := "res://assets/cogs/flunky.glb"
 const _WALK := "res://assets/cogs/flunky.walk"
+const _NEUTRAL := "res://assets/cogs/flunky.neutral"
 const _LOSE_MODEL := "res://assets/cogs/flunky_lose.glb"
 const _LOSE := "res://assets/cogs/flunky.lose"
 # MovieUtil.SUIT_LOSE_DURATION. The lose clip is played across these seconds.
@@ -23,6 +24,11 @@ var _moving := false
 var _goal := Vector3.ZERO
 var _heading := 0.0
 var _wait := 0.0
+var _acting := false
+var _idle_bank: Dictionary = {}
+var _idle_time := 0.0
+var _idle_frames := 1
+var _idling := false
 var _leg := 0
 var _pacing := false
 var _street := false
@@ -43,6 +49,8 @@ func _ready() -> void:
 	add_child(model)
 	_load_walk()
 	_load_actions()
+	_idle_bank = _read_bank(_NEUTRAL)
+	_idle_frames = maxi(int(_idle_bank.get("frames", 1)), 1)
 	_show_both_sides()
 	_hide_gray_cuffs()
 
@@ -86,9 +94,13 @@ func on_street() -> bool:
 
 
 func stop_for_battle() -> void:
+	# Suit.loop('neutral') while the cog waits out a taunt, the gag menu,
+	# or the gap between attacks.
 	_pacing = false
 	_wait = 0.0
-	_set_moving(false)
+	_moving = false
+	_idling = true
+	_idle_time = 0.0
 
 
 ## The face-off walks him onto the street's battle cell. The path stays stopped.
@@ -105,6 +117,8 @@ func face_heading(heading: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _pacing:
 		_walk_pace(delta)
+	elif _idling and not _acting:
+		_pose_idle(delta)
 	_ground.step(self, delta)
 
 
@@ -203,6 +217,17 @@ func _pose(delta: float) -> void:
 	var following := (frame + 1) % _frame_count
 	var blend := _walk_time - float(frame)
 	_apply_pose(_clips, _joints, frame, following, blend)
+
+
+func _pose_idle(delta: float) -> void:
+	var clips: Array = _idle_bank.get("clips", [])
+	if _idle_frames <= 1 or clips.is_empty():
+		return
+	_idle_time = fposmod(_idle_time + delta * 24.0, float(_idle_frames))
+	var frame := mini(int(_idle_time), _idle_frames - 1)
+	var following := (frame + 1) % _idle_frames
+	var blend := _idle_time - float(frame)
+	_apply_pose(clips, _idle_bank.get("joints", []), frame, following, blend)
 
 
 func _apply_pose(clips: Array, joints: Array, frame: int, following: int, blend: float, max_edge: float = 0.0) -> void:
@@ -349,6 +374,9 @@ func _hide_gray_cuffs() -> void:
 		var action_clips: Array = bank.get("clips", [])
 		for action_clip in action_clips:
 			_drop_cuff_surfaces(action_clip as Dictionary, suit, drop, kept)
+	var idle_clips: Array = _idle_bank.get("clips", [])
+	for idle_clip in idle_clips:
+		_drop_cuff_surfaces(idle_clip as Dictionary, suit, drop, kept)
 
 
 func _drop_cuff_surfaces(clip: Dictionary, suit: MeshInstance3D, drop: Array[int], kept: ArrayMesh) -> void:
@@ -411,6 +439,7 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	var bank: Dictionary = _actions.get(suffix, {})
 	var frames := int(bank.get("frames", 0))
 	var clips: Array = bank.get("clips", [])
+	_acting = true
 	if frames <= 1 or clips.is_empty():
 		return
 	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
@@ -422,6 +451,7 @@ func pose_action(suffix: String, elapsed: float) -> void:
 
 func begin_lose() -> void:
 	# Suit.getLoseActor hides the live suit and shows suitC-lose-mod.
+	_idling = false
 	if _lose_root == null:
 		var packed := load(_LOSE_MODEL) as PackedScene
 		if packed == null:
@@ -473,6 +503,9 @@ func end_action(suffix: String) -> void:
 		var node := record["node"] as Node3D
 		if is_instance_valid(node):
 			node.transform = record["rest"]
+	_acting = false
+	if _idling:
+		_pose_idle(0.0)
 
 
 func _read_bank(path: String, root: Node = null) -> Dictionary:

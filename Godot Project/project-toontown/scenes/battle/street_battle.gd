@@ -26,6 +26,8 @@ const _MENU_BACK := 8.6
 const _MENU_HEIGHT := 16.5
 const _SUIT_HEIGHT := 4.88
 const _RUN_STEPS := "res://assets/audio/sfx/AV_footstep_runloop.mp3"
+# MovieToonVictory loops ENC_Win for the whole reward dance.
+const _WIN := "res://assets/audio/sfx/ENC_Win.mp3"
 const _ATTACKS: Array[Dictionary] = [
 	{
 		"name": "Pound Key!",
@@ -76,6 +78,7 @@ var _place_music: AudioStreamPlayer
 var _movie: BattleMovie
 var _dancing := false
 var _dance := 0.0
+var _dance_sound: AudioStreamPlayer
 var _place_fov := 52.0
 
 
@@ -123,6 +126,7 @@ func consider(where: Vector3) -> void:
 
 
 func _exit_tree() -> void:
+	_stop_dance_sound()
 	if _loadout != null:
 		_loadout.clear_tutorial_accuracy()
 
@@ -167,7 +171,9 @@ func _run() -> void:
 	_start_battle_music()
 	if _camera != null:
 		_place_fov = _camera.fov
-	_host.call("set_cutscene", true)
+	# The face-off and the attack movies frame the toon. Hiding them is only
+	# for a quest close-up that looks through their standing spot.
+	_host.call("set_cutscene", true, false)
 	await _face_off()
 	_ensure_marker()
 	_show_meter()
@@ -215,6 +221,27 @@ func _start_battle_music() -> void:
 	_battle_music.volume_db = linear_to_db(BATTLE_VOLUME)
 	add_child(_battle_music)
 	_battle_music.play()
+
+
+func _start_dance_sound() -> void:
+	var stream := load(_WIN) as AudioStreamMP3
+	if stream == null:
+		return
+	stream = stream.duplicate() as AudioStreamMP3
+	stream.loop = true
+	_dance_sound = ToonAudio.effect_player()
+	_dance_sound.name = "WinDance"
+	_dance_sound.stream = stream
+	add_child(_dance_sound)
+	_dance_sound.play()
+
+
+func _stop_dance_sound() -> void:
+	if _dance_sound == null:
+		return
+	_dance_sound.stop()
+	_dance_sound.queue_free()
+	_dance_sound = null
 
 
 func _stop_battle_music() -> void:
@@ -462,19 +489,27 @@ func _defeat_cog() -> void:
 	_flunky.finish_lose()
 	_dance = 0.0
 	_dancing = true
+	_start_dance_sound()
 	_movie.show_reward()
 	var was_done := false
 	if _tasks != null:
 		was_done = _tasks.is_complete(101)
 		_tasks.note_cog_defeat("f")
-	_loadout.save()
+	var before := {}
 	for track in _gained.keys():
+		before[int(track)] = _loadout.experience_of(int(track))
 		_loadout.add_experience(int(track), int(_gained[track]))
-		await _reward(int(track), int(_gained[track]))
 	_loadout.save()
+	var quest_line := ""
 	if _tasks != null and not was_done and _tasks.is_complete(101):
-		await _notice("ToonTasks", "Defeat a Flunky : Complete")
+		quest_line = "Defeat a Flunky : Complete"
+	var panel := RewardPanel.new()
+	panel.name = "RewardPanel"
+	_hud.add_child(panel)
+	await panel.present(_player.name, _loadout, before, _gained, quest_line, true)
+	panel.queue_free()
 	_dancing = false
+	_stop_dance_sound()
 	_movie.hide_reward()
 	_player.end_action("victory")
 
@@ -498,17 +533,6 @@ func _toon_went_sad() -> void:
 
 func _explode() -> void:
 	await _movie.play_defeat()
-
-
-func _reward(track: int, amount: int) -> void:
-	var name := ToonLoadout.TRACK_NAMES[track]
-	var points := "point" if amount == 1 else "points"
-	var exp := _loadout.experience_of(track)
-	var next := _loadout.next_skill(track)
-	var body := "You received %d %s %s!\nWhen you get %d, you will get a new gag!\n\n%s  %d/%d" % [
-		amount, name, points, next, name.to_upper(), exp, next,
-	]
-	await _notice(_player.name, body)
 
 
 func _notice(title: String, body: String) -> void:
@@ -546,6 +570,7 @@ func _notice(title: String, body: String) -> void:
 
 
 func _say(at: Vector3, text: String, seconds: float, aim: bool = true, tick_idle: bool = false) -> void:
+	ToonSpeech.cog(text)
 	if aim:
 		_aim(false)
 	var panel := PanelContainer.new()
@@ -561,6 +586,7 @@ func _say(at: Vector3, text: String, seconds: float, aim: bool = true, tick_idle
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.custom_minimum_size = Vector2(220, 0)
 	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), 20, Color(0, 0, 0, 0), 0)
+	label.add_theme_font_override("font", ToonGui.suit_font())
 	panel.add_child(label)
 	_hud.add_child(panel)
 	panel.reset_size()

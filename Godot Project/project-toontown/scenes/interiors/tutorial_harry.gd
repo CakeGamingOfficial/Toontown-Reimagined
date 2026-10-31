@@ -6,9 +6,28 @@ extends Node
 ## for the map, the gags, and the new trolley ToonTask.
 
 const _ARROW := preload("res://assets/gui/tutorial/book/arrow_button.png")
+const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _BALLOON_TOP := preload("res://assets/gui/nametag/chat_top.png")
+const _BALLOON_MID := preload("res://assets/gui/nametag/chat_middle.png")
+const _BALLOON_BOT := preload("res://assets/gui/nametag/chat_bottom.png")
 const _BLACK := Color(0.08, 0.08, 0.1)
 const _TEAL := Color(0.0, 0.58, 0.64)
 const _NAME := Color(0.86, 0.22, 0.12)
+# ToonHeadFrame uses dialog_box_gui at geom_scale (1, 1, 0.5), tinted
+# GlobalDialogColor. quest_assign_110 then places that frame at (-0.2, -0.45).
+const _FRAME_AT := Vector2(-0.2, -0.45)
+const _DIALOG_SIZE := Vector2(1.112161, 0.59304)
+const _DIALOG_SHIFT := Vector2(-0.021097, -0.019366)
+# Head, name card, and 2D speech nametag, in the frame's own coordinates.
+const _HEAD_AT := Vector2(-0.27, -0.09)
+const _HEAD_SIZE := Vector2(0.46, 0.52)
+const _NAME_AT := Vector2(-0.27, 0.16)
+const _SPEECH_AT := Vector2(-0.16, -0.09)
+# chatbox_noarrow is the 2D speech balloon. Its slices are 10.04 wide.
+const _BALLOON_MODEL_W := 10.040655
+const _BALLOON_TOP_H := 0.709887
+const _BALLOON_BOT_H := 0.70989
+const _BALLOON_SCALE := 0.055
 
 var _host: Node
 var _harry: ToonActor
@@ -22,6 +41,14 @@ var _world: PanelContainer
 var _world_label: Label
 var _world_arrow: TextureRect
 var _chat: Control
+var _chat_dialog: TextureRect
+var _chat_head: TextureRect
+var _chat_name: Label
+var _chat_name_card: ColorRect
+var _chat_balloon: Control
+var _chat_top: TextureRect
+var _chat_mid: TextureRect
+var _chat_bot: TextureRect
 var _chat_label: Label
 var _chat_arrow: TextureRect
 var _arrows: Array[TextureRect] = []
@@ -298,6 +325,7 @@ func _show_world(text: String, color: Color, confirm: bool) -> void:
 	_world_label.add_theme_color_override("font_color", color)
 	_world_arrow.visible = confirm
 	_world.visible = true
+	ToonSpeech.speak(_harry, text)
 
 
 func _hide_world() -> void:
@@ -330,51 +358,39 @@ func _build_book_chat() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.visible = false
 	panel.z_index = 40
-	var plate := Panel.new()
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var plate_box := StyleBoxFlat.new()
-	plate_box.bg_color = Color(0.99, 0.97, 0.75)
-	plate_box.border_color = Color(0.2, 0.62, 0.28)
-	plate_box.set_border_width_all(6)
-	plate_box.set_corner_radius_all(12)
-	plate.add_theme_stylebox_override("panel", plate_box)
-	panel.add_child(plate)
-	var portrait := await _portrait()
-	portrait.position = Vector2(10, 16)
-	portrait.size = Vector2(96, 96)
-	panel.add_child(portrait)
-	var name := Label.new()
-	name.text = "HQ Harry"
-	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name.position = Vector2(116, 8)
-	name.size = Vector2(220, 24)
-	ToonGui.style_label(name, _NAME, 16, Color(0, 0, 0, 0), 0)
-	panel.add_child(name)
-	var bubble := PanelContainer.new()
-	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bubble.position = Vector2(116, 34)
-	var bubble_box := StyleBoxFlat.new()
-	bubble_box.bg_color = Color(1, 1, 1, 0.98)
-	bubble_box.border_color = Color(0, 0, 0)
-	bubble_box.set_border_width_all(3)
-	bubble_box.set_corner_radius_all(14)
-	bubble_box.content_margin_left = 12
-	bubble_box.content_margin_right = 26
-	bubble_box.content_margin_top = 8
-	bubble_box.content_margin_bottom = 16
-	bubble.add_theme_stylebox_override("panel", bubble_box)
-	panel.add_child(bubble)
-	bubble.name = "Speech"
-	var column := VBoxContainer.new()
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bubble.add_child(column)
+	_chat_dialog = _sheet(_DIALOG)
+	# GlobalDialogColor tints the white dialog cream.
+	_chat_dialog.modulate = Color(1.0, 1.0, 0.75, 1.0)
+	panel.add_child(_chat_dialog)
+	_chat_head = await _portrait()
+	panel.add_child(_chat_head)
+	_chat_name_card = ColorRect.new()
+	_chat_name_card.color = Color(1.0, 1.0, 1.0, 0.55)
+	_chat_name_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(_chat_name_card)
+	_chat_name = Label.new()
+	_chat_name.text = "HQ Harry"
+	_chat_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_chat_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_chat_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(_chat_name)
+	_chat_balloon = Control.new()
+	_chat_balloon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(_chat_balloon)
+	_chat_top = _sheet(_BALLOON_TOP)
+	_chat_mid = _sheet(_BALLOON_MID)
+	_chat_bot = _sheet(_BALLOON_BOT)
+	_chat_balloon.add_child(_chat_top)
+	_chat_balloon.add_child(_chat_mid)
+	_chat_balloon.add_child(_chat_bot)
 	_chat_label = Label.new()
 	_chat_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_chat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_chat_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_chat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(_chat_label, _BLACK, 18, Color(0, 0, 0, 0), 0)
-	column.add_child(_chat_label)
-	_chat_arrow = ToonGui.attach_next_arrow(bubble)
+	_chat_balloon.add_child(_chat_label)
+	_chat_arrow = ToonGui.attach_next_arrow(_chat_balloon)
 	_chat_arrow.visible = false
 	book.add_child(panel)
 	_chat = panel
@@ -452,6 +468,7 @@ func _show_book(text: String, color: Color, confirm: bool) -> void:
 	_chat_label.add_theme_color_override("font_color", color)
 	_chat_arrow.visible = confirm
 	_chat.visible = true
+	ToonSpeech.speak(_harry, text)
 	_place_book_chat()
 
 
@@ -461,19 +478,71 @@ func _hide_book() -> void:
 
 
 func _place_book_chat() -> void:
-	if _chat == null or not _chat.visible:
+	if _chat == null or not _chat.visible or _host == null:
 		return
-	var book := _book()
-	if book == null:
-		return
-	var rect := book.cover_rect()
-	_chat.global_position = rect.position + Vector2(rect.size.x * 0.04, rect.size.y * 0.62)
-	_chat.size = Vector2(rect.size.x * 0.58, rect.size.y * 0.32)
-	var bubble := _chat.get_node_or_null("Speech") as Control
-	if bubble == null:
-		return
-	bubble.position = Vector2(116, 34)
-	bubble.size = Vector2(maxf(_chat.size.x - 128.0, 80.0), maxf(_chat.size.y - 46.0, 40.0))
+	var view := _host.get_viewport().get_visible_rect().size
+	_chat.global_position = Vector2.ZERO
+	_chat.size = view
+	var unit := view.y * 0.5
+	var dialog_at := _FRAME_AT + _DIALOG_SHIFT
+	_put(_chat_dialog, dialog_at, _DIALOG_SIZE, unit)
+	_put(_chat_head, _FRAME_AT + _HEAD_AT, _HEAD_SIZE, unit)
+	var name_px := maxi(int(0.05 * unit), 12)
+	ToonGui.style_label(_chat_name, _NAME, name_px, Color(0, 0, 0, 0), 0)
+	var name_box := Vector2(0.42, 0.08)
+	_put(_chat_name_card, _FRAME_AT + _NAME_AT, name_box, unit)
+	_put(_chat_name, _FRAME_AT + _NAME_AT, name_box, unit)
+	_place_balloon(unit)
+
+
+## The 2D nametag scales chatbox_noarrow by 0.055. Wider lines grow the middle.
+func _place_balloon(unit: float) -> void:
+	var width := maxf(0.92, _BALLOON_MODEL_W * _BALLOON_SCALE) * unit
+	var top_h := width * (_BALLOON_TOP_H / _BALLOON_MODEL_W)
+	var bot_h := width * (_BALLOON_BOT_H / _BALLOON_MODEL_W)
+	var pad := width * 0.07
+	var text_px := maxi(int(0.048 * unit), 13)
+	ToonGui.style_label(_chat_label, _chat_label.get_theme_color("font_color"), text_px, Color(0, 0, 0, 0), 0)
+	_chat_label.custom_minimum_size = Vector2(width - pad * 2.0, 0.0)
+	_chat_label.size = _chat_label.custom_minimum_size
+	var text_h := maxf(_chat_label.get_minimum_size().y, text_px * 1.2)
+	var mid_h := maxf(text_h + pad * 0.35, width * (1.0 / _BALLOON_MODEL_W))
+	var total := top_h + mid_h + bot_h
+	var speech := _FRAME_AT + _SPEECH_AT
+	var origin := Vector2(view_x(speech.x, unit), view_y(speech.y, unit) - total * 0.5)
+	_chat_balloon.position = origin
+	_chat_balloon.size = Vector2(width, total)
+	_chat_top.position = Vector2.ZERO
+	_chat_top.size = Vector2(width, top_h)
+	_chat_mid.position = Vector2(0.0, top_h)
+	_chat_mid.size = Vector2(width, mid_h)
+	_chat_bot.position = Vector2(0.0, top_h + mid_h)
+	_chat_bot.size = Vector2(width, bot_h)
+	_chat_label.position = Vector2(pad, top_h + (mid_h - text_h) * 0.5)
+	_chat_label.size = Vector2(width - pad * 2.0, text_h)
+
+
+func _put(control: Control, at: Vector2, box: Vector2, unit: float) -> void:
+	var size := box * unit
+	control.position = Vector2(view_x(at.x, unit), view_y(at.y, unit)) - size * 0.5
+	control.size = size
+
+
+func view_x(x: float, unit: float) -> float:
+	return _host.get_viewport().get_visible_rect().size.x * 0.5 + x * unit
+
+
+func view_y(z: float, unit: float) -> float:
+	return _host.get_viewport().get_visible_rect().size.y * 0.5 - z * unit
+
+
+func _sheet(texture: Texture2D) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.texture = texture
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
 
 
 func _aim_button() -> void:

@@ -189,6 +189,12 @@ func show_style(style: ToonStyle) -> void:
 	_add_shadow()
 
 
+func species() -> String:
+	if _style == null:
+		return ""
+	return _style.species()
+
+
 ## LocalAvatar.getClampedAvatarHeight. Toons shorter than 3 share that camera.
 func clamped_height() -> float:
 	if _style == null:
