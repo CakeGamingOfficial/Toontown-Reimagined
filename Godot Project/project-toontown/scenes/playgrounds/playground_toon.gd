@@ -13,6 +13,8 @@ const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _HALL := preload("res://scenes/interiors/toon_hall_door.gd")
+const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
+const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
@@ -87,6 +89,7 @@ var _door_ready := false
 # the toon is simply not standing at the shop, which walked a hall exit
 # straight back through the same door.
 var _hall_ready := false
+var _hq_ready := false
 var _bank_ready := false
 var _bank_open := false
 var _clerk_ready := false
@@ -112,7 +115,10 @@ const _BANK_PING_HI := 92.0 / 24.0
 var _from_door := ""
 var _shop_trip := ""
 var _hall_trip := ""
+var _hq_trip := ""
 var _tunnels: Array[Dictionary] = []
+var _bldg_trip := ""
+var _bldg_ready := false
 var _shot := false
 var _shot_origin: Node3D
 var _shot_from := Vector3.ZERO
@@ -120,6 +126,7 @@ var _shot_blend := 0.0
 var _tasks: ToonTasks
 var _loadout: ToonLoadout
 var _book: ShtickerBook
+var _map: Control
 var _meter: LaffMeter
 var _line: PanelContainer
 var _line_label: Label
@@ -152,27 +159,37 @@ func _ready() -> void:
 	var from_door := door_trip
 	var from_shop := String(_SHOP.trip)
 	var from_hall := String(_HALL.trip)
+	var from_hq := String(_HQ.trip)
+	var from_bldg := String(_BLDG.trip)
+	var from_tunnel := _LINKS.arriving()
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
 	door_trip = ""
 	_SHOP.trip = ""
 	_HALL.trip = ""
+	_HQ.trip = ""
+	_BLDG.trip = ""
 	_from_door = from_door
 	_shop_trip = from_shop
 	_hall_trip = from_hall
-	var incoming := _LINKS.arriving()
+	_hq_trip = from_hq
+	_bldg_trip = from_bldg
 	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
 	var trip: Dictionary = {}
-	if incoming:
+	if from_tunnel:
 		trip = _LINKS.take()
 	_active = true
 	_hood = _current_hood()
 	_SHOP.prepare(get_parent(), _hood)
 	_HALL.prepare(get_parent())
+	_HQ.prepare(get_parent())
 	var window := get_tree().root
+	if _BLDG.street_zone(_scene_path()) != 0:
+		_BLDG.prepare(get_parent())
 	if not window.close_requested.is_connected(_keep_quests):
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
@@ -184,11 +201,12 @@ func _ready() -> void:
 	add_child(_trolley)
 	if not _trolley.setup(self):
 		_trolley = null
-	if from_door != "" or from_shop != "" or from_hall != "":
-		if _tasks.in_playground:
-			_tasks.note_hood(_hood)
+	if from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "":
+		_tasks.note_hood(_hood)
 		if from_hall == "out":
 			await _settle_hall_exit()
+		if from_hq == "out":
+			await _settle_hq_exit()
 		_fade_in()
 		_DOORS.play_close(self)
 		_locked = false
@@ -234,6 +252,8 @@ func _keep_quests() -> void:
 func _process(delta: float) -> void:
 	if not _active or _player == null:
 		return
+	if _map != null and _body != null:
+		_map.call("follow", _body.global_position, _heading)
 	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
 	if _trolley != null:
@@ -267,7 +287,9 @@ func _physics_process(delta: float) -> void:
 	_try_house_door()
 	_try_gag_door()
 	_try_hall_door()
+	_try_hq_door()
 	_try_bank()
+	_try_building_door()
 	_try_clerk()
 	_try_trolley()
 
@@ -280,6 +302,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _book != null and _tasks != null and _tasks.book_ready() and _book_hotkey(event):
 		_book.toggle_hotkey()
+		get_viewport().set_input_as_handled()
+		return
+	if _map != null and _map_hotkey(event):
+		_map.call("toggle")
 		get_viewport().set_input_as_handled()
 
 
@@ -294,6 +320,16 @@ func _book_hotkey(event: InputEvent) -> bool:
 	if not key.pressed or key.echo:
 		return false
 	return key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE
+
+
+func _map_hotkey(event: InputEvent) -> bool:
+	# ToontownGlobals.MapHotkey. want-toggle-quest-map opens and closes on Alt.
+	if not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	if not key.pressed or key.echo:
+		return false
+	return key.keycode == KEY_ALT or key.physical_keycode == KEY_ALT
 
 
 func show_notice(message: String) -> void:
@@ -324,6 +360,7 @@ func say_line(text: String) -> void:
 	_line_label.text = text
 	_line_left = maxf(2.8, float(text.length()) * 0.045)
 	_line.visible = _book == null or not _book.is_open()
+	ToonSpeech.speak(_player, text)
 
 
 func _quiet_fly_camera() -> void:
@@ -354,10 +391,18 @@ func _arrival_spot() -> Dictionary:
 		return _shop_outside_drop()
 	if _hall_trip == "out":
 		return _hall_outside_drop()
+	if _hq_trip == "out":
+		return _hq_outside_drop()
+	if _bldg_trip == "out":
+		return _building_outside_drop()
 	if _PLACES.is_gag_shop(scene_path):
 		return _shop_inside_drop()
 	if _PLACES.is_toon_hall(scene_path):
 		return _hall_inside_drop()
+	if _PLACES.is_toon_hq(scene_path):
+		return _hq_inside_drop()
+	if _PLACES.is_shop(scene_path):
+		return _building_inside_drop()
 	if _PLACES.is_house(scene_path):
 		return _house_drop()
 	if _hood == _PLACES.ESTATE and _from_door == "out":
@@ -683,6 +728,7 @@ func _say_clerk(actor: Node3D, text: String, seconds: float) -> void:
 		_hud().add_child(_clerk_line)
 	_clerk_label.text = text
 	_clerk_line.visible = true
+	ToonSpeech.speak(actor, text)
 
 
 func _place_clerk_line(delta: float) -> void:
@@ -988,6 +1034,119 @@ func _hall_outside_drop() -> Dictionary:
 	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
 
 
+func _try_hq_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_toon_hq(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	var index := 0
+	if inside:
+		var nearest := 1000.0
+		var found := false
+		for door_index in 2:
+			var origin := _HQ.find_interior_origin(get_parent(), door_index)
+			if origin == null:
+				continue
+			var there := origin.global_position
+			var distance := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(there.x, there.z))
+			if distance < nearest:
+				nearest = distance
+				trigger = there
+				index = door_index
+				found = true
+		if not found:
+			return
+	else:
+		var building := _HQ.find_building(get_parent())
+		if building == null:
+			return
+		var nearest := 1000.0
+		var found := false
+		for door_index in 2:
+			if _HQ.find_exterior_door(building, door_index) == null:
+				continue
+			var there := _HQ.outside_trigger(building, door_index)
+			var distance := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(there.x, there.z))
+			if distance < nearest:
+				nearest = distance
+				trigger = there
+				index = door_index
+				found = true
+		if not found:
+			return
+		reach = 2.4
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_hq_ready = true
+		return
+	if not _hq_ready or not _KEYS.held("forward"):
+		return
+	_hq_ready = false
+	if inside:
+		_leave_hq(index)
+	else:
+		_enter_hq(index)
+
+
+func _enter_hq(index: int) -> void:
+	_locked = true
+	var building := _HQ.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _HQ.find_exterior_door(building, index)
+	_HQ.open(self, door)
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_HQ.return_scene = _scene_path()
+	_HQ.zone_id = _HQ.zone_for(_HQ.return_scene)
+	_HQ.door_index = index
+	_HQ.trip = "in"
+	get_tree().change_scene_to_file(_PLACES.toon_hq_scene())
+
+
+func _leave_hq(index: int) -> void:
+	_locked = true
+	_HQ.open(self, _HQ.find_interior_door(get_parent(), index))
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_HQ.door_index = index
+	_HQ.trip = "out"
+	var back := _HQ.return_scene
+	if back.is_empty():
+		back = _PLACES.scene_for(_PLACES.TTC)
+	get_tree().change_scene_to_file(back)
+
+
+func _hq_inside_drop() -> Dictionary:
+	var drop: Dictionary = _HQ.inside_drop(get_parent(), _HQ.door_index)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _hq_outside_drop() -> Dictionary:
+	var building := _HQ.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _HQ.outside_drop(building, _HQ.door_index)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _settle_hq_exit() -> void:
+	await get_tree().physics_frame
+	var drop := _hq_outside_drop()
+	var point: Vector3 = drop["point"]
+	_body.global_position = point
+	_heading = float(drop["heading"])
+	_home = point
+	_home_heading = _heading
+	if _player != null:
+		_face(_player, _heading)
+	_place_camera()
+
+
 func _shop_inside_drop() -> Dictionary:
 	var origin := _DOORS.find_origin(get_parent())
 	if origin == null:
@@ -1027,6 +1186,95 @@ func _shop_floor(point: Vector3) -> Vector3:
 		return point
 	landed.y += 0.05
 	return landed
+
+
+func _try_building_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_shop(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.2
+	if inside:
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		trigger = _DOORS.inside_trigger(origin)
+	else:
+		if _BLDG.street_zone(scene_path) == 0:
+			return
+		var near: Dictionary = _BLDG.closest(_body.global_position)
+		if near.is_empty():
+			_bldg_ready = true
+			return
+		var point: Vector3 = near["point"]
+		trigger = point
+		reach = 2.4
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_bldg_ready = true
+		return
+	if not _bldg_ready or not _KEYS.held("forward"):
+		return
+	_bldg_ready = false
+	if inside:
+		_leave_building()
+	else:
+		_enter_building()
+
+
+func _enter_building() -> void:
+	_locked = true
+	var near: Dictionary = _BLDG.closest(_body.global_position)
+	if near.is_empty():
+		_locked = false
+		return
+	var building: Node3D = near["building"]
+	var door: Node3D = near["door"]
+	var zone_id := _BLDG.interior_zone(building)
+	var street_path := _scene_path()
+	_BLDG.open(self, door)
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	if zone_id == 0:
+		_locked = false
+		return
+	_BLDG.remember(zone_id, street_path)
+	_BLDG.trip = "in"
+	get_tree().change_scene_to_file(_PLACES.shop_scene())
+
+
+func _leave_building() -> void:
+	_locked = true
+	_DOORS.open(self, _DOORS.find_door(get_parent()))
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_BLDG.trip = "out"
+	var back := _BLDG.street
+	if back.is_empty():
+		back = _PLACES.scene_for(_PLACES.TTC)
+	get_tree().change_scene_to_file(back)
+
+
+func _building_inside_drop() -> Dictionary:
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _building_outside_drop() -> Dictionary:
+	var building := _BLDG.find_for_zone(_BLDG.zone)
+	if building == null:
+		return {"point": Vector3.ZERO, "heading": 0.0}
+	var door := _BLDG.find_exterior_door(building)
+	if door == null:
+		return {"point": Vector3.ZERO, "heading": 0.0}
+	var drop: Dictionary = _BLDG.outside_drop(building, door)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
 
 
 func _enter_house(slot: int) -> void:
@@ -1397,6 +1645,19 @@ func _ready_hud() -> void:
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
+	# The open book covers the street map. The map stays above the laff meter.
+	_book.z_index = 20
+	var street_zone := _BLDG.street_zone(_scene_path())
+	if street_zone != 0:
+		# Loaded by path so the street script and the map script do not preload each other.
+		var map_script := load("res://scenes/quests/quest_map.gd") as GDScript
+		if map_script != null:
+			_map = map_script.new() as Control
+			_map.name = "QuestMap"
+			_hud().add_child(_map)
+			if not bool(_map.call("setup", _tasks, street_zone)):
+				_map.queue_free()
+				_map = null
 	var chat := SpeedChat.new()
 	chat.name = "SpeedChat"
 	_hud().add_child(chat)

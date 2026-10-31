@@ -23,7 +23,10 @@ func _ready() -> void:
 	_ready_zones()
 	_ready_billboards()
 	_close_hq_doors(self)
-	if preload("res://scenes/places/tunnel_links.gd").arriving():
+	preload("res://scenes/interiors/shop_door.gd").prepare(self)
+	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
+	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
+	if preload("res://scenes/places/tunnel_links.gd").arriving() or preload("res://scenes/interiors/shop_door.gd").trip == "out":
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 	preload("res://scenes/streets/street_suits.gd").attach(self)
 
@@ -85,7 +88,7 @@ func _process_billboards(camera: Camera3D) -> void:
 		return
 	for item in _billboards:
 		var node := item["node"] as Node3D
-		if not node.visible or not node.is_visible_in_tree():
+		if node == null or not is_instance_valid(node) or not node.is_visible_in_tree():
 			continue
 		var rest := item["rest"] as Basis
 		_yaw_toward(node, rest, camera.global_position)
@@ -189,19 +192,18 @@ func _process_zones(camera: Camera3D) -> void:
 
 func _show_zone(zone: String) -> void:
 	_current_zone = zone
-	var shown := {}
-	for visible_name in _zones[zone]["vis"]:
-		shown[String(visible_name)] = true
-	shown[zone] = true
-	for zone_name in _zone_nodes:
-		(_zone_nodes[zone_name] as Node3D).visible = shown.has(zone_name)
+	preload("res://scenes/playgrounds/street_batch.gd").apply_visible(self, zone, _zone_nodes, _zones)
 
 
 func _show_every_zone() -> void:
 	_current_zone = ""
 	_zone_sample = Vector2(INF, INF)
+	if has_meta("street_shown"):
+		remove_meta("street_shown")
 	for zone_name in _zone_nodes:
-		(_zone_nodes[zone_name] as Node3D).visible = true
+		var zone_node := _zone_nodes[zone_name] as Node3D
+		zone_node.visible = true
+		preload("res://scenes/playgrounds/street_batch.gd").set_solid(zone_node, true)
 
 
 func _zone_at(point: Vector2) -> String:

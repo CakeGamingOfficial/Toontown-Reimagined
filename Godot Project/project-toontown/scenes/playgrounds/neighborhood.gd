@@ -38,8 +38,15 @@ func _ready() -> void:
 		_DOORS.seal(self)
 	_ready_music()
 	_ready_billboards()
+	if preload("res://scenes/interiors/shop_door.gd").street_zone(scene_file_path) != 0:
+		preload("res://scenes/interiors/shop_door.gd").prepare(self)
+	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
+	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	_attach_returning_toon()
 	preload("res://scenes/streets/street_suits.gd").attach(self)
+	_current_zone = ""
+	_zone_sample = Vector2(INF, INF)
+	_process_zones(_view_camera())
 
 
 func _keep_estate_house(slot: int) -> void:
@@ -63,7 +70,8 @@ func _collect_other_houses(node: Node, kept: String, extra: Array[Node]) -> void
 func _attach_returning_toon() -> void:
 	var places := preload("res://scenes/places/hood_places.gd")
 	var links := preload("res://scenes/places/tunnel_links.gd")
-	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving():
+	var returning := preload("res://scenes/interiors/shop_door.gd").trip == "out"
+	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving() and not returning:
 		return
 	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
@@ -112,6 +120,15 @@ func _ready_music() -> void:
 	player.volume_db = linear_to_db(MUSIC_VOLUME)
 	add_child(player)
 	player.play()
+
+
+func _focus_sample(camera: Camera3D) -> Vector2:
+	var player := get_node_or_null("Player") as Node3D
+	if player != null:
+		return Vector2(player.global_position.x, player.global_position.z)
+	if camera == null:
+		return Vector2(INF, INF)
+	return Vector2(camera.global_position.x, camera.global_position.z)
 
 
 func _view_camera() -> Camera3D:
@@ -168,10 +185,12 @@ func _collect_zone_nodes(node: Node) -> void:
 
 
 func _process_zones(camera: Camera3D) -> void:
-	if camera == null or _zones.is_empty():
+	if _zones.is_empty():
 		return
-	var sample := Vector2(camera.global_position.x, camera.global_position.z)
-	if sample.distance_squared_to(_zone_sample) < 0.25 and _current_zone != "":
+	var sample := _focus_sample(camera)
+	if is_inf(sample.x):
+		return
+	if sample.distance_squared_to(_zone_sample) < 0.25:
 		return
 	_zone_sample = sample
 	var zone := _zone_at(sample)
@@ -186,19 +205,18 @@ func _process_zones(camera: Camera3D) -> void:
 
 func _show_zone(zone: String) -> void:
 	_current_zone = zone
-	var shown := {}
-	for visible_name in _zones[zone]["vis"]:
-		shown[str(visible_name)] = true
-	shown[zone] = true
-	for zone_name in _zone_nodes:
-		(_zone_nodes[zone_name] as Node3D).visible = shown.has(zone_name)
+	preload("res://scenes/playgrounds/street_batch.gd").apply_visible(self, zone, _zone_nodes, _zones)
 
 
 func _show_every_zone() -> void:
 	_current_zone = ""
 	_zone_sample = Vector2(INF, INF)
+	if has_meta("street_shown"):
+		remove_meta("street_shown")
 	for zone_name in _zone_nodes:
-		(_zone_nodes[zone_name] as Node3D).visible = true
+		var zone_node := _zone_nodes[zone_name] as Node3D
+		zone_node.visible = true
+		preload("res://scenes/playgrounds/street_batch.gd").set_solid(zone_node, true)
 
 
 func _zone_at(point: Vector2) -> String:
@@ -311,7 +329,7 @@ func _process_billboards(camera: Camera3D) -> void:
 		return
 	for item in _billboards:
 		var node := item["node"] as Node3D
-		if not node.visible or not node.is_visible_in_tree():
+		if node == null or not is_instance_valid(node) or not node.is_visible_in_tree():
 			continue
 		var rest := item["rest"] as Basis
 		_yaw_toward(node, rest, camera.global_position)
