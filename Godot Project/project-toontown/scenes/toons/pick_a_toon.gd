@@ -347,6 +347,7 @@ func _make_toon(index: int) -> void:
 
 func _play(index: int) -> void:
 	ToonRoster.select_slot(index)
+	SpeedChat.clear_saved()
 	var tasks := ToonTasks.for_selected()
 	if not tasks.in_playground:
 		get_tree().change_scene_to_file(PLAY_SCENE)

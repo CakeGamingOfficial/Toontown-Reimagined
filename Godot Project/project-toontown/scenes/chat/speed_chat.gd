@@ -31,7 +31,7 @@ const _REOPEN_PAD := 4.0
 const _BLUE := Color(0.4, 0.68, 1.0)
 const _SAY_LIMIT := 120
 const _HELP := "Welcome to SpeedChat++. Chat, whispers, and alerts all show here. The other tabs show just one kind."
-const _TAB_NAMES: PackedStringArray = ["Main", "Whispers", "Alerts", "NPC"]
+const _TAB_NAMES: PackedStringArray = ["Main", "Whispers", "Alerts", "NPC", "Console"]
 const _CREAM := Color(1.0, 0.97, 0.86, 0.98)
 const _ORANGE := Color(0.9, 0.48, 0.1, 1.0)
 const _INK := Color(0.22, 0.12, 0.06, 1.0)
@@ -109,6 +109,9 @@ func setup(tasks: ToonTasks) -> void:
 	_apply_unlock()
 	_restore_log()
 	_pull_whispers()
+	var dev := get_node_or_null("/root/DevConsole")
+	if dev != null and dev.has_signal("changed") and not dev.is_connected("changed", _on_console):
+		dev.connect("changed", _on_console)
 
 
 func is_open() -> bool:
@@ -901,6 +904,30 @@ func _log_whisper(who: String, text: String) -> void:
 
 
 func _log_key() -> String:
+	return _slot_key()
+
+
+## Play and a brand-new toon start with an empty log. Tunnel changes keep it.
+static func clear_saved() -> void:
+	const path := "user://chat_log.json"
+	if not FileAccess.file_exists(path):
+		return
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var saved: Dictionary = parsed
+	saved.erase(_slot_key())
+	var out := FileAccess.open(path, FileAccess.WRITE)
+	if out == null:
+		return
+	out.store_string(JSON.stringify(saved))
+
+
+static func _slot_key() -> String:
 	var index := ToonRoster.selected_index()
 	if index < 0:
 		return "guest"
@@ -978,7 +1005,26 @@ func _lines_from(value: Variant) -> PackedStringArray:
 	return lines
 
 
+func _on_console() -> void:
+	if _tab != 4 or _log == null:
+		return
+	_show_console()
+
+
+func _show_console() -> void:
+	if _log == null:
+		return
+	var dev := get_node_or_null("/root/DevConsole")
+	if dev == null or not dev.has_method("transcript"):
+		_log.text = "[color=#8a7058]Console is not running.[/color]"
+		return
+	_log.text = str(dev.call("transcript"))
+
+
 func _refresh_log() -> void:
+	if _tab == 4:
+		_show_console()
+		return
 	_keep_log()
 	if _log == null:
 		return
@@ -1120,8 +1166,8 @@ func _style_tab(button: Button, selected: bool) -> void:
 	box.border_color = _ORANGE
 	box.set_border_width_all(2)
 	box.set_corner_radius_all(6)
-	box.content_margin_left = 8
-	box.content_margin_right = 8
+	box.content_margin_left = 5
+	box.content_margin_right = 5
 	box.content_margin_top = 2
 	box.content_margin_bottom = 2
 	button.add_theme_stylebox_override("normal", box)
@@ -1129,7 +1175,7 @@ func _style_tab(button: Button, selected: bool) -> void:
 	button.add_theme_stylebox_override("pressed", box)
 	button.add_theme_stylebox_override("focus", box)
 	button.add_theme_font_override("font", ToonGui.font())
-	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_font_size_override("font_size", 13)
 	var ink := Color.WHITE if selected else _INK
 	button.add_theme_color_override("font_color", ink)
 	button.add_theme_color_override("font_hover_color", ink)

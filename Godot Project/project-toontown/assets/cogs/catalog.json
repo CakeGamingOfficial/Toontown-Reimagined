@@ -1,0 +1,1245 @@
+{
+  "walk_speed": 4.8,
+  "from_sky": 6.5,
+  "to_sky": 6.5,
+  "min_path": 40,
+  "max_path": 300,
+  "landing_ground_frame": 28,
+  "depts": [
+    "c",
+    "l",
+    "m",
+    "s"
+  ],
+  "cogs": [
+    {
+      "code": "f",
+      "name": "Flunky",
+      "dept": "c",
+      "body": "c",
+      "type": 1,
+      "scale": 0.96618,
+      "height": 4.88,
+      "attacks": [
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "phone",
+          "file": "phone"
+        },
+        {
+          "key": "shredder",
+          "file": "shredder"
+        }
+      ]
+    },
+    {
+      "code": "p",
+      "name": "Pencil Pusher",
+      "dept": "c",
+      "body": "b",
+      "type": 2,
+      "scale": 0.63327,
+      "height": 5.0,
+      "attacks": [
+        {
+          "key": "pencil-sharpener",
+          "file": "pencil-sharpener"
+        },
+        {
+          "key": "pen-squirt",
+          "file": "pen-squirt"
+        },
+        {
+          "key": "hold-eraser",
+          "file": "hold-eraser"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        },
+        {
+          "key": "hold-pencil",
+          "file": "hold-pencil"
+        }
+      ]
+    },
+    {
+      "code": "ym",
+      "name": "Yesman",
+      "dept": "c",
+      "body": "a",
+      "type": 3,
+      "scale": 0.68069,
+      "height": 5.28,
+      "attacks": [
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "golf-club-swing",
+          "file": "golf-club-swing"
+        },
+        {
+          "key": "magic3",
+          "file": "magic3"
+        },
+        {
+          "key": "rubber-stamp",
+          "file": "rubber-stamp"
+        },
+        {
+          "key": "smile",
+          "file": "smile"
+        }
+      ]
+    },
+    {
+      "code": "mm",
+      "name": "Micromanager",
+      "dept": "c",
+      "body": "c",
+      "type": 4,
+      "scale": 0.60386,
+      "height": 3.25,
+      "attacks": [
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "effort",
+          "file": "effort"
+        },
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "pen-squirt",
+          "file": "pen-squirt"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "ds",
+      "name": "Downsizer",
+      "dept": "c",
+      "body": "b",
+      "type": 5,
+      "scale": 0.85066,
+      "height": 6.08,
+      "attacks": [
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "magic2",
+          "file": "magic2"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "magic3",
+          "file": "magic3"
+        }
+      ]
+    },
+    {
+      "code": "hh",
+      "name": "Head Hunter",
+      "dept": "c",
+      "body": "a",
+      "type": 6,
+      "scale": 1.07261,
+      "height": 7.45,
+      "attacks": [
+        {
+          "key": "pen-squirt",
+          "file": "pen-squirt"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "roll-o-dex",
+          "file": "roll-o-dex"
+        }
+      ]
+    },
+    {
+      "code": "cr",
+      "name": "Corporate Raider",
+      "dept": "c",
+      "body": "c",
+      "type": 7,
+      "scale": 1.63043,
+      "height": 8.23,
+      "attacks": [
+        {
+          "key": "pickpocket",
+          "file": "pickpocket"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        }
+      ]
+    },
+    {
+      "code": "tbc",
+      "name": "The Big Cheese",
+      "dept": "c",
+      "body": "a",
+      "type": 8,
+      "scale": 1.15512,
+      "height": 9.34,
+      "attacks": [
+        {
+          "key": "cigar-smoke",
+          "file": "cigar-smoke"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "song-and-dance",
+          "file": "song-and-dance"
+        },
+        {
+          "key": "golf-club-swing",
+          "file": "golf-club-swing"
+        }
+      ]
+    },
+    {
+      "code": "bf",
+      "name": "Bottom Feeder",
+      "dept": "l",
+      "body": "c",
+      "type": 1,
+      "scale": 0.96618,
+      "height": 4.81,
+      "attacks": [
+        {
+          "key": "pickpocket",
+          "file": "pickpocket"
+        },
+        {
+          "key": "rubber-stamp",
+          "file": "rubber-stamp"
+        },
+        {
+          "key": "shredder",
+          "file": "shredder"
+        },
+        {
+          "key": "watercooler",
+          "file": "watercooler"
+        }
+      ]
+    },
+    {
+      "code": "b",
+      "name": "Bloodsucker",
+      "dept": "l",
+      "body": "b",
+      "type": 2,
+      "scale": 0.82703,
+      "height": 6.17,
+      "attacks": [
+        {
+          "key": "effort",
+          "file": "effort"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        },
+        {
+          "key": "magic1",
+          "file": "magic1"
+        }
+      ]
+    },
+    {
+      "code": "dt",
+      "name": "Double Talker",
+      "dept": "l",
+      "body": "a",
+      "type": 3,
+      "scale": 0.70132,
+      "height": 5.63,
+      "attacks": [
+        {
+          "key": "rubber-stamp",
+          "file": "rubber-stamp"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "ac",
+      "name": "Ambulance Chaser",
+      "dept": "l",
+      "body": "b",
+      "type": 4,
+      "scale": 0.82231,
+      "height": 6.39,
+      "attacks": [
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        },
+        {
+          "key": "roll-o-dex",
+          "file": "roll-o-dex"
+        },
+        {
+          "key": "stomp",
+          "file": "stomp"
+        },
+        {
+          "key": "phone",
+          "file": "phone"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        }
+      ]
+    },
+    {
+      "code": "bs",
+      "name": "Back Stabber",
+      "dept": "l",
+      "body": "a",
+      "type": 5,
+      "scale": 0.74257,
+      "height": 6.71,
+      "attacks": [
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "sd",
+      "name": "Spin Doctor",
+      "dept": "l",
+      "body": "b",
+      "type": 6,
+      "scale": 1.06805,
+      "height": 7.9,
+      "attacks": [
+        {
+          "key": "magic2",
+          "file": "magic2"
+        },
+        {
+          "key": "quick-jump",
+          "file": "quick-jump"
+        },
+        {
+          "key": "stomp",
+          "file": "stomp"
+        },
+        {
+          "key": "magic3",
+          "file": "magic3"
+        },
+        {
+          "key": "hold-pencil",
+          "file": "hold-pencil"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        }
+      ]
+    },
+    {
+      "code": "le",
+      "name": "Legal Eagle",
+      "dept": "l",
+      "body": "a",
+      "type": 7,
+      "scale": 1.17574,
+      "height": 8.27,
+      "attacks": [
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        }
+      ]
+    },
+    {
+      "code": "bw",
+      "name": "Big Wig",
+      "dept": "l",
+      "body": "a",
+      "type": 8,
+      "scale": 1.15512,
+      "height": 8.69,
+      "attacks": [
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        },
+        {
+          "key": "cigar-smoke",
+          "file": "cigar-smoke"
+        },
+        {
+          "key": "gavel",
+          "file": "gavel"
+        },
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        }
+      ]
+    },
+    {
+      "code": "sc",
+      "name": "Short Change",
+      "dept": "m",
+      "body": "c",
+      "type": 1,
+      "scale": 0.86957,
+      "height": 4.77,
+      "attacks": [
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "watercooler",
+          "file": "watercooler"
+        },
+        {
+          "key": "pickpocket",
+          "file": "pickpocket"
+        }
+      ]
+    },
+    {
+      "code": "pp",
+      "name": "Penny Pincher",
+      "dept": "m",
+      "body": "a",
+      "type": 2,
+      "scale": 0.58581,
+      "height": 5.26,
+      "attacks": [
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "tw",
+      "name": "Tightwad",
+      "dept": "m",
+      "body": "c",
+      "type": 3,
+      "scale": 1.08696,
+      "height": 5.41,
+      "attacks": [
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "magic2",
+          "file": "magic2"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "bc",
+      "name": "Bean Counter",
+      "dept": "m",
+      "body": "b",
+      "type": 4,
+      "scale": 0.83176,
+      "height": 5.95,
+      "attacks": [
+        {
+          "key": "phone",
+          "file": "phone"
+        },
+        {
+          "key": "hold-pencil",
+          "file": "hold-pencil"
+        }
+      ]
+    },
+    {
+      "code": "nc",
+      "name": "Number Cruncher",
+      "dept": "m",
+      "body": "a",
+      "type": 5,
+      "scale": 0.86634,
+      "height": 7.22,
+      "attacks": [
+        {
+          "key": "phone",
+          "file": "phone"
+        },
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        }
+      ]
+    },
+    {
+      "code": "mb",
+      "name": "Money Bags",
+      "dept": "m",
+      "body": "c",
+      "type": 6,
+      "scale": 1.28019,
+      "height": 6.97,
+      "attacks": [
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        }
+      ]
+    },
+    {
+      "code": "ls",
+      "name": "Loan Shark",
+      "dept": "m",
+      "body": "b",
+      "type": 7,
+      "scale": 1.22873,
+      "height": 8.58,
+      "attacks": [
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        },
+        {
+          "key": "hold-pencil",
+          "file": "hold-pencil"
+        }
+      ]
+    },
+    {
+      "code": "rb",
+      "name": "Robber Baron",
+      "dept": "m",
+      "body": "a",
+      "type": 8,
+      "scale": 1.15512,
+      "height": 8.95,
+      "attacks": [
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "golf-club-swing",
+          "file": "golf-club-swing"
+        }
+      ]
+    },
+    {
+      "code": "cc",
+      "name": "Cold Caller",
+      "dept": "s",
+      "body": "c",
+      "type": 1,
+      "scale": 0.84541,
+      "height": 4.63,
+      "attacks": [
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        },
+        {
+          "key": "phone",
+          "file": "phone"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "tm",
+      "name": "Telemarketer",
+      "dept": "s",
+      "body": "b",
+      "type": 2,
+      "scale": 0.70888,
+      "height": 5.24,
+      "attacks": [
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "pickpocket",
+          "file": "pickpocket"
+        },
+        {
+          "key": "roll-o-dex",
+          "file": "roll-o-dex"
+        },
+        {
+          "key": "finger-wag",
+          "file": "finger-wag"
+        }
+      ]
+    },
+    {
+      "code": "nd",
+      "name": "Name Dropper",
+      "dept": "s",
+      "body": "a",
+      "type": 3,
+      "scale": 0.71782,
+      "height": 5.98,
+      "attacks": [
+        {
+          "key": "pickpocket",
+          "file": "pickpocket"
+        },
+        {
+          "key": "roll-o-dex",
+          "file": "roll-o-dex"
+        },
+        {
+          "key": "magic3",
+          "file": "magic3"
+        },
+        {
+          "key": "smile",
+          "file": "smile"
+        }
+      ]
+    },
+    {
+      "code": "gh",
+      "name": "Glad Hander",
+      "dept": "s",
+      "body": "c",
+      "type": 4,
+      "scale": 1.14734,
+      "height": 6.4,
+      "attacks": [
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "pen-squirt",
+          "file": "pen-squirt"
+        },
+        {
+          "key": "rubber-stamp",
+          "file": "rubber-stamp"
+        }
+      ]
+    },
+    {
+      "code": "ms",
+      "name": "Mover & Shaker",
+      "dept": "s",
+      "body": "b",
+      "type": 5,
+      "scale": 0.89792,
+      "height": 6.7,
+      "attacks": [
+        {
+          "key": "effort",
+          "file": "effort"
+        },
+        {
+          "key": "throw-paper",
+          "file": "throw-paper"
+        },
+        {
+          "key": "stomp",
+          "file": "stomp"
+        },
+        {
+          "key": "quick-jump",
+          "file": "quick-jump"
+        }
+      ]
+    },
+    {
+      "code": "tf",
+      "name": "Two-Face",
+      "dept": "s",
+      "body": "a",
+      "type": 6,
+      "scale": 0.86634,
+      "height": 6.95,
+      "attacks": [
+        {
+          "key": "phone",
+          "file": "phone"
+        },
+        {
+          "key": "smile",
+          "file": "smile"
+        },
+        {
+          "key": "throw-object",
+          "file": "throw-object"
+        },
+        {
+          "key": "glower",
+          "file": "glower"
+        }
+      ]
+    },
+    {
+      "code": "m",
+      "name": "The Mingler",
+      "dept": "s",
+      "body": "a",
+      "type": 7,
+      "scale": 0.94884,
+      "height": 7.61,
+      "attacks": [
+        {
+          "key": "speak",
+          "file": "speak"
+        },
+        {
+          "key": "magic2",
+          "file": "magic2"
+        },
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "golf-club-swing",
+          "file": "golf-club-swing"
+        }
+      ]
+    },
+    {
+      "code": "mh",
+      "name": "Mr. Hollywood",
+      "dept": "s",
+      "body": "a",
+      "type": 8,
+      "scale": 1.15512,
+      "height": 8.95,
+      "attacks": [
+        {
+          "key": "magic1",
+          "file": "magic1"
+        },
+        {
+          "key": "smile",
+          "file": "smile"
+        },
+        {
+          "key": "golf-club-swing",
+          "file": "golf-club-swing"
+        },
+        {
+          "key": "song-and-dance",
+          "file": "song-and-dance"
+        }
+      ]
+    }
+  ],
+  "timing": {
+    "a": {
+      "walk": {
+        "frames": 35,
+        "fps": 24.0
+      },
+      "neutral": {
+        "frames": 48,
+        "fps": 24.0
+      },
+      "lose": {
+        "frames": 199,
+        "fps": 24.0
+      },
+      "pie-small": {
+        "frames": 54,
+        "fps": 24.0
+      },
+      "squirt-small": {
+        "frames": 95,
+        "fps": 24.0
+      },
+      "drop-react": {
+        "frames": 71,
+        "fps": 24.0
+      },
+      "flatten": {
+        "frames": 144,
+        "fps": 24.0
+      },
+      "sidestep-left": {
+        "frames": 119,
+        "fps": 24.0
+      },
+      "sidestep-right": {
+        "frames": 122,
+        "fps": 24.0
+      },
+      "squirt-large": {
+        "frames": 115,
+        "fps": 24.0
+      },
+      "landing": {
+        "frames": 79,
+        "fps": 24.0
+      },
+      "reach": {
+        "frames": 85,
+        "fps": 24.0
+      },
+      "rake-react": {
+        "frames": 74,
+        "fps": 24.0
+      },
+      "hypnotized": {
+        "frames": 82,
+        "fps": 24.0
+      },
+      "soak": {
+        "frames": 164,
+        "fps": 24.0
+      },
+      "throw-paper": {
+        "frames": 109,
+        "fps": 24.0
+      },
+      "golf-club-swing": {
+        "frames": 167,
+        "fps": 24.0
+      },
+      "magic3": {
+        "frames": 95,
+        "fps": 24.0
+      },
+      "rubber-stamp": {
+        "frames": 112,
+        "fps": 24.0
+      },
+      "smile": {
+        "frames": 92,
+        "fps": 24.0
+      },
+      "pen-squirt": {
+        "frames": 99,
+        "fps": 24.0
+      },
+      "glower": {
+        "frames": 66,
+        "fps": 24.0
+      },
+      "magic1": {
+        "frames": 54,
+        "fps": 24.0
+      },
+      "roll-o-dex": {
+        "frames": 124,
+        "fps": 24.0
+      },
+      "cigar-smoke": {
+        "frames": 158,
+        "fps": 24.0
+      },
+      "song-and-dance": {
+        "frames": 144,
+        "fps": 24.0
+      },
+      "speak": {
+        "frames": 169,
+        "fps": 24.0
+      },
+      "finger-wag": {
+        "frames": 96,
+        "fps": 24.0
+      },
+      "throw-object": {
+        "frames": 109,
+        "fps": 24.0
+      },
+      "phone": {
+        "frames": 134,
+        "fps": 24.0
+      },
+      "pickpocket": {
+        "frames": 100,
+        "fps": 24.0
+      },
+      "magic2": {
+        "frames": 79,
+        "fps": 24.0
+      }
+    },
+    "b": {
+      "walk": {
+        "frames": 23,
+        "fps": 24.0
+      },
+      "neutral": {
+        "frames": 47,
+        "fps": 24.0
+      },
+      "lose": {
+        "frames": 199,
+        "fps": 24.0
+      },
+      "pie-small": {
+        "frames": 54,
+        "fps": 24.0
+      },
+      "squirt-small": {
+        "frames": 95,
+        "fps": 24.0
+      },
+      "drop-react": {
+        "frames": 71,
+        "fps": 24.0
+      },
+      "flatten": {
+        "frames": 144,
+        "fps": 24.0
+      },
+      "sidestep-left": {
+        "frames": 119,
+        "fps": 24.0
+      },
+      "sidestep-right": {
+        "frames": 122,
+        "fps": 24.0
+      },
+      "squirt-large": {
+        "frames": 115,
+        "fps": 24.0
+      },
+      "landing": {
+        "frames": 79,
+        "fps": 24.0
+      },
+      "reach": {
+        "frames": 85,
+        "fps": 24.0
+      },
+      "rake-react": {
+        "frames": 74,
+        "fps": 24.0
+      },
+      "hypnotized": {
+        "frames": 82,
+        "fps": 24.0
+      },
+      "soak": {
+        "frames": 164,
+        "fps": 24.0
+      },
+      "pencil-sharpener": {
+        "frames": 119,
+        "fps": 24.0
+      },
+      "pen-squirt": {
+        "frames": 100,
+        "fps": 24.0
+      },
+      "hold-eraser": {
+        "frames": 101,
+        "fps": 24.0
+      },
+      "finger-wag": {
+        "frames": 119,
+        "fps": 24.0
+      },
+      "hold-pencil": {
+        "frames": 100,
+        "fps": 24.0
+      },
+      "magic1": {
+        "frames": 78,
+        "fps": 24.0
+      },
+      "magic2": {
+        "frames": 89,
+        "fps": 24.0
+      },
+      "throw-paper": {
+        "frames": 104,
+        "fps": 24.0
+      },
+      "magic3": {
+        "frames": 95,
+        "fps": 24.0
+      },
+      "effort": {
+        "frames": 138,
+        "fps": 24.0
+      },
+      "throw-object": {
+        "frames": 104,
+        "fps": 24.0
+      },
+      "roll-o-dex": {
+        "frames": 150,
+        "fps": 24.0
+      },
+      "stomp": {
+        "frames": 123,
+        "fps": 24.0
+      },
+      "phone": {
+        "frames": 141,
+        "fps": 24.0
+      },
+      "quick-jump": {
+        "frames": 139,
+        "fps": 24.0
+      },
+      "speak": {
+        "frames": 169,
+        "fps": 24.0
+      },
+      "pickpocket": {
+        "frames": 100,
+        "fps": 24.0
+      }
+    },
+    "c": {
+      "walk": {
+        "frames": 23,
+        "fps": 24.0
+      },
+      "neutral": {
+        "frames": 47,
+        "fps": 24.0
+      },
+      "lose": {
+        "frames": 199,
+        "fps": 24.0
+      },
+      "pie-small": {
+        "frames": 54,
+        "fps": 24.0
+      },
+      "squirt-small": {
+        "frames": 95,
+        "fps": 24.0
+      },
+      "drop-react": {
+        "frames": 71,
+        "fps": 24.0
+      },
+      "flatten": {
+        "frames": 144,
+        "fps": 24.0
+      },
+      "sidestep-left": {
+        "frames": 119,
+        "fps": 24.0
+      },
+      "sidestep-right": {
+        "frames": 122,
+        "fps": 24.0
+      },
+      "squirt-large": {
+        "frames": 115,
+        "fps": 24.0
+      },
+      "landing": {
+        "frames": 79,
+        "fps": 24.0
+      },
+      "reach": {
+        "frames": 85,
+        "fps": 24.0
+      },
+      "rake-react": {
+        "frames": 74,
+        "fps": 24.0
+      },
+      "hypnotized": {
+        "frames": 82,
+        "fps": 24.0
+      },
+      "soak": {
+        "frames": 164,
+        "fps": 24.0
+      },
+      "throw-paper": {
+        "frames": 104,
+        "fps": 24.0
+      },
+      "phone": {
+        "frames": 141,
+        "fps": 24.0
+      },
+      "shredder": {
+        "frames": 133,
+        "fps": 24.0
+      },
+      "speak": {
+        "frames": 169,
+        "fps": 24.0
+      },
+      "effort": {
+        "frames": 138,
+        "fps": 24.0
+      },
+      "magic1": {
+        "frames": 78,
+        "fps": 24.0
+      },
+      "pen-squirt": {
+        "frames": 114,
+        "fps": 24.0
+      },
+      "finger-wag": {
+        "frames": 119,
+        "fps": 24.0
+      },
+      "pickpocket": {
+        "frames": 100,
+        "fps": 24.0
+      },
+      "glower": {
+        "frames": 66,
+        "fps": 24.0
+      },
+      "rubber-stamp": {
+        "frames": 111,
+        "fps": 24.0
+      },
+      "watercooler": {
+        "frames": 116,
+        "fps": 24.0
+      },
+      "magic2": {
+        "frames": 89,
+        "fps": 24.0
+      }
+    }
+  },
+  "propeller": {
+    "frames": 88,
+    "fps": 24.0,
+    "spin_frame": 8
+  }
+}

@@ -21,6 +21,7 @@ _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 ToonCursor="*res://scenes/gui/toon_cursor.gd"
 ToonAudioBus="*res://scenes/audio/toon_audio.gd"
 DiscordPresence="*res://scenes/discord/discord_presence.gd"
+DevConsole="*res://scenes/debug/dev_console.gd"
 
 [dotnet]
 

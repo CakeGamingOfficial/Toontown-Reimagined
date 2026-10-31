@@ -760,6 +760,7 @@ func _ready_loadout() -> void:
 	_meter.name = "LaffMeter"
 	_meter.setup(_player_style())
 	_meter.follow(_loadout)
+	_meter.use_as_hud()
 	_meter.visible = false
 	_hud().add_child(_meter)
 	_briefing = TutorialBriefing.new()

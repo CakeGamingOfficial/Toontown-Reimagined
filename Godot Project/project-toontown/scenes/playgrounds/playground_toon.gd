@@ -1124,7 +1124,7 @@ func _spawn(underground: bool) -> void:
 	var style := ToonRoster.selected_style()
 	_body = CharacterBody3D.new()
 	_body.name = "Player"
-	_body.floor_snap_length = 0.6
+	_body.floor_snap_length = 0.7
 	# Plaza stair faces run to about 54 degrees. Steeper than that stays a wall.
 	_body.floor_max_angle = deg_to_rad(58.0)
 	# A steep walkable face should not eat forward speed. GravityWalker keeps
@@ -1388,6 +1388,7 @@ func _ready_hud() -> void:
 	else:
 		_meter.setup(ToonStyle.new())
 	_meter.follow(_loadout)
+	_meter.use_as_hud()
 	_hud().add_child(_meter)
 	var view := get_viewport().get_visible_rect().size
 	var pixels := view.y * 0.15
@@ -1475,13 +1476,14 @@ func _walk(delta: float) -> void:
 		impact = _body.velocity.y
 	if not jumped and (on_floor or (_body.is_on_wall() and _body.velocity.y <= 1.0)):
 		_raise_onto_step()
-	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
+	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.7
 	_body.move_and_slide()
 	if _body.position.y < _home.y - 8.0 and not MagicWords.noclip():
 		_body.velocity = Vector3.ZERO
 		_body.position = _home
 		_heading = _home_heading
 		_jumping = false
+		_snap_feet()
 	elif not on_floor and _body.is_on_floor() and not jumped:
 		_jumping = false
 		if impact < HARD_LAND:

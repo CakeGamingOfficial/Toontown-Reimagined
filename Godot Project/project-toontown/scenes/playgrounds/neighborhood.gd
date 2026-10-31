@@ -39,6 +39,7 @@ func _ready() -> void:
 	_ready_music()
 	_ready_billboards()
 	_attach_returning_toon()
+	preload("res://scenes/streets/street_suits.gd").attach(self)
 
 
 func _keep_estate_house(slot: int) -> void:
@@ -154,7 +155,8 @@ func _ready_zones() -> void:
 		}
 	_collect_zone_nodes(self)
 	_show_every_zone()
-	_process_zones(_view_camera())
+	# The scene camera sits on one block. Culling from it before the toon
+	# arrives hides the street they just walked into.
 
 
 func _collect_zone_nodes(node: Node) -> void:
@@ -169,14 +171,20 @@ func _process_zones(camera: Camera3D) -> void:
 	if camera == null or _zones.is_empty():
 		return
 	var sample := Vector2(camera.global_position.x, camera.global_position.z)
-	if sample.distance_squared_to(_zone_sample) < 0.25:
+	if sample.distance_squared_to(_zone_sample) < 0.25 and _current_zone != "":
 		return
 	_zone_sample = sample
 	var zone := _zone_at(sample)
 	if zone.is_empty():
+		# Most of the street is a gap between floor cells. Drawing every block
+		# there is what sits the street at a handful of frames.
 		zone = _nearest_zone(sample)
 	if zone.is_empty() or zone == _current_zone:
 		return
+	_show_zone(zone)
+
+
+func _show_zone(zone: String) -> void:
 	_current_zone = zone
 	var shown := {}
 	for visible_name in _zones[zone]["vis"]:
@@ -212,16 +220,38 @@ func _nearest_zone(point: Vector2) -> String:
 	var best := ""
 	var best_distance := INF
 	for zone_name in _zones:
-		for polygon in _zones[zone_name]["polygons"]:
-			var center := Vector2.ZERO
-			for vertex in polygon:
-				center += vertex
-			center /= float(polygon.size())
-			var distance := center.distance_squared_to(point)
+		var polygons: Array = _zones[zone_name]["polygons"]
+		for item in polygons:
+			var polygon := item as PackedVector2Array
+			if polygon.size() < 3:
+				continue
+			var distance := _polygon_distance(point, polygon)
 			if distance < best_distance:
 				best_distance = distance
-				best = zone_name
+				best = str(zone_name)
 	return best
+
+
+func _polygon_distance(point: Vector2, polygon: PackedVector2Array) -> float:
+	if _contains(point, polygon):
+		return 0.0
+	var best := INF
+	var previous := polygon.size() - 1
+	for index in polygon.size():
+		var distance := _segment_distance(point, polygon[previous], polygon[index])
+		if distance < best:
+			best = distance
+		previous = index
+	return best
+
+
+func _segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+	var edge := finish - start
+	var length2 := edge.length_squared()
+	if length2 < 0.0001:
+		return point.distance_to(start)
+	var along := clampf((point - start).dot(edge) / length2, 0.0, 1.0)
+	return point.distance_to(start + edge * along)
 
 
 func _contains(point: Vector2, polygon: PackedVector2Array) -> bool:
@@ -248,6 +278,21 @@ func _polygon_area(polygon: PackedVector2Array) -> float:
 	return absf(area) * 0.5
 
 
+func zone_visible_at(point: Vector3) -> bool:
+	if _zone_nodes.is_empty():
+		return true
+	var flat := Vector2(point.x, point.z)
+	var zone := _zone_at(flat)
+	if zone.is_empty():
+		zone = _nearest_zone(flat)
+	if zone.is_empty():
+		return true
+	var node := _zone_nodes.get(zone) as Node3D
+	if node == null:
+		return true
+	return node.visible
+
+
 func _ready_billboards() -> void:
 	_collect_billboards(self)
 
@@ -266,6 +311,8 @@ func _process_billboards(camera: Camera3D) -> void:
 		return
 	for item in _billboards:
 		var node := item["node"] as Node3D
+		if not node.visible or not node.is_visible_in_tree():
+			continue
 		var rest := item["rest"] as Basis
 		_yaw_toward(node, rest, camera.global_position)
 

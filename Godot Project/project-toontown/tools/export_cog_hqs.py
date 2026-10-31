@@ -75,7 +75,23 @@ def export_node(node: NodePath, dest: Path, scene_name: str) -> None:
     )
 
 
-def write_scene(slug: str, root_name: str, glb_rel: str, music_rel: str, sky_kind: str, mesh_sky: bool, shift_x: float, shift_z: float, eye: float, distance: float, face: str = "north", camera: str | None = None, lift: float = 0.0) -> None:
+def _entrance_lines(shift_x: float, shift_z: float, entrances) -> list[str]:
+    """Markers for the other starts on a shared map, in this scene's coordinates."""
+    lines: list[str] = []
+    if not entrances:
+        return lines
+    for name, focus in entrances:
+        panda_x, panda_y = focus
+        lines.append("")
+        lines.append(f'[node name="{name}" type="Marker3D" parent="."]')
+        lines.append(
+            "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, "
+            f"{shift_x - (-panda_x):.3f}, 0, {shift_z - panda_y:.3f})"
+        )
+    return lines
+
+
+def write_scene(slug: str, root_name: str, glb_rel: str, music_rel: str, sky_kind: str, mesh_sky: bool, shift_x: float, shift_z: float, eye: float, distance: float, face: str = "north", camera: str | None = None, lift: float = 0.0, entrances=None) -> None:
     scene_path = SCENE_DIR / f"{slug}.tscn"
     scene_path.parent.mkdir(parents=True, exist_ok=True)
     resources = [
@@ -127,6 +143,7 @@ def write_scene(slug: str, root_name: str, glb_rel: str, music_rel: str, sky_kin
             "current = true",
             "far = 4000.0",
             'script = ExtResource("3_fly")',
+            *_entrance_lines(shift_x, shift_z, entrances),
             "",
         ]),
         encoding="utf-8",
@@ -195,9 +212,9 @@ def build_bossbot_ceo() -> NodePath:
 JOBS = [
     {"slug": "sellbot_courtyard", "root": "SellbotCourtyard", "model": "phase_9/models/cogHQ/SellbotHQExterior.bam", "music": NBRHOOD, "sky": "cog", "mesh_sky": True, "focus": (5.0, -145.4), "eye": 28, "distance": 120},
     {"slug": "sellbot_factory_exterior", "root": "SellbotFactoryExterior", "model": "phase_9/models/cogHQ/SellbotFactoryExterior.bam", "music": NBRHOOD, "sky": "cog", "mesh_sky": True, "focus": (62.8, -85.6), "face": "south", "eye": 8, "distance": 36},
+    # Front and side entrances are the same factory from two starts.
     {"slug": "sellbot_factory", "root": "SellbotFactory", "model": "phase_9/models/cogHQ/SelbotLegFactory.bam", "scenes": [
-        {"slug": "sellbot_front_factory", "root": "SellbotFrontFactory", "focus": (20.7, 26.2), "music": FACTORY, "sky": "cog", "mesh_sky": False, "eye": 8, "distance": 24},
-        {"slug": "sellbot_side_factory", "root": "SellbotSideFactory", "focus": (-644.2, 371.1), "music": FACTORY, "sky": "cog", "mesh_sky": False, "eye": 8, "distance": 24},
+        {"slug": "sellbot_factory", "root": "SellbotFactory", "focus": (20.7, 26.2), "entrances": [("FrontEntrance", (20.7, 26.2)), ("SideEntrance", (-644.2, 371.1))], "music": FACTORY, "sky": "cog", "mesh_sky": False, "eye": 8, "distance": 24},
     ]},
     {"slug": "sellbot_lobby", "root": "SellbotLobby", "model": "phase_9/models/cogHQ/SellbotHQLobby.bam", "music": NBRHOOD, "sky": "cog", "mesh_sky": False, "eye": 12, "distance": 36},
     {"slug": "sellbot_vp", "root": "SellbotVp", "build": build_sellbot_vp, "music": BATTLE, "sky": "cog", "mesh_sky": True, "eye": 24, "distance": 80},
@@ -265,6 +282,7 @@ def main() -> int:
                     scene.get("face", "north"),
                     scene.get("camera"),
                     scene.get("lift", 0.0),
+                    scene.get("entrances"),
                 )
             if node is not None:
                 node.removeNode()

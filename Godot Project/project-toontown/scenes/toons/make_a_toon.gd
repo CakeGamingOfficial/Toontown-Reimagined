@@ -1223,6 +1223,7 @@ func _on_next() -> void:
 		return
 	ToonRoster.set_slot(ToonRoster.pending_slot, _style)
 	ToonRoster.select_slot(ToonRoster.pending_slot)
+	SpeedChat.clear_saved()
 	get_tree().change_scene_to_file("res://scenes/interiors/toontorial.tscn")
 
 
