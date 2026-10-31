@@ -7,6 +7,7 @@ extends Control
 
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _SHOP_DOOR := preload("res://scenes/interiors/shop_door.gd")
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 
 const _HOLD := 6.1
@@ -114,6 +115,7 @@ const _PLACE_BY_SCENE: Dictionary = {
 	"res://scenes/cog_hq/sellbot_side_factory.tscn": "Side Entrance",
 	"res://scenes/interiors/gag_shop.tscn": "Gag Shop",
 	"res://scenes/interiors/toon_hall.tscn": "Toon Hall",
+	"res://scenes/interiors/toon_hq.tscn": "Toon HQ",
 }
 
 var _label: Label
@@ -121,6 +123,13 @@ var _tint := Color(1.0, 0.5, 0.4)
 
 
 static func caption(scene_path: String) -> Dictionary:
+	if scene_path.ends_with("shop_interior.tscn"):
+		var shop_title := String(_SHOP_DOOR.title)
+		if shop_title.is_empty():
+			shop_title = "Shop"
+		var hood := _SHOP_DOOR.hood_id()
+		var hood_name := String(_HOOD.get(hood, "Toontown Central"))
+		return {"text": hood_name + "\n" + shop_title, "color": _tint_for(hood)}
 	var zone := _zone(scene_path)
 	if zone == 0:
 		return {}

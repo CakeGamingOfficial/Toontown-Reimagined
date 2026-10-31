@@ -173,6 +173,8 @@ func _place(path: String) -> Dictionary:
 		return {"details": "Gag Shop", "state": _hood_name(int(_SHOP.hood))}
 	if _PLACES.is_toon_hall(path):
 		return {"details": "Toon Hall", "state": _hood_name(_PLACES.TTC)}
+	if _PLACES.is_toon_hq(path):
+		return {"details": "Toon HQ", "state": _hood_name(_PLACES.hood_for_scene(path))}
 	var info := _TITLE.caption(path)
 	if info.is_empty():
 		return {"details": "Toontown", "state": ""}

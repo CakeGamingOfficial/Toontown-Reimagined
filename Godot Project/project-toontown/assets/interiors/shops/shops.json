@@ -1,0 +1,12682 @@
+{
+ "1626": {
+  "street": 1100,
+  "block": 26,
+  "title": "Salmon Chanted Evening Formal Wear",
+  "npcs": [
+   {
+    "id": 1103,
+    "name": "Fishy Frank",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ls",
+     "m",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     1,
+     10,
+     1,
+     10,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "1602": {
+  "street": 1100,
+  "block": 2,
+  "title": "Used Life Preservers",
+  "npcs": [
+   {
+    "id": 1112,
+    "name": "Gary Glubglub",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ms",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     1,
+     7,
+     1,
+     7,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "1604": {
+  "street": 1100,
+  "block": 4,
+  "title": "Wet Suit Dry Cleaners",
+  "npcs": [
+   {
+    "id": 1106,
+    "name": "Mrs. Starch",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "md",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     1,
+     1,
+     1,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "1606": {
+  "street": 1100,
+  "block": 6,
+  "title": "Hook's Clock Repair",
+  "npcs": [
+   {
+    "id": 1105,
+    "name": "Admiral Hook",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "m",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     0,
+     4,
+     0,
+     4,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "1608": {
+  "street": 1100,
+  "block": 8,
+  "title": "Luff 'N Stuff",
+  "npcs": [
+   {
+    "id": 1113,
+    "name": "Lisa Luff",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "ms",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     1,
+     11,
+     1,
+     11,
+     0,
+     27
+    ]
+   }
+  ]
+ },
+ "1620": {
+  "street": 1100,
+  "block": 20,
+  "title": "From Fore to Aft",
+  "npcs": [
+   {
+    "id": 1122,
+    "name": "Salty Stan",
+    "gender": "m",
+    "dna": [
+     "hll",
+     "ms",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     11,
+     0,
+     11,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "1609": {
+  "street": 1100,
+  "block": 9,
+  "title": "Every Little Bait",
+  "npcs": [
+   {
+    "id": 1114,
+    "name": "Charlie Chum",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     1,
+     7,
+     1,
+     7,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "1627": {
+  "street": 1100,
+  "block": 27,
+  "title": "Billy Budd's Big Bargain Binnacle Barn",
+  "npcs": [
+   {
+    "id": 1101,
+    "name": "Billy Budd",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ls",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     1,
+     3,
+     1,
+     3,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "1612": {
+  "street": 1100,
+  "block": 12,
+  "title": "Dime & Quarterdeck Bank",
+  "npcs": [
+   {
+    "id": 1102,
+    "name": "Captain Carl",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "m",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     1,
+     3,
+     1,
+     3,
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ "1613": {
+  "street": 1100,
+  "block": 13,
+  "title": "Squid Pro Quo, Attorneys at Law",
+  "npcs": [
+   {
+    "id": 1115,
+    "name": "Sheila Squid, Atty",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "sd",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     1,
+     12,
+     1,
+     12,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "1614": {
+  "street": 1100,
+  "block": 14,
+  "title": "Trim the Nail Boutique",
+  "npcs": [
+   {
+    "id": 1116,
+    "name": "Barnacle Bessie",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "ls",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     1,
+     12,
+     1,
+     12,
+     1,
+     25
+    ]
+   }
+  ]
+ },
+ "1615": {
+  "street": 1100,
+  "block": 15,
+  "title": "Yacht's All, Folks!",
+  "npcs": [
+   {
+    "id": 1117,
+    "name": "Captain Yucks",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ss",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     0,
+     9,
+     0,
+     9,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "1616": {
+  "street": 1100,
+  "block": 16,
+  "title": "Blackbeard's Beauty Parlor",
+  "npcs": [
+   {
+    "id": 1118,
+    "name": "Choppy McDougal",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "l",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     0,
+     9,
+     0,
+     9,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "1617": {
+  "street": 1100,
+  "block": 17,
+  "title": "Out to See Optics",
+  "npcs": [
+   {
+    "id": 1104,
+    "name": "Doctor Squall",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ss",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     1,
+     1,
+     1,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "1619": {
+  "street": 1100,
+  "block": 19,
+  "title": "Disembark! Tree Surgeons",
+  "npcs": [
+   {
+    "id": 1121,
+    "name": "Linda Landlubber",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ld",
+     "l",
+     "f",
+     8,
+     0,
+     8,
+     8,
+     0,
+     1,
+     0,
+     1,
+     0,
+     12
+    ]
+   }
+  ]
+ },
+ "1621": {
+  "street": 1100,
+  "block": 21,
+  "title": "Poop Deck Gym",
+  "npcs": [
+   {
+    "id": 1107,
+    "name": "Cal Estenicks",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "l",
+     "m",
+     1,
+     0,
+     1,
+     1,
+     1,
+     5,
+     1,
+     5,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "1622": {
+  "street": 1100,
+  "block": 22,
+  "title": "Bait and Switches Electrical Shop",
+  "npcs": [
+   {
+    "id": 1123,
+    "name": "Electra Eel",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "ms",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     23,
+     1,
+     23,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "1628": {
+  "street": 1100,
+  "block": 28,
+  "title": "Piano Tuna",
+  "npcs": [
+   {
+    "id": 1125,
+    "name": "Eileen Overboard",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "sd",
+     "l",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     24,
+     1,
+     24,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "1624": {
+  "street": 1100,
+  "block": 24,
+  "title": "Soles Repaired While U Wait",
+  "npcs": [
+   {
+    "id": 1124,
+    "name": "Flappy Docksplinter",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ls",
+     "l",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     11,
+     1,
+     11,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "1725": {
+  "street": 1200,
+  "block": 25,
+  "title": "Ahab's Prefab Sea Crab Center",
+  "npcs": [
+   {
+    "id": 1203,
+    "name": "Ahab",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ms",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     2,
+     1,
+     2,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "1703": {
+  "street": 1200,
+  "block": 3,
+  "title": "Wok the Plank Chinese Food",
+  "npcs": [
+   {
+    "id": 1210,
+    "name": "Gang Wei",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ms",
+     "s",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     1,
+     9,
+     1,
+     9,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "1706": {
+  "street": 1200,
+  "block": 6,
+  "title": "Peanut Butter and Jellyfish",
+  "npcs": [
+   {
+    "id": 1212,
+    "name": "Toby Tonguestinger",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ss",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     4,
+     0,
+     4,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "1705": {
+  "street": 1200,
+  "block": 5,
+  "title": "Sails for Sale",
+  "npcs": [
+   {
+    "id": 1211,
+    "name": "Wynn Bag",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "m",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     0,
+     4,
+     0,
+     4,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "1707": {
+  "street": 1200,
+  "block": 7,
+  "title": "Gifts With a Porpoise",
+  "npcs": [
+   {
+    "id": 1213,
+    "name": "Dante Dolphin",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     0,
+     4,
+     0,
+     4,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "1726": {
+  "street": 1200,
+  "block": 26,
+  "title": "Root Beer Afloats",
+  "npcs": [
+   {
+    "id": 1225,
+    "name": "Bonzo Bilgepump",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ss",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     0,
+     9,
+     0,
+     9,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "1709": {
+  "street": 1200,
+  "block": 9,
+  "title": "Windjammers and Jellies",
+  "npcs": [
+   {
+    "id": 1214,
+    "name": "Gusty Kate",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "sd",
+     "m",
+     "f",
+     2,
+     0,
+     2,
+     2,
+     0,
+     7,
+     0,
+     7,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "1710": {
+  "street": 1200,
+  "block": 10,
+  "title": "Barnacle Bargains",
+  "npcs": [
+   {
+    "id": 1201,
+    "name": "Barnacle Barbara",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ls",
+     "s",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     0,
+     0,
+     0,
+     0,
+     1,
+     24
+    ]
+   }
+  ]
+ },
+ "1711": {
+  "street": 1200,
+  "block": 11,
+  "title": "Deep Sea Diner",
+  "npcs": [
+   {
+    "id": 1215,
+    "name": "Dinah Down",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ms",
+     "m",
+     "f",
+     18,
+     0,
+     18,
+     18,
+     0,
+     7,
+     0,
+     7,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "1712": {
+  "street": 1200,
+  "block": 12,
+  "title": "Able-Bodied Gym",
+  "npcs": [
+   {
+    "id": 1204,
+    "name": "Rocky Shores",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ms",
+     "s",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     1,
+     1,
+     1,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "1714": {
+  "street": 1200,
+  "block": 14,
+  "title": "Reel 'Em Inn",
+  "npcs": [
+   {
+    "id": 1216,
+    "name": "Rod Reel",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ls",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     5,
+     1,
+     5,
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ "1713": {
+  "street": 1200,
+  "block": 13,
+  "title": "Art's Smart Chart Mart",
+  "npcs": [
+   {
+    "id": 1202,
+    "name": "Art",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "s",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     0,
+     0,
+     0,
+     0,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "1727": {
+  "street": 1200,
+  "block": 27,
+  "title": "This Oar That",
+  "npcs": [
+   {
+    "id": 1226,
+    "name": "Heave Ho",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "l",
+     "m",
+     2,
+     0,
+     2,
+     2,
+     0,
+     9,
+     0,
+     9,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "1717": {
+  "street": 1200,
+  "block": 17,
+  "title": "Be More Pacific Ocean Notions",
+  "npcs": [
+   {
+    "id": 1218,
+    "name": "Pacific Tim",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ms",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     6,
+     1,
+     6,
+     1,
+     17
+    ]
+   }
+  ]
+ },
+ "1718": {
+  "street": 1200,
+  "block": 18,
+  "title": "Run Aground Taxi Service",
+  "npcs": [
+   {
+    "id": 1219,
+    "name": "Brian Beachead",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ss",
+     "m",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     6,
+     1,
+     6,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "1719": {
+  "street": 1200,
+  "block": 19,
+  "title": "Duck's Back Water Company",
+  "npcs": [
+   {
+    "id": 1220,
+    "name": "Carla Canal",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "md",
+     "m",
+     "f",
+     2,
+     0,
+     2,
+     2,
+     1,
+     9,
+     1,
+     9,
+     7,
+     23
+    ]
+   }
+  ]
+ },
+ "1720": {
+  "street": 1200,
+  "block": 20,
+  "title": "The Reel Deal",
+  "npcs": [
+   {
+    "id": 1221,
+    "name": "Blisters McKee",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ls",
+     "s",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     9,
+     1,
+     9,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "1721": {
+  "street": 1200,
+  "block": 21,
+  "title": "All For Nautical",
+  "npcs": [
+   {
+    "id": 1222,
+    "name": "Shep Ahoy",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ls",
+     "l",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     10,
+     1,
+     10,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "1723": {
+  "street": 1200,
+  "block": 23,
+  "title": "Squid's Seaweed",
+  "npcs": [
+   {
+    "id": 1223,
+    "name": "Sid Squid",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ls",
+     "l",
+     "m",
+     2,
+     0,
+     2,
+     2,
+     0,
+     8,
+     0,
+     8,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "1724": {
+  "street": 1200,
+  "block": 24,
+  "title": "That's  a Moray!",
+  "npcs": [
+   {
+    "id": 1224,
+    "name": "Emily Eel",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "sd",
+     "l",
+     "f",
+     17,
+     0,
+     17,
+     17,
+     0,
+     21,
+     0,
+     21,
+     7,
+     9
+    ]
+   }
+  ]
+ },
+ "1701": {
+  "street": 1200,
+  "block": 1,
+  "title": "Buoys and Gulls Nursery School",
+  "npcs": [
+   {
+    "id": 1209,
+    "name": "Professor Plank",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "ss",
+     "m",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     0,
+     4,
+     0,
+     4,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "1716": {
+  "street": 1200,
+  "block": 16,
+  "title": "Mermaid Swimwear",
+  "npcs": [
+   {
+    "id": 1217,
+    "name": "CC Weed",
+    "gender": "f",
+    "dna": [
+     "rsl",
+     "sd",
+     "s",
+     "f",
+     5,
+     0,
+     5,
+     5,
+     0,
+     6,
+     0,
+     6,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "1728": {
+  "street": 1200,
+  "block": 28,
+  "title": "Good Luck Horseshoe Crabs",
+  "npcs": [
+   {
+    "id": 1227,
+    "name": "Coral Reef",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "sd",
+     "l",
+     "f",
+     17,
+     0,
+     17,
+     17,
+     0,
+     22,
+     0,
+     22,
+     3,
+     7
+    ]
+   }
+  ]
+ },
+ "1830": {
+  "street": 1300,
+  "block": 30,
+  "title": "Lost and Flounder",
+  "npcs": [
+   {
+    "id": 1328,
+    "name": "Fred Flounder",
+    "gender": "m",
+    "dna": [
+     "rls",
+     "ms",
+     "m",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     2,
+     1,
+     2,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "1829": {
+  "street": 1300,
+  "block": 29,
+  "title": "Seagull Statue Store",
+  "npcs": [
+   {
+    "id": 1327,
+    "name": "Cindy Splat",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ls",
+     "m",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     1,
+     3,
+     1,
+     3,
+     5,
+     6
+    ]
+   }
+  ]
+ },
+ "1831": {
+  "street": 1300,
+  "block": 31,
+  "title": "Kelp Around the House",
+  "npcs": [
+   {
+    "id": 1329,
+    "name": "Shelly Seaweed",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "ms",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     3,
+     1,
+     3,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "1802": {
+  "street": 1300,
+  "block": 2,
+  "title": "Nautical But Nice",
+  "npcs": [
+   {
+    "id": 1309,
+    "name": "Seafoam",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ms",
+     "l",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     0,
+     21,
+     0,
+     21,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "1832": {
+  "street": 1300,
+  "block": 32,
+  "title": "Melville's Massive Mizzenmast Mart",
+  "npcs": [
+   {
+    "id": 1302,
+    "name": "Melville",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "m",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     1,
+     6,
+     1,
+     6,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "1804": {
+  "street": 1300,
+  "block": 4,
+  "title": "Mussel Beach Gymnasium",
+  "npcs": [
+   {
+    "id": 1304,
+    "name": "Svetlana",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "md",
+     "m",
+     "f",
+     15,
+     0,
+     15,
+     15,
+     1,
+     9,
+     1,
+     9,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "1805": {
+  "street": 1300,
+  "block": 5,
+  "title": "Tackle Box Lunches",
+  "npcs": [
+   {
+    "id": 1310,
+    "name": "Ted Tackle",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     0,
+     9,
+     0,
+     9,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "1806": {
+  "street": 1300,
+  "block": 6,
+  "title": "Cap Size Hat Store",
+  "npcs": [
+   {
+    "id": 1311,
+    "name": "Topsy Turvey",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ms",
+     "m",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     1,
+     2,
+     1,
+     2,
+     5,
+     9
+    ]
+   }
+  ]
+ },
+ "1807": {
+  "street": 1300,
+  "block": 7,
+  "title": "Keel Deals",
+  "npcs": [
+   {
+    "id": 1312,
+    "name": "Ethan Keel",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ms",
+     "l",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     1,
+     9,
+     1,
+     9,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "1808": {
+  "street": 1300,
+  "block": 8,
+  "title": "Knots So Fast",
+  "npcs": [
+   {
+    "id": 1313,
+    "name": "William Wake",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ss",
+     "l",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     1,
+     10,
+     1,
+     10,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "1809": {
+  "street": 1300,
+  "block": 9,
+  "title": "Rusty Buckets",
+  "npcs": [
+   {
+    "id": 1314,
+    "name": "Rusty Ralph",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ls",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     10,
+     1,
+     10,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "1810": {
+  "street": 1300,
+  "block": 10,
+  "title": "Anchor Management",
+  "npcs": [
+   {
+    "id": 1315,
+    "name": "Doctor Drift",
+    "gender": "f",
+    "dna": [
+     "hls",
+     "ss",
+     "m",
+     "f",
+     18,
+     0,
+     18,
+     18,
+     1,
+     6,
+     1,
+     6,
+     5,
+     24
+    ]
+   }
+  ]
+ },
+ "1811": {
+  "street": 1300,
+  "block": 11,
+  "title": "What's Canoe With You?",
+  "npcs": [
+   {
+    "id": 1316,
+    "name": "Wilma Wobble",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ms",
+     "l",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     1,
+     24,
+     1,
+     24,
+     7,
+     7
+    ]
+   }
+  ]
+ },
+ "1814": {
+  "street": 1300,
+  "block": 14,
+  "title": "The Yo Ho Stop and Go",
+  "npcs": [
+   {
+    "id": 1318,
+    "name": "Dinghy Dan",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     12,
+     0,
+     12,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "1813": {
+  "street": 1300,
+  "block": 13,
+  "title": "Pier Pressure Plumbing",
+  "npcs": [
+   {
+    "id": 1317,
+    "name": "Paula Pylon",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "ld",
+     "l",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     1,
+     25,
+     1,
+     25,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "1815": {
+  "street": 1300,
+  "block": 15,
+  "title": "What's Up, Dock?",
+  "npcs": [
+   {
+    "id": 1319,
+    "name": "Davey Drydock",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ss",
+     "l",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     27,
+     0,
+     27,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "1833": {
+  "street": 1300,
+  "block": 33,
+  "title": "This Transom Man Custom Tailored Suits",
+  "npcs": [
+   {
+    "id": 1330,
+    "name": "Porter Hole",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "m",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     3,
+     1,
+     3,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "1818": {
+  "street": 1300,
+  "block": 18,
+  "title": "Seven Seas Cafe",
+  "npcs": [
+   {
+    "id": 1320,
+    "name": "Ted Calm",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ls",
+     "m",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     12,
+     0,
+     12,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "1819": {
+  "street": 1300,
+  "block": 19,
+  "title": "Docker's Diner",
+  "npcs": [
+   {
+    "id": 1321,
+    "name": "Dinah Docker",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "md",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     0,
+     27,
+     0,
+     27,
+     7,
+     5
+    ]
+   }
+  ]
+ },
+ "1820": {
+  "street": 1300,
+  "block": 20,
+  "title": "Hook, Line, and Sinker Prank Shop",
+  "npcs": [
+   {
+    "id": 1322,
+    "name": "Whoopie Cushion",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "ls",
+     "m",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     0,
+     0,
+     0,
+     0,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "1821": {
+  "street": 1300,
+  "block": 21,
+  "title": "King Neptoon's Cannery",
+  "npcs": [
+   {
+    "id": 1323,
+    "name": "Stinky Ned",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ss",
+     "m",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     0,
+     0,
+     0,
+     0,
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ "1823": {
+  "street": 1300,
+  "block": 23,
+  "title": "The Clam Bake Diner",
+  "npcs": [
+   {
+    "id": 1324,
+    "name": "Pearl Diver",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "md",
+     "m",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     0,
+     1,
+     0,
+     1,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "1824": {
+  "street": 1300,
+  "block": 24,
+  "title": "Dog Paddles",
+  "npcs": [
+   {
+    "id": 1325,
+    "name": "Ned Setter",
+    "gender": "m",
+    "dna": [
+     "fss",
+     "ms",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     0,
+     4,
+     0,
+     4,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "1825": {
+  "street": 1300,
+  "block": 25,
+  "title": "Wholly Mackerel! Fish Market",
+  "npcs": [
+   {
+    "id": 1326,
+    "name": "Felicia Chips",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ms",
+     "m",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     2,
+     1,
+     2,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "1826": {
+  "street": 1300,
+  "block": 26,
+  "title": "Claggart's Clever Clovis Closet",
+  "npcs": [
+   {
+    "id": 1303,
+    "name": "Claggart",
+    "gender": "m",
+    "dna": [
+     "hls",
+     "ss",
+     "m",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     1,
+     6,
+     1,
+     6,
+     0,
+     15
+    ]
+   }
+  ]
+ },
+ "1834": {
+  "street": 1300,
+  "block": 34,
+  "title": "Rudderly Ridiculous!",
+  "npcs": [
+   {
+    "id": 1331,
+    "name": "Rudy Rudder",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "m",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     3,
+     0,
+     3,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "1828": {
+  "street": 1300,
+  "block": 28,
+  "title": "Alice's Ballast Palace",
+  "npcs": [
+   {
+    "id": 1301,
+    "name": "Alice",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "md",
+     "m",
+     "f",
+     16,
+     0,
+     16,
+     16,
+     1,
+     8,
+     1,
+     8,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "2601": {
+  "street": 2100,
+  "block": 1,
+  "title": "All Smiles Tooth Repair",
+  "npcs": [
+   {
+    "id": 2101,
+    "name": "Dentist Daniel",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ms",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     0,
+     9,
+     0,
+     9,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "2602": {
+  "street": 2100,
+  "block": 2,
+  "title": "",
+  "npcs": []
+ },
+ "2603": {
+  "street": 2100,
+  "block": 3,
+  "title": "One-Liner Miners",
+  "npcs": [
+   {
+    "id": 2108,
+    "name": "Canary Coalmine",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "ms",
+     "m",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     1,
+     24,
+     1,
+     24,
+     3,
+     2
+    ]
+   }
+  ]
+ },
+ "2604": {
+  "street": 2100,
+  "block": 4,
+  "title": "Hogwash & Dry",
+  "npcs": [
+   {
+    "id": 2109,
+    "name": "Babbles Blowhard",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ms",
+     "m",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     5,
+     1,
+     5,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "2605": {
+  "street": 2100,
+  "block": 5,
+  "title": "Toontown Sign Factory",
+  "npcs": [
+   {
+    "id": 2110,
+    "name": "Bill Board",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ls",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     27,
+     0,
+     27,
+     0,
+     15
+    ]
+   }
+  ]
+ },
+ "2606": {
+  "street": 2100,
+  "block": 6,
+  "title": "",
+  "npcs": []
+ },
+ "2607": {
+  "street": 2100,
+  "block": 7,
+  "title": "Jumping Beans",
+  "npcs": [
+   {
+    "id": 2111,
+    "name": "Dancing Diego",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ss",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     1,
+     7,
+     1,
+     7,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "2610": {
+  "street": 2100,
+  "block": 10,
+  "title": "Dr. Tom Foolery",
+  "npcs": [
+   {
+    "id": 2112,
+    "name": "Dr. Tom",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ss",
+     "m",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     27,
+     0,
+     27,
+     0,
+     9
+    ]
+   }
+  ]
+ },
+ "2611": {
+  "street": 2100,
+  "block": 11,
+  "title": "",
+  "npcs": []
+ },
+ "2616": {
+  "street": 2100,
+  "block": 16,
+  "title": "Weird Beard's Disguise Shop",
+  "npcs": [
+   {
+    "id": 2103,
+    "name": "Sneezy Kitty",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ss",
+     "s",
+     "m",
+     9,
+     0,
+     8,
+     5,
+     0,
+     11,
+     0,
+     11,
+     2,
+     10
+    ]
+   }
+  ]
+ },
+ "2618": {
+  "street": 2100,
+  "block": 18,
+  "title": "All That Razz",
+  "npcs": [
+   {
+    "id": 2114,
+    "name": "Roz Berry",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "sd",
+     "m",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     0,
+     0,
+     0,
+     0,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "2617": {
+  "street": 2100,
+  "block": 17,
+  "title": "Silly Stunts",
+  "npcs": [
+   {
+    "id": 2113,
+    "name": "Rollo The Amazing",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ls",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     0,
+     0,
+     0,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "2621": {
+  "street": 2100,
+  "block": 21,
+  "title": "Paper Airplanes",
+  "npcs": [
+   {
+    "id": 2115,
+    "name": "Patty Papercut",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ms",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     1,
+     1,
+     1,
+     1,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "2624": {
+  "street": 2100,
+  "block": 24,
+  "title": "Happy Hooligans",
+  "npcs": [
+   {
+    "id": 2116,
+    "name": "Bruiser McDougal",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ls",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     1,
+     1,
+     1,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "2625": {
+  "street": 2100,
+  "block": 25,
+  "title": "House of Bad Pies",
+  "npcs": [
+   {
+    "id": 2117,
+    "name": "Ma Putrid",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "sd",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     2,
+     1,
+     2,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "2626": {
+  "street": 2100,
+  "block": 26,
+  "title": "Jesse's Joke Repair",
+  "npcs": [
+   {
+    "id": 2118,
+    "name": "Jesse Jester",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ss",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     1,
+     1,
+     1,
+     1,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "2629": {
+  "street": 2100,
+  "block": 29,
+  "title": "The Laughin' Place",
+  "npcs": [
+   {
+    "id": 2119,
+    "name": "Honey Haha",
+    "gender": "f",
+    "dna": [
+     "hll",
+     "ss",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     1,
+     3,
+     1,
+     3,
+     19,
+     27
+    ]
+   }
+  ]
+ },
+ "2632": {
+  "street": 2100,
+  "block": 32,
+  "title": "Clown Class",
+  "npcs": [
+   {
+    "id": 2120,
+    "name": "Professor Binky",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     1,
+     2,
+     1,
+     2,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "2633": {
+  "street": 2100,
+  "block": 33,
+  "title": "Tee-Hee Tea Shop",
+  "npcs": [
+   {
+    "id": 2121,
+    "name": "Madam Chuckle",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ls",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     4,
+     0,
+     4,
+     4,
+     4
+    ]
+   }
+  ]
+ },
+ "2638": {
+  "street": 2100,
+  "block": 38,
+  "title": "Toontown Playhouse",
+  "npcs": []
+ },
+ "2657": {
+  "street": 2100,
+  "block": 57,
+  "title": "Frank's Pranks",
+  "npcs": [
+   {
+    "id": 2129,
+    "name": "Frank Furter",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ss",
+     "l",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     5,
+     1,
+     5,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "2639": {
+  "street": 2100,
+  "block": 39,
+  "title": "Monkey Tricks",
+  "npcs": [
+   {
+    "id": 2122,
+    "name": "Harry Ape",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ss",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     3,
+     0,
+     3,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "2643": {
+  "street": 2100,
+  "block": 43,
+  "title": "Canned Bottles",
+  "npcs": [
+   {
+    "id": 2123,
+    "name": "Spamonia Biggles",
+    "gender": "f",
+    "dna": [
+     "cls",
+     "md",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     0,
+     5,
+     0,
+     5,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "2644": {
+  "street": 2100,
+  "block": 44,
+  "title": "Impractical Jokes",
+  "npcs": [
+   {
+    "id": 2124,
+    "name": "T.P. Rolle",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "sd",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     5,
+     0,
+     5,
+     8,
+     21
+    ]
+   }
+  ]
+ },
+ "2649": {
+  "street": 2100,
+  "block": 49,
+  "title": "All Fun and Games Shop",
+  "npcs": [
+   {
+    "id": 2125,
+    "name": "Lazy Hal",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     4,
+     0,
+     4,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "2660": {
+  "street": 2100,
+  "block": 60,
+  "title": "Tickle Machines",
+  "npcs": [
+   {
+    "id": 2131,
+    "name": "Feather Duster",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "ls",
+     "l",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     8,
+     1,
+     8,
+     1,
+     26
+    ]
+   }
+  ]
+ },
+ "2652": {
+  "street": 2100,
+  "block": 52,
+  "title": "",
+  "npcs": []
+ },
+ "2653": {
+  "street": 2100,
+  "block": 53,
+  "title": "",
+  "npcs": []
+ },
+ "2655": {
+  "street": 2100,
+  "block": 55,
+  "title": "Funny Money Savings & Loan",
+  "npcs": [
+   {
+    "id": 2127,
+    "name": "Woody Nickel",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "l",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     0,
+     5,
+     0,
+     5,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "2654": {
+  "street": 2100,
+  "block": 54,
+  "title": "Laughing Lessons",
+  "npcs": [
+   {
+    "id": 2126,
+    "name": "Professor Guffaw",
+    "gender": "f",
+    "dna": [
+     "dls",
+     "ld",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     0,
+     6,
+     0,
+     6,
+     3,
+     7
+    ]
+   }
+  ]
+ },
+ "2656": {
+  "street": 2100,
+  "block": 56,
+  "title": "Used Clown Cars",
+  "npcs": [
+   {
+    "id": 2128,
+    "name": "Loony Louis",
+    "gender": "m",
+    "dna": [
+     "fss",
+     "ss",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     5,
+     1,
+     5,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "2659": {
+  "street": 2100,
+  "block": 59,
+  "title": "Joy Buzzers to the World",
+  "npcs": [
+   {
+    "id": 2130,
+    "name": "Joy Buzzer",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "md",
+     "l",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     1,
+     8,
+     1,
+     8,
+     7,
+     7
+    ]
+   }
+  ]
+ },
+ "2661": {
+  "street": 2100,
+  "block": 61,
+  "title": "Daffy Taffy",
+  "npcs": [
+   {
+    "id": 2132,
+    "name": "Daffy Don",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ss",
+     "l",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     6,
+     1,
+     6,
+     1,
+     17
+    ]
+   }
+  ]
+ },
+ "2667": {
+  "street": 2100,
+  "block": 67,
+  "title": "Happy Times",
+  "npcs": [
+   {
+    "id": 2137,
+    "name": "Happy Heikyung",
+    "gender": "f",
+    "dna": [
+     "css",
+     "sd",
+     "l",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     0,
+     21,
+     0,
+     21,
+     24,
+     27
+    ]
+   }
+  ]
+ },
+ "2663": {
+  "street": 2100,
+  "block": 63,
+  "title": "Toontown Cinerama",
+  "npcs": []
+ },
+ "2662": {
+  "street": 2100,
+  "block": 62,
+  "title": "Dr. I.M. Euphoric",
+  "npcs": [
+   {
+    "id": 2133,
+    "name": "Dr. Euphoric",
+    "gender": "m",
+    "dna": [
+     "hll",
+     "ls",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     6,
+     1,
+     6,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "2664": {
+  "street": 2100,
+  "block": 64,
+  "title": "The Merry Mimes",
+  "npcs": [
+   {
+    "id": 2134,
+    "name": "Silent Simone",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ls",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     9,
+     1,
+     9,
+     5,
+     27
+    ]
+   }
+  ]
+ },
+ "2666": {
+  "street": 2100,
+  "block": 66,
+  "title": "Laughing Gas Station",
+  "npcs": [
+   {
+    "id": 2136,
+    "name": "Sal Snicker",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ls",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     8,
+     0,
+     8,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "2665": {
+  "street": 2100,
+  "block": 65,
+  "title": "Mary's Go Around Travel Company",
+  "npcs": [
+   {
+    "id": 2135,
+    "name": "Mary",
+    "gender": "f",
+    "dna": [
+     "hls",
+     "ms",
+     "l",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     0,
+     12,
+     0,
+     12,
+     2,
+     26
+    ]
+   }
+  ]
+ },
+ "2669": {
+  "street": 2100,
+  "block": 69,
+  "title": "Muldoon's Maroon Balloons",
+  "npcs": [
+   {
+    "id": 2138,
+    "name": "Muldoon",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ss",
+     "l",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     0,
+     9,
+     0,
+     9,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "2670": {
+  "street": 2100,
+  "block": 70,
+  "title": "Soup Forks",
+  "npcs": [
+   {
+    "id": 2139,
+    "name": "Dan Dribbles",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ss",
+     "l",
+     "m",
+     24,
+     0,
+     24,
+     24,
+     0,
+     7,
+     0,
+     7,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "2701": {
+  "street": 2200,
+  "block": 1,
+  "title": "",
+  "npcs": []
+ },
+ "2704": {
+  "street": 2200,
+  "block": 4,
+  "title": "Movie Multiplex",
+  "npcs": []
+ },
+ "2705": {
+  "street": 2200,
+  "block": 5,
+  "title": "Wiseacre's Noisemakers",
+  "npcs": [
+   {
+    "id": 2207,
+    "name": "Will Wiseacre",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "s",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     8,
+     0,
+     8,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "2708": {
+  "street": 2200,
+  "block": 8,
+  "title": "Blue Glue",
+  "npcs": [
+   {
+    "id": 2208,
+    "name": "Sticky Lou",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "s",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     8,
+     1,
+     8,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "2743": {
+  "street": 2200,
+  "block": 43,
+  "title": "Ragtime Dry Cleaners",
+  "npcs": []
+ },
+ "2744": {
+  "street": 2200,
+  "block": 44,
+  "title": "",
+  "npcs": []
+ },
+ "2711": {
+  "street": 2200,
+  "block": 11,
+  "title": "Toontown Post Office",
+  "npcs": [
+   {
+    "id": 2201,
+    "name": "Postmaster Pete",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     6,
+     1,
+     6,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "2712": {
+  "street": 2200,
+  "block": 12,
+  "title": "Chortle Cafe",
+  "npcs": [
+   {
+    "id": 2209,
+    "name": "Charlie Chortle",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "s",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     8,
+     1,
+     8,
+     0,
+     10
+    ]
+   }
+  ]
+ },
+ "2713": {
+  "street": 2200,
+  "block": 13,
+  "title": "Laughter Hours Cafe",
+  "npcs": [
+   {
+    "id": 2210,
+    "name": "Tee Hee",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "ms",
+     "s",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     21,
+     1,
+     21,
+     1,
+     24
+    ]
+   }
+  ]
+ },
+ "2714": {
+  "street": 2200,
+  "block": 14,
+  "title": "Kooky CinePlex",
+  "npcs": []
+ },
+ "2716": {
+  "street": 2200,
+  "block": 16,
+  "title": "Soup and Crack Ups",
+  "npcs": [
+   {
+    "id": 2211,
+    "name": "Sally Spittake",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ss",
+     "s",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     1,
+     22,
+     1,
+     22,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "2748": {
+  "street": 2200,
+  "block": 48,
+  "title": "Jest for Laughs",
+  "npcs": []
+ },
+ "2717": {
+  "street": 2200,
+  "block": 17,
+  "title": "Bottled Cans",
+  "npcs": [
+   {
+    "id": 2212,
+    "name": "Weird Warren",
+    "gender": "m",
+    "dna": [
+     "css",
+     "ls",
+     "s",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     9,
+     1,
+     9,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "2720": {
+  "street": 2200,
+  "block": 20,
+  "title": "Crack Up Auto Repair",
+  "npcs": [
+   {
+    "id": 2213,
+    "name": "Lucy Tires",
+    "gender": "f",
+    "dna": [
+     "cls",
+     "ls",
+     "s",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     23,
+     1,
+     23,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "2739": {
+  "street": 2200,
+  "block": 39,
+  "title": "Sidesplitter's Mending",
+  "npcs": [
+   {
+    "id": 2223,
+    "name": "Sasha Sidesplitter",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "ls",
+     "l",
+     "f",
+     10,
+     0,
+     10,
+     10,
+     1,
+     0,
+     1,
+     0,
+     5,
+     3
+    ]
+   }
+  ]
+ },
+ "2725": {
+  "street": 2200,
+  "block": 25,
+  "title": "",
+  "npcs": []
+ },
+ "2727": {
+  "street": 2200,
+  "block": 27,
+  "title": "Seltzer Bottles and Cans",
+  "npcs": [
+   {
+    "id": 2215,
+    "name": "Sid Seltzer",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     11,
+     0,
+     11,
+     0,
+     9
+    ]
+   }
+  ]
+ },
+ "2728": {
+  "street": 2200,
+  "block": 28,
+  "title": "Vanishing Cream",
+  "npcs": [
+   {
+    "id": 2216,
+    "name": "Nona Seeya",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "sd",
+     "m",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     0,
+     25,
+     0,
+     25,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "2730": {
+  "street": 2200,
+  "block": 30,
+  "title": "News for the Amused",
+  "npcs": [
+   {
+    "id": 2218,
+    "name": "Fanny Pages",
+    "gender": "f",
+    "dna": [
+     "hls",
+     "ms",
+     "s",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     12,
+     1,
+     12,
+     5,
+     22
+    ]
+   }
+  ]
+ },
+ "2729": {
+  "street": 2200,
+  "block": 29,
+  "title": "14 Karat Goldfish",
+  "npcs": [
+   {
+    "id": 2217,
+    "name": "Sharky Jones",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "m",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     0,
+     12,
+     0,
+     12,
+     0,
+     20
+    ]
+   }
+  ]
+ },
+ "2731": {
+  "street": 2200,
+  "block": 31,
+  "title": "",
+  "npcs": []
+ },
+ "2732": {
+  "street": 2200,
+  "block": 32,
+  "title": "Spaghetti and Goofballs",
+  "npcs": [
+   {
+    "id": 2219,
+    "name": "Chef Knucklehead",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ms",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     0,
+     27,
+     0,
+     27,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "2733": {
+  "street": 2200,
+  "block": 33,
+  "title": "Cast Iron Kites",
+  "npcs": [
+   {
+    "id": 2220,
+    "name": "Rick Rockhead",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ss",
+     "m",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     1,
+     12,
+     1,
+     12,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "2734": {
+  "street": 2200,
+  "block": 34,
+  "title": "Suction Cups and Saucers",
+  "npcs": [
+   {
+    "id": 2221,
+    "name": "Clovinia Cling",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ls",
+     "l",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     1,
+     1,
+     1,
+     1,
+     5,
+     11
+    ]
+   }
+  ]
+ },
+ "2735": {
+  "street": 2200,
+  "block": 35,
+  "title": "The Kaboomery",
+  "npcs": [
+   {
+    "id": 2222,
+    "name": "Shorty Fuse",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     0,
+     1,
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "2747": {
+  "street": 2200,
+  "block": 47,
+  "title": "Visible Ink",
+  "npcs": []
+ },
+ "2741": {
+  "street": 2200,
+  "block": 41,
+  "title": "",
+  "npcs": []
+ },
+ "2740": {
+  "street": 2200,
+  "block": 40,
+  "title": "Used Firecrackers",
+  "npcs": [
+   {
+    "id": 2224,
+    "name": "Smokey Joe",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ss",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     1,
+     1,
+     1,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "2801": {
+  "street": 2300,
+  "block": 1,
+  "title": "Sofa Whoopee Cushions",
+  "npcs": [
+   {
+    "id": 2308,
+    "name": "Nancy Gas",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ss",
+     "m",
+     "f",
+     8,
+     0,
+     8,
+     8,
+     1,
+     1,
+     1,
+     1,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "2802": {
+  "street": 2300,
+  "block": 2,
+  "title": "Inflatable Wrecking Balls",
+  "npcs": [
+   {
+    "id": 2309,
+    "name": "Big Bruce",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ls",
+     "m",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     1,
+     1,
+     1,
+     1,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "2803": {
+  "street": 2300,
+  "block": 3,
+  "title": "The Karnival Kid",
+  "npcs": []
+ },
+ "2804": {
+  "street": 2300,
+  "block": 4,
+  "title": "Dr. Pulyurleg, Chiropractor",
+  "npcs": [
+   {
+    "id": 2301,
+    "name": "Dr. Pulyurleg",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     3,
+     1,
+     3,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "2839": {
+  "street": 2300,
+  "block": 39,
+  "title": "Barely Palatable Pasta",
+  "npcs": [
+   {
+    "id": 2320,
+    "name": "Crunchy Alfredo",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     6,
+     1,
+     6,
+     0,
+     9
+    ]
+   }
+  ]
+ },
+ "2841": {
+  "street": 2300,
+  "block": 41,
+  "title": "",
+  "npcs": []
+ },
+ "2837": {
+  "street": 2300,
+  "block": 37,
+  "title": "Hardy Harr Seminars",
+  "npcs": [
+   {
+    "id": 2312,
+    "name": "Dr. Sensitive",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "ld",
+     "m",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     0,
+     3,
+     0,
+     3,
+     4,
+     6
+    ]
+   }
+  ]
+ },
+ "2809": {
+  "street": 2300,
+  "block": 9,
+  "title": "The Punch Line Gym",
+  "npcs": [
+   {
+    "id": 2311,
+    "name": "Franz Neckvein",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "m",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     2,
+     0,
+     2,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "2814": {
+  "street": 2300,
+  "block": 14,
+  "title": "Toontown Theatre",
+  "npcs": []
+ },
+ "2836": {
+  "street": 2300,
+  "block": 36,
+  "title": "",
+  "npcs": []
+ },
+ "2805": {
+  "street": 2300,
+  "block": 5,
+  "title": "",
+  "npcs": []
+ },
+ "2834": {
+  "street": 2300,
+  "block": 34,
+  "title": "Funny Bone Emergency Room",
+  "npcs": [
+   {
+    "id": 2303,
+    "name": "Nurse Nancy",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "md",
+     "s",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     2,
+     1,
+     2,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "2829": {
+  "street": 2300,
+  "block": 29,
+  "title": "Phony Baloney",
+  "npcs": [
+   {
+    "id": 2318,
+    "name": "Tony Maroni",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ss",
+     "l",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     1,
+     4,
+     1,
+     4,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "2830": {
+  "street": 2300,
+  "block": 30,
+  "title": "Zippy's Zingers",
+  "npcs": [
+   {
+    "id": 2319,
+    "name": "Zippy",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "l",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     1,
+     5,
+     1,
+     5,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "2818": {
+  "street": 2300,
+  "block": 18,
+  "title": "The Flying Pie",
+  "npcs": [
+   {
+    "id": 2314,
+    "name": "Ned Slinger",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ms",
+     "m",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     3,
+     0,
+     3,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "2831": {
+  "street": 2300,
+  "block": 31,
+  "title": "Professor Wiggle's House of Giggles",
+  "npcs": [
+   {
+    "id": 2302,
+    "name": "Professor Wiggle",
+    "gender": "m",
+    "dna": [
+     "css",
+     "ms",
+     "m",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     1,
+     3,
+     1,
+     3,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "2821": {
+  "street": 2300,
+  "block": 21,
+  "title": "",
+  "npcs": []
+ },
+ "2822": {
+  "street": 2300,
+  "block": 22,
+  "title": "Rubber Chicken Sandwiches",
+  "npcs": [
+   {
+    "id": 2315,
+    "name": "Chewy Morsel",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ss",
+     "m",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     0,
+     3,
+     0,
+     3,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "2833": {
+  "street": 2300,
+  "block": 33,
+  "title": "",
+  "npcs": []
+ },
+ "2824": {
+  "street": 2300,
+  "block": 24,
+  "title": "Punchline Movie Palace",
+  "npcs": []
+ },
+ "2823": {
+  "street": 2300,
+  "block": 23,
+  "title": "Sundae Funnies Ice Cream",
+  "npcs": [
+   {
+    "id": 2316,
+    "name": "Cindy Sprinkles",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "md",
+     "l",
+     "f",
+     15,
+     0,
+     15,
+     15,
+     0,
+     5,
+     0,
+     5,
+     0,
+     23
+    ]
+   }
+  ]
+ },
+ "3601": {
+  "street": 3100,
+  "block": 1,
+  "title": "Northern Lights Electric Company",
+  "npcs": [
+   {
+    "id": 3121,
+    "name": "Joe Shockit",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ls",
+     "m",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     1,
+     8,
+     1,
+     8,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "3602": {
+  "street": 3100,
+  "block": 2,
+  "title": "Nor'easter Bonnets",
+  "npcs": [
+   {
+    "id": 3104,
+    "name": "Bonnie",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ss",
+     "l",
+     "f",
+     16,
+     0,
+     16,
+     16,
+     0,
+     4,
+     0,
+     4,
+     3,
+     2
+    ]
+   }
+  ]
+ },
+ "3605": {
+  "street": 3100,
+  "block": 5,
+  "title": "",
+  "npcs": []
+ },
+ "3607": {
+  "street": 3100,
+  "block": 7,
+  "title": "The Blizzard Wizard",
+  "npcs": [
+   {
+    "id": 3112,
+    "name": "Lil Oldman",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "m",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     1,
+     5,
+     1,
+     5,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "3608": {
+  "street": 3100,
+  "block": 8,
+  "title": "Nothing to Luge",
+  "npcs": [
+   {
+    "id": 3122,
+    "name": "Lucy Luge",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "md",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     1,
+     21,
+     1,
+     21,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "3650": {
+  "street": 3100,
+  "block": 50,
+  "title": "Antarctic Antiques",
+  "npcs": [
+   {
+    "id": 3139,
+    "name": "Granny Icestockings",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "sd",
+     "l",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     0,
+     2,
+     0,
+     2,
+     16,
+     27
+    ]
+   }
+  ]
+ },
+ "3611": {
+  "street": 3100,
+  "block": 11,
+  "title": "Mr. Cow's Snow Plows",
+  "npcs": [
+   {
+    "id": 3101,
+    "name": "Mr. Cow",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "l",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     1,
+     1,
+     1,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "3610": {
+  "street": 3100,
+  "block": 10,
+  "title": "Mike's Massive Mukluk Mart",
+  "npcs": [
+   {
+    "id": 3120,
+    "name": "Mike Mittens",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "m",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     8,
+     1,
+     8,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "3612": {
+  "street": 3100,
+  "block": 12,
+  "title": "Igloo Design",
+  "npcs": [
+   {
+    "id": 3123,
+    "name": "Frank Lloyd Ice",
+    "gender": "m",
+    "dna": [
+     "dls",
+     "ms",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     9,
+     1,
+     9,
+     0,
+     10
+    ]
+   }
+  ]
+ },
+ "3613": {
+  "street": 3100,
+  "block": 13,
+  "title": "Ice Cycle Bikes",
+  "npcs": [
+   {
+    "id": 3124,
+    "name": "Lance Iceberg",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     1,
+     9,
+     1,
+     9,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "3614": {
+  "street": 3100,
+  "block": 14,
+  "title": "Snowflakes Cereal Company",
+  "npcs": [
+   {
+    "id": 3125,
+    "name": "Colonel Crunchmouth",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ls",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     9,
+     1,
+     9,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "3615": {
+  "street": 3100,
+  "block": 15,
+  "title": "Fried Baked Alaskas",
+  "npcs": [
+   {
+    "id": 3126,
+    "name": "Colestra Awl",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ls",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     0,
+     24,
+     0,
+     24,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "3651": {
+  "street": 3100,
+  "block": 51,
+  "title": "Frosty Freddy's Frozen Frankfurters",
+  "npcs": [
+   {
+    "id": 3105,
+    "name": "Frosty Freddy",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "m",
+     "m",
+     24,
+     0,
+     24,
+     24,
+     0,
+     7,
+     0,
+     7,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "3617": {
+  "street": 3100,
+  "block": 17,
+  "title": "Cold Air Balloon Rides",
+  "npcs": [
+   {
+    "id": 3127,
+    "name": "Ifalla Yufalla",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "ms",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     24,
+     0,
+     24,
+     19,
+     27
+    ]
+   }
+  ]
+ },
+ "3618": {
+  "street": 3100,
+  "block": 18,
+  "title": "Snow Big Deal! Crisis Management",
+  "npcs": [
+   {
+    "id": 3113,
+    "name": "Hysterical Harry",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     1,
+     5,
+     1,
+     5,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "3621": {
+  "street": 3100,
+  "block": 21,
+  "title": "The Melting Ice Cream Bar",
+  "npcs": [
+   {
+    "id": 3128,
+    "name": "Sticky George",
+    "gender": "m",
+    "dna": [
+     "rls",
+     "ls",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     11,
+     0,
+     11,
+     0,
+     12
+    ]
+   }
+  ]
+ },
+ "3622": {
+  "street": 3100,
+  "block": 22,
+  "title": "",
+  "npcs": []
+ },
+ "3623": {
+  "street": 3100,
+  "block": 23,
+  "title": "The Mostly Toasty Bread Company",
+  "npcs": [
+   {
+    "id": 3129,
+    "name": "Baker Bridget",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "sd",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     0,
+     25,
+     0,
+     25,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "3624": {
+  "street": 3100,
+  "block": 24,
+  "title": "Subzero Sandwich Shop",
+  "npcs": [
+   {
+    "id": 3130,
+    "name": "Sandy",
+    "gender": "f",
+    "dna": [
+     "hll",
+     "ms",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     26,
+     0,
+     26,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "3625": {
+  "street": 3100,
+  "block": 25,
+  "title": "Auntie Freeze's Radiator Supply",
+  "npcs": [
+   {
+    "id": 3102,
+    "name": "Auntie Freeze",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ld",
+     "m",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     5,
+     1,
+     5,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "3629": {
+  "street": 3100,
+  "block": 29,
+  "title": "Pea Soup Cafe",
+  "npcs": [
+   {
+    "id": 3110,
+    "name": "Chicken Boy",
+    "gender": "m",
+    "dna": [
+     "fss",
+     "ms",
+     "l",
+     "m",
+     10,
+     10,
+     10,
+     10,
+     16,
+     4,
+     0,
+     4,
+     5,
+     4
+    ]
+   }
+  ]
+ },
+ "3627": {
+  "street": 3100,
+  "block": 27,
+  "title": "St. Bernard Kennel Club",
+  "npcs": [
+   {
+    "id": 3111,
+    "name": "Snooty Sinjin",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ls",
+     "s",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     14,
+     27,
+     10,
+     27,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "3630": {
+  "street": 3100,
+  "block": 30,
+  "title": "Icy London, Icy France Travel Agency",
+  "npcs": [
+   {
+    "id": 3107,
+    "name": "Patty Passport",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "ms",
+     "l",
+     "f",
+     15,
+     0,
+     15,
+     15,
+     0,
+     5,
+     0,
+     5,
+     4,
+     4
+    ]
+   }
+  ]
+ },
+ "3634": {
+  "street": 3100,
+  "block": 34,
+  "title": "Easy Chair Lifts",
+  "npcs": [
+   {
+    "id": 3131,
+    "name": "Lazy Lorenzo",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     12,
+     0,
+     12,
+     0,
+     20
+    ]
+   }
+  ]
+ },
+ "3635": {
+  "street": 3100,
+  "block": 35,
+  "title": "Used Firewood",
+  "npcs": [
+   {
+    "id": 3132,
+    "name": "Ashy",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "ls",
+     "m",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     0,
+     11,
+     0,
+     11,
+     5,
+     21
+    ]
+   }
+  ]
+ },
+ "3636": {
+  "street": 3100,
+  "block": 36,
+  "title": "Affordable Goosebumps",
+  "npcs": [
+   {
+    "id": 3106,
+    "name": "Gus Gooseburger",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ls",
+     "l",
+     "m",
+     8,
+     2,
+     8,
+     8,
+     10,
+     27,
+     0,
+     27,
+     7,
+     11
+    ]
+   }
+  ]
+ },
+ "3637": {
+  "street": 3100,
+  "block": 37,
+  "title": "Kate's Skates",
+  "npcs": [
+   {
+    "id": 3109,
+    "name": "Kate",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "sd",
+     "m",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     1,
+     6,
+     1,
+     6,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "3638": {
+  "street": 3100,
+  "block": 38,
+  "title": "Toboggan or Not Toboggan",
+  "npcs": [
+   {
+    "id": 3108,
+    "name": "Toboggan Ted",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "m",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     10,
+     1,
+     10,
+     0,
+     12
+    ]
+   }
+  ]
+ },
+ "3648": {
+  "street": 3100,
+  "block": 48,
+  "title": "Instant Ice",
+  "npcs": [
+   {
+    "id": 3137,
+    "name": "Mr. Freeze",
+    "gender": "m",
+    "dna": [
+     "dls",
+     "ss",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     1,
+     1,
+     1,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "3649": {
+  "street": 3100,
+  "block": 49,
+  "title": "Hambrrrgers",
+  "npcs": [
+   {
+    "id": 3138,
+    "name": "Chef Bumblesoup",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "ld",
+     "l",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     1,
+     2,
+     1,
+     2,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "3641": {
+  "street": 3100,
+  "block": 41,
+  "title": "Fred's Red Sled Beds",
+  "npcs": [
+   {
+    "id": 3103,
+    "name": "Fred",
+    "gender": "m",
+    "dna": [
+     "hll",
+     "ls",
+     "m",
+     "m",
+     23,
+     0,
+     23,
+     23,
+     0,
+     8,
+     0,
+     8,
+     0,
+     15
+    ]
+   }
+  ]
+ },
+ "3620": {
+  "street": 3100,
+  "block": 20,
+  "title": "Skiing Clinic",
+  "npcs": [
+   {
+    "id": 3114,
+    "name": "Henry the Hazard",
+    "gender": "m",
+    "dna": [
+     "rls",
+     "ss",
+     "m",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     6,
+     0,
+     6,
+     0,
+     20
+    ]
+   }
+  ]
+ },
+ "3642": {
+  "street": 3100,
+  "block": 42,
+  "title": "Eye of the Storm Optics",
+  "npcs": [
+   {
+    "id": 3133,
+    "name": "Dr. Friezeframe",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ms",
+     "l",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     12,
+     1,
+     12,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "3643": {
+  "street": 3100,
+  "block": 43,
+  "title": "Snowball Hall",
+  "npcs": [
+   {
+    "id": 3134,
+    "name": "Lounge Lassard",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     0,
+     1,
+     0,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "3653": {
+  "street": 3100,
+  "block": 53,
+  "title": "Ice House Jewelry",
+  "npcs": [
+   {
+    "id": 3119,
+    "name": "Creepy Carl",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ms",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     8,
+     0,
+     8,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "3644": {
+  "street": 3100,
+  "block": 44,
+  "title": "Melted Ice Cubes",
+  "npcs": [
+   {
+    "id": 3135,
+    "name": "Soggy Nell",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "md",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     0,
+     1,
+     0,
+     4,
+     12
+    ]
+   }
+  ]
+ },
+ "3647": {
+  "street": 3100,
+  "block": 47,
+  "title": "The Sanguine Penguin Tuxedo Shop",
+  "npcs": [
+   {
+    "id": 3136,
+    "name": "Happy Sue",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "ls",
+     "l",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     1,
+     1,
+     1,
+     1,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "3702": {
+  "street": 3200,
+  "block": 2,
+  "title": "Winter Storage",
+  "npcs": [
+   {
+    "id": 3218,
+    "name": "Blue Lou",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ms",
+     "s",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     4,
+     1,
+     4,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "3703": {
+  "street": 3200,
+  "block": 3,
+  "title": "",
+  "npcs": []
+ },
+ "3737": {
+  "street": 3200,
+  "block": 37,
+  "title": "Downhill Diner",
+  "npcs": [
+   {
+    "id": 3209,
+    "name": "Giggles McGhee",
+    "gender": "m",
+    "dna": [
+     "css",
+     "ss",
+     "l",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     0,
+     1,
+     0,
+     1,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "3705": {
+  "street": 3200,
+  "block": 5,
+  "title": "Icicles Built for Two",
+  "npcs": [
+   {
+    "id": 3219,
+    "name": "Tom Tandemfrost",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ss",
+     "s",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     5,
+     0,
+     5,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "3706": {
+  "street": 3200,
+  "block": 6,
+  "title": "Shiverin' Shakes Malt Shop",
+  "npcs": [
+   {
+    "id": 3220,
+    "name": "Mr. Sneeze",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "s",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     0,
+     5,
+     0,
+     5,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "3708": {
+  "street": 3200,
+  "block": 8,
+  "title": "Pluto's Place",
+  "npcs": [
+   {
+    "id": 3221,
+    "name": "Nelly Snow",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "sd",
+     "s",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     0,
+     8,
+     0,
+     8,
+     7,
+     12
+    ]
+   }
+  ]
+ },
+ "3707": {
+  "street": 3200,
+  "block": 7,
+  "title": "Snowplace Like Home",
+  "npcs": [
+   {
+    "id": 3212,
+    "name": "Frosty Fred",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "s",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     0,
+     2,
+     0,
+     2,
+     1,
+     17
+    ]
+   }
+  ]
+ },
+ "3736": {
+  "street": 3200,
+  "block": 36,
+  "title": "Diced Ice at a Nice Price",
+  "npcs": [
+   {
+    "id": 3231,
+    "name": "Choppy",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "m",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     0,
+     9,
+     0,
+     9,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "3711": {
+  "street": 3200,
+  "block": 11,
+  "title": "",
+  "npcs": []
+ },
+ "3710": {
+  "street": 3200,
+  "block": 10,
+  "title": "Dropping Degrees Diner",
+  "npcs": [
+   {
+    "id": 3211,
+    "name": "Fanny Freezes",
+    "gender": "f",
+    "dna": [
+     "dls",
+     "ls",
+     "s",
+     "f",
+     17,
+     0,
+     17,
+     17,
+     0,
+     4,
+     0,
+     4,
+     5,
+     8
+    ]
+   }
+  ]
+ },
+ "3712": {
+  "street": 3200,
+  "block": 12,
+  "title": "Go With the Floe",
+  "npcs": [
+   {
+    "id": 3203,
+    "name": "Walt",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ls",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     1,
+     12,
+     1,
+     12,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "3715": {
+  "street": 3200,
+  "block": 15,
+  "title": "Aunt Arctic's Soup Shop",
+  "npcs": [
+   {
+    "id": 3201,
+    "name": "Aunt Arctic",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "ms",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     1,
+     9,
+     1,
+     9,
+     5,
+     9
+    ]
+   }
+  ]
+ },
+ "3716": {
+  "street": 3200,
+  "block": 16,
+  "title": "Road Salt and Pepper",
+  "npcs": [
+   {
+    "id": 3222,
+    "name": "Mindy Windburn",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ld",
+     "m",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     1,
+     25,
+     1,
+     25,
+     0,
+     3
+    ]
+   }
+  ]
+ },
+ "3718": {
+  "street": 3200,
+  "block": 18,
+  "title": "Designer Inner Tubes",
+  "npcs": [
+   {
+    "id": 3223,
+    "name": "Chappy",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ls",
+     "m",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     0,
+     6,
+     0,
+     6,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "3719": {
+  "street": 3200,
+  "block": 19,
+  "title": "Ice Cube on a Stick",
+  "npcs": [
+   {
+    "id": 3224,
+    "name": "Freida Frostbite",
+    "gender": "f",
+    "dna": [
+     "cls",
+     "md",
+     "m",
+     "f",
+     18,
+     0,
+     18,
+     18,
+     0,
+     9,
+     0,
+     9,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "3721": {
+  "street": 3200,
+  "block": 21,
+  "title": "Noggin's Toboggan Bargains",
+  "npcs": [
+   {
+    "id": 3205,
+    "name": "Bumpy Noggin",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "l",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     4,
+     1,
+     4,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "3722": {
+  "street": 3200,
+  "block": 22,
+  "title": "Snow Bunny Ski Shop",
+  "npcs": [
+   {
+    "id": 3206,
+    "name": "Vidalia VaVoom",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ss",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     1,
+     0,
+     1,
+     0,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "3734": {
+  "street": 3200,
+  "block": 34,
+  "title": "Icy Fine, Do You? Optometry",
+  "npcs": [
+   {
+    "id": 3204,
+    "name": "Dr. Ivanna Cee",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "md",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     1,
+     26,
+     1,
+     26,
+     4,
+     5
+    ]
+   }
+  ]
+ },
+ "3723": {
+  "street": 3200,
+  "block": 23,
+  "title": "Shakey's Snow Globes",
+  "npcs": [
+   {
+    "id": 3202,
+    "name": "Shakey",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ss",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     12,
+     1,
+     12,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "3724": {
+  "street": 3200,
+  "block": 24,
+  "title": "The Chattering Chronicle",
+  "npcs": [
+   {
+    "id": 3225,
+    "name": "Blake Ice",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "l",
+     "m",
+     11,
+     0,
+     11,
+     11,
+     1,
+     10,
+     1,
+     10,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "3725": {
+  "street": 3200,
+  "block": 25,
+  "title": "You Sleigh Me",
+  "npcs": [
+   {
+    "id": 3226,
+    "name": "Santa Paws",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "m",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     1,
+     7,
+     1,
+     7,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "3726": {
+  "street": 3200,
+  "block": 26,
+  "title": "Solar Powered Blankets",
+  "npcs": [
+   {
+    "id": 3227,
+    "name": "Solar Ray",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ls",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     7,
+     1,
+     7,
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ "3729": {
+  "street": 3200,
+  "block": 29,
+  "title": "",
+  "npcs": []
+ },
+ "3738": {
+  "street": 3200,
+  "block": 38,
+  "title": "Heat-Get It While It's Hot",
+  "npcs": [
+   {
+    "id": 3217,
+    "name": "Sweaty Pete",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ls",
+     "s",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     4,
+     1,
+     4,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "3730": {
+  "street": 3200,
+  "block": 30,
+  "title": "Snowmen Bought & Sold",
+  "npcs": [
+   {
+    "id": 3228,
+    "name": "Wynne Chill",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "ls",
+     "m",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     1,
+     12,
+     1,
+     12,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "3731": {
+  "street": 3200,
+  "block": 31,
+  "title": "Portable Fireplaces",
+  "npcs": [
+   {
+    "id": 3229,
+    "name": "Hernia Belt",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ms",
+     "m",
+     "f",
+     2,
+     0,
+     2,
+     2,
+     1,
+     12,
+     1,
+     12,
+     0,
+     7
+    ]
+   }
+  ]
+ },
+ "3732": {
+  "street": 3200,
+  "block": 32,
+  "title": "The Frozen Nose",
+  "npcs": [
+   {
+    "id": 3208,
+    "name": "Grumpy Phil",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     0,
+     1,
+     0,
+     1,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "3735": {
+  "street": 3200,
+  "block": 35,
+  "title": "Polar Ice Caps",
+  "npcs": [
+   {
+    "id": 3230,
+    "name": "Balding Benjy",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     8,
+     1,
+     8,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "3713": {
+  "street": 3200,
+  "block": 13,
+  "title": "Chattering Teeth, Subzero Dentist",
+  "npcs": [
+   {
+    "id": 3207,
+    "name": "Dr. Mumbleface",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     0,
+     0,
+     0,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "3728": {
+  "street": 3200,
+  "block": 28,
+  "title": "Lowbrow Snowplows",
+  "npcs": [
+   {
+    "id": 3210,
+    "name": "Simian Sam",
+    "gender": "m",
+    "dna": [
+     "pls",
+     "ls",
+     "s",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     2,
+     1,
+     2,
+     1,
+     5,
+     2
+    ]
+   }
+  ]
+ },
+ "3717": {
+  "street": 3200,
+  "block": 17,
+  "title": "Juneau What I Mean?",
+  "npcs": []
+ },
+ "3810": {
+  "street": 3300,
+  "block": 10,
+  "title": "A Better Built Quilt",
+  "npcs": [
+   {
+    "id": 3301,
+    "name": "Paisley Patches",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "ms",
+     "m",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     0,
+     22,
+     0,
+     22,
+     2,
+     11
+    ]
+   }
+  ]
+ },
+ "3806": {
+  "street": 3300,
+  "block": 6,
+  "title": "Alpine Chow Line",
+  "npcs": [
+   {
+    "id": 3302,
+    "name": "Bjorn Bord",
+    "gender": "m",
+    "dna": [
+     "dls",
+     "ls",
+     "m",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     0,
+     10,
+     0,
+     10,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "3830": {
+  "street": 3300,
+  "block": 30,
+  "title": "Wait and See Goggle Defogging",
+  "npcs": [
+   {
+    "id": 3303,
+    "name": "Dr. Peepers",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ms",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     10,
+     0,
+     10,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "3828": {
+  "street": 3300,
+  "block": 28,
+  "title": "Snowman's Land",
+  "npcs": [
+   {
+    "id": 3304,
+    "name": "Eddie the Yeti",
+    "gender": "m",
+    "dna": [
+     "pll",
+     "ls",
+     "l",
+     "m",
+     0,
+     0,
+     0,
+     0,
+     1,
+     5,
+     1,
+     5,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "3812": {
+  "street": 3300,
+  "block": 12,
+  "title": "Mittens for Kittens",
+  "npcs": [
+   {
+    "id": 3305,
+    "name": "Mack Ramay",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ls",
+     "m",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     0,
+     11,
+     0,
+     11,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "3821": {
+  "street": 3300,
+  "block": 21,
+  "title": "Hibernation Vacations",
+  "npcs": [
+   {
+    "id": 3306,
+    "name": "Paula Behr",
+    "gender": "f",
+    "dna": [
+     "bss",
+     "sd",
+     "m",
+     "f",
+     0,
+     0,
+     0,
+     0,
+     31,
+     27,
+     22,
+     27,
+     8,
+     11
+    ]
+   }
+  ]
+ },
+ "3815": {
+  "street": 3300,
+  "block": 15,
+  "title": "The Toupee Chalet",
+  "npcs": [
+   {
+    "id": 3308,
+    "name": "Donald Frump",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "m",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     1,
+     11,
+     1,
+     11,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "3826": {
+  "street": 3300,
+  "block": 26,
+  "title": "Oh My Galoshes!",
+  "npcs": [
+   {
+    "id": 3309,
+    "name": "Bootsy",
+    "gender": "m",
+    "dna": [
+     "hll",
+     "ls",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     11,
+     1,
+     11,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "3823": {
+  "street": 3300,
+  "block": 23,
+  "title": "Precipitation Foundation",
+  "npcs": [
+   {
+    "id": 3310,
+    "name": "Professor Flake",
+    "gender": "m",
+    "dna": [
+     "pll",
+     "ms",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     60,
+     27,
+     49,
+     27,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "3829": {
+  "street": 3300,
+  "block": 29,
+  "title": "Pinecone Zone",
+  "npcs": [
+   {
+    "id": 3311,
+    "name": "Connie Ferris",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "ls",
+     "m",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     0,
+     6,
+     0,
+     6,
+     5,
+     23
+    ]
+   }
+  ]
+ },
+ "3813": {
+  "street": 3300,
+  "block": 13,
+  "title": "Snowshoes You Can't Refuse",
+  "npcs": [
+   {
+    "id": 3312,
+    "name": "March Harry",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "l",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     5,
+     2,
+     5,
+     2,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "3816": {
+  "street": 3300,
+  "block": 16,
+  "title": "Just So Mistletoe",
+  "npcs": [
+   {
+    "id": 3317,
+    "name": "Kissy Krissy",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ls",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     0,
+     2,
+     0,
+     2,
+     3,
+     24
+    ]
+   }
+  ]
+ },
+ "3808": {
+  "street": 3300,
+  "block": 8,
+  "title": "The Sweater Lodge",
+  "npcs": [
+   {
+    "id": 3318,
+    "name": "Johnny Cashmere",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ms",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     57,
+     1,
+     46,
+     1,
+     12,
+     1
+    ]
+   }
+  ]
+ },
+ "3825": {
+  "street": 3300,
+  "block": 25,
+  "title": "Cool Cat Hats",
+  "npcs": [
+   {
+    "id": 3319,
+    "name": "Sam Stetson",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ls",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     2,
+     1,
+     2,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "3814": {
+  "street": 3300,
+  "block": 14,
+  "title": "Malt in Your Mouth Soda Fountain",
+  "npcs": [
+   {
+    "id": 3320,
+    "name": "Fizzy Lizzy",
+    "gender": "f",
+    "dna": [
+     "rsl",
+     "ls",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     1,
+     3,
+     1,
+     3,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "3818": {
+  "street": 3300,
+  "block": 18,
+  "title": "The Shovel Hovel",
+  "npcs": [
+   {
+    "id": 3321,
+    "name": "Pickaxe Paul",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ss",
+     "l",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     2,
+     1,
+     2,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "3819": {
+  "street": 3300,
+  "block": 19,
+  "title": "Clean Sweep Chimney Service",
+  "npcs": [
+   {
+    "id": 3322,
+    "name": "Flue Lou",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "m",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     1,
+     11,
+     1,
+     11,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "3817": {
+  "street": 3300,
+  "block": 17,
+  "title": "Winter Wonderland Walking Club",
+  "npcs": [
+   {
+    "id": 3329,
+    "name": "Treading Ed",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ms",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     0,
+     1,
+     0,
+     1,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "3811": {
+  "street": 3300,
+  "block": 11,
+  "title": "Your Snow Angel",
+  "npcs": [
+   {
+    "id": 3323,
+    "name": "Dallas Borealis",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "l",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     1,
+     3,
+     1,
+     3,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "3809": {
+  "street": 3300,
+  "block": 9,
+  "title": "Ice Saw It Too",
+  "npcs": [
+   {
+    "id": 3324,
+    "name": "Snaggletooth Stu",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ls",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     6,
+     1,
+     6,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "3827": {
+  "street": 3300,
+  "block": 27,
+  "title": "Choral Wreaths",
+  "npcs": [
+   {
+    "id": 3325,
+    "name": "Groovy Garland",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "l",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     0,
+     4,
+     0,
+     4,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "3820": {
+  "street": 3300,
+  "block": 20,
+  "title": "Snow Whitening",
+  "npcs": [
+   {
+    "id": 3326,
+    "name": "Blanche",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "md",
+     "l",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     0,
+     6,
+     0,
+     6,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "3824": {
+  "street": 3300,
+  "block": 24,
+  "title": "Open Fire Chestnut Roasting",
+  "npcs": [
+   {
+    "id": 3327,
+    "name": "Chuck Roast",
+    "gender": "m",
+    "dna": [
+     "css",
+     "ms",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     0,
+     5,
+     0,
+     5,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "3807": {
+  "street": 3300,
+  "block": 7,
+  "title": "Used Groundhog Shadows",
+  "npcs": [
+   {
+    "id": 3328,
+    "name": "Shady Sadie",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "sd",
+     "l",
+     "f",
+     8,
+     0,
+     8,
+     8,
+     0,
+     25,
+     0,
+     25,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "4603": {
+  "street": 4100,
+  "block": 3,
+  "title": "Tom-Tom's Drums",
+  "npcs": [
+   {
+    "id": 4101,
+    "name": "Tom",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "m",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     7,
+     1,
+     7,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "4604": {
+  "street": 4100,
+  "block": 4,
+  "title": "In Four-Four Time",
+  "npcs": [
+   {
+    "id": 4110,
+    "name": "Metra Gnome",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "ld",
+     "l",
+     "f",
+     16,
+     0,
+     16,
+     16,
+     0,
+     24,
+     0,
+     24,
+     3,
+     2
+    ]
+   }
+  ]
+ },
+ "4606": {
+  "street": 4100,
+  "block": 6,
+  "title": "Casa De Castanets",
+  "npcs": [
+   {
+    "id": 4109,
+    "name": "Carlos",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ss",
+     "l",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     0,
+     11,
+     0,
+     11,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "4607": {
+  "street": 4100,
+  "block": 7,
+  "title": "Catchy Toon Apparel",
+  "npcs": [
+   {
+    "id": 4111,
+    "name": "Tom Hum",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ls",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     1,
+     8,
+     1,
+     8,
+     1,
+     11
+    ]
+   }
+  ]
+ },
+ "4645": {
+  "street": 4100,
+  "block": 45,
+  "title": "Club 88",
+  "npcs": [
+   {
+    "id": 4134,
+    "name": "Disco Dave",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     10,
+     1,
+     10,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "4614": {
+  "street": 4100,
+  "block": 14,
+  "title": "Shave and a Haircut for a Song",
+  "npcs": [
+   {
+    "id": 4115,
+    "name": "Barbara Seville",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ls",
+     "l",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     1,
+     26,
+     1,
+     26,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "4617": {
+  "street": 4100,
+  "block": 17,
+  "title": "Happy Mandolins",
+  "npcs": [
+   {
+    "id": 4117,
+    "name": "Mandy Lynn",
+    "gender": "f",
+    "dna": [
+     "cls",
+     "md",
+     "m",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     1,
+     0,
+     1,
+     0,
+     1,
+     25
+    ]
+   }
+  ]
+ },
+ "4618": {
+  "street": 4100,
+  "block": 18,
+  "title": "Rests Rooms",
+  "npcs": [
+   {
+    "id": 4118,
+    "name": "Attendant Abe",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "l",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     3,
+     1,
+     3,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "4619": {
+  "street": 4100,
+  "block": 19,
+  "title": "More Scores",
+  "npcs": [
+   {
+    "id": 4119,
+    "name": "Moe Zart",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     0,
+     0,
+     0,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "4622": {
+  "street": 4100,
+  "block": 22,
+  "title": "Chin Rest Pillows",
+  "npcs": [
+   {
+    "id": 4120,
+    "name": "Viola Padding",
+    "gender": "f",
+    "dna": [
+     "dls",
+     "ld",
+     "m",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     0,
+     1,
+     0,
+     1,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "4623": {
+  "street": 4100,
+  "block": 23,
+  "title": "Flats Sharpened",
+  "npcs": [
+   {
+    "id": 4121,
+    "name": "Gee Minor",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "m",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     0,
+     1,
+     0,
+     1,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "4626": {
+  "street": 4100,
+  "block": 26,
+  "title": "Notations",
+  "npcs": [
+   {
+    "id": 4108,
+    "name": "Cleff",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ms",
+     "l",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     0,
+     10,
+     0,
+     10,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "4648": {
+  "street": 4100,
+  "block": 48,
+  "title": "Carry a Toon Movers",
+  "npcs": [
+   {
+    "id": 4135,
+    "name": "Sluggo Songbird",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     0,
+     6,
+     0,
+     6,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "4628": {
+  "street": 4100,
+  "block": 28,
+  "title": "Accidental Insurance",
+  "npcs": [
+   {
+    "id": 4123,
+    "name": "Lightning Ted",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "m",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     0,
+     2,
+     0,
+     2,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "4631": {
+  "street": 4100,
+  "block": 31,
+  "title": "Canto Help You",
+  "npcs": [
+   {
+    "id": 4126,
+    "name": "Mel Canto",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ss",
+     "m",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     3,
+     1,
+     3,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "4632": {
+  "street": 4100,
+  "block": 32,
+  "title": "Dance Around the Clock Shop",
+  "npcs": [
+   {
+    "id": 4127,
+    "name": "Happy Feet",
+    "gender": "f",
+    "dna": [
+     "hll",
+     "md",
+     "m",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     1,
+     4,
+     1,
+     4,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "4658": {
+  "street": 4100,
+  "block": 58,
+  "title": "Plummeting Pianos",
+  "npcs": [
+   {
+    "id": 4140,
+    "name": "Clumsy Ned",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     7,
+     1,
+     7,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "4649": {
+  "street": 4100,
+  "block": 49,
+  "title": "",
+  "npcs": []
+ },
+ "4635": {
+  "street": 4100,
+  "block": 35,
+  "title": "Tenor Times",
+  "npcs": [
+   {
+    "id": 4128,
+    "name": "Luciano Scoop",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ms",
+     "m",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     3,
+     1,
+     3,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "4652": {
+  "street": 4100,
+  "block": 52,
+  "title": "Full Stop Shop",
+  "npcs": [
+   {
+    "id": 4136,
+    "name": "Patty Pause",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "ss",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     9,
+     0,
+     9,
+     7,
+     4
+    ]
+   }
+  ]
+ },
+ "4637": {
+  "street": 4100,
+  "block": 37,
+  "title": "For Good Measure",
+  "npcs": [
+   {
+    "id": 4129,
+    "name": "Tootie Twostep",
+    "gender": "f",
+    "dna": [
+     "hls",
+     "ss",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     5,
+     1,
+     5,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "4642": {
+  "street": 4100,
+  "block": 42,
+  "title": "Ragtime Dry Cleaners",
+  "npcs": [
+   {
+    "id": 4133,
+    "name": "Scott Poplin",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     5,
+     0,
+     5,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "4641": {
+  "street": 4100,
+  "block": 41,
+  "title": "Blues News",
+  "npcs": [
+   {
+    "id": 4132,
+    "name": "Lowdown Sally",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "ms",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     0,
+     7,
+     0,
+     7,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "4605": {
+  "street": 4100,
+  "block": 5,
+  "title": "Fifi's Fiddles",
+  "npcs": [
+   {
+    "id": 4102,
+    "name": "Fifi",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "ms",
+     "m",
+     "f",
+     9,
+     0,
+     9,
+     9,
+     1,
+     11,
+     1,
+     11,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "4612": {
+  "street": 4100,
+  "block": 12,
+  "title": "Dr. Fret's Dentistry",
+  "npcs": [
+   {
+    "id": 4103,
+    "name": "Dr. Fret",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ls",
+     "l",
+     "m",
+     2,
+     0,
+     2,
+     2,
+     1,
+     8,
+     1,
+     8,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "4610": {
+  "street": 4100,
+  "block": 10,
+  "title": "Please Refrain",
+  "npcs": [
+   {
+    "id": 4113,
+    "name": "Madam Manners",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ld",
+     "l",
+     "f",
+     15,
+     0,
+     15,
+     15,
+     1,
+     25,
+     1,
+     25,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "4609": {
+  "street": 4100,
+  "block": 9,
+  "title": "Do, Rae, Me Piano Keys",
+  "npcs": [
+   {
+    "id": 4112,
+    "name": "Fa",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "ms",
+     "l",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     0,
+     25,
+     0,
+     25,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "4611": {
+  "street": 4100,
+  "block": 11,
+  "title": "Tuning Forks and Spoons",
+  "npcs": [
+   {
+    "id": 4114,
+    "name": "Offkey Eric",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ms",
+     "l",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     1,
+     11,
+     1,
+     11,
+     1,
+     20
+    ]
+   }
+  ]
+ },
+ "4655": {
+  "street": 4100,
+  "block": 55,
+  "title": "The Treble Chef's Cooking School",
+  "npcs": [
+   {
+    "id": 4138,
+    "name": "Cliff Cleff",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ms",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     1,
+     7,
+     1,
+     7,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "4615": {
+  "street": 4100,
+  "block": 15,
+  "title": "Piccolo's Pizza",
+  "npcs": [
+   {
+    "id": 4116,
+    "name": "Piccolo",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ss",
+     "m",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     1,
+     12,
+     1,
+     12,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "4646": {
+  "street": 4100,
+  "block": 46,
+  "title": "",
+  "npcs": []
+ },
+ "4654": {
+  "street": 4100,
+  "block": 54,
+  "title": "Pitch Perfect Roofing",
+  "npcs": [
+   {
+    "id": 4137,
+    "name": "Tony Deff",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     6,
+     1,
+     6,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "4657": {
+  "street": 4100,
+  "block": 57,
+  "title": "Barbershop Quartet",
+  "npcs": [
+   {
+    "id": 4139,
+    "name": "Harmony Swell",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "ss",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     1,
+     11,
+     1,
+     11,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "4625": {
+  "street": 4100,
+  "block": 25,
+  "title": "Tuba Toothpaste",
+  "npcs": [
+   {
+    "id": 4122,
+    "name": "Minty Bass",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ms",
+     "m",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     0,
+     2,
+     0,
+     2,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "4656": {
+  "street": 4100,
+  "block": 56,
+  "title": "",
+  "npcs": []
+ },
+ "4629": {
+  "street": 4100,
+  "block": 29,
+  "title": "Riff's Paper Plates",
+  "npcs": [
+   {
+    "id": 4124,
+    "name": "Riff Raff",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "m",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     2,
+     0,
+     2,
+     1,
+     4
+    ]
+   }
+  ]
+ },
+ "4630": {
+  "street": 4100,
+  "block": 30,
+  "title": "Music Is Our Forte",
+  "npcs": [
+   {
+    "id": 4125,
+    "name": "Melody Wavers",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "ls",
+     "m",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     1,
+     3,
+     1,
+     3,
+     8,
+     6
+    ]
+   }
+  ]
+ },
+ "4653": {
+  "street": 4100,
+  "block": 53,
+  "title": "",
+  "npcs": []
+ },
+ "4638": {
+  "street": 4100,
+  "block": 38,
+  "title": "Hard Rock Shop",
+  "npcs": [
+   {
+    "id": 4130,
+    "name": "Metal Mike",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ms",
+     "l",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     12,
+     0,
+     12,
+     1,
+     20
+    ]
+   }
+  ]
+ },
+ "4639": {
+  "street": 4100,
+  "block": 39,
+  "title": "Four Score Antiques",
+  "npcs": [
+   {
+    "id": 4131,
+    "name": "Abraham Armoire",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ss",
+     "s",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     1,
+     1,
+     1,
+     1,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "4701": {
+  "street": 4200,
+  "block": 1,
+  "title": "The Schmaltzy Waltz School of Dance",
+  "npcs": [
+   {
+    "id": 4209,
+    "name": "Corny Canter",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "md",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     1,
+     11,
+     1,
+     11,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "4703": {
+  "street": 4200,
+  "block": 3,
+  "title": "I Can Handel It!",
+  "npcs": [
+   {
+    "id": 4211,
+    "name": "Carl Concerto",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     1,
+     8,
+     1,
+     8,
+     0,
+     20
+    ]
+   }
+  ]
+ },
+ "4702": {
+  "street": 4200,
+  "block": 2,
+  "title": "Timbre! Equipment for the Singing Lumberjack",
+  "npcs": [
+   {
+    "id": 4203,
+    "name": "Lumber Jack",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "l",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     0,
+     5,
+     0,
+     5,
+     0,
+     10
+    ]
+   }
+  ]
+ },
+ "4704": {
+  "street": 4200,
+  "block": 4,
+  "title": "Tina's Concertina Concerts",
+  "npcs": [
+   {
+    "id": 4201,
+    "name": "Tina",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "ss",
+     "l",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     0,
+     6,
+     0,
+     6,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "4705": {
+  "street": 4200,
+  "block": 5,
+  "title": "Zither Here Nor There",
+  "npcs": [
+   {
+    "id": 4212,
+    "name": "Detective Dirge",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ls",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     9,
+     0,
+     9,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "4732": {
+  "street": 4200,
+  "block": 32,
+  "title": "Etude Brute? Theatre Company",
+  "npcs": [
+   {
+    "id": 4230,
+    "name": "Julius Wheezer",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     1,
+     1,
+     1,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "4710": {
+  "street": 4200,
+  "block": 10,
+  "title": "Hurry Up, Slow Polka! School of Driving",
+  "npcs": [
+   {
+    "id": 4215,
+    "name": "Tim Tailgater",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ls",
+     "l",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     0,
+     10,
+     0,
+     10,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "4713": {
+  "street": 4200,
+  "block": 13,
+  "title": "B-Sharp Fine Menswear",
+  "npcs": [
+   {
+    "id": 4217,
+    "name": "Handsome Anton",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "s",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     0,
+     10,
+     0,
+     10,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "4738": {
+  "street": 4200,
+  "block": 38,
+  "title": "Canticle Your Fancy Gift Shop",
+  "npcs": [
+   {
+    "id": 4234,
+    "name": "Leed Guitar",
+    "gender": "m",
+    "dna": [
+     "fss",
+     "ss",
+     "m",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     1,
+     10,
+     1,
+     10,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "4737": {
+  "street": 4200,
+  "block": 37,
+  "title": "Harp Tarps",
+  "npcs": [
+   {
+    "id": 4233,
+    "name": "Charlie Carp",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "m",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     1,
+     2,
+     1,
+     2,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "4723": {
+  "street": 4200,
+  "block": 23,
+  "title": "Haydn Go Seek Playground Supplies",
+  "npcs": [
+   {
+    "id": 4224,
+    "name": "Jungle Jim",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     9,
+     1,
+     9,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "4724": {
+  "street": 4200,
+  "block": 24,
+  "title": "White Noise for Girls and Boys",
+  "npcs": [
+   {
+    "id": 4225,
+    "name": "Holly Hiss",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "ld",
+     "s",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     0,
+     27,
+     0,
+     27,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "4727": {
+  "street": 4200,
+  "block": 27,
+  "title": "Vocal Chords Braided",
+  "npcs": [
+   {
+    "id": 4226,
+    "name": "Thelma Throatreacher",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "sd",
+     "s",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     0,
+     0,
+     0,
+     0,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "4729": {
+  "street": 4200,
+  "block": 29,
+  "title": "Double Reed Bookstore",
+  "npcs": [
+   {
+    "id": 4228,
+    "name": "August Winds",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "ss",
+     "s",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "4730": {
+  "street": 4200,
+  "block": 30,
+  "title": "Lousy Lyrics",
+  "npcs": [
+   {
+    "id": 4208,
+    "name": "Hedy",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "ss",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     9,
+     1,
+     9,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "4731": {
+  "street": 4200,
+  "block": 31,
+  "title": "Toon Tunes",
+  "npcs": [
+   {
+    "id": 4229,
+    "name": "June Loon",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "md",
+     "m",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     0,
+     1,
+     0,
+     1,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "4709": {
+  "street": 4200,
+  "block": 9,
+  "title": "On Ballet! Climbing Supplies",
+  "npcs": [
+   {
+    "id": 4214,
+    "name": "Tina Toehooks",
+    "gender": "f",
+    "dna": [
+     "dls",
+     "ld",
+     "l",
+     "f",
+     18,
+     0,
+     18,
+     18,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "4707": {
+  "street": 4200,
+  "block": 7,
+  "title": "Doppler's Sound Effects Studio",
+  "npcs": [
+   {
+    "id": 4213,
+    "name": "Fran Foley",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "sd",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     0,
+     21,
+     0,
+     21,
+     24,
+     27
+    ]
+   }
+  ]
+ },
+ "4712": {
+  "street": 4200,
+  "block": 12,
+  "title": "C-Flat Tire Repair",
+  "npcs": [
+   {
+    "id": 4216,
+    "name": "Gummy Whistle",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "s",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     10,
+     0,
+     10,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "4736": {
+  "street": 4200,
+  "block": 36,
+  "title": "Her and Hymn Wedding Planners",
+  "npcs": [
+   {
+    "id": 4232,
+    "name": "Hedly Hymn",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "m",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     1,
+     2,
+     1,
+     2,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "4734": {
+  "street": 4200,
+  "block": 34,
+  "title": "",
+  "npcs": []
+ },
+ "4716": {
+  "street": 4200,
+  "block": 16,
+  "title": "Four-Part Harmonicas",
+  "npcs": [
+   {
+    "id": 4218,
+    "name": "Wilma Wind",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "ss",
+     "s",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     1,
+     23,
+     1,
+     23,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "4719": {
+  "street": 4200,
+  "block": 19,
+  "title": "Madrigal Motor Homes",
+  "npcs": [
+   {
+    "id": 4221,
+    "name": "Moe Madrigal",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "s",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     11,
+     1,
+     11,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "4720": {
+  "street": 4200,
+  "block": 20,
+  "title": "Name That Toon",
+  "npcs": [
+   {
+    "id": 4222,
+    "name": "John Doe",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ls",
+     "s",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     11,
+     1,
+     11,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "4722": {
+  "street": 4200,
+  "block": 22,
+  "title": "Overture Understudies",
+  "npcs": [
+   {
+    "id": 4223,
+    "name": "Penny Prompter",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "sd",
+     "s",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     1,
+     25,
+     1,
+     25,
+     24,
+     27
+    ]
+   }
+  ]
+ },
+ "4735": {
+  "street": 4200,
+  "block": 35,
+  "title": "Accordions, If You Want In, Just Bellow!",
+  "npcs": [
+   {
+    "id": 4231,
+    "name": "Steffi Squeezebox",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ss",
+     "m",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     1,
+     2,
+     1,
+     2,
+     8,
+     0
+    ]
+   }
+  ]
+ },
+ "4725": {
+  "street": 4200,
+  "block": 25,
+  "title": "The Baritone Barber",
+  "npcs": [
+   {
+    "id": 4202,
+    "name": "Barry",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     0,
+     5,
+     0,
+     5,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "4728": {
+  "street": 4200,
+  "block": 28,
+  "title": "Sing Solo We Can't Hear You",
+  "npcs": [
+   {
+    "id": 4227,
+    "name": "Quiet Francesca",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ls",
+     "s",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     0,
+     0,
+     0,
+     0,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "4733": {
+  "street": 4200,
+  "block": 33,
+  "title": "",
+  "npcs": []
+ },
+ "4718": {
+  "street": 4200,
+  "block": 18,
+  "title": "Chopin Blocks and Other Kitchen Supplies",
+  "npcs": [
+   {
+    "id": 4220,
+    "name": "Curtis Finger",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ms",
+     "l",
+     "m",
+     11,
+     0,
+     11,
+     11,
+     0,
+     3,
+     0,
+     3,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "4717": {
+  "street": 4200,
+  "block": 17,
+  "title": "Sonata Your Fault! Discount Auto Insurance",
+  "npcs": [
+   {
+    "id": 4219,
+    "name": "Sid Sonata",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ss",
+     "s",
+     "m",
+     2,
+     0,
+     2,
+     2,
+     0,
+     10,
+     0,
+     10,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "4801": {
+  "street": 4300,
+  "block": 1,
+  "title": "Marshall's Stacks",
+  "npcs": [
+   {
+    "id": 4309,
+    "name": "Marshall",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     4,
+     0,
+     4,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "4803": {
+  "street": 4300,
+  "block": 3,
+  "title": "What a Mezzo! Maid Service",
+  "npcs": [
+   {
+    "id": 4310,
+    "name": "Martha Mopp",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "ls",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     1,
+     4,
+     1,
+     4,
+     5,
+     11
+    ]
+   }
+  ]
+ },
+ "4820": {
+  "street": 4300,
+  "block": 20,
+  "title": "",
+  "npcs": []
+ },
+ "4804": {
+  "street": 4300,
+  "block": 4,
+  "title": "Mixolydian Scales",
+  "npcs": [
+   {
+    "id": 4311,
+    "name": "Sea Shanty",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ss",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     0,
+     9,
+     0,
+     9,
+     5,
+     27
+    ]
+   }
+  ]
+ },
+ "4807": {
+  "street": 4300,
+  "block": 7,
+  "title": "Relax the Bach",
+  "npcs": [
+   {
+    "id": 4312,
+    "name": "Moe Saj",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ms",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     5,
+     1,
+     5,
+     0,
+     9
+    ]
+   }
+  ]
+ },
+ "4821": {
+  "street": 4300,
+  "block": 21,
+  "title": "Anna's Cruises",
+  "npcs": [
+   {
+    "id": 4302,
+    "name": "Anna",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ls",
+     "l",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     1,
+     2,
+     1,
+     2,
+     2,
+     3
+    ]
+   }
+  ]
+ },
+ "4827": {
+  "street": 4300,
+  "block": 27,
+  "title": "Common Time Watches",
+  "npcs": [
+   {
+    "id": 4315,
+    "name": "Karen Clockwork",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "sd",
+     "m",
+     "f",
+     18,
+     0,
+     18,
+     18,
+     1,
+     9,
+     1,
+     9,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "4828": {
+  "street": 4300,
+  "block": 28,
+  "title": "Schumann's Shoes for Men",
+  "npcs": [
+   {
+    "id": 4316,
+    "name": "Tim Tango",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ss",
+     "m",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     6,
+     1,
+     6,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "4809": {
+  "street": 4300,
+  "block": 9,
+  "title": "I Can't Understanza!",
+  "npcs": [
+   {
+    "id": 4313,
+    "name": "Dumb Dolph",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     5,
+     1,
+     5,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "4812": {
+  "street": 4300,
+  "block": 12,
+  "title": "",
+  "npcs": []
+ },
+ "4817": {
+  "street": 4300,
+  "block": 17,
+  "title": "The Ternary Pet Shop",
+  "npcs": [
+   {
+    "id": 4314,
+    "name": "Dana Dander",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ld",
+     "m",
+     "f",
+     2,
+     0,
+     2,
+     2,
+     1,
+     8,
+     1,
+     8,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "4819": {
+  "street": 4300,
+  "block": 19,
+  "title": "Yuki's Ukeleles",
+  "npcs": [
+   {
+    "id": 4301,
+    "name": "Yuki",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "md",
+     "l",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     2,
+     1,
+     2,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "4829": {
+  "street": 4300,
+  "block": 29,
+  "title": "Pachelbel's Canonballs",
+  "npcs": [
+   {
+    "id": 4317,
+    "name": "Stubby Toe",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ls",
+     "l",
+     "m",
+     3,
+     0,
+     3,
+     3,
+     0,
+     7,
+     0,
+     7,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "4835": {
+  "street": 4300,
+  "block": 35,
+  "title": "Ursatz for Kool Katz",
+  "npcs": [
+   {
+    "id": 4308,
+    "name": "Tabitha",
+    "gender": "f",
+    "dna": [
+     "css",
+     "md",
+     "m",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     3,
+     5,
+     3,
+     5,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "4836": {
+  "street": 4300,
+  "block": 36,
+  "title": "Reggae Regalia",
+  "npcs": [
+   {
+    "id": 4318,
+    "name": "Bob Marlin",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "l",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     0,
+     8,
+     0,
+     8,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "4841": {
+  "street": 4300,
+  "block": 41,
+  "title": "Lyre, Lyre, Pants on Fire!",
+  "npcs": [
+   {
+    "id": 4321,
+    "name": "Luke Lute",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "l",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     0,
+     9,
+     0,
+     9,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "4868": {
+  "street": 4300,
+  "block": 68,
+  "title": "",
+  "npcs": []
+ },
+ "4838": {
+  "street": 4300,
+  "block": 38,
+  "title": "Kazoology School of Music",
+  "npcs": [
+   {
+    "id": 4319,
+    "name": "Rinky Dink",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "ls",
+     "l",
+     "f",
+     10,
+     0,
+     10,
+     10,
+     0,
+     12,
+     0,
+     12,
+     1,
+     23
+    ]
+   }
+  ]
+ },
+ "4840": {
+  "street": 4300,
+  "block": 40,
+  "title": "Coda Pop Musical Beverages",
+  "npcs": [
+   {
+    "id": 4320,
+    "name": "Cammy Coda",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "ss",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     0,
+     21,
+     0,
+     21,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "4842": {
+  "street": 4300,
+  "block": 42,
+  "title": "The Syncopation Corporation",
+  "npcs": [
+   {
+    "id": 4322,
+    "name": "Randy Rythm",
+    "gender": "m",
+    "dna": [
+     "hls",
+     "ms",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     0,
+     9,
+     0,
+     9,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "4849": {
+  "street": 4300,
+  "block": 49,
+  "title": "",
+  "npcs": []
+ },
+ "4848": {
+  "street": 4300,
+  "block": 48,
+  "title": "Lotsa Lute Savings & Loan",
+  "npcs": [
+   {
+    "id": 4325,
+    "name": "Banker Bran",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ms",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     9,
+     1,
+     9,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "4853": {
+  "street": 4300,
+  "block": 53,
+  "title": "Leo's Fenders",
+  "npcs": [
+   {
+    "id": 4303,
+    "name": "Leo",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ss",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     2,
+     1,
+     2,
+     0,
+     18
+    ]
+   }
+  ]
+ },
+ "4850": {
+  "street": 4300,
+  "block": 50,
+  "title": "The Borrowed Chord Pawn Shop",
+  "npcs": [
+   {
+    "id": 4326,
+    "name": "Fran Fret",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "ms",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     1,
+     23,
+     1,
+     23,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "4852": {
+  "street": 4300,
+  "block": 52,
+  "title": "Flowery Flute Fleeces",
+  "npcs": [
+   {
+    "id": 4327,
+    "name": "Flim Flam",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "ld",
+     "l",
+     "f",
+     16,
+     0,
+     16,
+     16,
+     1,
+     23,
+     1,
+     23,
+     7,
+     1
+    ]
+   }
+  ]
+ },
+ "4854": {
+  "street": 4300,
+  "block": 54,
+  "title": "Wagner's Vocational Violin Videos",
+  "npcs": [
+   {
+    "id": 4328,
+    "name": "Wagner",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ms",
+     "l",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     1,
+     11,
+     1,
+     11,
+     0,
+     12
+    ]
+   }
+  ]
+ },
+ "4855": {
+  "street": 4300,
+  "block": 55,
+  "title": "The Teli-Caster Network",
+  "npcs": [
+   {
+    "id": 4329,
+    "name": "Telly Prompter",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "ls",
+     "l",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     0,
+     25,
+     0,
+     25,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "4856": {
+  "street": 4300,
+  "block": 56,
+  "title": "",
+  "npcs": []
+ },
+ "4872": {
+  "street": 4300,
+  "block": 72,
+  "title": "Fast Freddie's Fretless Fingerboards",
+  "npcs": [
+   {
+    "id": 4334,
+    "name": "Fast Freddie",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ls",
+     "l",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     0,
+     0,
+     0,
+     0,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "4870": {
+  "street": 4300,
+  "block": 70,
+  "title": "Ziggy's Zoo of Zigeuner\u0003musik",
+  "npcs": [
+   {
+    "id": 4332,
+    "name": "Ziggy",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ms",
+     "l",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     0,
+     27,
+     0,
+     27,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "4862": {
+  "street": 4300,
+  "block": 62,
+  "title": "Quentin's Quintessen\u0003tial Quadrilles",
+  "npcs": [
+   {
+    "id": 4330,
+    "name": "Quentin",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ls",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     1,
+     10,
+     1,
+     10,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "4867": {
+  "street": 4300,
+  "block": 67,
+  "title": "Mr. Costello's Yellow Cellos",
+  "npcs": [
+   {
+    "id": 4331,
+    "name": "Mellow Costello",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ms",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     10,
+     0,
+     10,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "4871": {
+  "street": 4300,
+  "block": 71,
+  "title": "Harry's House of Harmonious Humbuckers",
+  "npcs": [
+   {
+    "id": 4333,
+    "name": "Harry",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     0,
+     27,
+     0,
+     27,
+     0,
+     14
+    ]
+   }
+  ]
+ },
+ "4843": {
+  "street": 4300,
+  "block": 43,
+  "title": "",
+  "npcs": []
+ },
+ "4844": {
+  "street": 4300,
+  "block": 44,
+  "title": "Con Moto Cycles",
+  "npcs": [
+   {
+    "id": 4323,
+    "name": "Hanna Hogg",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ss",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     1,
+     21,
+     1,
+     21,
+     24,
+     27
+    ]
+   }
+  ]
+ },
+ "4845": {
+  "street": 4300,
+  "block": 45,
+  "title": "Ellie's Elegant Elegies",
+  "npcs": [
+   {
+    "id": 4324,
+    "name": "Ellie",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ld",
+     "l",
+     "f",
+     17,
+     0,
+     17,
+     17,
+     1,
+     22,
+     1,
+     22,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "5602": {
+  "street": 5100,
+  "block": 2,
+  "title": "Artie Choke's Neckties",
+  "npcs": [
+   {
+    "id": 5101,
+    "name": "Artie",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ms",
+     "l",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     4,
+     1,
+     4,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "5601": {
+  "street": 5100,
+  "block": 1,
+  "title": "Eye of the Potato Optometry",
+  "npcs": [
+   {
+    "id": 5113,
+    "name": "Dr. Spud",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ld",
+     "l",
+     "f",
+     10,
+     0,
+     10,
+     10,
+     0,
+     21,
+     0,
+     21,
+     3,
+     2
+    ]
+   }
+  ]
+ },
+ "5603": {
+  "street": 5100,
+  "block": 3,
+  "title": "Lettuce Alone",
+  "npcs": [
+   {
+    "id": 5114,
+    "name": "Wilt",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ms",
+     "l",
+     "m",
+     2,
+     0,
+     2,
+     2,
+     1,
+     9,
+     1,
+     9,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "5605": {
+  "street": 5100,
+  "block": 5,
+  "title": "Vege-tables and Chairs",
+  "npcs": [
+   {
+    "id": 5116,
+    "name": "Vegetable Vern",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     9,
+     1,
+     9,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "5604": {
+  "street": 5100,
+  "block": 4,
+  "title": "Cantaloupe Bridal Shop",
+  "npcs": [
+   {
+    "id": 5115,
+    "name": "Honey Dew",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "ms",
+     "l",
+     "f",
+     17,
+     0,
+     17,
+     17,
+     1,
+     22,
+     1,
+     22,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "5606": {
+  "street": 5100,
+  "block": 6,
+  "title": "Petals",
+  "npcs": [
+   {
+    "id": 5117,
+    "name": "Petal",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "md",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     1,
+     23,
+     1,
+     23,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "5607": {
+  "street": 5100,
+  "block": 7,
+  "title": "Compost Office",
+  "npcs": [
+   {
+    "id": 5107,
+    "name": "Postman Felipe",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "m",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     12,
+     0,
+     12,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "5608": {
+  "street": 5100,
+  "block": 8,
+  "title": "Mom and Pop Corn",
+  "npcs": [
+   {
+    "id": 5118,
+    "name": "Pop Corn",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "l",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     1,
+     10,
+     1,
+     10,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "5609": {
+  "street": 5100,
+  "block": 9,
+  "title": "Berried Treasure",
+  "npcs": [
+   {
+    "id": 5119,
+    "name": "Barry Medly",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ss",
+     "l",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     10,
+     1,
+     10,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "5611": {
+  "street": 5100,
+  "block": 11,
+  "title": "Gopher's Gags",
+  "npcs": [
+   {
+    "id": 5120,
+    "name": "Gopher",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ss",
+     "l",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     1,
+     3,
+     1,
+     3,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "5610": {
+  "street": 5100,
+  "block": 10,
+  "title": "Black-eyed Susan's Boxing Lessons",
+  "npcs": [
+   {
+    "id": 5102,
+    "name": "Susan",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "ls",
+     "s",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     3,
+     1,
+     3,
+     5,
+     2
+    ]
+   }
+  ]
+ },
+ "5626": {
+  "street": 5100,
+  "block": 26,
+  "title": "Pine Needle Crafts",
+  "npcs": [
+   {
+    "id": 5128,
+    "name": "Shoshanna Sap",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "ls",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     0,
+     5,
+     0,
+     5,
+     5,
+     5
+    ]
+   }
+  ]
+ },
+ "5613": {
+  "street": 5100,
+  "block": 13,
+  "title": "Crop Top Barbers",
+  "npcs": [
+   {
+    "id": 5106,
+    "name": "Barber Bjorn",
+    "gender": "m",
+    "dna": [
+     "rsl",
+     "ls",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     6,
+     1,
+     6,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "5615": {
+  "street": 5100,
+  "block": 15,
+  "title": "Bud's Bird Seed",
+  "npcs": [
+   {
+    "id": 5103,
+    "name": "Bud",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ls",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     5,
+     1,
+     5,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "5625": {
+  "street": 5100,
+  "block": 25,
+  "title": "Leaf It Bees",
+  "npcs": [
+   {
+    "id": 5127,
+    "name": "Polly Pollen",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "ms",
+     "m",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     0,
+     22,
+     0,
+     22,
+     2,
+     2
+    ]
+   }
+  ]
+ },
+ "5616": {
+  "street": 5100,
+  "block": 16,
+  "title": "Dew Drop Inn",
+  "npcs": [
+   {
+    "id": 5108,
+    "name": "Innkeeper Janet",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "ls",
+     "l",
+     "f",
+     2,
+     0,
+     2,
+     2,
+     0,
+     11,
+     0,
+     11,
+     24,
+     27
+    ]
+   }
+  ]
+ },
+ "5617": {
+  "street": 5100,
+  "block": 17,
+  "title": "Flutterby's Butterflies",
+  "npcs": [
+   {
+    "id": 5104,
+    "name": "Flutterby",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "l",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     5,
+     1,
+     5,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "5618": {
+  "street": 5100,
+  "block": 18,
+  "title": "Peas and Q's",
+  "npcs": [
+   {
+    "id": 5121,
+    "name": "Paula Peapod",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "ss",
+     "l",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     1,
+     9,
+     1,
+     9,
+     0,
+     25
+    ]
+   }
+  ]
+ },
+ "5619": {
+  "street": 5100,
+  "block": 19,
+  "title": "Jack's Beanstalks",
+  "npcs": [
+   {
+    "id": 5105,
+    "name": "Jack",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ls",
+     "m",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     9,
+     1,
+     9,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "5620": {
+  "street": 5100,
+  "block": 20,
+  "title": "Rake It Inn",
+  "npcs": [
+   {
+    "id": 5122,
+    "name": "Leif Pyle",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "l",
+     "m",
+     22,
+     0,
+     22,
+     22,
+     0,
+     5,
+     0,
+     5,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "5621": {
+  "street": 5100,
+  "block": 21,
+  "title": "Grape Expectations",
+  "npcs": [
+   {
+    "id": 5123,
+    "name": "Diane Vine",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "sd",
+     "m",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     1,
+     11,
+     1,
+     11,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "5622": {
+  "street": 5100,
+  "block": 22,
+  "title": "Petal Pusher Bicycles",
+  "npcs": [
+   {
+    "id": 5124,
+    "name": "Soggy Bottom",
+    "gender": "m",
+    "dna": [
+     "hll",
+     "ss",
+     "m",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     0,
+     8,
+     0,
+     8,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "5623": {
+  "street": 5100,
+  "block": 23,
+  "title": "Bubble Bird Baths",
+  "npcs": [
+   {
+    "id": 5125,
+    "name": "Sanjay Splash",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ls",
+     "m",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     9,
+     0,
+     9,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "5624": {
+  "street": 5100,
+  "block": 24,
+  "title": "Mum's the Word",
+  "npcs": [
+   {
+    "id": 5126,
+    "name": "Madam Mum",
+    "gender": "f",
+    "dna": [
+     "hls",
+     "sd",
+     "m",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     0,
+     21,
+     0,
+     21,
+     14,
+     27
+    ]
+   }
+  ]
+ },
+ "5725": {
+  "street": 5200,
+  "block": 25,
+  "title": "Barley, Hops, and Malt Shop",
+  "npcs": [
+   {
+    "id": 5227,
+    "name": "Begonia Biddlesmore",
+    "gender": "f",
+    "dna": [
+     "mls",
+     "ld",
+     "s",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     1,
+     8,
+     1,
+     8,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "5726": {
+  "street": 5200,
+  "block": 26,
+  "title": "Bert's Dirt",
+  "npcs": [
+   {
+    "id": 5204,
+    "name": "Bert",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ls",
+     "l",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     0,
+     12,
+     0,
+     12,
+     1,
+     4
+    ]
+   }
+  ]
+ },
+ "5727": {
+  "street": 5200,
+  "block": 27,
+  "title": "Gopher Broke Savings & Loan",
+  "npcs": [
+   {
+    "id": 5228,
+    "name": "Digger Mudhands",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "s",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     6,
+     1,
+     6,
+     1,
+     20
+    ]
+   }
+  ]
+ },
+ "5701": {
+  "street": 5200,
+  "block": 1,
+  "title": "From Start to Spinach",
+  "npcs": [
+   {
+    "id": 5213,
+    "name": "Big Galoot",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ss",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     1,
+     1,
+     1,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "5702": {
+  "street": 5200,
+  "block": 2,
+  "title": "Jake's Rakes",
+  "npcs": [
+   {
+    "id": 5201,
+    "name": "Jake",
+    "gender": "m",
+    "dna": [
+     "hls",
+     "ls",
+     "l",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     1,
+     10,
+     1,
+     10,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "5703": {
+  "street": 5200,
+  "block": 3,
+  "title": "Photo Cynthia's Camera Shop",
+  "npcs": [
+   {
+    "id": 5202,
+    "name": "Cynthia",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ls",
+     "l",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     1,
+     23,
+     1,
+     23,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "5704": {
+  "street": 5200,
+  "block": 4,
+  "title": "Lisa Lemon Used Cars",
+  "npcs": [
+   {
+    "id": 5203,
+    "name": "Lisa",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ss",
+     "l",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     1,
+     24,
+     1,
+     24,
+     19,
+     27
+    ]
+   }
+  ]
+ },
+ "5705": {
+  "street": 5200,
+  "block": 5,
+  "title": "Poison Oak Furniture",
+  "npcs": [
+   {
+    "id": 5214,
+    "name": "Itchie Bumps",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "md",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     1,
+     2,
+     1,
+     2,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "5706": {
+  "street": 5200,
+  "block": 6,
+  "title": "14 Carrot Jewelers",
+  "npcs": [
+   {
+    "id": 5215,
+    "name": "Tammy Tuber",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "md",
+     "l",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     1,
+     8,
+     1,
+     8,
+     0,
+     3
+    ]
+   }
+  ]
+ },
+ "5707": {
+  "street": 5200,
+  "block": 7,
+  "title": "Musical Fruit",
+  "npcs": [
+   {
+    "id": 5216,
+    "name": "Stinky Jim",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ss",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     2,
+     0,
+     2,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "5709": {
+  "street": 5200,
+  "block": 9,
+  "title": "Astroturf Mowers",
+  "npcs": [
+   {
+    "id": 5218,
+    "name": "Rocky Raspberry",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ls",
+     "l",
+     "m",
+     17,
+     0,
+     17,
+     17,
+     0,
+     2,
+     0,
+     2,
+     1,
+     0
+    ]
+   }
+  ]
+ },
+ "5711": {
+  "street": 5200,
+  "block": 11,
+  "title": "Garden Hosiery",
+  "npcs": [
+   {
+    "id": 5220,
+    "name": "Lacy Underalls",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ld",
+     "l",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     0,
+     24,
+     0,
+     24,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "5712": {
+  "street": 5200,
+  "block": 12,
+  "title": "Silly Statues",
+  "npcs": [
+   {
+    "id": 5221,
+    "name": "Pink Flamingo",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "md",
+     "l",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     6,
+     0,
+     6,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "5713": {
+  "street": 5200,
+  "block": 13,
+  "title": "Trowels and Tribulations",
+  "npcs": [
+   {
+    "id": 5222,
+    "name": "Whiny Wilma",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "sd",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     0,
+     4,
+     0,
+     4,
+     0,
+     7
+    ]
+   }
+  ]
+ },
+ "5714": {
+  "street": 5200,
+  "block": 14,
+  "title": "Spring Rain Seltzer Bottles",
+  "npcs": [
+   {
+    "id": 5223,
+    "name": "Wet Will",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ss",
+     "s",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     1,
+     4,
+     1,
+     4,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "5715": {
+  "street": 5200,
+  "block": 15,
+  "title": "Hayseed News",
+  "npcs": [
+   {
+    "id": 5224,
+    "name": "Uncle Bumpkin",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "s",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     5,
+     1,
+     5,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "5716": {
+  "street": 5200,
+  "block": 16,
+  "title": "Take It or Leaf It Pawn Shop",
+  "npcs": [
+   {
+    "id": 5225,
+    "name": "Pamela Puddle",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "sd",
+     "s",
+     "f",
+     12,
+     0,
+     12,
+     12,
+     1,
+     7,
+     1,
+     7,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "5717": {
+  "street": 5200,
+  "block": 17,
+  "title": "The Squirting Flower",
+  "npcs": [
+   {
+    "id": 5207,
+    "name": "Sofie Squirt",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ld",
+     "l",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     0,
+     27,
+     0,
+     27,
+     26,
+     27
+    ]
+   }
+  ]
+ },
+ "5718": {
+  "street": 5200,
+  "block": 18,
+  "title": "The Dandy Lion Pet Shop",
+  "npcs": [
+   {
+    "id": 5205,
+    "name": "Dan D. Lion",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ls",
+     "l",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     8,
+     0,
+     8,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "5719": {
+  "street": 5200,
+  "block": 19,
+  "title": "Trellis the Truth! Private Investi\u0003gators",
+  "npcs": [
+   {
+    "id": 5208,
+    "name": "Samantha Spade",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "sd",
+     "l",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     0,
+     27,
+     0,
+     27,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "5720": {
+  "street": 5200,
+  "block": 20,
+  "title": "Vine and Dandy Menswear",
+  "npcs": [
+   {
+    "id": 5206,
+    "name": "Vine Green",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "l",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     0,
+     27,
+     0,
+     27,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "5721": {
+  "street": 5200,
+  "block": 21,
+  "title": "Root 66 Diner",
+  "npcs": [
+   {
+    "id": 5226,
+    "name": "Pete Moss",
+    "gender": "m",
+    "dna": [
+     "rls",
+     "ss",
+     "s",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     5,
+     1,
+     5,
+     1,
+     9
+    ]
+   }
+  ]
+ },
+ "5708": {
+  "street": 5200,
+  "block": 8,
+  "title": "We'd Be Gone Travel Agency",
+  "npcs": [
+   {
+    "id": 5217,
+    "name": "Greg Greenethumb",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ls",
+     "l",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     0,
+     3,
+     0,
+     3,
+     1,
+     19
+    ]
+   }
+  ]
+ },
+ "5710": {
+  "street": 5200,
+  "block": 10,
+  "title": "Tuft Guy Gym",
+  "npcs": [
+   {
+    "id": 5219,
+    "name": "Lars Bicep",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ss",
+     "l",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     0,
+     3,
+     0,
+     3,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "5833": {
+  "street": 5300,
+  "block": 33,
+  "title": "The Salad Bar",
+  "npcs": [
+   {
+    "id": 5318,
+    "name": "Caesar",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ss",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     0,
+     1,
+     0,
+     1,
+     4
+    ]
+   }
+  ]
+ },
+ "5835": {
+  "street": 5300,
+  "block": 35,
+  "title": "Flower Bed and Breakfast",
+  "npcs": [
+   {
+    "id": 5319,
+    "name": "Rose",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ms",
+     "m",
+     "f",
+     15,
+     0,
+     15,
+     15,
+     1,
+     2,
+     1,
+     2,
+     5,
+     23
+    ]
+   }
+  ]
+ },
+ "5836": {
+  "street": 5300,
+  "block": 36,
+  "title": "April's Showers and Tubs",
+  "npcs": [
+   {
+    "id": 5320,
+    "name": "April",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "sd",
+     "m",
+     "f",
+     2,
+     0,
+     2,
+     2,
+     1,
+     1,
+     1,
+     1,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "5815": {
+  "street": 5300,
+  "block": 15,
+  "title": "Grass Roots",
+  "npcs": [
+   {
+    "id": 5310,
+    "name": "Timothy",
+    "gender": "m",
+    "dna": [
+     "dls",
+     "ms",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     11,
+     0,
+     11,
+     1,
+     14
+    ]
+   }
+  ]
+ },
+ "5817": {
+  "street": 5300,
+  "block": 17,
+  "title": "Apples and Oranges",
+  "npcs": [
+   {
+    "id": 5311,
+    "name": "Judge McIntosh",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ms",
+     "m",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     0,
+     24,
+     0,
+     24,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "5827": {
+  "street": 5300,
+  "block": 27,
+  "title": "Dirt. Cheap.",
+  "npcs": [
+   {
+    "id": 5315,
+    "name": "Uncle Mud",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ss",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     1,
+     12,
+     1,
+     12,
+     1,
+     16
+    ]
+   }
+  ]
+ },
+ "5828": {
+  "street": 5300,
+  "block": 28,
+  "title": "Couch Potato Furniture",
+  "npcs": [
+   {
+    "id": 5316,
+    "name": "Uncle Spud",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ls",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     12,
+     1,
+     12,
+     1,
+     13
+    ]
+   }
+  ]
+ },
+ "5809": {
+  "street": 5300,
+  "block": 9,
+  "title": "Fungi Clown School",
+  "npcs": [
+   {
+    "id": 5307,
+    "name": "Fun Gus",
+    "gender": "m",
+    "dna": [
+     "css",
+     "ms",
+     "l",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     9,
+     1,
+     9,
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ "5830": {
+  "street": 5300,
+  "block": 30,
+  "title": "Spill the Beans",
+  "npcs": [
+   {
+    "id": 5317,
+    "name": "Detective Lima",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ms",
+     "l",
+     "m",
+     16,
+     0,
+     16,
+     16,
+     0,
+     27,
+     0,
+     27,
+     0,
+     19
+    ]
+   }
+  ]
+ },
+ "5819": {
+  "street": 5300,
+  "block": 19,
+  "title": "Green Bean Jeans",
+  "npcs": [
+   {
+    "id": 5312,
+    "name": "Eugene",
+    "gender": "m",
+    "dna": [
+     "fss",
+     "ss",
+     "m",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     12,
+     0,
+     12,
+     1,
+     6
+    ]
+   }
+  ]
+ },
+ "5821": {
+  "street": 5300,
+  "block": 21,
+  "title": "Squash and Stretch Gym",
+  "npcs": [
+   {
+    "id": 5313,
+    "name": "Coach Zucchini",
+    "gender": "m",
+    "dna": [
+     "fls",
+     "ls",
+     "m",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     0,
+     12,
+     0,
+     12,
+     1,
+     1
+    ]
+   }
+  ]
+ },
+ "5805": {
+  "street": 5300,
+  "block": 5,
+  "title": "Snail Mail",
+  "npcs": [
+   {
+    "id": 5306,
+    "name": "S. Cargo",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ms",
+     "s",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     5,
+     1,
+     5,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "5811": {
+  "street": 5300,
+  "block": 11,
+  "title": "Lettuce Inn",
+  "npcs": [
+   {
+    "id": 5309,
+    "name": "Ro Maine",
+    "gender": "f",
+    "dna": [
+     "hll",
+     "ld",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     1,
+     24,
+     1,
+     24,
+     0,
+     8
+    ]
+   }
+  ]
+ },
+ "5810": {
+  "street": 5300,
+  "block": 10,
+  "title": "Honeydew This",
+  "npcs": [
+   {
+    "id": 5308,
+    "name": "Naggy Nell",
+    "gender": "f",
+    "dna": [
+     "cls",
+     "ms",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     22,
+     1,
+     22,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "5826": {
+  "street": 5300,
+  "block": 26,
+  "title": "Ant Farming Supplies",
+  "npcs": [
+   {
+    "id": 5314,
+    "name": "Aunt Hill",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ss",
+     "l",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     1,
+     24,
+     1,
+     24,
+     5,
+     9
+    ]
+   }
+  ]
+ },
+ "5837": {
+  "street": 5300,
+  "block": 37,
+  "title": "School of Vine Arts",
+  "npcs": [
+   {
+    "id": 5321,
+    "name": "Professor Ivy",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ms",
+     "m",
+     "f",
+     18,
+     0,
+     18,
+     18,
+     1,
+     1,
+     1,
+     1,
+     17,
+     27
+    ]
+   }
+  ]
+ },
+ "5804": {
+  "street": 5300,
+  "block": 4,
+  "title": "Just Vase It",
+  "npcs": [
+   {
+    "id": 5305,
+    "name": "Crystal",
+    "gender": "f",
+    "dna": [
+     "hls",
+     "ss",
+     "l",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     1,
+     21,
+     1,
+     21,
+     16,
+     27
+    ]
+   }
+  ]
+ },
+ "9601": {
+  "street": 9100,
+  "block": 1,
+  "title": "Snuggle Inn",
+  "npcs": [
+   {
+    "id": 9107,
+    "name": "Snuggles",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ld",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     0,
+     5,
+     0,
+     5,
+     3,
+     2
+    ]
+   }
+  ]
+ },
+ "9602": {
+  "street": 9100,
+  "block": 2,
+  "title": "Forty Winks for the Price of Twenty",
+  "npcs": [
+   {
+    "id": 9108,
+    "name": "Winky Wilbur",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ms",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     4,
+     1,
+     4,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "9604": {
+  "street": 9100,
+  "block": 4,
+  "title": "Ed's Red Bed Spreads",
+  "npcs": [
+   {
+    "id": 9101,
+    "name": "Ed",
+    "gender": "m",
+    "dna": [
+     "css",
+     "ls",
+     "l",
+     "m",
+     14,
+     0,
+     14,
+     14,
+     1,
+     1,
+     1,
+     1,
+     0,
+     11
+    ]
+   }
+  ]
+ },
+ "9605": {
+  "street": 9100,
+  "block": 5,
+  "title": "Cloud Nine Design",
+  "npcs": [
+   {
+    "id": 9109,
+    "name": "Dreamy Daphne",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "ls",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     1,
+     6,
+     1,
+     6,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "9607": {
+  "street": 9100,
+  "block": 7,
+  "title": "Big Mama's Bahama Pajamas",
+  "npcs": [
+   {
+    "id": 9102,
+    "name": "Big Mama",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ld",
+     "l",
+     "f",
+     7,
+     0,
+     7,
+     7,
+     0,
+     6,
+     0,
+     6,
+     0,
+     3
+    ]
+   }
+  ]
+ },
+ "9608": {
+  "street": 9100,
+  "block": 8,
+  "title": "Cat Nip for Cat Naps",
+  "npcs": [
+   {
+    "id": 9110,
+    "name": "Kathy Nip",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "ss",
+     "l",
+     "f",
+     13,
+     0,
+     13,
+     13,
+     1,
+     6,
+     1,
+     6,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "9609": {
+  "street": 9100,
+  "block": 9,
+  "title": "Deep Sleep for Cheap",
+  "npcs": [
+   {
+    "id": 9105,
+    "name": "Professor Yawn",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ss",
+     "l",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     1,
+     1,
+     1,
+     1,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "9613": {
+  "street": 9100,
+  "block": 13,
+  "title": "Clock Cleaners",
+  "npcs": []
+ },
+ "9616": {
+  "street": 9100,
+  "block": 16,
+  "title": "Lights Out Electric Co.",
+  "npcs": [
+   {
+    "id": 9111,
+    "name": "Powers Erge",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "ss",
+     "l",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     1,
+     9,
+     1,
+     9,
+     5,
+     2
+    ]
+   }
+  ]
+ },
+ "9617": {
+  "street": 9100,
+  "block": 17,
+  "title": "Crib Notes - Music to Sleep By",
+  "npcs": [
+   {
+    "id": 9112,
+    "name": "Lullaby Lou",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ms",
+     "m",
+     "m",
+     19,
+     0,
+     19,
+     19,
+     1,
+     5,
+     1,
+     5,
+     0,
+     12
+    ]
+   }
+  ]
+ },
+ "9619": {
+  "street": 9100,
+  "block": 19,
+  "title": "Relax to the Max",
+  "npcs": [
+   {
+    "id": 9106,
+    "name": "Max",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     3,
+     0,
+     3,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "9620": {
+  "street": 9100,
+  "block": 20,
+  "title": "PJ's Taxi Service",
+  "npcs": [
+   {
+    "id": 9103,
+    "name": "P.J.",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ss",
+     "l",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     0,
+     2,
+     0,
+     2,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "9622": {
+  "street": 9100,
+  "block": 22,
+  "title": "Sleepy Time Pieces",
+  "npcs": [
+   {
+    "id": 9113,
+    "name": "Jacques Clock",
+    "gender": "m",
+    "dna": [
+     "hss",
+     "ss",
+     "m",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     1,
+     5,
+     1,
+     5,
+     0,
+     9
+    ]
+   }
+  ]
+ },
+ "9625": {
+  "street": 9100,
+  "block": 25,
+  "title": "Curl Up Beauty Parlor",
+  "npcs": [
+   {
+    "id": 9114,
+    "name": "Smudgy Mascara",
+    "gender": "f",
+    "dna": [
+     "cll",
+     "ld",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     0,
+     8,
+     0,
+     8,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "9626": {
+  "street": 9100,
+  "block": 26,
+  "title": "Bed Time Stories",
+  "npcs": [
+   {
+    "id": 9115,
+    "name": "Babyface MacDougal",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ls",
+     "s",
+     "m",
+     11,
+     0,
+     11,
+     11,
+     0,
+     7,
+     0,
+     7,
+     1,
+     18
+    ]
+   }
+  ]
+ },
+ "9627": {
+  "street": 9100,
+  "block": 27,
+  "title": "The Sleepy Teepee",
+  "npcs": [
+   {
+    "id": 9116,
+    "name": "Dances with Sheep",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "m",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     7,
+     0,
+     7,
+     0,
+     17
+    ]
+   }
+  ]
+ },
+ "9628": {
+  "street": 9100,
+  "block": 28,
+  "title": "Call It a Day Calendars",
+  "npcs": [
+   {
+    "id": 9117,
+    "name": "Afta Hours",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "ld",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     0,
+     11,
+     0,
+     11,
+     2,
+     9
+    ]
+   }
+  ]
+ },
+ "9629": {
+  "street": 9100,
+  "block": 29,
+  "title": "Silver Lining Jewelers",
+  "npcs": [
+   {
+    "id": 9118,
+    "name": "Starry Knight",
+    "gender": "f",
+    "dna": [
+     "dsl",
+     "md",
+     "m",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     1,
+     4,
+     1,
+     4,
+     0,
+     26
+    ]
+   }
+  ]
+ },
+ "9630": {
+  "street": 9100,
+  "block": 30,
+  "title": "Rock to Sleep Quarry",
+  "npcs": [
+   {
+    "id": 9119,
+    "name": "Rocco",
+    "gender": "m",
+    "dna": [
+     "fll",
+     "ms",
+     "m",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     0,
+     8,
+     0,
+     8,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "9633": {
+  "street": 9100,
+  "block": 33,
+  "title": "The Dreamland Screening Room",
+  "npcs": []
+ },
+ "9636": {
+  "street": 9100,
+  "block": 36,
+  "title": "Insomniac Insurance",
+  "npcs": [
+   {
+    "id": 9122,
+    "name": "Puffy Ayes",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ms",
+     "m",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     1,
+     8,
+     1,
+     8,
+     0,
+     16
+    ]
+   }
+  ]
+ },
+ "9634": {
+  "street": 9100,
+  "block": 34,
+  "title": "Mind Over Mattress",
+  "npcs": [
+   {
+    "id": 9121,
+    "name": "Serena Shortsheeter",
+    "gender": "f",
+    "dna": [
+     "fls",
+     "md",
+     "m",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     1,
+     12,
+     1,
+     12,
+     16,
+     27
+    ]
+   }
+  ]
+ },
+ "9640": {
+  "street": 9100,
+  "block": 40,
+  "title": "Nightstand Furniture Company",
+  "npcs": [
+   {
+    "id": 9124,
+    "name": "Nina Nitelight",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "md",
+     "m",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     1,
+     22,
+     1,
+     22,
+     8,
+     9
+    ]
+   }
+  ]
+ },
+ "9639": {
+  "street": 9100,
+  "block": 39,
+  "title": "House of Hibernation",
+  "npcs": [
+   {
+    "id": 9123,
+    "name": "Teddy Blair",
+    "gender": "m",
+    "dna": [
+     "rss",
+     "ss",
+     "m",
+     "m",
+     4,
+     0,
+     4,
+     4,
+     1,
+     9,
+     1,
+     9,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "9642": {
+  "street": 9100,
+  "block": 42,
+  "title": "Sawing Wood Slumber Lumber",
+  "npcs": [
+   {
+    "id": 9104,
+    "name": "Sweet Slumber",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "ld",
+     "l",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     0,
+     3,
+     0,
+     3,
+     0,
+     23
+    ]
+   }
+  ]
+ },
+ "9643": {
+  "street": 9100,
+  "block": 43,
+  "title": "Shut-Eye Optometry",
+  "npcs": [
+   {
+    "id": 9125,
+    "name": "Dr. Bleary",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "l",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     1,
+     9,
+     1,
+     9,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "9644": {
+  "street": 9100,
+  "block": 44,
+  "title": "Pillow Fights Nightly",
+  "npcs": [
+   {
+    "id": 9126,
+    "name": "Wyda Wake",
+    "gender": "f",
+    "dna": [
+     "hsl",
+     "ms",
+     "l",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     1,
+     23,
+     1,
+     23,
+     23,
+     27
+    ]
+   }
+  ]
+ },
+ "9645": {
+  "street": 9100,
+  "block": 45,
+  "title": "The All Tucked Inn",
+  "npcs": [
+   {
+    "id": 9127,
+    "name": "Tabby Tucker",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "ld",
+     "l",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     0,
+     24,
+     0,
+     24,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "9647": {
+  "street": 9100,
+  "block": 47,
+  "title": "Make Your Bed! Hardware Store",
+  "npcs": [
+   {
+    "id": 9128,
+    "name": "Shopkeeper",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "l",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     0,
+     11,
+     0,
+     11,
+     0,
+     15
+    ]
+   }
+  ]
+ },
+ "9649": {
+  "street": 9100,
+  "block": 49,
+  "title": "Snore or Less",
+  "npcs": [
+   {
+    "id": 9129,
+    "name": "Bertha Bedhog",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "ms",
+     "l",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     0,
+     25,
+     0,
+     25,
+     25,
+     27
+    ]
+   }
+  ]
+ },
+ "9650": {
+  "street": 9100,
+  "block": 50,
+  "title": "Crack of Dawn Repairs",
+  "npcs": [
+   {
+    "id": 9130,
+    "name": "Charlie Chamberpot",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     12,
+     0,
+     12,
+     0,
+     9
+    ]
+   }
+  ]
+ },
+ "9651": {
+  "street": 9100,
+  "block": 51,
+  "title": "For Richer or Snorer",
+  "npcs": [
+   {
+    "id": 9131,
+    "name": "Susan Siesta",
+    "gender": "f",
+    "dna": [
+     "dll",
+     "md",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     0,
+     24,
+     0,
+     24,
+     0,
+     2
+    ]
+   }
+  ]
+ },
+ "9631": {
+  "street": 9100,
+  "block": 31,
+  "title": "Down Time Watch Repair",
+  "npcs": [
+   {
+    "id": 9120,
+    "name": "Sarah Slumber",
+    "gender": "f",
+    "dna": [
+     "fll",
+     "ld",
+     "l",
+     "f",
+     6,
+     0,
+     6,
+     6,
+     0,
+     24,
+     0,
+     24,
+     0,
+     25
+    ]
+   }
+  ]
+ },
+ "9752": {
+  "street": 9200,
+  "block": 52,
+  "title": "Midnight Oil & Gas Company",
+  "npcs": [
+   {
+    "id": 9201,
+    "name": "Bernie",
+    "gender": "m",
+    "dna": [
+     "psl",
+     "ss",
+     "m",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     17,
+     11,
+     0,
+     11,
+     7,
+     20
+    ]
+   }
+  ]
+ },
+ "9703": {
+  "street": 9200,
+  "block": 3,
+  "title": "Fly By Night Travel Agency",
+  "npcs": [
+   {
+    "id": 9202,
+    "name": "Orville",
+    "gender": "m",
+    "dna": [
+     "dss",
+     "ss",
+     "s",
+     "m",
+     21,
+     0,
+     21,
+     21,
+     8,
+     3,
+     8,
+     3,
+     1,
+     17
+    ]
+   }
+  ]
+ },
+ "9741": {
+  "street": 9200,
+  "block": 41,
+  "title": "Don't Let The Bed Bugs Bite",
+  "npcs": [
+   {
+    "id": 9203,
+    "name": "Nat",
+    "gender": "m",
+    "dna": [
+     "pls",
+     "ls",
+     "s",
+     "m",
+     5,
+     0,
+     5,
+     5,
+     37,
+     27,
+     26,
+     27,
+     7,
+     4
+    ]
+   }
+  ]
+ },
+ "9704": {
+  "street": 9200,
+  "block": 4,
+  "title": "Night Owl Pet Shop",
+  "npcs": [
+   {
+    "id": 9204,
+    "name": "Claire de Loon",
+    "gender": "f",
+    "dna": [
+     "fsl",
+     "sd",
+     "s",
+     "f",
+     19,
+     0,
+     19,
+     19,
+     21,
+     10,
+     0,
+     10,
+     8,
+     23
+    ]
+   }
+  ]
+ },
+ "9736": {
+  "street": 9200,
+  "block": 36,
+  "title": "Dream Jobs Employment Agency",
+  "npcs": [
+   {
+    "id": 9205,
+    "name": "Zen Glen",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ms",
+     "m",
+     "m",
+     15,
+     0,
+     15,
+     15,
+     45,
+     27,
+     34,
+     27,
+     2,
+     17
+    ]
+   }
+  ]
+ },
+ "9727": {
+  "street": 9200,
+  "block": 27,
+  "title": "You Snooze, You Lose",
+  "npcs": [
+   {
+    "id": 9206,
+    "name": "Skinny Ginny",
+    "gender": "f",
+    "dna": [
+     "rls",
+     "ld",
+     "l",
+     "f",
+     8,
+     0,
+     8,
+     8,
+     25,
+     27,
+     16,
+     27,
+     10,
+     27
+    ]
+   }
+  ]
+ },
+ "9709": {
+  "street": 9200,
+  "block": 9,
+  "title": "Pipe Dream Plumbers",
+  "npcs": [
+   {
+    "id": 9207,
+    "name": "Jane Drain",
+    "gender": "f",
+    "dna": [
+     "hss",
+     "ss",
+     "s",
+     "f",
+     24,
+     0,
+     24,
+     24,
+     36,
+     27,
+     25,
+     27,
+     9,
+     27
+    ]
+   }
+  ]
+ },
+ "9705": {
+  "street": 9200,
+  "block": 5,
+  "title": "Asleep At The Wheel Car Repair",
+  "npcs": [
+   {
+    "id": 9208,
+    "name": "Drowsy Dave",
+    "gender": "m",
+    "dna": [
+     "dsl",
+     "ms",
+     "s",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     46,
+     27,
+     35,
+     27,
+     6,
+     27
+    ]
+   }
+  ]
+ },
+ "9706": {
+  "street": 9200,
+  "block": 6,
+  "title": "Tooth Fairy Dentistry",
+  "npcs": [
+   {
+    "id": 9209,
+    "name": "Dr. Floss",
+    "gender": "m",
+    "dna": [
+     "pll",
+     "ss",
+     "m",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     8,
+     12,
+     8,
+     12,
+     1,
+     12
+    ]
+   }
+  ]
+ },
+ "9755": {
+  "street": 9200,
+  "block": 55,
+  "title": "Bedknobs & Broomsticks Movie House",
+  "npcs": []
+ },
+ "9740": {
+  "street": 9200,
+  "block": 40,
+  "title": "Hit The Sack Fencing School",
+  "npcs": [
+   {
+    "id": 9210,
+    "name": "Master Mike",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "l",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     1,
+     0,
+     1,
+     0,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "9707": {
+  "street": 9200,
+  "block": 7,
+  "title": "Dawn's Yawn & Garden Center",
+  "npcs": [
+   {
+    "id": 9211,
+    "name": "Dawn",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "ss",
+     "s",
+     "f",
+     3,
+     0,
+     3,
+     3,
+     22,
+     22,
+     0,
+     22,
+     6,
+     22
+    ]
+   }
+  ]
+ },
+ "9753": {
+  "street": 9200,
+  "block": 53,
+  "title": "Moonbeam's Ice Creams",
+  "npcs": [
+   {
+    "id": 9212,
+    "name": "Moonbeam",
+    "gender": "f",
+    "dna": [
+     "pss",
+     "md",
+     "m",
+     "f",
+     16,
+     0,
+     16,
+     16,
+     45,
+     27,
+     34,
+     27,
+     0,
+     3
+    ]
+   }
+  ]
+ },
+ "9711": {
+  "street": 9200,
+  "block": 11,
+  "title": "Wake-Up Call Phone Company",
+  "npcs": [
+   {
+    "id": 9213,
+    "name": "Rooster Rick",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ss",
+     "m",
+     "m",
+     2,
+     0,
+     2,
+     2,
+     37,
+     27,
+     26,
+     27,
+     7,
+     18
+    ]
+   }
+  ]
+ },
+ "9710": {
+  "street": 9200,
+  "block": 10,
+  "title": "REM Optometry",
+  "npcs": [
+   {
+    "id": 9214,
+    "name": "Dr. Blinky",
+    "gender": "m",
+    "dna": [
+     "rll",
+     "ls",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     10,
+     27,
+     0,
+     27,
+     0,
+     13
+    ]
+   }
+  ]
+ },
+ "9744": {
+  "street": 9200,
+  "block": 44,
+  "title": "Rip Van Winkle's Wrinkle Cream",
+  "npcs": [
+   {
+    "id": 9215,
+    "name": "Rip",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ls",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     11,
+     4,
+     0,
+     4,
+     0,
+     4
+    ]
+   }
+  ]
+ },
+ "9725": {
+  "street": 9200,
+  "block": 25,
+  "title": "Cat's Pajamas",
+  "npcs": [
+   {
+    "id": 9216,
+    "name": "Cat",
+    "gender": "f",
+    "dna": [
+     "csl",
+     "sd",
+     "m",
+     "f",
+     14,
+     0,
+     14,
+     14,
+     1,
+     7,
+     1,
+     7,
+     3,
+     7
+    ]
+   }
+  ]
+ },
+ "9713": {
+  "street": 9200,
+  "block": 13,
+  "title": "Wynken, Blynken & Nod, Attorneys at Law",
+  "npcs": [
+   {
+    "id": 9217,
+    "name": "Lawful Linda",
+    "gender": "f",
+    "dna": [
+     "mss",
+     "ms",
+     "m",
+     "f",
+     17,
+     0,
+     17,
+     17,
+     20,
+     26,
+     0,
+     26,
+     5,
+     12
+    ]
+   }
+  ]
+ },
+ "9737": {
+  "street": 9200,
+  "block": 37,
+  "title": "Waltzing Matilda's Dance School",
+  "npcs": [
+   {
+    "id": 9218,
+    "name": "Waltzing Matilda",
+    "gender": "f",
+    "dna": [
+     "dss",
+     "md",
+     "l",
+     "f",
+     23,
+     0,
+     23,
+     23,
+     24,
+     27,
+     15,
+     27,
+     11,
+     27
+    ]
+   }
+  ]
+ },
+ "9712": {
+  "street": 9200,
+  "block": 12,
+  "title": "Counting Sheep So You Don't Have To!",
+  "npcs": [
+   {
+    "id": 9219,
+    "name": "The Countess",
+    "gender": "f",
+    "dna": [
+     "hll",
+     "sd",
+     "l",
+     "f",
+     10,
+     0,
+     10,
+     10,
+     9,
+     22,
+     9,
+     22,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "9716": {
+  "street": 9200,
+  "block": 16,
+  "title": "Wet Blanket Party Planners",
+  "npcs": [
+   {
+    "id": 9220,
+    "name": "Grumpy Gordon",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "l",
+     "m",
+     7,
+     0,
+     7,
+     7,
+     0,
+     27,
+     0,
+     27,
+     1,
+     10
+    ]
+   }
+  ]
+ },
+ "9738": {
+  "street": 9200,
+  "block": 38,
+  "title": "House of Zzzzzs",
+  "npcs": [
+   {
+    "id": 9221,
+    "name": "Zari",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "md",
+     "l",
+     "f",
+     22,
+     0,
+     22,
+     22,
+     45,
+     27,
+     34,
+     27,
+     0,
+     6
+    ]
+   }
+  ]
+ },
+ "9754": {
+  "street": 9200,
+  "block": 54,
+  "title": "Sleepless in the Saddle- All Night Pony Rides",
+  "npcs": [
+   {
+    "id": 9222,
+    "name": "Cowboy George",
+    "gender": "m",
+    "dna": [
+     "hsl",
+     "ls",
+     "l",
+     "m",
+     10,
+     0,
+     10,
+     10,
+     52,
+     27,
+     41,
+     27,
+     12,
+     27
+    ]
+   }
+  ]
+ },
+ "9714": {
+  "street": 9200,
+  "block": 14,
+  "title": "Dreamboat Marine Supply",
+  "npcs": [
+   {
+    "id": 9223,
+    "name": "Mark the Lark",
+    "gender": "m",
+    "dna": [
+     "fsl",
+     "ms",
+     "m",
+     "m",
+     20,
+     0,
+     20,
+     20,
+     43,
+     27,
+     32,
+     27,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ "9759": {
+  "street": 9200,
+  "block": 59,
+  "title": "Sleeping Beauty Parlor",
+  "npcs": [
+   {
+    "id": 9232,
+    "name": "Honey Moon",
+    "gender": "f",
+    "dna": [
+     "pss",
+     "ld",
+     "m",
+     "f",
+     21,
+     0,
+     21,
+     21,
+     0,
+     27,
+     0,
+     27,
+     13,
+     27
+    ]
+   }
+  ]
+ },
+ "9717": {
+  "street": 9200,
+  "block": 17,
+  "title": "Baker's Dozin' Doughnuts",
+  "npcs": [
+   {
+    "id": 9225,
+    "name": "Fidgety Bridget",
+    "gender": "f",
+    "dna": [
+     "rss",
+     "md",
+     "m",
+     "f",
+     11,
+     0,
+     11,
+     11,
+     40,
+     27,
+     29,
+     27,
+     0,
+     27
+    ]
+   }
+  ]
+ },
+ "9718": {
+  "street": 9200,
+  "block": 18,
+  "title": "Sandman's Sandwiches",
+  "npcs": [
+   {
+    "id": 9224,
+    "name": "Sandy Sandman",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ms",
+     "m",
+     "f",
+     1,
+     0,
+     1,
+     1,
+     6,
+     8,
+     6,
+     8,
+     6,
+     8
+    ]
+   }
+  ]
+ },
+ "9715": {
+  "street": 9200,
+  "block": 15,
+  "title": "First Security Blanket Bank",
+  "npcs": [
+   {
+    "id": 9226,
+    "name": "William Teller",
+    "gender": "m",
+    "dna": [
+     "mls",
+     "ms",
+     "s",
+     "m",
+     12,
+     0,
+     12,
+     12,
+     3,
+     10,
+     3,
+     10,
+     6,
+     10
+    ]
+   }
+  ]
+ },
+ "9721": {
+  "street": 9200,
+  "block": 21,
+  "title": "Snug As A Bug Rug Dealer",
+  "npcs": [
+   {
+    "id": 9227,
+    "name": "Bed Head Ted",
+    "gender": "m",
+    "dna": [
+     "cls",
+     "ss",
+     "s",
+     "m",
+     13,
+     0,
+     13,
+     13,
+     8,
+     5,
+     8,
+     5,
+     3,
+     18
+    ]
+   }
+  ]
+ },
+ "9720": {
+  "street": 9200,
+  "block": 20,
+  "title": "Talking In Your Sleep Voice Training",
+  "npcs": [
+   {
+    "id": 9228,
+    "name": "Whispering Willow",
+    "gender": "f",
+    "dna": [
+     "fss",
+     "sd",
+     "s",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     15,
+     5,
+     11,
+     5,
+     8,
+     5
+    ]
+   }
+  ]
+ },
+ "9708": {
+  "street": 9200,
+  "block": 8,
+  "title": "Bed Of Roses Florist",
+  "npcs": [
+   {
+    "id": 9229,
+    "name": "Rose Petals",
+    "gender": "f",
+    "dna": [
+     "css",
+     "ld",
+     "m",
+     "f",
+     4,
+     0,
+     4,
+     4,
+     22,
+     21,
+     0,
+     21,
+     4,
+     21
+    ]
+   }
+  ]
+ },
+ "9719": {
+  "street": 9200,
+  "block": 19,
+  "title": "Armadillo Pillow Company",
+  "npcs": [
+   {
+    "id": 9230,
+    "name": "Tex",
+    "gender": "m",
+    "dna": [
+     "mss",
+     "ss",
+     "s",
+     "m",
+     8,
+     0,
+     8,
+     8,
+     53,
+     27,
+     42,
+     27,
+     13,
+     27
+    ]
+   }
+  ]
+ },
+ "9722": {
+  "street": 9200,
+  "block": 22,
+  "title": "Dream On Talent Agency",
+  "npcs": [
+   {
+    "id": 9231,
+    "name": "Harry Hammock",
+    "gender": "m",
+    "dna": [
+     "dll",
+     "ss",
+     "s",
+     "m",
+     6,
+     0,
+     6,
+     6,
+     27,
+     27,
+     18,
+     27,
+     3,
+     8
+    ]
+   }
+  ]
+ }
+}

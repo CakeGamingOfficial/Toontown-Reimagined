@@ -11,7 +11,10 @@ extends RefCounted
 const TTC := 2000
 const GAG_SHOP := "res://scenes/interiors/gag_shop.tscn"
 const TOON_HALL := "res://scenes/interiors/toon_hall.tscn"
+const TOON_HQ := "res://scenes/interiors/toon_hq.tscn"
+const SHOP := "res://scenes/interiors/shop_interior.tscn"
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
+const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 
 const _SCENES: Dictionary = {
 	1000: "res://scenes/playgrounds/donalds_dock.tscn",
@@ -77,11 +80,31 @@ static func is_toon_hall(path: String) -> bool:
 	return path.ends_with("toon_hall.tscn")
 
 
+static func toon_hq_scene() -> String:
+	return TOON_HQ
+
+
+static func is_toon_hq(path: String) -> bool:
+	return path.ends_with("toon_hq.tscn")
+
+
+static func shop_scene() -> String:
+	return SHOP
+
+
+static func is_shop(path: String) -> bool:
+	return path.ends_with("shop_interior.tscn")
+
+
 static func hood_for_scene(path: String) -> int:
 	if is_gag_shop(path):
 		return int(_SHOP.hood)
 	if is_toon_hall(path):
 		return TTC
+	if is_toon_hq(path):
+		return _HQ.hood()
+	if is_shop(path):
+		return preload("res://scenes/interiors/shop_door.gd").hood_id()
 	if is_house(path) or is_estate(path):
 		return ESTATE
 	var keys: Array = _SCENES.keys()
