@@ -126,6 +126,7 @@ var _shot_blend := 0.0
 var _tasks: ToonTasks
 var _loadout: ToonLoadout
 var _book: ShtickerBook
+var _map: Control
 var _meter: LaffMeter
 var _line: PanelContainer
 var _line_label: Label
@@ -251,6 +252,8 @@ func _keep_quests() -> void:
 func _process(delta: float) -> void:
 	if not _active or _player == null:
 		return
+	if _map != null and _body != null:
+		_map.call("follow", _body.global_position, _heading)
 	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
 	if _trolley != null:
@@ -300,6 +303,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _book != null and _tasks != null and _tasks.book_ready() and _book_hotkey(event):
 		_book.toggle_hotkey()
 		get_viewport().set_input_as_handled()
+		return
+	if _map != null and _map_hotkey(event):
+		_map.call("toggle")
+		get_viewport().set_input_as_handled()
 
 
 func _book_hotkey(event: InputEvent) -> bool:
@@ -313,6 +320,16 @@ func _book_hotkey(event: InputEvent) -> bool:
 	if not key.pressed or key.echo:
 		return false
 	return key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE
+
+
+func _map_hotkey(event: InputEvent) -> bool:
+	# ToontownGlobals.MapHotkey. want-toggle-quest-map opens and closes on Alt.
+	if not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	if not key.pressed or key.echo:
+		return false
+	return key.keycode == KEY_ALT or key.physical_keycode == KEY_ALT
 
 
 func show_notice(message: String) -> void:
@@ -1627,6 +1644,19 @@ func _ready_hud() -> void:
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
+	# The open book covers the street map. The map stays above the laff meter.
+	_book.z_index = 20
+	var street_zone := _BLDG.street_zone(_scene_path())
+	if street_zone != 0:
+		# Loaded by path so the street script and the map script do not preload each other.
+		var map_script := load("res://scenes/quests/quest_map.gd") as GDScript
+		if map_script != null:
+			_map = map_script.new() as Control
+			_map.name = "QuestMap"
+			_hud().add_child(_map)
+			if not bool(_map.call("setup", _tasks, street_zone)):
+				_map.queue_free()
+				_map = null
 	var chat := SpeedChat.new()
 	chat.name = "SpeedChat"
 	_hud().add_child(chat)

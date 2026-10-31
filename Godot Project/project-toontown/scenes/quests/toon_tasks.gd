@@ -22,6 +22,7 @@ const CATALOG := {
 		"show_count": true,
 		"speech": "I need to defeat a Flunky.",
 		"next": 110,
+		"turn_in": "hq",
 	},
 	110: {
 		"headline": "TROLLEY",
@@ -33,6 +34,7 @@ const CATALOG := {
 		"show_count": false,
 		"speech": "I need to ride the trolley.",
 		"next": 0,
+		"turn_in": "hq",
 	},
 }
 
