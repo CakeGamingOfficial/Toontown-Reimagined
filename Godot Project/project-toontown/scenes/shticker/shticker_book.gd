@@ -2,8 +2,9 @@ class_name ShtickerBook
 extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
-## sit down the right edge, and the pages are Options, the map, Gags, and
-## ToonTasks. Harry's reward still opens on the map and turns to gags, then tasks.
+## sit down the right edge, and the pages are Options, the map, Gags,
+## ToonTasks, and the Cog Gallery. Harry's reward still opens on the map and
+## turns to gags, then tasks.
 
 signal book_opened
 signal book_closed
@@ -13,7 +14,8 @@ const PAGE_OPTIONS := 0
 const PAGE_MAP := 1
 const PAGE_GAGS := 2
 const PAGE_TASKS := 3
-const _PAGE_NAMES: PackedStringArray = ["Options", "Map", "Gags", "ToonTasks"]
+const PAGE_COGS := 4
+const _PAGE_NAMES: PackedStringArray = ["Options", "Map", "Gags", "ToonTasks", "Cog Gallery"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
@@ -21,7 +23,7 @@ const _CLOSED := preload("res://assets/gui/tutorial/book/BookIcon_CLSD.png")
 const _OPEN_ICON := preload("res://assets/gui/tutorial/book/BookIcon_OPEN.png")
 const _HOVER := preload("res://assets/gui/tutorial/book/BookIcon_RLVR.png")
 const _ARROW := preload("res://assets/gui/tutorial/book/arrow_button.png")
-const _MAP := preload("res://assets/gui/tutorial/book/toontown_map.png")
+const _MAP := preload("res://assets/gui/tutorial/book/toontown_map.jpg")
 const _CLOUD := preload("res://assets/gui/tutorial/book/cloud.png")
 const _JAR := preload("res://assets/gui/tutorial/book/jar.png")
 const _PILL := preload("res://assets/toons/gui/QuitBtn_UP.png")
@@ -36,6 +38,9 @@ const _CANCEL_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
 const _CANCEL_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
 const _PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
 const _ROW := preload("res://assets/gui/tutorial/InventoryRow.png")
+const _TRASH_CLOSED := preload("res://assets/toons/gui/TrashCan_CLSD.png")
+const _TRASH_OPEN := preload("res://assets/toons/gui/TrashCan_OPEN.png")
+const _TRASH_HOVER := preload("res://assets/toons/gui/TrashCan_RLVR.png")
 # InventoryNew places one icon from AvPropsNew on each well of InventoryRow.
 const _GAG_ICON: Array[Texture2D] = [
 	preload("res://assets/gui/tutorial/gags/inventory_feather.png"),
@@ -94,6 +99,7 @@ const _TAB_OPTIONS := preload("res://assets/gui/tutorial/book/tab_options.png")
 const _TAB_MAP := preload("res://assets/gui/tutorial/book/tab_map.png")
 const _TAB_GAGS := preload("res://assets/gui/tutorial/book/tab_gags.png")
 const _TAB_TASKS := preload("res://assets/gui/tutorial/book/tab_tasks.png")
+const _TAB_GEAR := preload("res://assets/gui/shticker/gallery/tab_gear.png")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -108,8 +114,25 @@ const _HOOD_NAMES: PackedStringArray = [
 	"Daisy Gardens", "Chip 'n Dale's Acorn Acres", "Goofy Speedway", "Donald's Dreamland",
 	"Bossbot HQ", "Sellbot HQ", "Cashbot HQ", "Lawbot HQ",
 ]
+# Fractions of the map picture. MapPage leaves the name blank until the pointer
+# is over that playground.
+const _HOOD_HIT: Array[Rect2] = [
+	Rect2(0.78, 0.46, 0.18, 0.15),
+	Rect2(0.36, 0.46, 0.28, 0.20),
+	Rect2(0.55, 0.16, 0.32, 0.28),
+	Rect2(0.36, 0.28, 0.24, 0.16),
+	Rect2(0.16, 0.72, 0.26, 0.20),
+	Rect2(0.46, 0.72, 0.26, 0.22),
+	Rect2(0.02, 0.36, 0.24, 0.22),
+	Rect2(0.24, 0.04, 0.30, 0.18),
+	Rect2(0.78, 0.04, 0.18, 0.20),
+	Rect2(0.02, 0.68, 0.16, 0.26),
+	Rect2(0.02, 0.04, 0.22, 0.22),
+	Rect2(0.78, 0.68, 0.18, 0.26),
+]
 
 var _tasks: ToonTasks
+var _cogs: CogGallery
 var _loadout: ToonLoadout
 var _button: TextureButton
 var _dim: ColorRect
@@ -132,7 +155,16 @@ var _gag_exps: Array[Label] = []
 var _detail: Label
 var _totals: Label
 var _beans: Label
-var _task_row: HBoxContainer
+var _gag_title: Label
+var _trash: TextureButton
+var _trash_caption: Label
+var _deleting := false
+const _QUEST_SLOT: Array[Vector2] = [
+	Vector2(-0.45, 0.25),
+	Vector2(-0.45, -0.35),
+	Vector2(0.45, 0.25),
+	Vector2(0.45, -0.35),
+]
 var _here: Label
 var _go_home: TextureButton
 var _go_back: TextureButton
@@ -144,6 +176,9 @@ var _audio_sliders: Array[HSlider] = []
 var _exit_dialog: Control
 var _exit_accept: Callable
 var _map_picture: TextureRect
+var _hood_labels: Array[Label] = []
+var _hood_clouds: Array[TextureRect] = []
+var _hood_hits: Array[Control] = []
 var _page := 0
 var _open := false
 var _guided := false
@@ -313,7 +348,8 @@ func _build_book() -> void:
 	_cover = TextureRect.new()
 	_cover.texture = _BOOK
 	_cover.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_cover.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# big_book is a square card. image_scale (2, 1, 1.5) stretches it to 4:3.
+	_cover.stretch_mode = TextureRect.STRETCH_SCALE
 	_cover.mouse_filter = MOUSE_FILTER_STOP
 	_cover.visible = false
 	add_child(_cover)
@@ -321,7 +357,10 @@ func _build_book() -> void:
 	_pages.append(_build_map())
 	_pages.append(_build_gags())
 	_pages.append(_build_tasks())
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_MAP, _TAB_GAGS, _TAB_TASKS]
+	_cogs = CogGallery.new()
+	_cover.add_child(_cogs)
+	_pages.append(_cogs)
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_GEAR]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -478,31 +517,44 @@ func _build_map() -> Control:
 	_map_picture = TextureRect.new()
 	_map_picture.texture = _MAP
 	_map_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_map_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_map_picture.stretch_mode = TextureRect.STRETCH_SCALE
 	_map_picture.mouse_filter = MOUSE_FILTER_IGNORE
 	_map_picture.name = "Picture"
 	sheet.add_child(_map_picture)
+	var name_bg := StyleBoxFlat.new()
+	name_bg.bg_color = Color(1, 1, 1, 0.4)
+	name_bg.set_content_margin_all(4)
 	for index in _HOODS.size():
+		var cloud := TextureRect.new()
+		cloud.texture = _CLOUD
+		cloud.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cloud.stretch_mode = TextureRect.STRETCH_SCALE
+		cloud.mouse_filter = MOUSE_FILTER_IGNORE
+		cloud.visible = false
+		_map_picture.add_child(cloud)
+		_hood_clouds.append(cloud)
+		var hit := Control.new()
+		hit.mouse_filter = MOUSE_FILTER_STOP
+		hit.mouse_entered.connect(_hover_hood.bind(index, true))
+		hit.mouse_exited.connect(_hover_hood.bind(index, false))
+		_map_picture.add_child(hit)
+		_hood_hits.append(hit)
 		var label := Label.new()
 		label.text = _HOOD_NAMES[index]
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.clip_text = true
 		label.mouse_filter = MOUSE_FILTER_IGNORE
-		label.set_meta("hood", _HOODS[index])
+		label.visible = false
+		label.add_theme_stylebox_override("normal", name_bg)
 		_map_picture.add_child(label)
-		for spec in _clouds_for(index):
-			var cloud := TextureRect.new()
-			cloud.texture = _CLOUD
-			cloud.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			cloud.stretch_mode = TextureRect.STRETCH_SCALE
-			cloud.mouse_filter = MOUSE_FILTER_IGNORE
-			cloud.set_meta("hood", _HOODS[index])
-			cloud.set_meta("spec", spec)
-			_map_picture.add_child(cloud)
+		_hood_labels.append(label)
 	_here = Label.new()
 	_here.name = "Here"
 	_here.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_here.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_here.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_here.mouse_filter = MOUSE_FILTER_IGNORE
 	sheet.add_child(_here)
 	_go_home = _pill("Go Home")
@@ -520,7 +572,8 @@ func _build_gags() -> Control:
 	sheet.visible = false
 	sheet.name = "Gags"
 	_cover.add_child(sheet)
-	sheet.add_child(_title("Gags"))
+	_gag_title = _title("Gags")
+	sheet.add_child(_gag_title)
 	for track in ToonLoadout.TRACK_COUNT:
 		var row := TextureRect.new()
 		row.texture = _ROW
@@ -561,6 +614,7 @@ func _build_gags() -> Control:
 			slot.mouse_filter = MOUSE_FILTER_STOP
 			slot.mouse_entered.connect(_on_gag.bind(track, level))
 			slot.mouse_exited.connect(_clear_gag)
+			slot.gui_input.connect(_click_gag.bind(track, level))
 			sheet.add_child(slot)
 			var icon := TextureRect.new()
 			icon.texture = _GAG_ICON[track * ToonLoadout.LEVEL_COUNT + level]
@@ -600,6 +654,22 @@ func _build_gags() -> Control:
 	_beans.mouse_filter = MOUSE_FILTER_IGNORE
 	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.POUCH_MAX]
 	sheet.add_child(_beans)
+	_trash = TextureButton.new()
+	_trash.name = "Trash"
+	_trash.texture_normal = _TRASH_CLOSED
+	_trash.texture_pressed = _TRASH_OPEN
+	_trash.texture_hover = _TRASH_HOVER
+	_trash.ignore_texture_size = true
+	_trash.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	_trash.pressed.connect(_toggle_delete)
+	ToonGui.button_sounds(_trash)
+	sheet.add_child(_trash)
+	_trash_caption = Label.new()
+	_trash_caption.text = "DELETE"
+	_trash_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_trash_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_trash_caption.mouse_filter = MOUSE_FILTER_IGNORE
+	sheet.add_child(_trash_caption)
 	return sheet
 
 
@@ -610,11 +680,6 @@ func _build_tasks() -> Control:
 	sheet.name = "Tasks"
 	_cover.add_child(sheet)
 	sheet.add_child(_title("ToonTasks"))
-	_task_row = HBoxContainer.new()
-	_task_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_task_row.add_theme_constant_override("separation", 18)
-	_task_row.mouse_filter = MOUSE_FILTER_IGNORE
-	sheet.add_child(_task_row)
 	return sheet
 
 
@@ -676,6 +741,7 @@ func _arrow(flip: bool) -> TextureButton:
 	button.custom_minimum_size = Vector2(54, 54)
 	button.size = Vector2(54, 54)
 	button.focus_mode = Control.FOCUS_NONE
+	button.pivot_offset = button.size * 0.5
 	if flip:
 		button.scale = Vector2(-1, 1)
 	button.visible = false
@@ -686,12 +752,12 @@ func _tab_style(sunken: bool) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(0.72, 0.68, 0.58) if sunken else Color(0.94, 0.91, 0.82)
 	box.border_color = Color(0.42, 0.36, 0.24)
-	box.set_border_width_all(2)
-	box.set_corner_radius_all(3)
-	box.content_margin_left = 4
-	box.content_margin_right = 4
-	box.content_margin_top = 4
-	box.content_margin_bottom = 4
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(2)
+	box.content_margin_left = 2
+	box.content_margin_right = 2
+	box.content_margin_top = 2
+	box.content_margin_bottom = 2
 	return box
 
 
@@ -774,6 +840,11 @@ func _open_book() -> void:
 	var parent := get_parent()
 	if parent != null:
 		parent.move_child(self, parent.get_child_count() - 1)
+		# The page covers the playground, including the toon's speech bubble.
+		# SpeedChat stays in front so the log can still be used.
+		var chat := parent.get_node_or_null("SpeedChat")
+		if chat != null:
+			parent.move_child(chat, parent.get_child_count() - 1)
 	move_child(_button, get_child_count() - 1)
 	_layout()
 	_dim.visible = true
@@ -790,6 +861,7 @@ func close() -> void:
 
 
 func _close() -> void:
+	_set_deleting(false)
 	_close_exit()
 	_open = false
 	_guided = false
@@ -808,6 +880,8 @@ func _set_page(index: int) -> void:
 	var next_page := clampi(index, 0, _pages.size() - 1)
 	if next_page == _page and _pages[next_page].visible:
 		return
+	if next_page != PAGE_GAGS:
+		_set_deleting(false)
 	_page = next_page
 	_listen = ""
 	_next_armed = false
@@ -825,6 +899,8 @@ func _show_page(index: int) -> void:
 		_refresh_gags()
 	elif index == PAGE_TASKS:
 		_fill_tasks()
+	elif index == PAGE_COGS:
+		_cogs.refresh()
 	for page_index in _pages.size():
 		_pages[page_index].visible = page_index == index
 	for tab_index in _tabs.size():
@@ -879,7 +955,14 @@ func _refresh_gags() -> void:
 			icon.visible = owned
 			count.visible = owned
 			if owned:
-				count.text = str(_loadout.count_of(track, level))
+				var held := _loadout.count_of(track, level)
+				count.text = str(held)
+				if _deleting and held > 0:
+					icon.modulate = Color(1.0, 0.35, 0.35)
+				elif _deleting:
+					icon.modulate = Color(1, 1, 1, 0.35)
+				else:
+					icon.modulate = Color.WHITE
 	for track in ToonLoadout.TRACK_COUNT:
 		_paint_exp_bar(track)
 
@@ -913,7 +996,13 @@ func _paint_exp_bar(track: int) -> void:
 
 func _on_gag(track: int, level: int) -> void:
 	if _loadout == null or not _loadout.unlocked(track, level):
-		_detail.text = ""
+		_clear_gag()
+		return
+	if _deleting:
+		if _loadout.count_of(track, level) <= 0:
+			_detail.text = "Click on a gag to DELETE it."
+		else:
+			_detail.text = "%s\n\nClick to delete." % _loadout.gag_name(track, level)
 		return
 	var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
 	var accuracy := ToonLoadout.accuracy_word(ToonLoadout.gag_accuracy(track, level))
@@ -926,8 +1015,46 @@ func _on_gag(track: int, level: int) -> void:
 
 
 func _clear_gag() -> void:
-	if _detail != null:
-		_detail.text = ""
+	if _detail == null:
+		return
+	_detail.text = "Click on a gag to DELETE it." if _deleting else ""
+
+
+func _toggle_delete() -> void:
+	_set_deleting(not _deleting)
+
+
+## InventoryPage.enterDeleteMode. The book turns yellow, and one click
+## throws away a single gag. Nothing is refunded.
+func _set_deleting(on: bool) -> void:
+	if _deleting == on:
+		return
+	_deleting = on
+	if _cover != null:
+		_cover.self_modulate = Color(1, 1, 0) if on else Color.WHITE
+	if _gag_title != null:
+		_gag_title.text = "DELETE GAGS" if on else "Gags"
+	if _trash != null:
+		_trash.texture_normal = _TRASH_OPEN if on else _TRASH_CLOSED
+		_trash.texture_pressed = _TRASH_CLOSED if on else _TRASH_OPEN
+	if _trash_caption != null:
+		_trash_caption.text = "DONE" if on else "DELETE"
+	if _gag_icons.is_empty():
+		return
+	_refresh_gags()
+
+
+func _click_gag(event: InputEvent, track: int, level: int) -> void:
+	if not _deleting or not (event is InputEventMouseButton):
+		return
+	var click := event as InputEventMouseButton
+	if not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if _loadout == null or not _loadout.toss_gag(track, level):
+		return
+	get_viewport().set_input_as_handled()
+	_refresh_gags()
+	_on_gag(track, level)
 
 
 func _refresh_map() -> void:
@@ -944,13 +1071,12 @@ func _refresh_map() -> void:
 		if lines.size() > 1:
 			place = lines[1]
 		_here.text = "You are in: %s\n%s" % [lines[0], place]
-	for child in _map_picture.get_children():
-		var hood := int(child.get_meta("hood", 0))
-		var seen := hood == 2000 or (_tasks != null and _tasks.has_visited(hood))
-		if child is Label:
-			child.visible = seen
-		else:
-			child.visible = not seen
+	for index in _HOODS.size():
+		var seen := _HOODS[index] == 2000 or (_tasks != null and _tasks.has_visited(_HOODS[index]))
+		_hood_labels[index].visible = false
+		_hood_labels[index].set_meta("seen", 1 if seen else 0)
+		_hood_clouds[index].visible = not seen
+		_hood_clouds[index].modulate = Color.WHITE
 	var zone := _LINKS.zone_for_scene(scene_path)
 	if zone == 0:
 		zone = _PLACES.hood_for_scene(scene_path)
@@ -972,20 +1098,24 @@ func _refresh_map() -> void:
 
 
 func _fill_tasks() -> void:
-	for child in _task_row.get_children():
-		child.queue_free()
+	var sheet := _pages[PAGE_TASKS]
+	for child in sheet.get_children():
+		if child is QuestPoster:
+			sheet.remove_child(child)
+			child.queue_free()
 	var cards: Array[Dictionary] = []
 	if _tasks != null:
 		cards = _tasks.entries()
 	if cards.is_empty():
 		var blank := QuestPoster.new()
+		sheet.add_child(blank)
 		blank.show_task({})
-		_task_row.add_child(blank)
-		return
-	for task in cards:
-		var poster := QuestPoster.new()
-		poster.show_task(task)
-		_task_row.add_child(poster)
+	else:
+		for task in cards:
+			var poster := QuestPoster.new()
+			sheet.add_child(poster)
+			poster.show_task(task)
+	_layout_tasks(sheet.size)
 
 
 func _back_to_hood() -> void:
@@ -1177,11 +1307,18 @@ func _apply_arrows() -> void:
 func _layout() -> void:
 	var view := get_viewport_rect().size
 	_place_button()
-	var side := minf(view.x * 0.78, view.y * 0.9)
-	_cover.size = Vector2(side * 1.15, side)
-	_cover.position = (view - _cover.size) * 0.5
-	var page_origin := _cover.size * Vector2(0.12, 0.1)
-	var page_size := _cover.size * Vector2(0.7, 0.76)
+	# The open book is 2 by 1.5 aspect units, 75% of the screen tall, shifted up 0.1.
+	var book_h := view.y * 0.75
+	var book_w := book_h * (2.0 / 1.5)
+	if book_w > view.x:
+		book_w = view.x
+		book_h = book_w * (1.5 / 2.0)
+	var top := (view.y - book_h) * 0.5 - view.y * 0.05
+	_cover.size = Vector2(book_w, book_h)
+	_cover.position = Vector2((view.x - book_w) * 0.5, maxf(top, 0.0))
+	# MapPage's map is the page footprint: 1.746 by 1.3095, just under the top of the book.
+	var page_origin := _cover.size * Vector2(0.0635, 0.0118)
+	var page_size := _cover.size * Vector2(0.873, 0.873)
 	var title_px := maxi(int(page_size.y * 0.07), 18)
 	var body_px := maxi(int(page_size.y * 0.038), 13)
 	for sheet in _pages:
@@ -1196,15 +1333,23 @@ func _layout() -> void:
 	_layout_map(page_size, body_px)
 	_layout_gags(page_size, body_px)
 	_layout_tasks(page_size)
+	if _cogs != null:
+		_cogs.layout(page_size)
+	# pageTabFrame scale 1.25, each tab scale 0.06, frame ±0.575, step 0.07.
+	var tab_size := Vector2(_cover.size.x * 0.043125, _cover.size.y * 0.0575)
 	for tab_index in _tabs.size():
 		var tab := _tabs[tab_index]
-		tab.position = Vector2(_cover.size.x * 0.855, _cover.size.y * (0.16 + float(tab_index) * 0.09))
-		tab.size = Vector2(_cover.size.y * 0.075, _cover.size.y * 0.075)
-	var arrow := _cover.size.y * 0.07
+		var center := Vector2(_cover.size.x * 0.965, _cover.size.y * (0.1167 + float(tab_index) * 0.05833))
+		tab.position = center - tab_size * 0.5
+		tab.size = tab_size
+	var arrow := _cover.size.x * 0.05
 	_prev.size = Vector2(arrow, arrow)
 	_next.size = Vector2(arrow, arrow)
-	_prev.position = Vector2(_cover.size.x * 0.08, _cover.size.y * 0.86)
-	_next.position = Vector2(_cover.size.x * 0.86, _cover.size.y * 0.86)
+	# The previous arrow is mirrored. Flip it around its center so it stays on the same spot.
+	_prev.pivot_offset = _prev.size * 0.5
+	var arrow_y := _cover.size.y * 0.9407 - arrow * 0.5
+	_prev.position = Vector2(_cover.size.x * 0.081 - arrow * 0.5, arrow_y)
+	_next.position = Vector2(_cover.size.x * 0.919 - arrow * 0.5, arrow_y)
 
 
 func _layout_options(page_size: Vector2, body_px: int) -> void:
@@ -1243,48 +1388,51 @@ func _layout_options(page_size: Vector2, body_px: int) -> void:
 
 
 func _layout_map(page_size: Vector2, body_px: int) -> void:
-	_map_picture.position = Vector2(0, 0)
-	_map_picture.size = Vector2(page_size.x, page_size.y * 0.82)
+	var side := minf(page_size.x, page_size.y)
+	_map_picture.position = Vector2((page_size.x - side) * 0.5, (page_size.y - side) * 0.5)
+	_map_picture.size = Vector2(side, side)
 	var map_size := _map_picture.size
-	for child in _map_picture.get_children():
-		if child is Label:
-			var at := _label_at(int(child.get_meta("hood")))
-			var center := _map_point(at.x, at.y, map_size)
-			child.position = center - Vector2(map_size.x * 0.12, 16)
-			child.size = Vector2(map_size.x * 0.24, 36)
-			ToonGui.style_label(child as Label, Color(0.05, 0.05, 0.05), maxi(body_px - 2, 11), Color(1, 1, 1, 0.65), 2)
-		elif child is TextureRect:
-			var spec: Vector4 = child.get_meta("spec")
-			var center := _map_point(spec.x, spec.y, map_size)
-			var cloud_size := Vector2(absf(spec.z) / 1.8 * map_size.x, absf(spec.w) / 1.35 * map_size.y)
-			child.position = center - cloud_size * 0.5
-			child.size = cloud_size
-			var cloud := child as Control
-			cloud.pivot_offset = cloud_size * 0.5
-			cloud.scale = Vector2(-1.0 if spec.z < 0.0 else 1.0, 1.0)
-	_here.position = Vector2(0, page_size.y * 0.84)
-	_here.size = Vector2(page_size.x * 0.42, page_size.y * 0.14)
-	ToonGui.style_label(_here, Color(0.08, 0.08, 0.08), body_px, Color(0, 0, 0, 0), 0)
-	_place_pill(_go_home, Vector2(page_size.x * 0.46, page_size.y * 0.86), Vector2(page_size.x * 0.2, page_size.y * 0.08), body_px)
-	_place_pill(_go_back, Vector2(page_size.x * 0.68, page_size.y * 0.86), Vector2(page_size.x * 0.3, page_size.y * 0.08), body_px)
+	var name_px := maxi(int(map_size.y * 0.04), 12)
+	for index in _HOOD_HIT.size():
+		var spot := _HOOD_HIT[index]
+		var rect := Rect2(spot.position * map_size, spot.size * map_size)
+		var cloud := _hood_clouds[index]
+		cloud.position = rect.position
+		cloud.size = rect.size
+		var hit := _hood_hits[index]
+		hit.position = rect.position
+		hit.size = rect.size
+		var label := _hood_labels[index]
+		label.position = rect.position
+		label.size = rect.size
+		ToonGui.style_label(label, Color(0, 0, 0, 1), name_px, Color(0, 0, 0, 0), 0)
+	# MapPage parents these to the map, below the picture: the label at
+	# (-0.43, 0, -0.726), Go Home at (0.15, 0, -0.74), Back at (0.55, 0, -0.74).
+	var here_px := maxi(int(page_size.y * 0.046), 13)
+	var here_size := _map_span(0.84, 0.15, page_size)
+	_here.position = _map_footer(-0.43, -0.726, page_size) - here_size * 0.5
+	_here.size = here_size
+	ToonGui.style_label(_here, Color(0, 0, 0, 1), here_px, Color(0, 0, 0, 0), 0)
+	var home_size := _map_span(0.425 * 0.66, 0.108333 * 1.1, page_size)
+	_place_pill(_go_home, _map_footer(0.15, -0.74, page_size) - home_size * 0.5, home_size, maxi(int(page_size.y * 0.042), 12))
+	var back_size := _map_span(0.425 * 1.3, 0.108333 * 1.1, page_size)
+	_place_pill(_go_back, _map_footer(0.55, -0.74, page_size) - back_size * 0.5, back_size, maxi(int(page_size.y * 0.042), 12))
 
 
 func _layout_gags(page_size: Vector2, body_px: int) -> void:
 	var sheet := _pages[PAGE_GAGS]
-	var top := page_size.y * 0.105
-	var footer_h := page_size.y * 0.24
-	var band := page_size.y - top - footer_h
-	var gap := maxf(band * 0.015, 2.0)
-	var row_h := (band - gap * float(ToonLoadout.TRACK_COUNT - 1)) / float(ToonLoadout.TRACK_COUNT)
-	var row_w := row_h * (252.0 / 28.0)
-	if row_w > page_size.x:
-		row_w = page_size.x
-		row_h = row_w * (28.0 / 252.0)
+	_gag_title.visible = false
+	# InventoryNew book mode. Rows are 1.6667 by 0.1252, pitched 0.12, from z 0.52.
+	# The page rect is the map, 1.746 by 1.3095, whose top is book z 0.73225.
+	var row_w := page_size.x * (1.6667 / 1.746)
+	var row_h := row_w * (0.1252 / 1.6667)
+	var pitch := page_size.y * (0.12 / 1.3095)
 	var row_x := (page_size.x - row_w) * 0.5
-	var name_px := mini(body_px, maxi(int(row_h * 0.42), 10))
-	var count_px := maxi(int(row_h * 0.30), 9)
+	var first_center := page_size.y * ((0.73225 - 0.52) / 1.3095)
+	var name_px := mini(body_px, maxi(int(row_h * 0.38), 8))
+	var count_px := maxi(int(row_h * 0.28), 8)
 	for track in ToonLoadout.TRACK_COUNT:
-		var row_y := top + float(track) * (row_h + gap)
+		var row_y := first_center + float(track) * pitch - row_h * 0.5
 		var row := _gag_rows[track]
 		row.position = Vector2(row_x, row_y)
 		row.size = Vector2(row_w, row_h)
@@ -1312,12 +1460,18 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 			count.position = center - Vector2(well, row_h * 0.84) * 0.5
 			count.size = Vector2(well, row_h * 0.84) - Vector2(well * 0.06, row_h * 0.04)
 			ToonGui.style_label(count, Color.WHITE, count_px, Color(0.05, 0.12, 0.28), 2)
-	var footer_y := top + band
-	var box := Vector2(page_size.x * 0.28, page_size.y - footer_y - 6.0)
-	_place_cream(sheet, _detail, Vector2(page_size.x * 0.08, footer_y), box, body_px)
-	_place_cream(sheet, _totals, Vector2(page_size.x * 0.4, footer_y), box, body_px)
+	var footer_y := first_center + float(ToonLoadout.TRACK_COUNT - 1) * pitch + row_h * 0.5 + 4.0
+	var box := Vector2(page_size.x * 0.24, maxf(page_size.y - footer_y - 4.0, row_h))
+	_place_cream(sheet, _detail, Vector2(page_size.x * 0.02, footer_y), box, body_px)
+	_place_cream(sheet, _totals, Vector2(page_size.x * 0.27, footer_y), box, body_px)
+	var can := minf(box.y * 0.92, page_size.x * 0.14)
+	_trash.position = Vector2(page_size.x * 0.53, footer_y + (box.y - can) * 0.5)
+	_trash.size = Vector2(can, can)
+	_trash_caption.position = _trash.position + Vector2(0.0, can * 0.62)
+	_trash_caption.size = Vector2(can, can * 0.38)
+	ToonGui.style_label(_trash_caption, Color.WHITE, maxi(int(can * 0.16), 10), Color(0, 0, 0), 2)
 	var jar := sheet.get_node("Jar") as TextureRect
-	jar.position = Vector2(page_size.x * 0.72, footer_y)
+	jar.position = Vector2(page_size.x * 0.70, footer_y)
 	jar.size = Vector2(box.y, box.y)
 	_beans.position = jar.position
 	_beans.size = jar.size
@@ -1325,8 +1479,27 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 
 
 func _layout_tasks(page_size: Vector2) -> void:
-	_task_row.position = Vector2(0, page_size.y * 0.16)
-	_task_row.size = Vector2(page_size.x * 0.48, page_size.y * 0.7)
+	var sheet := _pages[PAGE_TASKS]
+	var title := sheet.get_node_or_null("Title") as Label
+	if title != null:
+		var title_px := maxi(int(_map_span(0.12, 0.12, page_size).y), 16)
+		var title_h := float(title_px) * 1.3
+		var title_at := _book_point(0.0, 0.6, page_size)
+		title.position = Vector2(0.0, title_at.y - title_h * 0.5)
+		title.size = Vector2(page_size.x, title_h)
+		ToonGui.style_label(title, Color(0.08, 0.08, 0.08), title_px, Color(0, 0, 0, 0), 0)
+	# QuestPage places each poster at scale 1.06. The card itself is 0.8 by 0.58.
+	var card := _map_span(0.8 * 1.06, 0.58 * 1.06, page_size)
+	var index := 0
+	for child in sheet.get_children():
+		var poster := child as QuestPoster
+		if poster == null or index >= _QUEST_SLOT.size():
+			continue
+		var spot := _QUEST_SLOT[index]
+		var center := _book_point(spot.x, spot.y, page_size)
+		poster.position = center - card * 0.5
+		poster.layout(card)
+		index += 1
 
 
 func _place_cream(sheet: Control, label: Label, at: Vector2, box: Vector2, body_px: int) -> void:
@@ -1337,6 +1510,27 @@ func _place_cream(sheet: Control, label: Label, at: Vector2, box: Vector2, body_
 		if child is Panel and child.name == label.name:
 			child.position = at
 			child.size = box
+
+
+## A point in the book's own coordinates, in this page's pixels.
+func _book_point(book_x: float, book_z: float, page_size: Vector2) -> Vector2:
+	var fx := (book_x + 1.0) / 2.0
+	var fy := (0.75 - book_z) / 1.5
+	return Vector2((fx - 0.0635) / 0.873 * page_size.x, (fy - 0.0118) / 0.873 * page_size.y)
+
+
+## A point on the map node, in the page's pixels. The map sits at z 0.0775, scale 0.97.
+func _map_footer(local_x: float, local_z: float, page_size: Vector2) -> Vector2:
+	var book_x := local_x * 0.97
+	var book_z := 0.0775 + local_z * 0.97
+	var fx := (book_x + 1.0) / 2.0
+	var fy := (0.75 - book_z) / 1.5
+	return Vector2((fx - 0.0635) / 0.873 * page_size.x, (fy - 0.0118) / 0.873 * page_size.y)
+
+
+## Width and height in aspect units, turned into page pixels. The map picture is 1.746 by 1.3095.
+func _map_span(aspect_w: float, aspect_h: float, page_size: Vector2) -> Vector2:
+	return Vector2(aspect_w / 1.746 * page_size.x, aspect_h / 1.3095 * page_size.y)
 
 
 func _place_pill(button: TextureButton, at: Vector2, box: Vector2, body_px: int) -> void:
@@ -1374,62 +1568,12 @@ func _play(player: AudioStreamPlayer) -> void:
 		player.play()
 
 
-func _map_point(local_x: float, local_z: float, map_size: Vector2) -> Vector2:
-	return Vector2((local_x + 0.9) / 1.8 * map_size.x, (0.675 - local_z) / 1.35 * map_size.y)
-
-
-func _label_at(hood: int) -> Vector2:
-	match hood:
-		1000:
-			return Vector2(0.594, -0.075)
-		2000:
-			return Vector2(0.0, -0.1)
-		3000:
-			return Vector2(0.475, 0.25)
-		4000:
-			return Vector2(0.1, 0.15)
-		5000:
-			return Vector2(-0.3, -0.375)
-		6000:
-			return Vector2(0.2, -0.45)
-		8000:
-			return Vector2(-0.55, 0.0)
-		9000:
-			return Vector2(-0.088, 0.47)
-		10000:
-			return Vector2(0.7, -0.5)
-		11000:
-			return Vector2(-0.7, -0.5)
-		12000:
-			return Vector2(-0.7, 0.5)
-		_:
-			return Vector2(0.7, 0.5)
-
-
-func _clouds_for(index: int) -> Array[Vector4]:
-	match index:
-		0:
-			return [Vector4(0.575, -0.04, 0.55, 0.4), Vector4(0.45, -0.25, 0.35, 0.25)]
-		2:
-			return [Vector4(0.375, 0.4, 0.45, 0.45), Vector4(0.5625, 0.2, 0.5, 0.4)]
-		3:
-			return [Vector4(-0.02, 0.23, 0.7, 0.45)]
-		4:
-			return [Vector4(-0.3, -0.4, 0.55, 0.4)]
-		5:
-			return [Vector4(0.25, -0.425, 0.6, 0.4), Vector4(0.125, -0.36, 0.5332, 0.32)]
-		6:
-			return [Vector4(-0.5625, -0.07, 0.7, 0.45), Vector4(-0.45, 0.2125, 0.7, 0.45)]
-		7:
-			return [Vector4(-0.125, 0.5, 0.7998, 0.39)]
-		8:
-			return [Vector4(0.66, -0.4, 0.5, 0.4)]
-		9:
-			return [Vector4(-0.68, -0.444, -0.45, 0.4)]
-		10:
-			return [Vector4(-0.6, 0.45, -0.45, 0.35)]
-		11:
-			return [Vector4(0.66, 0.5, 0.5, 0.35)]
-		_:
-			var none: Array[Vector4] = []
-			return none
+func _hover_hood(index: int, inside: bool) -> void:
+	var label := _hood_labels[index]
+	label.visible = inside
+	if inside:
+		var seen := int(label.get_meta("seen", 0)) == 1
+		label.add_theme_color_override("font_color", Color(0, 0, 0, 1 if seen else 0.65))
+	var cloud := _hood_clouds[index]
+	if cloud.visible:
+		cloud.modulate = Color(1, 1, 1, 0.25 if inside else 1.0)

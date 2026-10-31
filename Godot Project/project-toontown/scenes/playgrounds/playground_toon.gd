@@ -12,7 +12,11 @@ const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
+const _HALL := preload("res://scenes/interiors/toon_hall_door.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
+const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _TROLLEY := preload("res://scenes/trolley/trolley.gd")
 const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
 const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
 const _PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
@@ -55,7 +59,8 @@ const HARD_LOCK := 0.3
 # Same tube the HQ stairs use. A radius-1 body stands on the landing and
 # floats over the 45-degree plaza stairs.
 const BODY_RADIUS := 0.35
-const STEP_HEIGHT := 0.55
+# Street curbs rise 0.5. The plaza stairs rise 0.82, and the top one is 0.90.
+const STEP_HEIGHT := 1.05
 const _CAM_PITCH_HOME := 0.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
@@ -78,8 +83,18 @@ var _filming := false
 var _portaling := false
 var _tunnel_ready := false
 var _door_ready := false
+# The hall must not share _door_ready. The gag shop arms that flag whenever
+# the toon is simply not standing at the shop, which walked a hall exit
+# straight back through the same door.
+var _hall_ready := false
 var _bank_ready := false
 var _bank_open := false
+var _clerk_ready := false
+var _clerk_mouth: Node3D
+var _clerk_line: PanelContainer
+var _clerk_label: Label
+var _clerk_left := 0.0
+var _trolley: Node
 var _jar_beans: Node3D
 var _bean_rest := Basis.IDENTITY
 # Walk up to the jellybean bank. The sphere opens the counter, the way
@@ -96,6 +111,7 @@ const _BANK_PING_LO := 48.0 / 24.0
 const _BANK_PING_HI := 92.0 / 24.0
 var _from_door := ""
 var _shop_trip := ""
+var _hall_trip := ""
 var _tunnels: Array[Dictionary] = []
 var _shot := false
 var _shot_origin: Node3D
@@ -135,13 +151,16 @@ func _ready() -> void:
 	var from_portal := portal_in
 	var from_door := door_trip
 	var from_shop := String(_SHOP.trip)
+	var from_hall := String(_HALL.trip)
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
 	door_trip = ""
 	_SHOP.trip = ""
+	_HALL.trip = ""
 	_from_door = from_door
 	_shop_trip = from_shop
+	_hall_trip = from_hall
 	var incoming := _LINKS.arriving()
 	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
@@ -152,6 +171,7 @@ func _ready() -> void:
 	_active = true
 	_hood = _current_hood()
 	_SHOP.prepare(get_parent(), _hood)
+	_HALL.prepare(get_parent())
 	var window := get_tree().root
 	if not window.close_requested.is_connected(_keep_quests):
 		window.close_requested.connect(_keep_quests)
@@ -159,9 +179,16 @@ func _ready() -> void:
 	_collect_tunnels(get_parent())
 	_spawn(arriving or logging_in)
 	_ready_hud()
-	if from_door != "" or from_shop != "":
+	_trolley = _TROLLEY.new()
+	_trolley.name = "Trolley"
+	add_child(_trolley)
+	if not _trolley.setup(self):
+		_trolley = null
+	if from_door != "" or from_shop != "" or from_hall != "":
 		if _tasks.in_playground:
 			_tasks.note_hood(_hood)
+		if from_hall == "out":
+			await _settle_hall_exit()
 		_fade_in()
 		_DOORS.play_close(self)
 		_locked = false
@@ -209,6 +236,8 @@ func _process(delta: float) -> void:
 		return
 	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
+	if _trolley != null:
+		_trolley.tick(delta)
 	if _portaling:
 		_place_camera()
 		_place_line(delta)
@@ -221,8 +250,10 @@ func _process(delta: float) -> void:
 		return
 	MagicWords.maintain(get_parent())
 	var book_open := _book != null and _book.is_open()
-	if MagicWords.detached_camera() and not book_open and not _bank_open:
+	if MagicWords.detached_camera() and not book_open and not _bank_open and not _locked:
 		MagicWords.fly_camera(_camera, delta)
+	elif _trolley != null and _trolley.holds_camera():
+		_trolley.aim(_camera)
 	else:
 		_place_camera()
 	_place_line(delta)
@@ -235,7 +266,10 @@ func _physics_process(delta: float) -> void:
 	_try_tunnel()
 	_try_house_door()
 	_try_gag_door()
+	_try_hall_door()
 	_try_bank()
+	_try_clerk()
+	_try_trolley()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -289,7 +323,7 @@ func say_line(text: String) -> void:
 		_hud().add_child(_line)
 	_line_label.text = text
 	_line_left = maxf(2.8, float(text.length()) * 0.045)
-	_line.visible = true
+	_line.visible = _book == null or not _book.is_open()
 
 
 func _quiet_fly_camera() -> void:
@@ -318,8 +352,12 @@ func _arrival_spot() -> Dictionary:
 	var scene_path := _scene_path()
 	if _shop_trip == "out":
 		return _shop_outside_drop()
+	if _hall_trip == "out":
+		return _hall_outside_drop()
 	if _PLACES.is_gag_shop(scene_path):
 		return _shop_inside_drop()
+	if _PLACES.is_toon_hall(scene_path):
+		return _hall_inside_drop()
 	if _PLACES.is_house(scene_path):
 		return _house_drop()
 	if _hood == _PLACES.ESTATE and _from_door == "out":
@@ -373,6 +411,18 @@ func _estate_door_drop() -> Dictionary:
 	var drop: Dictionary = _DOORS.outside_drop(house, origin)
 	var point: Vector3 = drop["point"]
 	return {"point": _snap_drop(point), "heading": float(drop["heading"])}
+
+
+func _try_trolley() -> void:
+	if _trolley == null or _body == null or _book != null and _book.is_open():
+		return
+	if not _trolley.can_board() or not _trolley.near(_body):
+		return
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_trolley.board(_body, _player)
 
 
 func _try_bank() -> void:
@@ -494,6 +544,165 @@ func _bank_gui_closed() -> void:
 	_bank_open = false
 	if _book != null:
 		_book.refresh_jar()
+
+
+## DistributedNPCToonBase puts a CollisionTube one unit in front of the clerk,
+## radius 3.25, from the floor to above their head. The toon's own sphere is
+## 1.4, so the counter in front of them is inside the trigger.
+const _CLERK_FORWARD := 1.0
+const _CLERK_REACH := 3.25 + 1.4
+
+
+func _try_clerk() -> void:
+	if _body == null or not _PLACES.is_gag_shop(_scene_path()):
+		_clerk_ready = true
+		return
+	var clerk := _nearest_clerk()
+	if clerk == null:
+		_clerk_ready = true
+		return
+	if _book != null and _book.is_open():
+		_clerk_ready = false
+		return
+	if not _clerk_ready or _loadout == null:
+		return
+	_clerk_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_shop_with(clerk)
+
+
+func _nearest_clerk() -> Node3D:
+	var host := get_parent()
+	if host == null:
+		return null
+	var best: Node3D = null
+	var best_gap := _CLERK_REACH
+	for node in host.find_children("*", "StaticBody3D", true, false):
+		if not String(node.name).begins_with("Clerk"):
+			continue
+		var body := node as Node3D
+		var center := body.global_position + _clerk_forward(body) * _CLERK_FORWARD
+		var offset := center - _body.global_position
+		var gap := Vector2(offset.x, offset.z).length()
+		if gap <= best_gap:
+			best_gap = gap
+			best = body
+	return best
+
+
+func _clerk_forward(clerk: Node3D) -> Vector3:
+	var ahead := _clerk_actor(clerk).global_basis * Vector3(0, 1, 0)
+	ahead.y = 0.0
+	if ahead.length_squared() < 0.0001:
+		return Vector3(0, 0, -1)
+	return ahead.normalized()
+
+
+func _clerk_actor(clerk: Node3D) -> Node3D:
+	for child in clerk.get_children():
+		if child is ToonActor:
+			return child as Node3D
+	return clerk
+
+
+func _shop_with(clerk: Node3D) -> void:
+	var actor := _clerk_actor(clerk)
+	var toward := actor.global_position - _body.global_position
+	toward.y = 0.0
+	if toward.length_squared() > 0.0001:
+		_heading = _heading_toward(toward)
+		_face(_player, _heading)
+	if _BEANS.pouch() <= 0:
+		_say_clerk(actor, "You need to ride the Trolley to get some jellybeans.", 3.2)
+		await get_tree().create_timer(3.2).timeout
+		if not is_inside_tree():
+			return
+		_say_clerk(null, "", 0.0)
+		_locked = false
+		return
+	_say_clerk(actor, "Choose what you want to buy.", 1.0)
+	await get_tree().create_timer(1.0).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	var panel := _SHOP_GUI.new()
+	panel.name = "GagShop"
+	panel.loadout = _loadout
+	_hud().add_child(panel)
+	var reason: String = await panel.finished
+	if not is_inside_tree():
+		return
+	if _book != null:
+		_book.refresh_gags()
+		_book.refresh_jar()
+	if not is_instance_valid(actor):
+		_locked = false
+		return
+	var goodbye := "See you later!"
+	var hold := 2.0
+	if reason == "timeout":
+		goodbye = "Need more time to think?"
+		hold = 2.4
+	_say_clerk(actor, goodbye, hold)
+	await get_tree().create_timer(hold).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	_locked = false
+
+
+func _say_clerk(actor: Node3D, text: String, seconds: float) -> void:
+	_clerk_mouth = actor
+	_clerk_left = seconds
+	if text.is_empty():
+		if _clerk_line != null:
+			_clerk_line.visible = false
+		return
+	if _clerk_line == null:
+		_clerk_line = PanelContainer.new()
+		_clerk_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_clerk_line.z_index = 16
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(1, 1, 1, 0.98)
+		box.border_color = Color(0.05, 0.05, 0.05)
+		box.set_border_width_all(3)
+		box.set_corner_radius_all(16)
+		box.content_margin_left = 12
+		box.content_margin_right = 16
+		box.content_margin_top = 6
+		box.content_margin_bottom = 6
+		_clerk_line.add_theme_stylebox_override("panel", box)
+		_clerk_label = Label.new()
+		_clerk_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_clerk_label.custom_minimum_size = Vector2(40, 0)
+		ToonGui.style_label(_clerk_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
+		_clerk_line.add_child(_clerk_label)
+		_hud().add_child(_clerk_line)
+	_clerk_label.text = text
+	_clerk_line.visible = true
+
+
+func _place_clerk_line(delta: float) -> void:
+	if _clerk_line == null or _camera == null:
+		return
+	_clerk_left = maxf(_clerk_left - delta, 0.0)
+	if _clerk_left <= 0.0 or _clerk_mouth == null or not is_instance_valid(_clerk_mouth):
+		_clerk_line.visible = false
+		return
+	var point := _clerk_mouth.global_position + Vector3(0.0, 3.6, 0.0)
+	var head := _find(_clerk_mouth, "def_head")
+	if head:
+		point = head.global_position + Vector3(0.0, 0.7, 0.0)
+	if _camera.is_position_behind(point):
+		_clerk_line.visible = false
+		return
+	_clerk_line.visible = true
+	_clerk_line.reset_size()
+	var screen := _camera.unproject_position(point)
+	_clerk_line.position = screen - Vector2(_clerk_line.size.x * 0.5, _clerk_line.size.y + 8.0)
 
 
 func _attach_jar() -> Node3D:
@@ -675,6 +884,110 @@ func _leave_shop() -> void:
 	get_tree().change_scene_to_file(_PLACES.scene_for(_SHOP.hood))
 
 
+func _try_hall_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_toon_hall(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	if inside:
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		trigger = origin.global_position
+	else:
+		var building := _HALL.find_building(get_parent())
+		if building == null:
+			return
+		var door := _HALL.find_exterior_door(building)
+		if door == null:
+			return
+		trigger = _HALL.outside_trigger(building, door)
+		reach = 2.4
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_hall_ready = true
+		return
+	if not _hall_ready or not _KEYS.held("forward"):
+		return
+	_hall_ready = false
+	if inside:
+		_leave_hall()
+	else:
+		_enter_hall()
+
+
+func _enter_hall() -> void:
+	_locked = true
+	var building := _HALL.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _HALL.find_exterior_door(building)
+	_HALL.open(self, door)
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_HALL.trip = "in"
+	get_tree().change_scene_to_file(_PLACES.toon_hall_scene())
+
+
+func _leave_hall() -> void:
+	_locked = true
+	_HALL.open(self, _HALL.find_interior_door(get_parent()))
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black()
+	_HALL.trip = "out"
+	get_tree().change_scene_to_file(_PLACES.scene_for(_PLACES.TTC))
+
+
+func _hall_inside_drop() -> Dictionary:
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _settle_hall_exit() -> void:
+	# The doorway depth is a physics ray. It is not ready on the first placement,
+	# so that drop lands in the entrance. Wait until the front wall is known,
+	# then stand on the sidewalk beyond it.
+	for _i in 8:
+		await get_tree().physics_frame
+		var building := _HALL.find_building(get_parent())
+		if building == null:
+			return
+		var door := _HALL.find_exterior_door(building)
+		if door == null:
+			return
+		if not door.has_meta("hall_shell"):
+			_HALL.outside_trigger(building, door)
+			continue
+		var drop := _hall_outside_drop()
+		var point: Vector3 = drop["point"]
+		_body.global_position = point
+		_heading = float(drop["heading"])
+		_home = point
+		_home_heading = _heading
+		if _player != null:
+			_face(_player, _heading)
+		_place_camera()
+		return
+
+
+func _hall_outside_drop() -> Dictionary:
+	var building := _HALL.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var door := _HALL.find_exterior_door(building)
+	if door == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _HALL.outside_drop(building, door)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
 func _shop_inside_drop() -> Dictionary:
 	var origin := _DOORS.find_origin(get_parent())
 	if origin == null:
@@ -814,6 +1127,9 @@ func _spawn(underground: bool) -> void:
 	_body.floor_snap_length = 0.6
 	# Plaza stair faces run to about 54 degrees. Steeper than that stays a wall.
 	_body.floor_max_angle = deg_to_rad(58.0)
+	# A steep walkable face should not eat forward speed. GravityWalker keeps
+	# the same pace and lets the floor ray take the height.
+	_body.floor_constant_speed = true
 	_body.floor_block_on_wall = false
 	_body.safe_margin = 0.04
 	_body.motion_mode = CharacterBody3D.MOTION_MODE_GROUNDED
@@ -1157,7 +1473,7 @@ func _walk(delta: float) -> void:
 	else:
 		_body.velocity.y -= GRAVITY * delta
 		impact = _body.velocity.y
-	if on_floor and not jumped:
+	if not jumped and (on_floor or (_body.is_on_wall() and _body.velocity.y <= 1.0)):
 		_raise_onto_step()
 	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
@@ -1287,10 +1603,11 @@ func _add_world_tags(style: ToonStyle) -> void:
 
 func _place_line(delta: float) -> void:
 	_place_nametag()
+	_place_clerk_line(delta)
 	if _line == null or _camera == null or _player == null:
 		return
 	_line_left = maxf(_line_left - delta, 0.0)
-	if _line_left <= 0.0 or not _player.visible:
+	if _line_left <= 0.0 or not _player.visible or (_book != null and _book.is_open()):
 		_line.visible = false
 		return
 	var point := _player.global_position + Vector3(0.0, 3.6, 0.0)
@@ -1321,46 +1638,81 @@ func _add_capsule() -> void:
 	_body.add_child(collision)
 
 
-## A vertical riser is not a floor. Lift onto the tread in front of it, the
-## way GravityWalker's lifter clears a step before the body hits the wall.
+## A curb or stair lip is not a floor. Lift onto the flat surface past it.
+## The old ankle test missed a beveled curb, whose face is not vertical.
 func _raise_onto_step() -> void:
 	var ahead := Vector3(_body.velocity.x, 0.0, _body.velocity.z)
 	if ahead.length() < 0.2:
 		return
-	var space := _body.get_world_3d().direct_space_state
-	if space == null:
+	var world := _body.get_world_3d()
+	if world == null:
 		return
+	var space := world.direct_space_state
 	var dir := ahead.normalized()
 	var feet := _body.global_position
-	var ankle_from := feet + Vector3(0.0, 0.12, 0.0)
-	var ankle := PhysicsRayQueryParameters3D.create(ankle_from, ankle_from + dir * (BODY_RADIUS + 0.35))
-	ankle.exclude = [_body.get_rid()]
-	ankle.collide_with_areas = false
-	var riser := space.intersect_ray(ankle)
-	if riser.is_empty():
+	var exclude: Array[RID] = [_body.get_rid()]
+	if not _ledge_ahead(space, feet, dir, exclude):
 		return
-	var riser_normal: Vector3 = riser["normal"]
-	if riser_normal.y > 0.45:
+	var rise := _tread_ahead(space, feet, dir, exclude)
+	if rise < 0.05 or rise > STEP_HEIGHT:
 		return
-	var high := feet + Vector3(0.0, STEP_HEIGHT + 0.2, 0.0) + dir * (BODY_RADIUS + 0.2)
-	var down := PhysicsRayQueryParameters3D.create(high, high + Vector3(0.0, -(STEP_HEIGHT + 0.45), 0.0))
-	down.exclude = [_body.get_rid()]
-	down.collide_with_areas = false
-	var tread := space.intersect_ray(down)
-	if tread.is_empty():
+	var up := PhysicsTestMotionParameters3D.new()
+	up.from = _body.global_transform
+	up.motion = Vector3(0.0, rise + 0.04, 0.0)
+	up.margin = _body.safe_margin
+	up.recovery_as_collision = false
+	var lifted := PhysicsTestMotionResult3D.new()
+	# A riser graze is not a ceiling. Only a blocked rise cancels the step.
+	if PhysicsServer3D.body_test_motion(_body.get_rid(), up, lifted) and lifted.get_travel().y < rise * 0.5:
 		return
-	var point: Vector3 = tread["position"]
-	var rise := point.y - feet.y
-	if rise < 0.08 or rise > STEP_HEIGHT:
-		return
-	var chest_from := feet + Vector3(0.0, rise + 0.6, 0.0)
-	var chest := PhysicsRayQueryParameters3D.create(chest_from, chest_from + dir * 0.4)
-	chest.exclude = [_body.get_rid()]
-	chest.collide_with_areas = false
-	if not space.intersect_ray(chest).is_empty():
+	var raised := _body.global_transform
+	raised.origin.y += rise + 0.04
+	var forward := PhysicsTestMotionParameters3D.new()
+	forward.from = raised
+	forward.motion = dir * 0.25
+	forward.margin = _body.safe_margin
+	if PhysicsServer3D.body_test_motion(_body.get_rid(), forward):
 		return
 	_body.global_position.y += rise
 	_body.velocity.y = 0.0
+
+
+func _ledge_ahead(space: PhysicsDirectSpaceState3D, feet: Vector3, dir: Vector3, exclude: Array[RID]) -> bool:
+	# Steeper than floor_max_angle is a wall. A walkable stair slope is not.
+	var limit := cos(_body.floor_max_angle)
+	for height in PackedFloat32Array([0.12, 0.28, 0.46]):
+		var from := feet + Vector3(0.0, height, 0.0)
+		var query := PhysicsRayQueryParameters3D.create(from, from + dir * (BODY_RADIUS + 0.55))
+		query.exclude = exclude
+		query.collide_with_areas = false
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		var normal: Vector3 = hit["normal"]
+		if normal.y < limit:
+			return true
+	return false
+
+
+func _tread_ahead(space: PhysicsDirectSpaceState3D, feet: Vector3, dir: Vector3, exclude: Array[RID]) -> float:
+	# The nearest tread only. A farther sample can see the step after this one,
+	# and taking the higher of the two made every stair after the first too tall.
+	for reach in PackedFloat32Array([BODY_RADIUS + 0.08, BODY_RADIUS + 0.35, BODY_RADIUS + 0.7]):
+		var origin := feet + Vector3(0.0, STEP_HEIGHT + 0.05, 0.0) + dir * reach
+		var query := PhysicsRayQueryParameters3D.create(origin, origin + Vector3(0.0, -(STEP_HEIGHT + 0.25), 0.0))
+		query.exclude = exclude
+		query.collide_with_areas = false
+		var tread := space.intersect_ray(query)
+		if tread.is_empty():
+			continue
+		var normal: Vector3 = tread["normal"]
+		if normal.y < 0.7:
+			continue
+		var point: Vector3 = tread["position"]
+		var rise := point.y - feet.y
+		if rise >= 0.05 and rise <= STEP_HEIGHT:
+			return rise
+	return -1.0
 
 
 func _cache_eye_height() -> void:

@@ -534,9 +534,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if _entry == null or not _entry.has_focus():
-		return
 	if event is InputEventMouseButton:
+		if _entry == null or not _entry.has_focus():
+			return
 		var click := event as InputEventMouseButton
 		if click.pressed and _click_leaves_chat(click):
 			_entry.release_focus()
@@ -548,8 +548,13 @@ func _input(event: InputEvent) -> void:
 		return
 	if key.keycode != KEY_ESCAPE and key.physical_keycode != KEY_ESCAPE:
 		return
-	_entry.release_focus()
-	get_viewport().set_input_as_handled()
+	if _entry != null and _entry.has_focus():
+		_entry.release_focus()
+		get_viewport().set_input_as_handled()
+		return
+	if is_open():
+		_close_menu()
+		get_viewport().set_input_as_handled()
 
 
 ## A click on the street, the book, or the laff meter leaves the line. Clicks
@@ -1016,9 +1021,6 @@ func _typing_blocked() -> bool:
 	if layer == null:
 		return false
 	if layer.get_node_or_null("BankGui") != null:
-		return true
-	var book := layer.get_node_or_null("ShtickerBook")
-	if book != null and book.has_method("is_open") and book.call("is_open") == true:
 		return true
 	return false
 

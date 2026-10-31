@@ -78,6 +78,7 @@ func assign(quest_id: int) -> void:
 
 func note_cog_defeat(cog: String) -> void:
 	var code := cog.to_lower()
+	CogGallery.note(code)
 	for entry in _active:
 		var quest_id := int(entry["id"])
 		var info: Dictionary = CATALOG[quest_id]
@@ -90,8 +91,7 @@ func note_cog_defeat(cog: String) -> void:
 	save()
 
 
-## The trolley game is not in yet. When it is, finishing a ride calls this.
-## Nothing else marks quest 110 complete.
+## Finishing a trolley ride calls this. Nothing else marks quest 110 complete.
 func note_trolley() -> void:
 	for entry in _active:
 		var info: Dictionary = CATALOG[int(entry["id"])]

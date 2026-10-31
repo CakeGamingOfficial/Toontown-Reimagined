@@ -824,7 +824,7 @@ func say_line(text: String) -> void:
 		_hud().add_child(_line)
 	_line_label.text = text
 	_line_left = maxf(2.8, float(text.length()) * 0.045)
-	_line.visible = true
+	_line.visible = _book == null or not _book.is_open()
 	_place_line()
 
 
@@ -1033,7 +1033,7 @@ func _place_line() -> void:
 	if _line == null or _camera == null:
 		return
 	_line_left = maxf(_line_left - get_process_delta_time(), 0.0)
-	if _line_left <= 0.0 or _player == null or not _player.visible:
+	if _line_left <= 0.0 or _player == null or not _player.visible or (_book != null and _book.is_open()):
 		_line.visible = false
 		return
 	var head := _find(_player, "def_head")

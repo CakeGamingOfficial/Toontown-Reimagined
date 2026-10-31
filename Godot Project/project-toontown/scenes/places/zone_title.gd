@@ -113,6 +113,7 @@ const _PLACE_BY_SCENE: Dictionary = {
 	"res://scenes/cog_hq/sellbot_front_factory.tscn": "Front Entrance",
 	"res://scenes/cog_hq/sellbot_side_factory.tscn": "Side Entrance",
 	"res://scenes/interiors/gag_shop.tscn": "Gag Shop",
+	"res://scenes/interiors/toon_hall.tscn": "Toon Hall",
 }
 
 var _label: Label

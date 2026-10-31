@@ -373,6 +373,24 @@ func clear_gesture() -> void:
 	_look_enabled = true
 
 
+## enterSwim pitches the geom -89 degrees and loops swim. enterDive sinks that
+## same body two units. The drop shadow stays off, the way both games hide it.
+func pose_swimming(sunk: bool) -> void:
+	var hips := _find(self, "joint_hips") as Node3D
+	if hips == null:
+		return
+	var body := hips
+	while body.get_parent() != self and body.get_parent() is Node3D:
+		body = body.get_parent() as Node3D
+	body.rotation_degrees.x = -89.0
+	body.position = Vector3(0.0, 0.0, -2.0 if sunk else 0.0)
+	var shadow := find_child("drop_shadow", true, false) as Node3D
+	if shadow:
+		shadow.visible = false
+	play_gesture("swim", 1.0, true)
+	set_locomotion(0.0, false, false, 0.0)
+
+
 func gesture_finished() -> bool:
 	if _gesture == "" or _gesture_loop:
 		return true
@@ -411,12 +429,29 @@ func _ensure_clips() -> void:
 	if not load_extra_clips:
 			return
 	# Extra clips have to load with the walk, while the joints are still at rest.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
 			var frames := _load_clip(suffix, clips, joints)
 			_extra[suffix] = {"clips": clips, "joints": joints, "frames": frames}
+
+
+## Jungle Vines poses swing. It is not in the everyday set: 144 frames per part.
+## Call this while the toon is still in the standing pose.
+func ensure_clip(suffix: String) -> void:
+	if _style == null:
+		return
+	_ensure_clips()
+	var bank: Dictionary = _extra.get(suffix, {})
+	if int(bank.get("frames", 0)) > 0:
+		return
+	var clips: Array = []
+	var joints: Array = []
+	var frames := _load_clip(suffix, clips, joints)
+	_extra[suffix] = {"clips": clips, "joints": joints, "frames": frames}
+	if not _cycle_time.has(suffix):
+		_cycle_time[suffix] = 0.0
 
 
 ## GravityWalker sends jumpHardLand when the impact is faster than 30.

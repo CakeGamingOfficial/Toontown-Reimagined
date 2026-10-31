@@ -11,7 +11,7 @@ const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random"
 
 const _WORDS: Dictionary = {
 	"help": "help",
@@ -42,6 +42,47 @@ const _WORDS: Dictionary = {
 	"restock": "restock",
 	"max": "max",
 	"idkfa": "max",
+	"minigame": "minigame",
+	"mg": "minigame",
+	"trolley": "minigame",
+}
+
+## Solo games from MinigamePlayerMatrix. Names match ToontownGlobals.MinigameNames.
+const _TROLLEY: Dictionary = {
+	"cannon": 2,
+	"ring": 5,
+	"maze": 6,
+	"tug": 7,
+	"tugofwar": 7,
+	"catch": 8,
+	"diving": 9,
+	"dive": 9,
+	"target": 10,
+	"slingshot": 10,
+	"pairing": 11,
+	"memory": 11,
+	"vine": 12,
+	"vines": 12,
+	"jungle": 12,
+	"thief": 14,
+	"cogthief": 14,
+	"2d": 15,
+	"twod": 15,
+	"escape": 15,
+}
+
+const _TROLLEY_NAMES: Dictionary = {
+	2: "Cannon Game",
+	5: "Ring Game",
+	6: "Maze Game",
+	7: "Tug-of-War",
+	8: "Catching Game",
+	9: "Treasure Dive",
+	10: "Toon Slingshot",
+	11: "Toon Memory Game",
+	12: "Jungle Vines",
+	14: "Cog Thief",
+	15: "Toon Escape",
 }
 
 const _ZONES: Dictionary = {
@@ -110,6 +151,7 @@ static var _hover_y := 0.0
 static var _fly_yaw := 0.0
 static var _fly_pitch := 0.0
 static var _fly_ready := false
+static var _trolley_next := 0
 
 
 static func looks_like(text: String) -> bool:
@@ -130,6 +172,13 @@ static func ignores_damage() -> bool:
 
 static func noclip() -> bool:
 	return _noclip
+
+
+## The next trolley boarding uses this id once, then goes back to random.
+static func take_trolley_game() -> int:
+	var game_id := _trolley_next
+	_trolley_next = 0
+	return game_id
 
 
 static func invoke(scene: Node, text: String) -> String:
@@ -175,6 +224,8 @@ static func invoke(scene: Node, text: String) -> String:
 			return _restock(scene, false)
 		"max":
 			return _restock(scene, true)
+		"minigame":
+			return _request_trolley(args)
 	return "Uh-oh! This Magic Word doesn't exist!"
 
 
@@ -362,6 +413,37 @@ static func _set_collisions(scene: Node, args: PackedStringArray) -> String:
 		_hover_y = body.global_position.y
 		return "Collisions are off. Jump rises, C sinks."
 	return "Collisions are on."
+
+
+static func _request_trolley(args: PackedStringArray) -> String:
+	var token := ""
+	if not args.is_empty():
+		token = args[0].to_lower()
+		if token == "request" or token == "next" or token == "teleport" or token == "tp":
+			token = args[1].to_lower() if args.size() > 1 else ""
+	var key := token.replace(" ", "").replace("-", "").replace("_", "").replace("'", "")
+	if key == "":
+		if _trolley_next == 0:
+			return "The next trolley game is random. " + _trolley_choices()
+		return "The next trolley game will be %s. ~mg random puts it back." % String(_TROLLEY_NAMES[_trolley_next])
+	if key == "random" or key == "clear" or key == "off" or key == "any" or key == "none":
+		_trolley_next = 0
+		return "The next trolley game is random again."
+	var game_id := 0
+	if key.is_valid_int():
+		game_id = int(key)
+	elif _TROLLEY.has(key):
+		game_id = int(_TROLLEY[key])
+	else:
+		return "Unknown trolley game \"%s\". %s" % [token, _trolley_choices()]
+	if not _TROLLEY_NAMES.has(game_id):
+		return "That game isn't on the solo trolley. " + _trolley_choices()
+	_trolley_next = game_id
+	return "The next trolley game will be %s." % String(_TROLLEY_NAMES[game_id])
+
+
+static func _trolley_choices() -> String:
+	return "Try ~mg cannon, ring, maze, tug, catch, diving, slingshot, memory, vine, thief, or escape."
 
 
 static func _unknown(word: String) -> String:

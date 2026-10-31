@@ -206,6 +206,105 @@ func gag_count() -> int:
 	return total
 
 
+## InventoryBase CarryLimits. The row is Experience.getExpLevel, the highest
+## gag the toon has trained. Trap holds fewer of each gag than the other tracks.
+const _CARRY_STANDARD: Array = [
+	[10, 0, 0, 0, 0, 0, 0],
+	[10, 5, 0, 0, 0, 0, 0],
+	[15, 10, 5, 0, 0, 0, 0],
+	[20, 15, 10, 5, 0, 0, 0],
+	[25, 20, 15, 10, 3, 0, 0],
+	[30, 25, 20, 15, 7, 3, 0],
+	[30, 25, 20, 15, 7, 3, 1],
+]
+const _CARRY_TRAP: Array = [
+	[5, 0, 0, 0, 0, 0, 0],
+	[7, 3, 0, 0, 0, 0, 0],
+	[10, 7, 3, 0, 0, 0, 0],
+	[15, 10, 7, 3, 0, 0, 0],
+	[15, 15, 10, 5, 3, 0, 0],
+	[20, 15, 15, 10, 5, 2, 0],
+	[20, 15, 15, 10, 5, 2, 1],
+]
+## Level 6 is the boss gag. LAST_REGULAR_GAG_LEVEL is 5, and the shop will not sell it.
+const LAST_REGULAR := 5
+
+
+## Experience.getExpLevel. Skill at or past a gag's point counts as that level.
+func skill_level(track: int) -> int:
+	if track < 0 or track >= _SKILL.size():
+		return 0
+	var points: Array = _SKILL[track]
+	var exp := experience_of(track)
+	var level := 0
+	for index in points.size():
+		if exp >= int(points[index]):
+			level = index
+	return level
+
+
+## A new toon starts with throw and squirt. Later tracks open when one gag is owned.
+func track_open(track: int) -> bool:
+	if track == THROW or track == SQUIRT:
+		return true
+	if experience_of(track) > 0:
+		return true
+	for level in LEVEL_COUNT:
+		if unlocked(track, level):
+			return true
+	return false
+
+
+func gag_usable(track: int, level: int) -> bool:
+	if not _valid(track, level) or not track_open(track):
+		return false
+	var points: Array = _SKILL[track]
+	return experience_of(track) >= int(points[level])
+
+
+func carry_limit(track: int, level: int) -> int:
+	if not _valid(track, level):
+		return 0
+	var table: Array = _CARRY_TRAP if track == 1 else _CARRY_STANDARD
+	var row: Array = table[clampi(skill_level(track), 0, table.size() - 1)]
+	return int(row[level])
+
+
+## InventoryBase.addItem. A positive result is the new count. 0 means the toon
+## has not trained that gag, -1 means that pocket is full, -2 means the pouch is.
+func purchase(track: int, level: int) -> int:
+	if not gag_usable(track, level) or level > LAST_REGULAR:
+		return 0
+	if count_of(track, level) >= carry_limit(track, level):
+		return -1
+	if _regular_count() >= max_carry:
+		return -2
+	var next := count_of(track, level) + 1
+	set_gag(track, level, next, true)
+	save()
+	return next
+
+
+func toss_gag(track: int, level: int) -> bool:
+	if count_of(track, level) <= 0:
+		return false
+	set_gag(track, level, count_of(track, level) - 1, true)
+	save()
+	return true
+
+
+func pouch_full() -> bool:
+	return _regular_count() >= max_carry
+
+
+func _regular_count() -> int:
+	var total := 0
+	for track in TRACK_COUNT:
+		for level in LAST_REGULAR + 1:
+			total += count_of(track, level)
+	return total
+
+
 ## ToontownBattleGlobals.getAvPropDamage. Experience between this gag's
 ## skill point and the next one climbs from the minimum damage to the maximum.
 static func gag_damage(track: int, level: int, exp: int) -> int:
