@@ -22,6 +22,7 @@ ToonCursor="*res://scenes/gui/toon_cursor.gd"
 ToonAudioBus="*res://scenes/audio/toon_audio.gd"
 DiscordPresence="*res://scenes/discord/discord_presence.gd"
 DevConsole="*res://scenes/debug/dev_console.gd"
+StreetTraffic="*res://scenes/streets/street_traffic.gd"
 
 [dotnet]
 

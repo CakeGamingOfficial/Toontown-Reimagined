@@ -28,6 +28,7 @@ const STREETS := {
 }
 
 var json_path := ""
+var street_slug := ""
 
 var _points: Array[Vector3] = []
 var _links: Array[PackedInt32Array] = []
@@ -58,6 +59,7 @@ static func attach(host: Node3D) -> void:
 	var node := script.new() as Node
 	node.name = "StreetSuits"
 	node.set("json_path", path)
+	node.set("street_slug", base)
 	host.add_child(node)
 
 
@@ -70,7 +72,16 @@ func _ready() -> void:
 	_build_layout()
 	_prepare_nametags()
 	_filling = true
-	_fill()
+	tree_exiting.connect(_park)
+	var saved := _claim()
+	var raw_rows: Variant = saved.get("cogs", [])
+	if raw_rows is Array:
+		for item in raw_rows as Array:
+			if item is Dictionary:
+				_spawn_state(item)
+	_filling = _living < _count
+	if _filling:
+		_fill()
 
 
 func _process(_delta: float) -> void:
@@ -111,7 +122,7 @@ func _nametag_blocked(actor: Node3D, point: Vector3) -> bool:
 	if cam.global_position.distance_squared_to(head) > 90.0 * 90.0:
 		actor.set_meta("occ", false)
 		return false
-	var origin := cam.global_position + cam.global_basis.z * 3.0
+	var origin := cam.global_position
 	var world := actor.get_world_3d()
 	var blocked := _sight_blocked(world, origin, head) or _sight_blocked(world, origin, point)
 	actor.set_meta("occ", blocked)
@@ -126,43 +137,31 @@ func _sight_blocked(world: World3D, origin: Vector3, point: Vector3) -> bool:
 	var total := origin.distance_to(point)
 	if total < 0.05:
 		return false
-	for _step in 6:
-		var query := PhysicsRayQueryParameters3D.create(origin, point)
+	var query := PhysicsRayQueryParameters3D.create(origin, point)
+	for _step in 10:
+		query.from = origin
+		query.to = point
 		query.collide_with_areas = false
 		query.hit_back_faces = true
+		query.collision_mask = 1
 		query.exclude = skip
 		var hit := space.intersect_ray(query)
 		if hit.is_empty():
 			return false
 		var normal: Vector3 = hit["normal"]
 		var hit_at: Vector3 = hit["position"]
-		if origin.distance_to(hit_at) < 0.35:
+		if origin.distance_to(hit_at) < 0.05:
 			var near_rid: RID = hit["rid"]
 			skip.append(near_rid)
 			continue
-		if origin.distance_to(hit_at) + 0.2 >= total:
+		if hit_at.distance_to(point) < 0.45:
 			return false
-		if normal.y > 0.55 or _not_a_wall(hit):
+		if normal.y > 0.55:
 			var rid: RID = hit["rid"]
 			skip.append(rid)
 			continue
 		return true
 	return false
-
-
-## Curbs and the toon are not walls. A short solid does not hide the card.
-func _not_a_wall(hit: Dictionary) -> bool:
-	var collider := hit.get("collider") as Object
-	if collider is CharacterBody3D:
-		return true
-	if not collider is Node3D:
-		return false
-	var host := (collider as Node3D).get_parent() as MeshInstance3D
-	if host == null or host.mesh == null:
-		return false
-	var box := host.global_transform * host.get_aabb()
-	return box.size.y < 1.6
-
 
 func _load_street() -> bool:
 	if not FileAccess.file_exists(json_path):
@@ -329,15 +328,63 @@ func _build_layout() -> void:
 
 func _fill() -> void:
 	var spawned := 0
-	while spawned < _count:
-		if spawned > 0:
+	while _living < _count:
+		var before := _living
+		if _living > 0:
 			await get_tree().create_timer(randf_range(1.6, 3.4)).timeout
 		if not is_inside_tree():
 			return
 		_spawn()
-		spawned += 1
+		if _living == before:
+			_filling = false
+			return
 	_filling = false
 
+
+func _spawn_state(state: Dictionary) -> void:
+	if _living >= _count:
+		return
+	var cog: Variant = state.get("cog", {})
+	if not (cog is Dictionary) or (cog as Dictionary).is_empty():
+		return
+	var suit := _COG.new() as Node3D
+	add_child(suit)
+	suit.connect("departed", _on_departed)
+	suit.call("setup", cog, _points, _route, int(state.get("slot", 0)), _timing, _propeller, state)
+	_living += 1
+
+
+func _claim() -> Dictionary:
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic == null or not traffic.has_method("claim"):
+		return {}
+	var claimed: Variant = traffic.call("claim", street_slug)
+	if claimed is Dictionary:
+		return claimed
+	return {}
+
+
+func _park() -> void:
+	if street_slug.is_empty() or _route.size() < 2:
+		return
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic == null or not traffic.has_method("hold"):
+		return
+	var cogs: Array = []
+	for child in get_children():
+		if child.has_method("capture"):
+			cogs.append(child.call("capture"))
+	traffic.call("hold", street_slug, {
+		"points": _points,
+		"route": _route,
+		"count": _count,
+		"catalog": _catalog,
+		"levels": _levels,
+		"tracks": _tracks,
+		"max_type": _max_type,
+		"cogs": cogs,
+		"waits": [],
+	})
 
 func _spawn() -> void:
 	if _living >= _count or _starts.is_empty():
@@ -348,8 +395,35 @@ func _spawn() -> void:
 	var suit := _COG.new() as Node3D
 	add_child(suit)
 	suit.connect("departed", _on_departed)
-	suit.call("setup", cog, _points, _route, randi() % _route.size(), _timing, _propeller)
+	suit.call("setup", cog, _points, _route, _open_slot(), _timing, _propeller)
 	_living += 1
+
+
+## Spread arrivals around the loop. Two suits should not land on the same corner.
+func _open_slot() -> int:
+	var count := _route.size()
+	if count < 1:
+		return 0
+	var taken := PackedInt32Array()
+	for child in get_children():
+		if child.has_method("lane_slot"):
+			taken.append(int(child.call("lane_slot")))
+	if taken.is_empty():
+		return randi() % count
+	var best := 0
+	var best_gap := -1
+	var slot := randi() % count
+	for _step in count:
+		var gap := count
+		for other in taken:
+			var along := absi(slot - int(other))
+			along = mini(along, count - along)
+			gap = mini(gap, along)
+		if gap > best_gap:
+			best_gap = gap
+			best = slot
+		slot = (slot + 1) % count
+	return best
 
 
 func _on_departed() -> void:

@@ -139,8 +139,21 @@ static func _collect_bodies(node: Node, bodies: Array) -> void:
 
 static func _use_meshes(live: Node3D, meshes: Array) -> void:
 	var count := meshes.size()
-	while live.get_child_count() > count:
-		var extra := live.get_child(live.get_child_count() - 1)
+	var shown: Array[MeshInstance3D] = []
+	var extras: Array[Node] = []
+	for child in live.get_children():
+		if String(child.name) == "ViewOccluder":
+			continue
+		if child is MeshInstance3D:
+			shown.append(child)
+		else:
+			extras.append(child)
+	while shown.size() > count:
+		var extra := shown[shown.size() - 1]
+		shown.remove_at(shown.size() - 1)
+		live.remove_child(extra)
+		extra.free()
+	for extra in extras:
 		live.remove_child(extra)
 		extra.free()
 	for index in count:
@@ -148,8 +161,8 @@ static func _use_meshes(live: Node3D, meshes: Array) -> void:
 		if mesh == null:
 			continue
 		var instance: MeshInstance3D
-		if index < live.get_child_count():
-			instance = live.get_child(index) as MeshInstance3D
+		if index < shown.size():
+			instance = shown[index]
 		else:
 			instance = MeshInstance3D.new()
 			instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -176,13 +189,16 @@ static func _is_zone(node: Node) -> bool:
 static func _batch(zone: Node3D, root: Node) -> void:
 	var job := Job.new()
 	var taken: Array[MeshInstance3D] = []
-	_collect(zone, zone, zone.global_transform.affine_inverse(), job, taken)
+	var layer := 0 if _is_zone(zone) else 1
+	_collect(zone, zone, zone.global_transform.affine_inverse(), job, taken, layer)
 	if not job.faces.is_empty():
 		var shape := ConcavePolygonShape3D.new()
+		shape.backface_collision = true
 		shape.set_faces(job.faces)
 		var body := StaticBody3D.new()
-		body.name = "ZoneSolid"
-		body.collision_layer = 0 if _is_zone(zone) else 1
+		body.name = "ZoneShell"
+		body.collision_layer = layer
+		body.collision_mask = 0
 		var collision := CollisionShape3D.new()
 		collision.shape = shape
 		body.add_child(collision)
@@ -201,15 +217,15 @@ static func _batch(zone: Node3D, root: Node) -> void:
 		mesh.mesh = null
 
 
-static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job, taken: Array[MeshInstance3D]) -> void:
+static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job, taken: Array[MeshInstance3D], layer: int) -> void:
 	if node != zone and _leave_alone(String(node.name)):
 		return
 	if node is MeshInstance3D and node != zone:
 		var mesh := node as MeshInstance3D
-		if mesh.visible and _take(mesh, into_zone, job):
+		if mesh.visible and _take(mesh, into_zone, job, layer):
 			taken.append(mesh)
 	for child in node.get_children():
-		_collect(child, zone, into_zone, job, taken)
+		_collect(child, zone, into_zone, job, taken, layer)
 
 
 static func _leave_alone(node_name: String) -> bool:
@@ -221,7 +237,7 @@ static func _leave_alone(node_name: String) -> bool:
 	return lowered == "leftdoor" or lowered == "rightdoor" or lowered.begins_with("doorframehole") or lowered == "door_flat" or lowered.ends_with("_flat") or lowered == "def_left_door" or lowered == "def_right_door"
 
 
-static func _take(mesh: MeshInstance3D, into_zone: Transform3D, job: Job) -> bool:
+static func _take(mesh: MeshInstance3D, into_zone: Transform3D, job: Job, layer: int) -> bool:
 	if mesh.mesh == null or mesh.mesh.get_surface_count() == 0:
 		return false
 	for surface in mesh.mesh.get_surface_count():
@@ -239,13 +255,17 @@ static func _take(mesh: MeshInstance3D, into_zone: Transform3D, job: Job) -> boo
 	var to_local := into_zone * mesh.global_transform
 	if absf(to_local.basis.determinant()) < 0.0000001:
 		return false
+	var kind := _solid_kind(String(mesh.name))
+	var shell := kind == "solid" and _has_opaque(mesh)
 	var copied := 0
 	for surface in mesh.mesh.get_surface_count():
-		copied += _take_surface(mesh, surface, to_local, job)
+		copied += _take_surface(mesh, surface, to_local, job, shell)
+	if copied > 0 and kind == "floor" and _has_opaque(mesh):
+		_add_street_solid(mesh, layer)
 	return copied > 0
 
 
-static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, job: Job) -> int:
+static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, job: Job, shell: bool) -> int:
 	var material := mesh.get_active_material(surface)
 	if _hidden_card(material):
 		return 0
@@ -276,7 +296,7 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 	var cursor := 0
 	var limit := ids.size() if ids.size() >= 3 else source_verts.size()
 	var copied := 0
-	var opaque := not (material is BaseMaterial3D) or (material as BaseMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED
+	var shell_surface := shell and _surface_blocks(material)
 	while cursor + 2 < limit:
 		var i0 := cursor
 		var i1 := cursor + 1
@@ -291,16 +311,18 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 		var p0 := to_local * source_verts[i0]
 		var p1 := to_local * source_verts[i1]
 		var p2 := to_local * source_verts[i2]
+		# The shell is only the walls a toon can walk into. Pavement is already a
+		# box, and every trim triangle in the concave is what makes the physics
+		# step take the whole frame.
+		var cross := (p1 - p0).cross(p2 - p0)
+		var span := cross.length_squared()
+		if shell_surface and span > 0.64 and absf(cross.y) < sqrt(span) * 0.82:
+			job.faces.append(p0)
+			job.faces.append(p1)
+			job.faces.append(p2)
 		bucket.verts.append(p0)
 		bucket.verts.append(p1)
 		bucket.verts.append(p2)
-		if opaque and _keep_solid(p0, p1, p2):
-			if _is_floor(p0, p1, p2):
-				_append_floor(job.faces, p0, p1, p2)
-			else:
-				job.faces.append(p0)
-				job.faces.append(p1)
-				job.faces.append(p2)
 		bucket.norms.append(_normal(source_norms, normal_basis, i0, p0, p1, p2))
 		bucket.norms.append(_normal(source_norms, normal_basis, i1, p1, p2, p0))
 		bucket.norms.append(_normal(source_norms, normal_basis, i2, p2, p0, p1))
@@ -317,63 +339,213 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 	return copied
 
 
-static func _keep_solid(a: Vector3, b: Vector3, c: Vector3) -> bool:
-	var cross := (b - a).cross(c - a)
-	var span := cross.length()
-	if span < 0.08:
-		return false
-	if absf(cross.y) / span > 0.55:
+## Floors are a thick slab under the pavement. Walls and props keep the mesh
+## triangles, so a doorway or a tunnel arch is not filled in by a bounding box.
+static func _add_street_solid(mesh: MeshInstance3D, layer: int) -> void:
+	var kind := _solid_kind(String(mesh.name))
+	if kind == "skip" or not _has_opaque(mesh):
+		return
+	if kind == "floor" and not _is_ramp(mesh):
+		_add_floor_box(mesh, layer)
+	elif kind == "floor":
+		_add_floor_volume(mesh, layer)
+
+
+static func _surface_blocks(material: Material) -> bool:
+	if not (material is BaseMaterial3D):
 		return true
-	return span > 0.35
+	var mode := (material as BaseMaterial3D).transparency
+	return mode == BaseMaterial3D.TRANSPARENCY_DISABLED or mode == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR or mode == BaseMaterial3D.TRANSPARENCY_ALPHA_HASH
 
 
-## A street floor is a single triangle sheet. Give it a lip past the edge and
-## a body under the pavement, or the toon drops through the seam and then
-## comes back standing on whatever box was left above the road.
-static func _is_floor(a: Vector3, b: Vector3, c: Vector3) -> bool:
-	var cross := (b - a).cross(c - a)
-	var span := cross.length()
-	return span > 0.08 and absf(cross.y) / span > 0.55
+static func _solid_kind(node_name: String) -> String:
+	var lowered := node_name.to_lower()
+	if lowered.contains("shadow") or lowered.contains("billboard") or lowered.contains("decal") or lowered.contains("sky"):
+		return "skip"
+	if lowered.contains("background"):
+		return "solid"
+	if lowered.contains("sidewalk") or lowered.contains("curb") or lowered.ends_with("street"):
+		return "floor"
+	if lowered.contains("grass") or lowered.contains("floor") or lowered.contains("slope") or lowered.contains("stair") or lowered.contains("sunken"):
+		return "floor"
+	if lowered == "ground" or lowered.ends_with("_ground") or lowered.contains("outsideground") or lowered.contains("outside_ground"):
+		return "floor"
+	return "solid"
 
 
-static func _append_floor(faces: PackedVector3Array, a: Vector3, b: Vector3, c: Vector3) -> void:
-	var mid := (a + b + c) / 3.0
-	a = _spread(a, mid)
-	b = _spread(b, mid)
-	c = _spread(c, mid)
-	if (b - a).cross(c - a).y < 0.0:
-		var flip := b
-		b = c
-		c = flip
-	var down := Vector3(0.0, -2.0, 0.0)
-	var low_a := a + down
-	var low_b := b + down
-	var low_c := c + down
-	faces.append(a)
-	faces.append(b)
-	faces.append(c)
-	faces.append(low_a)
-	faces.append(low_c)
-	faces.append(low_b)
-	_append_side(faces, a, b, low_a, low_b)
-	_append_side(faces, b, c, low_b, low_c)
-	_append_side(faces, c, a, low_c, low_a)
+static func _has_opaque(mesh: MeshInstance3D) -> bool:
+	var source := mesh.mesh
+	if source == null:
+		return false
+	for index in source.get_surface_count():
+		var material := mesh.get_active_material(index)
+		if not (material is BaseMaterial3D):
+			return true
+		var mode := (material as BaseMaterial3D).transparency
+		if mode == BaseMaterial3D.TRANSPARENCY_DISABLED or mode == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR or mode == BaseMaterial3D.TRANSPARENCY_ALPHA_HASH:
+			return true
+	return false
 
 
-static func _spread(point: Vector3, mid: Vector3) -> Vector3:
-	var flat := Vector3(point.x - mid.x, 0.0, point.z - mid.z)
-	if flat.length_squared() < 0.0001:
-		return point
-	return point + flat.normalized() * 0.55
+static func _is_ramp(mesh: MeshInstance3D) -> bool:
+	var lowered := String(mesh.name).to_lower()
+	if lowered.contains("slope") or lowered.contains("stair") or lowered.contains("sunken"):
+		return true
+	var up := mesh.global_basis.inverse() * Vector3.UP
+	var size := mesh.get_aabb().size
+	var along := size.x
+	if absf(up.z) >= absf(up.x) and absf(up.z) >= absf(up.y):
+		along = size.z
+	elif absf(up.y) >= absf(up.x):
+		along = size.y
+	return along >= 1.6
 
 
-static func _append_side(faces: PackedVector3Array, top_a: Vector3, top_b: Vector3, low_a: Vector3, low_b: Vector3) -> void:
-	faces.append(top_a)
-	faces.append(low_a)
-	faces.append(top_b)
-	faces.append(top_b)
-	faces.append(low_a)
-	faces.append(low_b)
+static func _add_floor_box(mesh: MeshInstance3D, layer: int) -> void:
+	var bounds := mesh.get_aabb()
+	var origin := bounds.position
+	var size := bounds.size
+	var up := mesh.global_basis.inverse() * Vector3.UP
+	var overlap := 0.2
+	var depth := 1.6
+	if absf(up.x) < 0.6:
+		origin.x -= overlap
+		size.x += overlap * 2.0
+	if absf(up.y) < 0.6:
+		origin.y -= overlap
+		size.y += overlap * 2.0
+	if absf(up.z) < 0.6:
+		origin.z -= overlap
+		size.z += overlap * 2.0
+	if absf(up.z) >= absf(up.x) and absf(up.z) >= absf(up.y):
+		if up.z >= 0.0:
+			origin.z -= depth
+		size.z += depth
+	elif absf(up.y) >= absf(up.x):
+		if up.y >= 0.0:
+			origin.y -= depth
+		size.y += depth
+	else:
+		if up.x >= 0.0:
+			origin.x -= depth
+		size.x += depth
+	if size.x < 0.05 or size.y < 0.05 or size.z < 0.05:
+		_add_trimesh(mesh, layer)
+		return
+	var box := BoxShape3D.new()
+	box.size = size
+	_commit_shape(mesh, box, origin + size * 0.5, layer)
+
+
+static func _add_floor_volume(mesh: MeshInstance3D, layer: int) -> void:
+	var source := mesh.mesh
+	var faces := PackedVector3Array()
+	var world_xform := mesh.global_transform
+	var to_local := world_xform.affine_inverse()
+	var drop := Vector3(0.0, -1.6, 0.0)
+	for index in source.get_surface_count():
+		if source.surface_get_primitive_type(index) != Mesh.PRIMITIVE_TRIANGLES:
+			_add_trimesh(mesh, layer)
+			return
+		var arrays: Array = source.surface_get_arrays(index)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		if verts.is_empty():
+			continue
+		var indices := PackedInt32Array()
+		var raw_index: Variant = arrays[Mesh.ARRAY_INDEX]
+		if raw_index is PackedInt32Array:
+			indices = raw_index
+		var indexed := not indices.is_empty()
+		var count := indices.size() if indexed else verts.size()
+		var cursor := 0
+		while cursor + 2 < count:
+			var i0 := cursor
+			var i1 := cursor + 1
+			var i2 := cursor + 2
+			if indexed:
+				i0 = indices[cursor]
+				i1 = indices[cursor + 1]
+				i2 = indices[cursor + 2]
+			var w0 := world_xform * verts[i0]
+			var w1 := world_xform * verts[i1]
+			var w2 := world_xform * verts[i2]
+			var normal := (w1 - w0).cross(w2 - w0)
+			if absf(normal.y) > 0.25 and normal.length_squared() > 0.0001:
+				if normal.y < 0.0:
+					var flip := w1
+					w1 = w2
+					w2 = flip
+				var low_a := w0 + drop
+				var low_b := w1 + drop
+				var low_c := w2 + drop
+				var top_a := to_local * w0
+				var top_b := to_local * w1
+				var top_c := to_local * w2
+				var base_a := to_local * low_a
+				var base_b := to_local * low_b
+				var base_c := to_local * low_c
+				faces.append(top_a)
+				faces.append(top_b)
+				faces.append(top_c)
+				faces.append(base_a)
+				faces.append(base_c)
+				faces.append(base_b)
+				faces.append(top_a)
+				faces.append(base_a)
+				faces.append(top_b)
+				faces.append(top_b)
+				faces.append(base_a)
+				faces.append(base_b)
+				faces.append(top_b)
+				faces.append(base_b)
+				faces.append(top_c)
+				faces.append(top_c)
+				faces.append(base_b)
+				faces.append(base_c)
+				faces.append(top_c)
+				faces.append(base_c)
+				faces.append(top_a)
+				faces.append(top_a)
+				faces.append(base_c)
+				faces.append(base_a)
+			cursor += 3
+	if faces.is_empty():
+		_add_trimesh(mesh, layer)
+		return
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.data = faces
+	_commit_shape(mesh, shape, Vector3.ZERO, layer)
+
+
+static func _add_trimesh(mesh: MeshInstance3D, layer: int) -> void:
+	var before := mesh.get_child_count()
+	mesh.create_trimesh_collision()
+	for index in range(before, mesh.get_child_count()):
+		var body := mesh.get_child(index) as StaticBody3D
+		if body == null:
+			continue
+		body.collision_layer = layer
+		body.collision_mask = 0
+		for child in body.get_children():
+			var shape_node := child as CollisionShape3D
+			if shape_node == null:
+				continue
+			var concave := shape_node.shape as ConcavePolygonShape3D
+			if concave != null:
+				concave.backface_collision = true
+
+
+static func _commit_shape(mesh: MeshInstance3D, shape: Shape3D, center: Vector3, layer: int) -> void:
+	var body := StaticBody3D.new()
+	body.name = "Solid"
+	body.collision_layer = layer
+	body.collision_mask = 0
+	var shape_node := CollisionShape3D.new()
+	shape_node.shape = shape
+	shape_node.position = center
+	body.add_child(shape_node)
+	mesh.add_child(body)
 
 
 static func _hidden_card(material: Material) -> bool:

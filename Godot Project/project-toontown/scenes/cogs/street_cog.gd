@@ -20,6 +20,7 @@ const _DEPT_NAMES := {
 }
 ## Parsed clip files are shared. Each cog only keeps its own mesh instance.
 static var _clip_files: Dictionary = {}
+const _SHADE := preload("res://scenes/cogs/cog_shade.gdshader")
 
 signal departed
 
@@ -51,17 +52,18 @@ var _prop_time := 0.0
 var _prop_frames := 0
 var _prop_fps := DEFAULT_FPS
 var _ground := Vector3.ZERO
-var _materials: Array[BaseMaterial3D] = []
-var _material_modes: Array[int] = []
+var _materials: Array[ShaderMaterial] = []
+var _source: Dictionary = {}
 var _walk: Dictionary = {}
 var _neutral: Dictionary = {}
 var _landing: Dictionary = {}
 var _attacks: Dictionary = {}
+var _body_timing: Dictionary = {}
 var _propeller: Node3D
 var _prop_bank: Dictionary = {}
 var _sound: AudioStreamPlayer3D
 
-func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary) -> void:
+func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
 	cog_code = str(cog["code"])
 	cog_name = str(cog["name"])
 	dept = str(cog["dept"])
@@ -69,6 +71,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	height = float(cog["height"])
 	cog_level = int(cog.get("level", 1))
 	name = cog_name
+	_source = cog
 	_points = points
 	_route = route
 	_slot = 0
@@ -76,6 +79,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		_slot = posmod(start, route.size())
 	_edges_left = _street_stay(route.size())
 	var body_timing: Dictionary = timing.get(body, {})
+	_body_timing = body_timing
 	var walk_info: Dictionary = body_timing.get("walk", {})
 	var neutral_info: Dictionary = body_timing.get("neutral", {})
 	var landing_info: Dictionary = body_timing.get("landing", {})
@@ -98,27 +102,88 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	var actor := packed.instantiate()
 	actor.name = "Suit"
 	add_child(actor)
-	_own_materials(actor)
 	_hide_gray_cuffs(actor)
+	_own_materials(actor)
+	_quiet_shadows(actor)
 	_add_nametag()
 	_walk = _read_bank("res://assets/cogs/anims/%s/walk.walk" % body)
 	_neutral = _read_bank("res://assets/cogs/anims/%s/neutral.walk" % body)
 	_landing = _read_bank("res://assets/cogs/anims/%s/landing.walk" % body)
 	if int(_landing.get("frames", 0)) > 1:
 		_landing_frames = int(_landing["frames"])
-	_prepare_landing()
 	if _route.size() < 2:
 		departed.emit()
 		queue_free()
 		return
-	_ground = _points[_route[_slot]]
-	_goal = _ground
-	global_position = _ground + Vector3(0.0, SKY_HEIGHT, 0.0)
-	_set_alpha(0.0)
-	_step_lane()
-	_attach_propeller()
-	_play_propeller(true)
-	_pose_clip(_landing, 0, 0, 0.0)
+	_prepare_landing()
+	if resume.is_empty():
+		_ground = _points[_route[_slot]]
+		_goal = _ground
+		global_position = _ground + Vector3(0.0, SKY_HEIGHT, 0.0)
+		_set_alpha(0.0)
+		_step_lane()
+		_attach_propeller()
+		_play_propeller(true)
+		_pose_clip(_landing, 0, 0, 0.0)
+		return
+	_resume(resume)
+
+
+func capture() -> Dictionary:
+	return {
+		"cog": _source,
+		"slot": _slot,
+		"edges": _edges_left,
+		"phase": _phase,
+		"fly": _fly,
+		"walk": _walk_time,
+		"idle": _idle_time,
+		"goal": _goal,
+		"ground": _ground,
+		"position": global_position,
+		"yaw": rotation.y,
+		"till": _till_land,
+		"impact": _impact,
+	}
+
+
+func _resume(state: Dictionary) -> void:
+	_slot = posmod(int(state.get("slot", _slot)), maxi(_route.size(), 1))
+	_edges_left = maxi(int(state.get("edges", _edges_left)), 1)
+	_phase = int(state.get("phase", 1))
+	_fly = float(state.get("fly", 0.0))
+	_walk_time = float(state.get("walk", 0.0))
+	_idle_time = float(state.get("idle", 0.0))
+	_goal = _vec(state, "goal", _points[_route[_slot]])
+	_ground = _vec(state, "ground", _goal)
+	global_position = _vec(state, "position", _ground)
+	rotation.y = float(state.get("yaw", 0.0))
+	if _phase == 0:
+		_set_alpha(clampf(_fly, 0.0, 1.0))
+		_attach_propeller()
+		_play_propeller(true)
+		_pose_elapsed(_landing, maxf(_fly - _wait, 0.0), _landing_fps, false)
+		return
+	if _phase == 2:
+		_set_alpha(1.0 - clampf(_fly, 0.0, 1.0))
+		_attach_propeller()
+		_play_propeller(false)
+		var dur := float(maxi(_landing_frames, 1)) / _landing_fps
+		_pose_elapsed(_landing, dur - _fly, _landing_fps, false)
+		return
+	_phase = 1
+	_set_alpha(1.0)
+	var frames := maxi(int(_walk.get("frames", 1)), 1)
+	_walk_time = fposmod(_walk_time, float(frames))
+	var frame := int(_walk_time) % frames
+	_pose_clip(_walk, frame, (frame + 1) % frames, _walk_time - float(frame))
+
+
+func _vec(state: Dictionary, key: String, fallback: Vector3) -> Vector3:
+	var value: Variant = state.get(key, fallback)
+	if value is Vector3:
+		return value
+	return fallback
 
 
 func play_attack(key: String, elapsed: float) -> void:
@@ -129,7 +194,9 @@ func play_attack(key: String, elapsed: float) -> void:
 	var frames := int(bank.get("frames", 0))
 	if frames <= 1:
 		return
-	var fps := _walk_fps
+	if is_visible_in_tree():
+		_detail = 2
+	var fps := _attack_fps(key)
 	var time := clampf(elapsed * fps, 0.0, float(frames - 1))
 	var frame := mini(int(time), frames - 1)
 	var following := mini(frame + 1, frames - 1)
@@ -213,14 +280,28 @@ func _fly_out(delta: float) -> void:
 		queue_free()
 
 
+func lane_slot() -> int:
+	return _slot
+
+
+func on_lane() -> bool:
+	return _phase == 1
+
+
 func _roam(delta: float) -> void:
 	if _route.size() < 2:
 		_begin_fly_out()
 		return
-	var origin := _points[_route[_slot]]
+	# The goal is always the next point on the right-hand loop. A saved goal
+	# from another visit must not pull the suit across the street.
+	_goal = _points[_route[(_slot + 1) % _route.size()]]
+	_snap_to_lane()
 	var flat := Vector2(global_position.x, global_position.z)
 	var target := Vector2(_goal.x, _goal.z)
 	var remaining := flat.distance_to(target)
+	if _lane_blocked():
+		_idle(delta)
+		return
 	if remaining < 0.08:
 		global_position = _goal
 		_slot = (_slot + 1) % _route.size()
@@ -234,6 +315,7 @@ func _roam(delta: float) -> void:
 	var toward := (target - flat) / remaining
 	global_position.x += toward.x * step
 	global_position.z += toward.y * step
+	var origin := _points[_route[_slot]]
 	var span := Vector2(origin.x, origin.z).distance_to(target)
 	if span > 0.001:
 		global_position.y = lerpf(origin.y, _goal.y, 1.0 - remaining / span)
@@ -248,6 +330,55 @@ func _roam(delta: float) -> void:
 		_pose_clip(_walk, frame, (frame + 1) % frames, blend)
 	else:
 		_idle(delta)
+
+
+## Drop the suit back onto the segment it is supposed to be walking.
+func _snap_to_lane() -> void:
+	var origin := _points[_route[_slot]]
+	var start := Vector2(origin.x, origin.z)
+	var end := Vector2(_goal.x, _goal.z)
+	var here := Vector2(global_position.x, global_position.z)
+	var edge := end - start
+	var length := edge.length_squared()
+	var along := 0.0
+	if length > 0.0001:
+		along = clampf((here - start).dot(edge) / length, 0.0, 1.0)
+	var on_path := start.lerp(end, along)
+	if here.distance_squared_to(on_path) > 0.12:
+		global_position.x = on_path.x
+		global_position.z = on_path.y
+	global_position.y = lerpf(origin.y, _goal.y, along)
+
+
+## The suit ahead keeps the lane. A pile stops and lets that one walk off.
+func _lane_blocked() -> bool:
+	var parent := get_parent()
+	if parent == null:
+		return false
+	var toward := Vector2(_goal.x - global_position.x, _goal.z - global_position.z)
+	var reach := toward.length()
+	var mine := get_instance_id()
+	for child in parent.get_children():
+		if child == self or not (child is StreetCog):
+			continue
+		var other := child as StreetCog
+		if not other.on_lane():
+			continue
+		var flat := Vector2(other.global_position.x - global_position.x, other.global_position.z - global_position.z)
+		var dist := flat.length()
+		if dist < 2.0 and other.get_instance_id() < mine:
+			return true
+		if dist > 6.0 or dist < 0.001 or reach < 0.001:
+			continue
+		# Only the suit walking the same way, and ahead, holds this one back.
+		# The suit on the opposite sidewalk is close at a corner and must pass.
+		var yaw := other.rotation.y
+		var same_way := Vector2(-sin(yaw), -cos(yaw))
+		if same_way.dot(toward) <= 0.0:
+			continue
+		if flat.dot(toward) / (dist * reach) >= 0.65:
+			return true
+	return false
 
 
 func _begin_fly_out() -> void:
@@ -389,35 +520,74 @@ func _spin_propeller(delta: float, inbound: bool) -> void:
 
 
 func _set_alpha(alpha: float) -> void:
-	var shown := clampf(alpha, 0.0, 1.0)
-	for index in _materials.size():
-		var material := _materials[index]
-		var color := material.albedo_color
-		color.a = shown
-		material.albedo_color = color
-		# Glasses and the medallion are masked. Forcing them opaque paints the
-		# texture's white margin around the lenses and the frame.
-		var kept := _material_modes[index]
-		if shown < 0.99 and kept == BaseMaterial3D.TRANSPARENCY_DISABLED:
-			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		else:
-			material.transparency = kept as BaseMaterial3D.Transparency
+	_fade_node(self, clampf(alpha, 0.0, 1.0))
+
+
+func _fade_node(node: Node, shown: float) -> void:
+	if node is MeshInstance3D:
+		var mesh_node := node as MeshInstance3D
+		var mesh := mesh_node.mesh
+		if mesh != null:
+			for index in mesh.get_surface_count():
+				_fade_material(mesh.surface_get_material(index), shown)
+				_fade_material(mesh_node.get_surface_override_material(index), shown)
+	for child in node.get_children():
+		_fade_node(child, shown)
+
+
+func _fade_material(material: Material, shown: float) -> void:
+	if not (material is ShaderMaterial):
+		return
+	var shader := material as ShaderMaterial
+	var tint: Variant = shader.get_shader_parameter("albedo_color")
+	var color := Color.WHITE
+	if tint is Color:
+		color = tint
+	color.a = shown
+	shader.set_shader_parameter("albedo_color", color)
 
 
 func _own_materials(node: Node) -> void:
 	if node is MeshInstance3D:
 		var mesh_node := node as MeshInstance3D
+		mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if mesh_node.mesh != null:
 			for index in mesh_node.mesh.get_surface_count():
-				var source := mesh_node.mesh.surface_get_material(index)
+				var source := mesh_node.get_surface_override_material(index)
+				if source == null:
+					source = mesh_node.mesh.surface_get_material(index)
 				if source is BaseMaterial3D:
-					var copy := (source as BaseMaterial3D).duplicate() as BaseMaterial3D
-					copy.cull_mode = BaseMaterial3D.CULL_DISABLED
-					mesh_node.mesh.surface_set_material(index, copy)
+					var copy := _shade_material(source as BaseMaterial3D)
+					mesh_node.set_surface_override_material(index, copy)
 					_materials.append(copy)
-					_material_modes.append(int((source as BaseMaterial3D).transparency))
+				elif source is ShaderMaterial:
+					mesh_node.set_surface_override_material(index, source)
+					_materials.append(source)
 	for child in node.get_children():
 		_own_materials(child)
+
+
+func _shade_material(source: BaseMaterial3D) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = _SHADE
+	material.set_shader_parameter("albedo_color", source.albedo_color)
+	var textured := source.albedo_texture != null
+	material.set_shader_parameter("use_albedo_texture", 1.0 if textured else 0.0)
+	if textured:
+		material.set_shader_parameter("albedo_texture", source.albedo_texture)
+	var cut := 0.0
+	if source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR or source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_HASH:
+		cut = source.alpha_scissor_threshold if source.alpha_scissor_threshold > 0.01 else 0.5
+	material.set_shader_parameter("cutout", cut)
+	material.set_shader_parameter("use_vertex_color", 1.0 if source.vertex_color_use_as_albedo else 0.0)
+	return material
+
+
+func _quiet_shadows(node: Node) -> void:
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_quiet_shadows(child)
 
 
 func _hide_gray_cuffs(actor: Node) -> void:
@@ -448,16 +618,56 @@ func _hide_gray_cuffs(actor: Node) -> void:
 	suit.mesh = kept
 
 
-func _clip_drawn(bank: Dictionary) -> bool:
+func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> void:
+	if _detail == 0:
+		bank["shown"] = -1
+		return
+	var fraction := clampf(blend, 0.0, 1.0)
+	# Each frame is a finished mesh shared by every suit on that body. Swapping
+	# it does not rewrite vertex buffers, which was both corrupting the pose
+	# and stalling the street.
+	var show := int(bank.get("shown", -1)) != frame
+	if show:
+		bank["shown"] = frame
 	var clips: Array = bank.get("clips", [])
-	if clips.is_empty():
-		return false
 	for item in clips:
 		var record: Dictionary = item
-		var mesh := record.get("mesh") as ArrayMesh
-		if mesh == null or mesh.get_surface_count() == 0:
-			return false
-	return true
+		var instance := record["instance"] as MeshInstance3D
+		if not is_instance_valid(instance):
+			continue
+		var poses: Array = record.get("poses", [])
+		if frame < 0 or frame >= poses.size():
+			continue
+		var posed := poses[frame] as ArrayMesh
+		if posed == null:
+			continue
+		if instance.mesh != posed:
+			instance.mesh = posed
+			show = true
+		if not show:
+			continue
+		var overrides: Array = record.get("overrides", [])
+		for index in overrides.size():
+			var material := overrides[index] as Material
+			if material != null and index < posed.get_surface_count():
+				instance.set_surface_override_material(index, material)
+	var joints: Array = bank.get("joints", [])
+	for item in joints:
+		var record: Dictionary = item
+		var joint := record["node"] as Node3D
+		if not is_instance_valid(joint):
+			continue
+		var frames: Array = record["frames"]
+		if frames.is_empty():
+			continue
+		var posed_frame: Transform3D = frames[frame % frames.size()]
+		if fraction > 0.001:
+			var nxt: Transform3D = frames[following % frames.size()]
+			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
+			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, fraction)
+		var bind: Transform3D = record["bind"]
+		var rest: Transform3D = record["rest"]
+		joint.transform = rest * bind.affine_inverse() * posed_frame
 
 
 func _camera_detail() -> int:
@@ -467,25 +677,13 @@ func _camera_detail() -> int:
 	if cam == null:
 		return 2
 	var chest := global_position + Vector3(0.0, height * 0.45, 0.0)
-	if cam.is_position_behind(chest):
-		return 0
 	var dist2 := chest.distance_squared_to(cam.global_position)
-	# Off-screen suits hold their last pose. Anything in view keeps walking,
-	# including a suit at the far end of the street.
-	if dist2 > 16.0 * 16.0 and not cam.is_position_in_frustum(chest):
+	# Off-screen suits hold their last pose. Every suit you can see blends
+	# the clip every frame, including one at the far end of the street.
+	if dist2 > 16.0 * 16.0 and cam.is_position_behind(chest) and not cam.is_position_in_frustum(chest):
 		return 0
-	# Only a suit near the camera blends every vertex. Everyone else on screen
-	# steps the walk with an in-place buffer update.
-	if dist2 <= 12.0 * 12.0:
-		return 2
-	# Far suits share the upload. A suit at the end of the street steps every
-	# few frames; one near enough to read steps a little more often.
-	var tick := Engine.get_process_frames()
-	var slot := int(get_instance_id())
-	if dist2 > 32.0 * 32.0 and tick % 4 != slot % 4:
-		return 0
-	if tick % 3 != slot % 3:
-		return 0
+	# The pose changes with the clip, about 24 times a second. Suits on screen
+	# all get that update. Off-screen suits hold the last one.
 	return 1
 
 
@@ -509,111 +707,12 @@ func _block_hidden() -> bool:
 	return hidden
 
 
-func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> void:
-	if _detail == 0:
-		return
-	var fraction := 0.0
-	if _detail == 1:
-		# A far suit steps through the walk instead of blending it. Skip the
-		# rebuild only when this exact frame is already on the mesh.
-		if int(bank.get("shown", -2)) == frame and _clip_drawn(bank):
-			return
-		bank["shown"] = frame
-	else:
-		fraction = clampf(blend, 0.0, 1.0)
-		bank["shown"] = -1
-	var clips: Array = bank.get("clips", [])
-	for item in clips:
-		var record: Dictionary = item
-		var instance := record["instance"] as MeshInstance3D
-		if not is_instance_valid(instance):
-			continue
-		var surfaces: Array = record["surfaces"]
-		var materials: Array = record["materials"]
-		var mesh := record["mesh"] as ArrayMesh
-		var mix_pos: Array = record["mix_pos"]
-		var mix_nrm: Array = record["mix_nrm"]
-		# Positions sit in a packed block at the front of the vertex buffer.
-		# Nearby suits blend that block every frame. Normals are rebuilt
-		# every few source frames, and only for suits close to the camera.
-		var built := int(record.get("posed", -2))
-		# Rebuilding the surface allocates a new buffer. Do that once, then
-		# write positions into the buffer that already exists.
-		var reuse := mesh.get_surface_count() > 0
-		if _detail == 2 and frame % 8 == 0 and built != frame:
-			reuse = false
-		if not reuse:
-			mesh.clear_surfaces()
-			record["posed"] = frame
-		var mesh_index := 0
-		for surface_index in surfaces.size():
-			var surface: Dictionary = surfaces[surface_index]
-			var frames: Array = surface["frames"]
-			if frames.is_empty():
-				continue
-			var cursor := frame % frames.size()
-			var positions: PackedVector3Array = frames[cursor]
-			var normal_frames: Array = surface["normals"]
-			var normals: PackedVector3Array = normal_frames[cursor]
-			if fraction > 0.001:
-				var nxt: PackedVector3Array = frames[following % frames.size()]
-				var nxt_normals: PackedVector3Array = normal_frames[following % frames.size()]
-				positions = _blend_vectors(mix_pos, surface_index, positions, nxt, fraction)
-				if not reuse:
-					normals = _blend_vectors(mix_nrm, surface_index, normals, nxt_normals, fraction)
-			if positions.is_empty():
-				continue
-			if reuse:
-				if mesh_index < mesh.get_surface_count():
-					mesh.surface_update_vertex_region(mesh_index, 0, positions.to_byte_array())
-				mesh_index += 1
-				continue
-			var arrays: Array = []
-			arrays.resize(Mesh.ARRAY_MAX)
-			arrays[Mesh.ARRAY_VERTEX] = positions
-			var uvs: PackedVector2Array = surface["uv"]
-			if uvs.size() == positions.size():
-				arrays[Mesh.ARRAY_TEX_UV] = uvs
-			arrays[Mesh.ARRAY_NORMAL] = normals
-			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, Mesh.ARRAY_FLAG_USE_DYNAMIC_UPDATE)
-			if surface_index < materials.size() and materials[surface_index] != null:
-				mesh.surface_set_material(mesh.get_surface_count() - 1, materials[surface_index])
-			mesh_index += 1
-		if mesh.get_surface_count() == 0:
-			continue
-		instance.mesh = mesh
-	var joints: Array = bank.get("joints", [])
-	for item in joints:
-		var record: Dictionary = item
-		var joint := record["node"] as Node3D
-		if not is_instance_valid(joint):
-			continue
-		var frames: Array = record["frames"]
-		if frames.is_empty():
-			continue
-		var posed_frame: Transform3D = frames[frame % frames.size()]
-		if fraction > 0.001:
-			var nxt: Transform3D = frames[following % frames.size()]
-			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
-			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, fraction)
-		var bind: Transform3D = record["bind"]
-		var rest: Transform3D = record["rest"]
-		joint.transform = rest * bind.affine_inverse() * posed_frame
-
-
-func _blend_vectors(cache: Array, surface_index: int, current: PackedVector3Array, nxt: PackedVector3Array, amount: float) -> PackedVector3Array:
-	if nxt.size() != current.size():
-		return current
-	while cache.size() <= surface_index:
-		cache.append(PackedVector3Array())
-	var into := cache[surface_index] as PackedVector3Array
-	if into.size() != current.size():
-		into = PackedVector3Array()
-		into.resize(current.size())
-		cache[surface_index] = into
-	for index in current.size():
-		into[index] = current[index].lerp(nxt[index], amount)
-	return into
+func _attack_fps(key: String) -> float:
+	var info: Dictionary = _body_timing.get(key, {})
+	var fps := float(info.get("fps", 0.0))
+	if fps > 1.0:
+		return fps
+	return _walk_fps
 
 
 func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
@@ -632,6 +731,33 @@ func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
 		normals[index + 1] = normal
 		normals[index + 2] = normal
 		index += 3
+	return normals
+
+
+func _smooth_normals(positions: PackedVector3Array) -> PackedVector3Array:
+	var flat := _face_normals(positions)
+	var normals := PackedVector3Array()
+	normals.resize(positions.size())
+	var groups: Dictionary = {}
+	for index in positions.size():
+		var point := positions[index]
+		var key := Vector3i(int(round(point.x * 1000.0)), int(round(point.y * 1000.0)), int(round(point.z * 1000.0)))
+		var ids := PackedInt32Array()
+		if groups.has(key):
+			ids = groups[key]
+		ids.append(index)
+		groups[key] = ids
+	for key in groups:
+		var ids := groups[key] as PackedInt32Array
+		var sum := Vector3.ZERO
+		for index in ids:
+			sum += flat[index]
+		if sum.length_squared() < 0.000001:
+			sum = Vector3.UP
+		else:
+			sum = sum.normalized()
+		for index in ids:
+			normals[index] = sum
 	return normals
 
 
@@ -670,17 +796,43 @@ func _parse_clip(path: String) -> Dictionary:
 				for index in vertex_count:
 					uvs[index] = Vector2(file.get_float(), file.get_float())
 			var frames: Array = []
-			var normals: Array = []
 			for _frame_index in frame_count:
 				var positions := PackedVector3Array()
 				positions.resize(vertex_count)
 				for index in vertex_count:
 					positions[index] = Vector3(file.get_float(), file.get_float(), file.get_float())
 				frames.append(positions)
-				normals.append(_face_normals(positions))
-			surfaces.append({"uv": uvs, "frames": frames, "normals": normals})
-		if not surfaces.is_empty():
-			nodes.append({"name": node_name, "surfaces": surfaces})
+			if frames.is_empty() or vertex_count < 1:
+				continue
+			surfaces.append({
+				"uv": uvs,
+				"frames": frames,
+			})
+		if surfaces.is_empty():
+			continue
+		var poses: Array = []
+		for frame_index in frame_count:
+			var posed := ArrayMesh.new()
+			for surface_item in surfaces:
+				var surface: Dictionary = surface_item
+				var rows := surface["frames"] as Array
+				if frame_index < 0 or frame_index >= rows.size():
+					continue
+				var positions := rows[frame_index] as PackedVector3Array
+				if positions.is_empty():
+					continue
+				var arrays: Array = []
+				arrays.resize(Mesh.ARRAY_MAX)
+				arrays[Mesh.ARRAY_VERTEX] = positions
+				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
+				var surface_uvs := surface["uv"] as PackedVector2Array
+				if surface_uvs.size() == positions.size():
+					arrays[Mesh.ARRAY_TEX_UV] = surface_uvs
+				posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+			if posed.get_surface_count() > 0:
+				poses.append(posed)
+		if not poses.is_empty():
+			nodes.append({"name": node_name, "poses": poses})
 	var joint_count := file.get_32()
 	for _joint_index in joint_count:
 		var name_len := file.get_16()
@@ -714,25 +866,31 @@ func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
 		var instance := _find(root, str(node["name"])) as MeshInstance3D
 		if instance == null or instance.mesh == null:
 			continue
-		var surfaces: Array = node["surfaces"]
-		if surfaces.is_empty():
+		var poses: Array = node.get("poses", [])
+		if poses.is_empty():
 			continue
-		var materials: Array = []
-		for surface_index in surfaces.size():
-			var material: Material = null
+		var first := poses[0] as ArrayMesh
+		if first == null:
+			continue
+		var overrides: Array = []
+		for surface_index in first.get_surface_count():
+			var source: Material = null
 			if surface_index < instance.mesh.get_surface_count():
-				material = instance.mesh.surface_get_material(surface_index)
-			materials.append(material)
-		var mesh := ArrayMesh.new()
+				source = instance.get_surface_override_material(surface_index)
+				if source == null:
+					source = instance.mesh.surface_get_material(surface_index)
+			overrides.append(source)
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		instance.mesh = first
+		for surface_index in overrides.size():
+			var material := overrides[surface_index] as Material
+			if material != null and surface_index < first.get_surface_count():
+				instance.set_surface_override_material(surface_index, material)
 		clips.append({
 			"instance": instance,
-			"surfaces": surfaces,
-			"materials": materials,
-			"mesh": mesh,
-			"mix_pos": [],
-			"mix_nrm": [],
+			"poses": poses,
+			"overrides": overrides,
 		})
-		instance.mesh = mesh
 	var shared_joints: Array = parsed.get("joints", [])
 	for item in shared_joints:
 		var node: Dictionary = item
