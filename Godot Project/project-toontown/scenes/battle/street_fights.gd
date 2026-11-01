@@ -17,6 +17,27 @@ var _fights: Array = []
 var _next := 1
 var _dirty: Dictionary = {}
 var _publish_wait := 0.0
+var _attacks_by_code: Dictionary = {}
+
+
+func _ready() -> void:
+	var text := FileAccess.get_file_as_string("res://assets/cogs/catalog.json")
+	var parsed: Variant = JSON.parse_string(text)
+	if not (parsed is Dictionary):
+		return
+	var rows: Array = (parsed as Dictionary).get("cogs", [])
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		var files: Array = []
+		for attack in cog.get("attacks", []):
+			if not (attack is Dictionary):
+				continue
+			var file := String((attack as Dictionary).get("file", ""))
+			if file != "":
+				files.append(file)
+		_attacks_by_code[String(cog.get("code", ""))] = files
 
 
 func _process(delta: float) -> void:
@@ -306,6 +327,18 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		beats.append(healed)
 
 
+func _attack_label(key: String) -> String:
+	var words := key.split("-")
+	var titled: PackedStringArray = []
+	for word in words:
+		if word == "":
+			continue
+		titled.append(word.substr(0, 1).to_upper() + word.substr(1))
+	if titled.is_empty():
+		return "an attack"
+	return " ".join(titled)
+
+
 func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 	var living: Array = []
 	for item in fight["toons"]:
@@ -316,11 +349,17 @@ func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 		return
 	var victim: Dictionary = living[randi() % living.size()]
 	var level := int(suit.get("level", 1))
-	var which := posmod(level, _ATTACKS.size())
+	var files: Array = _attacks_by_code.get(String(suit.get("code", "")), [])
+	var which := 0
+	if not files.is_empty():
+		which = posmod(level + int(fight.get("round", 1)), files.size())
+	else:
+		which = posmod(level, _ATTACK_KEYS.size())
 	var accuracy := mini(70 + mini(level, 5) * 3, 95)
 	var damage := (level + 1) * 2
 	var cog_name := String(suit.get("name", "cog"))
-	var attack := _ATTACKS[which]
+	var anim := String(files[which]) if not files.is_empty() else _ATTACK_KEYS[which]
+	var attack := _attack_label(anim)
 	if randi_range(0, 99) >= accuracy:
 		beats.append({
 			"text": "%s dodged the %s." % [String(victim.get("name", "A toon")), cog_name],
@@ -328,7 +367,7 @@ func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 			"hit": false,
 			"cog": int(suit.get("id", 0)),
 			"toon": int(victim.get("id", 0)),
-			"anim": _ATTACK_KEYS[which],
+			"anim": anim,
 			"react": "sidestep-left",
 		})
 		return
@@ -344,7 +383,7 @@ func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 		"cog": int(suit.get("id", 0)),
 		"toon": int(victim.get("id", 0)),
 		"toon_hp": int(victim.get("hp", 0)),
-		"anim": _ATTACK_KEYS[which],
+		"anim": anim,
 		"react": "cringe",
 	})
 
@@ -430,20 +469,23 @@ func _beat_dur(beat: Dictionary) -> float:
 		return 4.8
 	if track == 5 and level == 0:
 		return 3.6
+	if track == 5 and level == 4:
+		return 5.0
 	if track == 5 and level >= 5:
 		return 4.2
 	if track == 5:
-		return 3.4
+		return 3.6
 	if track == 6:
 		return 5.6
 	if track == 1:
 		return 3.6
 	if track == 2:
-		return 3.8
+		return 4.2
 	if track == 3:
-		return 3.4
+		return 4.2
 	if track == 0:
-		return 3.0
+		var heal_time: Array[float] = [3.2, 3.6, 3.4, 6.4, 4.6, 7.7, 9.0]
+		return heal_time[clampi(level, 0, heal_time.size() - 1)]
 	return 2.2
 
 
@@ -563,6 +605,7 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 	var hp := Cog.hp_for_level(level)
 	(fight["cogs"] as Array).append({
 		"id": int(cog.get("id", 0)),
+		"code": String(cog.get("code", "")),
 		"name": String(cog.get("name", "Cog")),
 		"level": level,
 		"hp": hp,
@@ -719,6 +762,7 @@ func _cog_info(row: Variant) -> Dictionary:
 	var body: Dictionary = cog
 	return {
 		"id": int(source.get("do_id", 0)),
+		"code": String(body.get("code", "")),
 		"name": String(body.get("name", "Cog")),
 		"level": int(body.get("level", 1)),
 		"phase": int(source.get("phase", -1)),

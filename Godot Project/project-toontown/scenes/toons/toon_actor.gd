@@ -486,7 +486,7 @@ func _play_bank(suffix: String, direction: float, delta: float, loop: bool = tru
 ## One battle clip, held on a frame. The movie advances elapsed itself so a
 ## pie can leave the hand while the throw is still playing.
 func action_length(suffix: String) -> float:
-	_ensure_clips()
+	ensure_clip(suffix)
 	var bank: Dictionary = _extra.get(suffix, {})
 	var frames := int(bank.get("frames", 0))
 	if frames <= 1:
@@ -497,7 +497,7 @@ func action_length(suffix: String) -> float:
 func pose_action(suffix: String, elapsed: float) -> void:
 	# A held pose owns the ears too. The idle flop would replace them after a tenth of a second.
 	_locomotion_msec = Time.get_ticks_msec()
-	_ensure_clips()
+	ensure_clip(suffix)
 	var bank: Dictionary = _extra.get(suffix, {})
 	var frames := int(bank.get("frames", 0))
 	var clips: Array = bank.get("clips", [])

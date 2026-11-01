@@ -71,6 +71,11 @@ PROP_FILES = [
     ("phase_5/models/props/traintrack2.bam", "traintrack", 1.0),
     ("phase_5/models/props/1dollar-bill-mod.bam", "1dollar", 1.0),
     ("phase_5/models/props/magnet.bam", "magnet", 1.0),
+    ("phase_4/models/props/fishing-pole-mod.bam", "fishing-pole", 1.0),
+    ("phase_5/models/props/lips.bam", "lips", 1.0),
+    ("phase_5/models/props/hat.bam", "hat", 1.0),
+    ("phase_5/models/props/battle_hydrant.bam", "hydrant", 1.0),
+    ("phase_5/models/props/train.bam", "train", 1.0),
     ("phase_5/models/props/hypnotize-mod.bam", "hypno-goggles", 1.0),
     ("phase_5/models/props/av_screen.bam", "slideshow", 1.0),
     ("phase_5/models/props/bikehorn.bam", "bikehorn", 1.0),
@@ -105,6 +110,22 @@ TOON_ANIMS = [
     ("sidestep-right", "phase_3.5", "jump-back-right"),
     ("duck", "phase_3.5", "duck"),
     ("victory", "phase_3.5", "victory-dance"),
+    # MovieLure, MovieSquirt, MovieSound, MovieHeal, and MovieTrap.
+    ("battlecast", "phase_4", "fish"),
+    ("water-gun", "phase_5", "water-gun"),
+    ("hold-bottle", "phase_5", "hold-bottle"),
+    ("firehose", "phase_5", "firehose"),
+    ("spit", "phase_5", "spit"),
+    ("tickle", "phase_5", "tickle"),
+    ("smooch", "phase_5", "smooch"),
+    ("happy-dance", "phase_5", "happy-dance"),
+    ("sprinkle-dust", "phase_5", "sprinkle-dust"),
+    ("juggle", "phase_5", "juggle"),
+    ("climb", "phase_5", "climb"),
+    ("sound", "phase_5", "shout"),
+    ("toss", "phase_5", "toss"),
+    ("hold-magnet", "phase_5", "hold-magnet"),
+    ("hypnotize", "phase_5", "hypnotize"),
 ]
 
 # suitC files. Flunky is a C body. Tutorial reacts live in phase 4;
@@ -400,6 +421,47 @@ def copy_sounds() -> None:
         print("sfx", dest.name, flush=True)
 
 
+def export_bills() -> None:
+    # BattleProps.makeVariant swaps the bill's second texture for $5 and $10.
+    for name, texture in (("5dollar", "phase_5/maps/dollar_5.png"), ("10dollar", "phase_5/maps/dollar_10.png")):
+        model = load_prop("phase_5/models/props/1dollar-bill-mod.bam")
+        if model is None:
+            continue
+        image = toon_export.Loader.getGlobalPtr().loadSync(toon_export.Filename(toon_export.ASSETS, texture))
+        if image is not None:
+            model.setTexture(image, 1)
+        writer = exporter.GltfWriter()
+        writer.add_node(model, None)
+        path = PROPS / f"{name}.glb"
+        path.write_bytes(writer.pack(name))
+        print(f"prop {name} meshes={writer.mesh_count}", flush=True)
+
+
+def export_added() -> int:
+    loadPrcFileData("", "window-type none")
+    loadPrcFileData("", "audio-library-name null")
+    getModelPath().prependDirectory(toon_export.ASSETS)
+    PROPS.mkdir(parents=True, exist_ok=True)
+    added = {
+        "fishing-pole", "lips", "hat", "hydrant", "train",
+    }
+    for relative, name, scale in PROP_FILES:
+        if name in added:
+            write_prop(relative, name, scale)
+    export_bills()
+    added_anims = {
+        "battlecast", "water-gun", "hold-bottle", "firehose", "spit", "tickle",
+        "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "sound",
+        "toss", "hold-magnet", "hypnotize",
+    }
+    for suffix, phase, anim in TOON_ANIMS:
+        if suffix not in added_anims:
+            continue
+        for part, model, _neutral, _walk in walk_export.PARTS:
+            export_toon_anim(part, model, suffix, phase, anim)
+    return 0
+
+
 def main() -> int:
     loadPrcFileData("", "window-type none")
     loadPrcFileData("", "audio-library-name null")
@@ -427,4 +489,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "added":
+        sys.exit(export_added())
     sys.exit(main())

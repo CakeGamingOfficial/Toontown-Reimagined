@@ -9,9 +9,9 @@ const _PROPS := "res://assets/battle/props/"
 const _SFX := "res://assets/audio/battle/"
 const _HEIGHT := 4.88
 const _GAGS: Array = [
-	["feather", "megaphone", "lipstick", "cane", "cubes", "cubes", "ladder"],
+	["feather", "megaphone", "lipstick", "cane", "", "cubes", "ladder"],
 	["banana", "rake", "marbles", "quicksand", "trapdoor", "tnt", "traintrack"],
-	["1dollar", "magnet", "1dollar", "magnet", "1dollar", "hypno-goggles", "slideshow"],
+	["fishing-pole", "magnet", "fishing-pole", "magnet", "fishing-pole", "hypno-goggles", "slideshow"],
 	["bikehorn", "whistle", "bugle", "aoogah", "elephant", "fog_horn", "singing"],
 	["tart", "fruitpie-slice", "creampie-slice", "fruitpie", "creampie", "birthday-cake", "wedding-cake"],
 	["squirting-flower", "glass", "water-gun", "bottle", "firehose", "stormcloud", "geyser"],
@@ -45,6 +45,10 @@ const _DROP_MISS: PackedStringArray = [
 	"AA_drop_flowerpot_miss.ogg", "AA_drop_sandbag_miss.ogg", "AA_drop_anvil_miss.ogg", "AA_drop_bigweight_miss.ogg",
 	"AA_drop_safe_miss.ogg", "AA_drop_piano_miss.ogg", "AA_drop_boat_miss.ogg",
 ]
+const _SQUIRT_CLIP: PackedStringArray = ["pushbutton", "spit", "water-gun", "hold-bottle", "firehose", "pushbutton", "pushbutton"]
+const _HEAL_CLIP: PackedStringArray = ["tickle", "sound", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb"]
+const _HEAL_TIME: Array[float] = [3.2, 3.6, 3.4, 6.4, 4.6, 7.7, 9.0]
+const _LURE_DOLLAR: PackedStringArray = ["1dollar", "", "5dollar", "", "10dollar", "", ""]
 
 var _spawned: Array[Node] = []
 var _traps: Dictionary = {}
@@ -205,9 +209,15 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 	_tint(spray, Color(0.75, 0.75, 1.0, 0.8))
 	var aim := _first_cog(marks)
 	var hit := _any_hit(marks)
+	var clip := _SQUIRT_CLIP[level] if level < _SQUIRT_CLIP.size() else "pushbutton"
+	var hydrant: Node3D = null
+	if level == 4:
+		hydrant = _make("hydrant")
+		hydrant.global_position = actor.global_position + (-actor.global_transform.basis.z) * 1.4
+		hydrant.global_position.y = actor.global_position.y
 	var gate := {}
-	await _run(3.4, still, func(elapsed: float) -> void:
-		actor.pose_action("pushbutton", elapsed)
+	await _run(5.0 if level == 4 else 3.6, still, func(elapsed: float) -> void:
+		actor.pose_action(clip, elapsed)
 		prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
 		if elapsed >= 1.6 and elapsed < 2.8 and aim != null:
 			spray.visible = true
@@ -219,7 +229,7 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 		if elapsed >= 2.5 and _latch(gate, "hit"):
 			contact.call()
 	)
-	actor.end_action("pushbutton")
+	actor.end_action(clip)
 
 
 func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
@@ -286,9 +296,10 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		var prop := _make(prop_name)
 		_hand(prop, actor, "def_joint_right_hold")
 		props.append(prop)
+	var clip := "toss" if level < 3 else "pushbutton"
 	var gate := {}
 	await _run(3.6, still, func(elapsed: float) -> void:
-		actor.pose_action("throw", elapsed)
+		actor.pose_action(clip, elapsed)
 		for index in props.size():
 			var prop := props[index]
 			var mark: Dictionary = marks[index]
@@ -306,23 +317,37 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		var cog: Node3D = mark.get("cog")
 		if cog != null:
 			_plant(cog, props[index], int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg")
-	actor.end_action("throw")
+	actor.end_action(clip)
 
 
 func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var clip := "battlecast"
+	if level == 1 or level == 3:
+		clip = "hold-magnet"
+	elif level == 5:
+		clip = "hypnotize"
+	elif level == 6:
+		clip = "pushbutton"
 	var prop := _make(prop_name)
 	_hand(prop, actor, "def_joint_right_hold")
-	var clip := "throw" if level != 5 else "pushbutton"
+	if level == 1:
+		prop.scale = Vector3.ONE * 0.5
+	var bill: Node3D = null
+	var bill_name := _LURE_DOLLAR[level] if level < _LURE_DOLLAR.size() else ""
+	if bill_name != "":
+		bill = _make(bill_name)
+		_hand(bill, actor, "def_joint_left_hold")
 	var gate := {}
-	await _run(3.8, still, func(elapsed: float) -> void:
+	await _run(4.2, still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
-		prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
-		if level == 0 or level == 2 or level == 4:
+		if level != 1:
+			prop.scale = Vector3.ONE * lerpf(0.01, 1.0 if level != 1 else 0.5, clampf(elapsed / 0.4, 0.0, 1.0))
+		if bill != null:
 			var aim := _first_cog(marks)
 			if elapsed >= 2.2 and aim != null:
-				_fly(prop, aim, _HEIGHT * 0.5, elapsed, 2.2, 0.4, not _any_hit(marks))
+				_fly(bill, aim, _HEIGHT * 0.5, elapsed, 2.2, 0.4, not _any_hit(marks))
 		_react_marks(marks, elapsed, 2.6, "hypnotized")
-		_once("lure", elapsed, 2.0, "AA_pie_throw_only.ogg")
+		_once("lure", elapsed, 1.2, "AA_pie_throw_only.ogg")
 		if elapsed >= 2.6 and _latch(gate, "hit"):
 			for mark in marks:
 				var row: Dictionary = mark
@@ -336,11 +361,14 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 
 
 func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var horn := _make("megaphone")
+	_hand(horn, actor, "def_joint_left_hold")
 	var prop := _make(prop_name)
 	_hand(prop, actor, "def_joint_right_hold")
 	var gate := {}
-	await _run(3.4, still, func(elapsed: float) -> void:
-		actor.pose_action("pushbutton", elapsed)
+	await _run(4.2, still, func(elapsed: float) -> void:
+		actor.pose_action("sound", elapsed)
+		horn.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.35, 0.0, 1.0))
 		prop.scale = Vector3.ONE * lerpf(0.01, 1.2, clampf(elapsed / 0.35, 0.0, 1.0))
 		_react_marks(marks, elapsed, 1.6, "flatten")
 		_once("sound", elapsed, 0.6, _SOUND_SFX[level] if level < _SOUND_SFX.size() else "AA_sound_bikehorn.ogg")
@@ -349,16 +377,25 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 		if elapsed >= 1.6 and _latch(gate, "hit"):
 			contact.call()
 	)
-	actor.end_action("pushbutton")
+	actor.end_action("sound")
 
 
 func _heal(actor: ToonActor, prop_name: String, level: int, beats: Array, actor_of: Callable, still: Callable, contact: Callable) -> void:
-	var prop := _make(prop_name)
-	_hand(prop, actor, "def_joint_right_hold")
+	var clip := _HEAL_CLIP[level] if level < _HEAL_CLIP.size() else "tickle"
+	var dur := _HEAL_TIME[level] if level < _HEAL_TIME.size() else 3.2
+	var prop: Node3D = null
+	if prop_name != "":
+		prop = _make(prop_name)
+		_hand(prop, actor, "def_joint_right_hold")
+	var hat: Node3D = null
+	if level == 3:
+		hat = _make("hat")
+		_hand(hat, actor, "def_joint_attachFlower")
 	var gate := {}
-	await _run(3.0, still, func(elapsed: float) -> void:
-		actor.pose_action("throw" if level < 6 else "pushbutton", elapsed)
-		prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
+	await _run(dur, still, func(elapsed: float) -> void:
+		actor.pose_action(clip, elapsed)
+		if prop != null:
+			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
 		if elapsed >= 1.4 and _latch(gate, "spark"):
 			for item in beats:
 				if not (item is Dictionary) or not bool((item as Dictionary).get("hit", false)):
@@ -370,11 +407,15 @@ func _heal(actor: ToonActor, prop_name: String, level: int, beats: Array, actor_
 				_tint(spark, Color(0.55, 1.0, 0.45, 0.9))
 				spark.scale = Vector3.ONE * 0.35
 				spark.global_position = patient.global_position + Vector3(0.0, 3.2, 0.0)
+				if level == 2:
+					var lips := _make("lips")
+					lips.global_position = patient.global_position + Vector3(0.0, 3.5, 0.35)
+					lips.scale = Vector3.ONE * 0.35
 		_once("heal", elapsed, 0.4, _HEAL_SFX[level] if level < _HEAL_SFX.size() else "AA_heal_tickle.ogg")
 		if elapsed >= 1.4 and _latch(gate, "hit"):
 			contact.call()
 	)
-	actor.end_action("throw" if level < 6 else "pushbutton")
+	actor.end_action(clip)
 
 
 func _suit(lead: Dictionary, actor: ToonActor, marks: Array, still: Callable, contact: Callable) -> void:
@@ -388,13 +429,17 @@ func _suit(lead: Dictionary, actor: ToonActor, marks: Array, still: Callable, co
 		joint_name = "joint_Lhold"
 		pose_name = "phone"
 	elif key == "throw-paper":
-		prop_name = "clip-on-tie"
+		prop_name = "shredder-paper"
 		joint_name = "joint_Rhold"
-		pose_name = "tie"
-	elif key == "finger-wag":
+		pose_name = "paper"
+	elif key == "shredder":
 		prop_name = "shredder"
 		joint_name = "joint_Rhold"
 		pose_name = "shredder"
+	elif key == "clip-on-tie":
+		prop_name = "clip-on-tie"
+		joint_name = "joint_Rhold"
+		pose_name = "tie"
 	var prop: Node3D = null
 	if prop_name != "" and cog != null:
 		prop = _make(prop_name)
@@ -528,7 +573,10 @@ func _make(prop_name: String) -> Node3D:
 	wrap.name = prop_name
 	add_child(wrap)
 	_spawned.append(wrap)
-	var packed := load(_PROPS + prop_name + ".glb") as PackedScene
+	var path := _PROPS + prop_name + ".glb"
+	if not ResourceLoader.exists(path):
+		return wrap
+	var packed := load(path) as PackedScene
 	if packed == null:
 		return wrap
 	var model := packed.instantiate()
