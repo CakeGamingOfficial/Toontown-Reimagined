@@ -64,10 +64,14 @@ var _body_timing: Dictionary = {}
 var _propeller: Node3D
 var _prop_bank: Dictionary = {}
 var _sound: AudioStreamPlayer3D
-
-func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
 var _fight_key := ""
 var _fight_time := 0.0
+var _take: Dictionary = {}
+var _take_stage := ""
+var _door_goal := Vector3.ZERO
+
+
+func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
 	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"])
 	cog_code = str(cog["code"])
 	cog_name = str(cog["name"])
@@ -131,6 +135,7 @@ var _fight_time := 0.0
 		_give_up()
 		return
 	_prepare_landing()
+	_read_take(resume)
 	if resume.is_empty() or int(resume.get("phase", 0)) == 0:
 		_phase = 0
 		_fly = float(resume.get("fly", 0.0)) if not resume.is_empty() else 0.0
@@ -167,13 +172,13 @@ func capture() -> Dictionary:
 		"pathed": _path_ready,
 		"from_building": false,
 		"do_id": int(get_meta("do_id", 0)),
+		"takeover": _take,
+		"take_stage": _take_stage,
+		"door_goal": _door_goal,
 	}
 
 
 func _resume(state: Dictionary) -> void:
-		"takeover": _take,
-		"take_stage": _take_stage,
-		"door_goal": _door_goal,
 	_slot = posmod(int(state.get("slot", _slot)), maxi(_route.size(), 1))
 	_edges_left = maxi(int(state.get("edges", _edges_left)), 1)
 	_phase = int(state.get("phase", 1))
@@ -194,15 +199,15 @@ func _resume(state: Dictionary) -> void:
 		_set_alpha(1.0 - clampf(_fly, 0.0, 1.0))
 		_attach_propeller()
 		_play_propeller(false)
+		var dur := float(maxi(_landing_frames, 1)) / _landing_fps
+		_pose_elapsed(_landing, dur - _fly, _landing_fps, false)
+		return
 	if _take_stage == "door":
 		_phase = 1
 		_path_ready = true
 		_door_goal = _vec(state, "door_goal", _goal)
 		_goal = _door_goal
 		_set_alpha(1.0)
-		return
-		var dur := float(maxi(_landing_frames, 1)) / _landing_fps
-		_pose_elapsed(_landing, dur - _fly, _landing_fps, false)
 		return
 	_phase = 1
 	_path_ready = true
@@ -214,10 +219,6 @@ func _resume(state: Dictionary) -> void:
 	_pose_clip(_walk, frame, (frame + 1) % frames, _walk_time - float(frame))
 
 
-func follow_net(state: Dictionary) -> void:
-	set_meta("playback", true)
-	if _path_ready or not bool(state.get("pathed", false)):
-		return
 func hold_fight(held: bool, point: Vector3, yaw: float) -> void:
 	set_meta("in_fight", held)
 	if not held:
@@ -241,8 +242,12 @@ func defeat() -> void:
 
 
 func follow_net(state: Dictionary) -> void:
+	set_meta("playback", true)
 	if bool(get_meta("in_fight", false)):
 		return
+	if _path_ready or not bool(state.get("pathed", false)):
+		return
+	set_meta("net_edges", int(state.get("edges", 40)))
 	_slot = posmod(int(state.get("slot", _slot)), maxi(_route.size(), 1))
 	_goal = _vec(state, "goal", _goal)
 	_ground = _vec(state, "ground", _ground)
@@ -307,16 +312,16 @@ func _street_stay(count: int) -> int:
 
 
 func _process(delta: float) -> void:
-	if _points.is_empty():
-		return
-	_detail = _camera_detail()
-	if _phase == 0:
 	if bool(get_meta("in_fight", false)):
 		if _fight_key != "":
 			play_attack(_fight_key, _fight_time)
 		else:
 			_idle(delta)
 		return
+	if _points.is_empty():
+		return
+	_detail = _camera_detail()
+	if _phase == 0:
 		_fly_in(delta)
 	elif _phase == 1:
 		_roam(delta)
@@ -377,13 +382,13 @@ func _roam(delta: float) -> void:
 	if bool(get_meta("playback", false)) and not _path_ready:
 		_idle(delta)
 		return
-	if _route.size() < 2:
 	if _take_stage == "door":
 		_walk_door(delta)
 		return
 	if _take_stage == "inside":
 		_idle(delta)
 		return
+	if _route.size() < 2:
 		_begin_fly_out()
 		return
 	# The goal is always the next point on the right-hand loop. A saved goal
@@ -401,13 +406,13 @@ func _roam(delta: float) -> void:
 		_slot = (_slot + 1) % _route.size()
 		_edges_left -= 1
 		if _edges_left <= 0:
-			_begin_fly_out()
+			if not _take.is_empty():
+				_begin_door()
+			else:
+				_begin_fly_out()
 			return
 		_step_lane()
 		return
-			if not _take.is_empty():
-				_begin_door()
-				return
 	var step := minf(WALK_SPEED * delta, remaining)
 	var toward := (target - flat) / remaining
 	global_position.x += toward.x * step
@@ -482,6 +487,10 @@ func _begin_fly_out() -> void:
 	_phase = 2
 	_fly = 0.0
 	_ground = global_position
+	_attach_propeller()
+	_play_propeller(false)
+
+
 func _read_take(resume: Dictionary) -> void:
 	var found: Variant = resume.get("takeover", {})
 	if not (found is Dictionary) or (found as Dictionary).is_empty():
@@ -536,10 +545,6 @@ func _arrive_door() -> void:
 	departed.emit()
 
 
-	_attach_propeller()
-	_play_propeller(false)
-
-
 func retire() -> void:
 	visible = false
 	set_process(false)
@@ -573,15 +578,13 @@ func _assign_path() -> void:
 		return
 	_path_ready = true
 	_edges_left = _street_stay(_route.size())
-	_step_lane()
-
-
 	if not _take.is_empty():
 		var door_slot := _TRAFFIC.nearest_route(_points, _route, _TRAFFIC.read_pos(_take.get("pos", [])))
 		_edges_left = _TRAFFIC.door_steps(_slot, door_slot, _route.size())
 		_take_stage = "lane"
-		_step_lane()
-		return
+	_step_lane()
+
+
 func _step_lane() -> void:
 	if _route.size() < 2:
 		_begin_fly_out()
