@@ -9,6 +9,8 @@ const _HOTSPOT := Vector2(1, 2)
 
 
 func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	Input.set_custom_mouse_cursor(_CURSOR, Input.CURSOR_ARROW, _HOTSPOT)
 	Input.set_custom_mouse_cursor(_CURSOR, Input.CURSOR_IBEAM, _HOTSPOT)
 	Input.set_custom_mouse_cursor(_CURSOR, Input.CURSOR_POINTING_HAND, _HOTSPOT)

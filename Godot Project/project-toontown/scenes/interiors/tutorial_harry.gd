@@ -94,7 +94,7 @@ func play(host: Node, harry: ToonActor) -> void:
 	_show_book("Turn the page to see those gags that Tom gave you.", _BLACK, false)
 	if book != null:
 		book.arm_next()
-		await _wait_page(book, 2)
+		await _wait_page(book, ShtickerBook.PAGE_GAGS)
 	_arrows_off()
 	await _book_line("Yikes! You have no gags! I'll assign you a task...", _TEAL)
 	if tasks != null:
@@ -103,7 +103,7 @@ func play(host: Node, harry: ToonActor) -> void:
 	_show_book("Turn the page to see your ToonTasks.", _TEAL, false)
 	if book != null:
 		book.arm_next()
-		await _wait_page(book, 3)
+		await _wait_page(book, ShtickerBook.PAGE_TASKS)
 	_arrows_off()
 	await _book_line("Here you go! Take a ride on the Trolley to buy yourself a few new gags.", _TEAL)
 	await _book_line("To get to the Trolley, go out the door behind me and head for the playground.", _TEAL)

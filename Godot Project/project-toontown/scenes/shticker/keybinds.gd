@@ -5,11 +5,11 @@ extends RefCounted
 
 const _PATH := "user://keybinds.cfg"
 
-const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book", "metrics"]
+const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book"]
 const LABELS: PackedStringArray = [
-	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book", "Metrics",
+	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book",
 ]
-const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I, KEY_F1]
+const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I]
 
 static var _keys: Dictionary = {}
 static var _ready := false

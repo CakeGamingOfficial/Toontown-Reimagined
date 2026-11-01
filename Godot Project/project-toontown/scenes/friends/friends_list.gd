@@ -72,6 +72,7 @@ var _page := 1
 var _obscured := false
 var _picking := false
 var _cog_token := 0
+var _list_refresh := 0.0
 var _scroll := 0
 var _list_open := false
 var _picked: Dictionary = {}
@@ -113,6 +114,19 @@ func _ready() -> void:
 		view.size_changed.connect(_layout)
 	_layout()
 	_apply_page()
+	var social := ToonSocial.live()
+	if social == null:
+		return
+	if not social.invite_note.is_connected(_on_invite_note):
+		social.invite_note.connect(_on_invite_note)
+	if not social.invited.is_connected(_on_invited):
+		social.invited.connect(_on_invited)
+	if not social.secret_code.is_connected(_on_secret_code):
+		social.secret_code.connect(_on_secret_code)
+	if not social.secret_note.is_connected(_on_secret_note):
+		social.secret_note.connect(_on_secret_note)
+	if not social.dropped_friend.is_connected(_on_dropped):
+		social.dropped_friend.connect(_on_dropped)
 
 
 func _process(_delta: float) -> void:
@@ -126,6 +140,14 @@ func _process(_delta: float) -> void:
 	_button.visible = playing
 	if not playing:
 		_caption.visible = false
+	Nametags.picking_friends = _picking
+	if _picking:
+		_bind_friend_clicks()
+	if _list_open:
+		_list_refresh -= _delta
+		if _list_refresh <= 0.0:
+			_list_refresh = 0.5
+			_fill_names()
 
 
 ## SuitAvatarPanel and ToonAvatarPanel hide bFriendsList while a card is open.
@@ -317,6 +339,11 @@ func _hide_list() -> void:
 
 
 func _show_card(friend: Dictionary) -> void:
+	var hud := get_parent()
+	if hud != null:
+		var panel := hud.get_node_or_null("ToonAvatarPanel")
+		if panel != null and panel.has_method("close"):
+			panel.call("close")
 	_picked = friend
 	_hide_list()
 	_card.visible = true
@@ -543,6 +570,10 @@ func _ask_remove() -> void:
 		"Are you sure you want to stop being friends with %s?" % friend_name,
 		["Yes", "No"],
 		[func() -> void:
+			var av := FriendsBook.avatar_of(_picked)
+			var social := ToonSocial.live()
+			if av > 0 and social != null:
+				social.unfriend(av)
 			FriendsBook.remove_friend(friend_id)
 			_hide_dialog()
 			_hide_card()
@@ -552,7 +583,43 @@ func _ask_remove() -> void:
 
 
 func _ask_goto() -> void:
-	_offline_notice("This only works if %s is online")
+	var av := FriendsBook.avatar_of(_picked)
+	var friend_name := FriendsBook.shown_name(_picked)
+	if av <= 0 or not FriendsBook.is_online(_picked):
+		_offline_notice("This only works if %s is online")
+		return
+	var where := ToonSocial.lookup(av)
+	var place := String(where.get("place", ""))
+	if place == "":
+		_show_notice("%s went away." % friend_name, ["OK"], [func() -> void: _hide_dialog()])
+		return
+	if int(where.get("district", -1)) != ToonNet.district_id():
+		_show_notice(
+			"%s is in the %s District." % [friend_name, String(where.get("district_name", "another"))],
+			["OK"],
+			[func() -> void: _hide_dialog()]
+		)
+		return
+	var point := Vector3(float(where.get("x", 0.0)), float(where.get("y", 0.0)), float(where.get("z", 0.0)))
+	point += Vector3(3.0, 0.0, 0.0)
+	var heading := float(where.get("heading", 0.0))
+	var here := ""
+	var tree := get_tree()
+	if tree != null and tree.current_scene != null:
+		here = tree.current_scene.scene_file_path
+	if here == place:
+		var host := _host()
+		if host != null and host.has_method("visit_friend"):
+			host.call("visit_friend", point, heading)
+			_hide_dialog()
+			_hide_card()
+			return
+	ToonSocial.visit_on = true
+	ToonSocial.visit_scene = place
+	ToonSocial.visit_point = point
+	ToonSocial.visit_heading = heading
+	_hide_dialog()
+	ToonLoading.change_to(place)
 
 
 func _ask_whisper() -> void:
@@ -566,8 +633,12 @@ func _ask_whisper() -> void:
 		return
 	var friend_name := FriendsBook.shown_name(_picked)
 	var slot := int(_picked.get("slot", -1))
+	var av := FriendsBook.avatar_of(_picked)
+	if (av <= 0 and slot < 0) or (av > 0 and not FriendsBook.is_online(_picked)):
+		_offline_notice("This only works if %s is online")
+		return
 	_hide_card()
-	chat.whisper_to(friend_name, slot)
+	chat.whisper_to(friend_name, slot, av)
 
 
 func _speed_chat() -> SpeedChat:
@@ -586,8 +657,24 @@ func _ask_ignore() -> void:
 
 
 func _ask_details() -> void:
+	var friend_name := FriendsBook.shown_name(_picked)
+	var av := FriendsBook.avatar_of(_picked)
+	var where := ToonSocial.lookup(av)
+	if av <= 0 or where.is_empty():
+		_show_notice(
+			"%s\n\nDistrict: offline\nLocation: offline" % friend_name,
+			["OK"],
+			[func() -> void: _hide_dialog()]
+		)
+		return
+	var hud := get_parent()
+	if hud != null:
+		var panel := hud.get_node_or_null("ToonAvatarPanel")
+		if panel != null and panel.has_method("open_details"):
+			panel.call("open_details", av, friend_name)
+			return
 	_show_notice(
-		"%s\n\nDistrict: offline\nLocation: offline" % FriendsBook.shown_name(_picked),
+		"%s\n\nDistrict: %s\nLocation: %s" % [friend_name, String(where.get("district_name", "offline")), String(where.get("spot", "offline"))],
 		["OK"],
 		[func() -> void: _hide_dialog()]
 	)
@@ -613,6 +700,16 @@ func _open_secrets() -> void:
 
 
 func _give_secret() -> void:
+	if ToonNet.networked():
+		var social := ToonSocial.live()
+		if social != null:
+			_clear_dialog_buttons()
+			_dialog_edit.visible = false
+			_dialog_edit.release_focus()
+			_dialog_text.text = "Getting True Friend Code. . ."
+			_layout()
+			social.request_secret()
+			return
 	var code := FriendsBook.make_secret()
 	_clear_dialog_buttons()
 	_dialog_edit.visible = false
@@ -626,6 +723,16 @@ func _give_secret() -> void:
 
 
 func _submit_secret(typed: String) -> void:
+	if ToonNet.networked():
+		var social := ToonSocial.live()
+		if social != null:
+			_clear_dialog_buttons()
+			_dialog_edit.visible = false
+			_dialog_edit.release_focus()
+			_dialog_text.text = "Trying True Friend Code. . ."
+			_layout()
+			social.submit_secret(typed)
+			return
 	var reply := FriendsBook.redeem(typed)
 	_clear_dialog_buttons()
 	_dialog_edit.visible = false
@@ -633,6 +740,117 @@ func _submit_secret(typed: String) -> void:
 	_dialog_text.text = reply
 	_add_dialog_button("OK", _hide_dialog, 0)
 	_layout()
+
+
+func _bind_friend_clicks() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for node in tree.get_nodes_in_group("nametag_boards"):
+		var board := node as Nametags
+		if board != null and not board.friend_clicked.is_connected(_offer_toon):
+			board.friend_clicked.connect(_offer_toon)
+
+
+func invite_toon(actor: Node3D) -> void:
+	_picking = true
+	_offer_toon(actor)
+
+
+func open_true_friends() -> void:
+	_open_secrets()
+
+
+func close_card() -> void:
+	_hide_card()
+
+
+func _offer_toon(actor: Node3D) -> void:
+	if not _picking or actor == null:
+		return
+	_picking = false
+	Nametags.picking_friends = false
+	var friend_name := actor.name
+	var av := int(actor.get_meta("av", 0))
+	if av <= 0:
+		_show_notice("%s is busy right now; try again later." % friend_name, ["OK"], [func() -> void: _hide_dialog()])
+		return
+	if av == ToonRoster.avatar_id():
+		_show_notice("You are already 'friends' with yourself!", ["OK"], [func() -> void: _hide_dialog()])
+		return
+	var friend_id := "av:%d" % av
+	if FriendsBook.has_id(friend_id):
+		_show_notice("%s is already your friend." % friend_name, ["OK"], [func() -> void: _hide_dialog()])
+		return
+	if FriendsBook.count() >= FriendsBook.MAX_FRIENDS:
+		_show_notice(
+			"You have too many toon friends on your list to add another one now. You will have to remove some toon friends if you want to make friends with %s." % friend_name,
+			["Cancel"],
+			[func() -> void: _hide_dialog()]
+		)
+		return
+	var social := ToonSocial.live()
+	if social == null or not ToonNet.networked():
+		_show_notice("Cannot make friends now.", ["OK"], [func() -> void: _hide_dialog()])
+		return
+	social.invite(av)
+	_show_notice("Seeing if %s is available." % friend_name, ["Cancel"], [func() -> void: _hide_dialog()])
+
+
+func _on_invite_note(text: String) -> void:
+	if text == "":
+		return
+	var caption := "Cancel" if text.begins_with("Asking") else "OK"
+	_show_notice(text, [caption], [func() -> void: _hide_dialog()])
+
+
+func _on_invited(_from_av: int, from_name: String, context: int) -> void:
+	if FriendsBook.count() >= FriendsBook.MAX_FRIENDS:
+		var social := ToonSocial.live()
+		if social != null:
+			social.answer(context, false, "full")
+		_show_notice(
+			"%s would like to be your friend, but you already have too many friends on your list!" % from_name,
+			["OK"],
+			[func() -> void: _hide_dialog()]
+		)
+		return
+	_show_notice(
+		"Would you like to make friends with %s?" % from_name,
+		["Yes", "No"],
+		[func() -> void:
+			var social := ToonSocial.live()
+			if social != null:
+				social.answer(context, true, "")
+			_hide_dialog(),
+		func() -> void:
+			var social := ToonSocial.live()
+			if social != null:
+				social.answer(context, false, "no")
+			_hide_dialog()]
+	)
+
+
+func _on_secret_code(code: String) -> void:
+	_show_notice(
+		"Here is your new True Friend Code.  Be sure to write it down!\n\nYou may give this True Friend Code to one person only.  Once someone types in your True Friend Code, it will not work for anyone else.\n\nThe True Friend Code will only work for the next two days.\n\nYour True Friend Code is:\n\n%s" % code,
+		["OK"],
+		[func() -> void: _hide_dialog()]
+	)
+
+
+func _on_secret_note(text: String) -> void:
+	_show_notice(text, ["OK"], [func() -> void: _hide_dialog()])
+
+
+func _on_dropped(av: int) -> void:
+	var friend_id := "av:%d" % av
+	var showing := String(_picked.get("id", "")) == friend_id
+	FriendsBook.remove_friend(friend_id)
+	if showing:
+		_hide_card()
+	if _list_open:
+		_fill_names()
 
 
 func _show_notice(text: String, captions: Array, actions: Array) -> void:

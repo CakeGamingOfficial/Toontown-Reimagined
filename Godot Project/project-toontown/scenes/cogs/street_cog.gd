@@ -52,6 +52,7 @@ var _prop_time := 0.0
 var _prop_frames := 0
 var _prop_fps := DEFAULT_FPS
 var _ground := Vector3.ZERO
+var _path_ready := false
 var _materials: Array[ShaderMaterial] = []
 var _source: Dictionary = {}
 var _walk: Dictionary = {}
@@ -64,6 +65,7 @@ var _prop_bank: Dictionary = {}
 var _sound: AudioStreamPlayer3D
 
 func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
+	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"])
 	cog_code = str(cog["code"])
 	cog_name = str(cog["name"])
 	dept = str(cog["dept"])
@@ -77,7 +79,12 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	_slot = 0
 	if route.size() > 0:
 		_slot = posmod(start, route.size())
-	_edges_left = _street_stay(route.size())
+	# The walk is chosen when the suit reaches the sidewalk, not while it
+	# is still dropping out of the sky.
+	_path_ready = false
+	_edges_left = 0
+	visible = true
+	set_process(true)
 	var body_timing: Dictionary = timing.get(body, {})
 	_body_timing = body_timing
 	var walk_info: Dictionary = body_timing.get("walk", {})
@@ -94,34 +101,44 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	_prop_fps = float(propeller.get("fps", DEFAULT_FPS))
 	if _prop_fps < 1.0:
 		_prop_fps = DEFAULT_FPS
-	var packed := load("res://assets/cogs/suits/%s.glb" % cog_code) as PackedScene
-	if packed == null:
-		departed.emit()
-		queue_free()
-		return
-	var actor := packed.instantiate()
-	actor.name = "Suit"
-	add_child(actor)
-	_hide_gray_cuffs(actor)
-	_own_materials(actor)
-	_quiet_shadows(actor)
+	if not same:
+		var previous := get_node_or_null("Suit")
+		if previous != null:
+			previous.free()
+		var packed := load("res://assets/cogs/suits/%s.glb" % cog_code) as PackedScene
+		if packed == null:
+			_give_up()
+			return
+		var actor := packed.instantiate()
+		actor.name = "Suit"
+		add_child(actor)
+		_hide_gray_cuffs(actor)
+		_materials.clear()
+		_own_materials(actor)
+		_quiet_shadows(actor)
+	_release_nametag()
 	_add_nametag()
-	_walk = _read_bank("res://assets/cogs/anims/%s/walk.walk" % body)
-	_neutral = _read_bank("res://assets/cogs/anims/%s/neutral.walk" % body)
-	_landing = _read_bank("res://assets/cogs/anims/%s/landing.walk" % body)
+	if not same or _walk.is_empty():
+		_walk = _read_bank("res://assets/cogs/anims/%s/walk.walk" % body)
+		_neutral = _read_bank("res://assets/cogs/anims/%s/neutral.walk" % body)
+		_landing = _read_bank("res://assets/cogs/anims/%s/landing.walk" % body)
 	if int(_landing.get("frames", 0)) > 1:
 		_landing_frames = int(_landing["frames"])
 	if _route.size() < 2:
-		departed.emit()
-		queue_free()
+		_give_up()
 		return
 	_prepare_landing()
-	if resume.is_empty():
+	if resume.is_empty() or int(resume.get("phase", 0)) == 0:
+		_phase = 0
+		_fly = float(resume.get("fly", 0.0)) if not resume.is_empty() else 0.0
 		_ground = _points[_route[_slot]]
 		_goal = _ground
-		global_position = _ground + Vector3(0.0, SKY_HEIGHT, 0.0)
-		_set_alpha(0.0)
-		_step_lane()
+		if resume.is_empty():
+			global_position = _ground + Vector3(0.0, SKY_HEIGHT, 0.0)
+		else:
+			global_position = _vec(resume, "position", _ground + Vector3(0.0, SKY_HEIGHT, 0.0))
+			rotation.y = float(resume.get("yaw", 0.0))
+		_set_alpha(clampf(_fly, 0.0, 1.0) if not resume.is_empty() else 0.0)
 		_attach_propeller()
 		_play_propeller(true)
 		_pose_clip(_landing, 0, 0, 0.0)
@@ -144,6 +161,9 @@ func capture() -> Dictionary:
 		"yaw": rotation.y,
 		"till": _till_land,
 		"impact": _impact,
+		"pathed": _path_ready,
+		"from_building": false,
+		"do_id": int(get_meta("do_id", 0)),
 	}
 
 
@@ -172,17 +192,35 @@ func _resume(state: Dictionary) -> void:
 		_pose_elapsed(_landing, dur - _fly, _landing_fps, false)
 		return
 	_phase = 1
+	_path_ready = true
 	_set_alpha(1.0)
+	_step_lane()
 	var frames := maxi(int(_walk.get("frames", 1)), 1)
 	_walk_time = fposmod(_walk_time, float(frames))
 	var frame := int(_walk_time) % frames
 	_pose_clip(_walk, frame, (frame + 1) % frames, _walk_time - float(frame))
 
 
+func follow_net(state: Dictionary) -> void:
+	set_meta("playback", true)
+	if _path_ready or not bool(state.get("pathed", false)):
+		return
+	set_meta("net_edges", int(state.get("edges", 40)))
+	_slot = posmod(int(state.get("slot", _slot)), maxi(_route.size(), 1))
+	_goal = _vec(state, "goal", _goal)
+	_ground = _vec(state, "ground", _ground)
+	global_position = _vec(state, "position", global_position)
+	_assign_path()
+
+
 func _vec(state: Dictionary, key: String, fallback: Vector3) -> Vector3:
 	var value: Variant = state.get(key, fallback)
 	if value is Vector3:
 		return value
+	if value is Array:
+		var row: Array = value
+		if row.size() >= 3:
+			return Vector3(float(row[0]), float(row[1]), float(row[2]))
 	return fallback
 
 
@@ -259,6 +297,7 @@ func _fly_in(delta: float) -> void:
 	_spin_propeller(delta, true)
 	if _fly >= FROM_SKY:
 		_detach_propeller()
+		_assign_path()
 		_phase = 1
 		_pose_elapsed(_walk, 0.0, _walk_fps, true)
 
@@ -277,6 +316,9 @@ func _fly_out(delta: float) -> void:
 	if _fly >= FROM_SKY:
 		_detach_propeller()
 		departed.emit()
+		if bool(get_meta("pooled", false)):
+			set_meta("pooled", false)
+			return
 		queue_free()
 
 
@@ -289,6 +331,9 @@ func on_lane() -> bool:
 
 
 func _roam(delta: float) -> void:
+	if bool(get_meta("playback", false)) and not _path_ready:
+		_idle(delta)
+		return
 	if _route.size() < 2:
 		_begin_fly_out()
 		return
@@ -389,7 +434,42 @@ func _begin_fly_out() -> void:
 	_play_propeller(false)
 
 
+func retire() -> void:
+	visible = false
+	set_process(false)
+	if _sound != null:
+		_sound.stop()
+	_detach_propeller()
+	_release_nametag()
+
+
+func _give_up() -> void:
+	set_meta("discard", true)
+	departed.emit()
+	queue_free()
+
+
 ## The route is already the right-hand loop. The next point is always forward.
+## DistributedSuitPlannerAI chooses that path before the suit is generated.
+## Here it waits until the landing, so a suit still in the sky does not
+## search the street graph.
+func _assign_path() -> void:
+	if _path_ready:
+		_step_lane()
+		return
+	if bool(get_meta("playback", false)):
+		var given := int(get_meta("net_edges", -1))
+		if given < 0:
+			return
+		_path_ready = true
+		_edges_left = given
+		_step_lane()
+		return
+	_path_ready = true
+	_edges_left = _street_stay(_route.size())
+	_step_lane()
+
+
 func _step_lane() -> void:
 	if _route.size() < 2:
 		_begin_fly_out()
@@ -438,6 +518,12 @@ func _pose_elapsed(bank: Dictionary, elapsed: float, fps: float, looping: bool) 
 		following = mini(frame + 1, frames - 1)
 	var blend := 0.0 if following == frame else cursor - float(frame)
 	_pose_clip(bank, frame, following, blend)
+
+
+func _release_nametag() -> void:
+	var board := get_parent().get_node_or_null("Nametags") if get_parent() != null else null
+	if board != null and board.has_method("release"):
+		board.call("release", self)
 
 
 func _add_nametag() -> void:

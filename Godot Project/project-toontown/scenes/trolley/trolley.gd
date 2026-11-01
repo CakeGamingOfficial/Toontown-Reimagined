@@ -175,7 +175,7 @@ func _go_play() -> void:
 	var ride := load("res://scenes/trolley/trolley_ride.gd") as GDScript
 	ride.hood = _host._hood if _host != null else 2000
 	ride.return_scene = _host._scene_path() if _host != null else ""
-	get_tree().change_scene_to_file(RIDE_SCENE)
+	ToonLoading.change_to(RIDE_SCENE)
 
 
 func _roll(t: float, seconds: float, distance: float) -> void:

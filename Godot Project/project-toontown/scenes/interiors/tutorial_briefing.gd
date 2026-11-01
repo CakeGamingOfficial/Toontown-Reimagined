@@ -669,7 +669,6 @@ func _present_laff() -> void:
 	var small := view.y * 0.15
 	var shown := Vector2(view.x * 0.3, view.y * 0.4)
 	var dock := LaffMeter.corner(view, small)
-	_meter.set_presenting(true)
 	_meter.set_hp(15, 15, true)
 	_meter.visible = true
 	_meter.place(shown, big)
@@ -691,8 +690,6 @@ func _present_laff() -> void:
 	var tween := create_tween()
 	tween.tween_method(_slide_meter.bind(shown, dock, big, small), 0.0, 1.0, 0.55)
 	await tween.finished
-	_meter.set_presenting(false)
-	_meter.place(dock, small)
 
 
 func _slide_meter(weight: float, shown: Vector2, dock: Vector2, big: float, small: float) -> void:

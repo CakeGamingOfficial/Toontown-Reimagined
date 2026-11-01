@@ -234,6 +234,16 @@ const _CARRY_TRAP: Array = [
 const LAST_REGULAR := 5
 
 
+## ToontownBattleGlobals.Levels. The detail panel stops drawing a track here.
+static func skill_at(track: int, level: int) -> int:
+	if track < 0 or track >= _SKILL.size():
+		return 0
+	var points: Array = _SKILL[track]
+	if level < 0 or level >= points.size():
+		return 0
+	return int(points[level])
+
+
 ## Experience.getExpLevel. Skill at or past a gag's point counts as that level.
 func skill_level(track: int) -> int:
 	if track < 0 or track >= _SKILL.size():
@@ -245,6 +255,19 @@ func skill_level(track: int) -> int:
 		if exp >= int(points[index]):
 			level = index
 	return level
+
+
+## DistributedToon avatar details: laff plus the seven tracks, level by level.
+func detail_card() -> Dictionary:
+	var exp: Array = []
+	var open: Array = []
+	var counts: Array = []
+	for track in TRACK_COUNT:
+		exp.append(experience_of(track))
+		open.append(1 if track_open(track) else 0)
+		for level in LEVEL_COUNT:
+			counts.append(count_of(track, level))
+	return {"hp": hp, "max": max_hp, "exp": exp, "open": open, "counts": counts}
 
 
 ## A new toon starts with throw and squirt. Later tracks open when one gag is owned.

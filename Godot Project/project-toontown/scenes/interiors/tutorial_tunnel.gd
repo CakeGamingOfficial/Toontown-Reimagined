@@ -40,12 +40,8 @@ func play(host: Node) -> void:
 	await _tunnel_out(origin)
 	if not is_inside_tree():
 		return
-	var packed := await _wait_scene()
 	_ARRIVAL.from_toontorial = true
-	if packed != null:
-		get_tree().change_scene_to_packed(packed)
-	else:
-		get_tree().change_scene_to_file(_PLAYGROUND)
+	ToonLoading.change_to(_PLAYGROUND)
 
 
 func _tunnel_out(origin: Node3D) -> void:

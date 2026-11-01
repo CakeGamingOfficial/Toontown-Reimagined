@@ -37,13 +37,57 @@ static var arrive_from_black := false
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	if ToonNet.is_dedicated():
+		_show_dedicated()
+		return
 	_build()
 	resized.connect(_layout)
 	_layout()
 	_play_theme()
+	_offer_server()
+	if not multiplayer.server_disconnected.is_connected(_server_closed):
+		multiplayer.server_disconnected.connect(_server_closed)
 	if arrive_from_black:
 		arrive_from_black = false
 		_fade_in()
+
+
+func _show_dedicated() -> void:
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0.45, 0.72, 0.95)
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(backdrop)
+	var label := Label.new()
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_left = 48
+	label.offset_top = 48
+	label.offset_right = -48
+	label.offset_bottom = -48
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.text = ToonNet.status_text()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(label)
+	ToonGui.style_label(label, Color(0.05, 0.12, 0.28), 28, Color(1, 1, 1, 0.85), 2)
+
+
+func _server_closed() -> void:
+	_offer_server()
+
+
+func _offer_server() -> void:
+	if ToonNet.networked() or get_node_or_null("ServerDoor") != null:
+		return
+	var door := (load("res://scenes/net/server_door.gd") as GDScript).new() as Control
+	door.name = "ServerDoor"
+	door.set_anchors_preset(Control.PRESET_FULL_RECT)
+	door.offset_left = 0.0
+	door.offset_top = 0.0
+	door.offset_right = 0.0
+	door.offset_bottom = 0.0
+	add_child(door)
 
 
 func _play_theme() -> void:
@@ -341,20 +385,19 @@ func _make_toon(index: int) -> void:
 	var tween := create_tween()
 	tween.tween_property(fade, "color:a", 1.0, 0.5)
 	tween.finished.connect(func() -> void:
-		get_tree().change_scene_to_file(MAKE_SCENE)
+		ToonLoading.change_to(MAKE_SCENE)
 	)
 
 
 func _play(index: int) -> void:
 	ToonRoster.select_slot(index)
-	SpeedChat.clear_saved()
 	var tasks := ToonTasks.for_selected()
 	if not tasks.in_playground:
-		get_tree().change_scene_to_file(PLAY_SCENE)
+		ToonLoading.change_to(PLAY_SCENE)
 		return
 	# PlayGame.enter uses how = teleportIn at defaultZone, which is lastHood.
 	_ARRIVAL.teleport_in = true
-	get_tree().change_scene_to_file(_PLACES.scene_for(tasks.last_hood))
+	ToonLoading.change_to(_PLACES.scene_for(tasks.last_hood))
 
 
 func _ask_delete(index: int) -> void:

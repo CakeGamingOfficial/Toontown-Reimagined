@@ -70,10 +70,6 @@ var _max_hp := 15
 var _followed: ToonLoadout
 var _boing: Tween
 var _boing_ready := false
-# The HUD meter stays in the corner. The tutorial handoff turns this off
-# while Tom's meter slides out of his hand and back.
-var _hud_dock := false
-var _presenting := false
 
 
 func setup(style: ToonStyle) -> void:
@@ -115,29 +111,6 @@ func follow(loadout: ToonLoadout) -> void:
 
 func loadout() -> ToonLoadout:
 	return _followed
-
-
-## The playground and the toontorial meter. A one-time place goes stale when
-## the window size changes, which leaves the head in the middle of the side.
-func use_as_hud() -> void:
-	_hud_dock = true
-
-
-func set_presenting(active: bool) -> void:
-	_presenting = active
-
-
-func _process(_delta: float) -> void:
-	if not _hud_dock or _presenting or not visible:
-		return
-	var view := get_viewport().get_visible_rect().size
-	if view.y < 2.0:
-		return
-	var pixels := view.y * 0.15
-	var spot := corner(view, pixels)
-	if absf(size.y - pixels) < 0.5 and position.distance_to(spot - size * 0.5) < 0.5:
-		return
-	place(spot, pixels)
 
 
 func _on_laff(current: int, maximum: int) -> void:

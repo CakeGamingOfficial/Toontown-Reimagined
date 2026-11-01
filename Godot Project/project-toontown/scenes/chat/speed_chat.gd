@@ -31,7 +31,7 @@ const _REOPEN_PAD := 4.0
 const _BLUE := Color(0.4, 0.68, 1.0)
 const _SAY_LIMIT := 120
 const _HELP := "Welcome to SpeedChat++. Chat, whispers, and alerts all show here. The other tabs show just one kind."
-const _TAB_NAMES: PackedStringArray = ["Main", "Whispers", "Alerts", "NPC", "Console"]
+const _TAB_NAMES: PackedStringArray = ["Main", "Whispers", "Alerts", "NPC"]
 const _CREAM := Color(1.0, 0.97, 0.86, 0.98)
 const _ORANGE := Color(0.9, 0.48, 0.1, 1.0)
 const _INK := Color(0.22, 0.12, 0.06, 1.0)
@@ -63,6 +63,7 @@ var _whispers: PackedStringArray = PackedStringArray()
 var _restored := false
 var _whisper_name := ""
 var _whisper_slot := -1
+var _whisper_av := 0
 var _dock: PanelContainer
 var _log: RichTextLabel
 var _entry: LineEdit
@@ -109,9 +110,9 @@ func setup(tasks: ToonTasks) -> void:
 	_apply_unlock()
 	_restore_log()
 	_pull_whispers()
-	var dev := get_node_or_null("/root/DevConsole")
-	if dev != null and dev.has_signal("changed") and not dev.is_connected("changed", _on_console):
-		dev.connect("changed", _on_console)
+	var social := ToonSocial.live()
+	if social != null and not social.heard.is_connected(_hear):
+		social.heard.connect(_hear)
 
 
 func is_open() -> bool:
@@ -415,10 +416,11 @@ func _choose(raw: String) -> void:
 		_close_menu()
 	var spoken := _named(raw)
 	if _whisper_name != "":
-		_send_whisper(spoken)
+		_send_whisper(spoken, true)
 		return
 	_remember(spoken)
 	phrase_said.emit(spoken)
+	_publish(spoken, true)
 
 
 func _named(raw: String) -> String:
@@ -821,10 +823,11 @@ func _send_typed(text: String) -> void:
 			_click.play()
 		return
 	if _whisper_name != "":
-		_send_whisper(spoken)
+		_send_whisper(spoken, false)
 		return
 	_remember(spoken)
 	phrase_said.emit(spoken)
+	_publish(spoken, false)
 	if _click.stream != null:
 		_click.play()
 
@@ -855,9 +858,10 @@ func ready_to_type() -> bool:
 
 
 ## ChatManager.whisperTo. The line reads "To Flippy" until the box loses focus.
-func whisper_to(friend_name: String, slot: int) -> void:
+func whisper_to(friend_name: String, slot: int, av: int = 0) -> void:
 	_whisper_name = friend_name
 	_whisper_slot = slot
+	_whisper_av = av
 	if not ready_to_type():
 		return
 	_show_dock()
@@ -871,15 +875,40 @@ func _end_whisper() -> void:
 		return
 	_whisper_name = ""
 	_whisper_slot = -1
+	_whisper_av = 0
 	if _entry != null:
 		_entry.placeholder_text = "Press Enter to chat"
 
 
-func _send_whisper(spoken: String) -> void:
-	FriendsBook.leave_whisper(_whisper_slot, _speaker_name(), spoken)
+func _send_whisper(spoken: String, speedchat: bool) -> void:
+	if _whisper_av > 0 and ToonNet.networked():
+		var social := ToonSocial.live()
+		if social != null:
+			social.whisper(_whisper_av, spoken, speedchat)
+	else:
+		FriendsBook.leave_whisper(_whisper_slot, _speaker_name(), spoken)
 	_log_whisper("To %s:" % _whisper_name, spoken)
 	if _click.stream != null:
 		_click.play()
+
+
+func _publish(spoken: String, speedchat: bool) -> void:
+	var social := ToonSocial.live()
+	if social != null:
+		social.say(spoken, speedchat)
+
+
+func _hear(from_name: String, text: String, whisper: bool) -> void:
+	if whisper:
+		_log_whisper("%s whispers:" % from_name, text)
+		return
+	var line := "[color=#7a5a3a]%s[/color] [color=#3a5f9a]%s[/color]: %s" % [_clock(), _bb(from_name), _bb(text)]
+	_history.append(line)
+	if _tab != 0:
+		_tab = 0
+		for tab_index in _tabs.size():
+			_style_tab(_tabs[tab_index], tab_index == 0)
+	_refresh_log()
 
 
 func _pull_whispers() -> void:
@@ -904,30 +933,6 @@ func _log_whisper(who: String, text: String) -> void:
 
 
 func _log_key() -> String:
-	return _slot_key()
-
-
-## Play and a brand-new toon start with an empty log. Tunnel changes keep it.
-static func clear_saved() -> void:
-	const path := "user://chat_log.json"
-	if not FileAccess.file_exists(path):
-		return
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return
-	var saved: Dictionary = parsed
-	saved.erase(_slot_key())
-	var out := FileAccess.open(path, FileAccess.WRITE)
-	if out == null:
-		return
-	out.store_string(JSON.stringify(saved))
-
-
-static func _slot_key() -> String:
 	var index := ToonRoster.selected_index()
 	if index < 0:
 		return "guest"
@@ -1005,26 +1010,7 @@ func _lines_from(value: Variant) -> PackedStringArray:
 	return lines
 
 
-func _on_console() -> void:
-	if _tab != 4 or _log == null:
-		return
-	_show_console()
-
-
-func _show_console() -> void:
-	if _log == null:
-		return
-	var dev := get_node_or_null("/root/DevConsole")
-	if dev == null or not dev.has_method("transcript"):
-		_log.text = "[color=#8a7058]Console is not running.[/color]"
-		return
-	_log.text = str(dev.call("transcript"))
-
-
 func _refresh_log() -> void:
-	if _tab == 4:
-		_show_console()
-		return
 	_keep_log()
 	if _log == null:
 		return
@@ -1166,8 +1152,8 @@ func _style_tab(button: Button, selected: bool) -> void:
 	box.border_color = _ORANGE
 	box.set_border_width_all(2)
 	box.set_corner_radius_all(6)
-	box.content_margin_left = 5
-	box.content_margin_right = 5
+	box.content_margin_left = 8
+	box.content_margin_right = 8
 	box.content_margin_top = 2
 	box.content_margin_bottom = 2
 	button.add_theme_stylebox_override("normal", box)
@@ -1175,7 +1161,7 @@ func _style_tab(button: Button, selected: bool) -> void:
 	button.add_theme_stylebox_override("pressed", box)
 	button.add_theme_stylebox_override("focus", box)
 	button.add_theme_font_override("font", ToonGui.font())
-	button.add_theme_font_size_override("font_size", 13)
+	button.add_theme_font_size_override("font_size", 14)
 	var ink := Color.WHITE if selected else _INK
 	button.add_theme_color_override("font_color", ink)
 	button.add_theme_color_override("font_hover_color", ink)

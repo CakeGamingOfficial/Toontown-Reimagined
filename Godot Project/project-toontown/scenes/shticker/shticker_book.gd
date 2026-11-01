@@ -2,20 +2,21 @@ class_name ShtickerBook
 extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
-## sit down the right edge, and the pages are Options, the map, Gags,
-## ToonTasks, and the Cog Gallery. Harry's reward still opens on the map and
-## turns to gags, then tasks.
+## sit down the right edge, and the pages are Options, Districts, the map,
+## Gags, ToonTasks, and the Cog Gallery. Harry's reward still opens on the
+## map and turns to gags, then tasks.
 
 signal book_opened
 signal book_closed
 signal page_ready(which: int)
 
 const PAGE_OPTIONS := 0
-const PAGE_MAP := 1
-const PAGE_GAGS := 2
-const PAGE_TASKS := 3
-const PAGE_COGS := 4
-const _PAGE_NAMES: PackedStringArray = ["Options", "Map", "Gags", "ToonTasks", "Cog Gallery"]
+const PAGE_DISTRICTS := 1
+const PAGE_MAP := 2
+const PAGE_GAGS := 3
+const PAGE_TASKS := 4
+const PAGE_COGS := 5
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Cog Gallery"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
@@ -96,6 +97,7 @@ const _GAG_ICON: Array[Texture2D] = [
 # Centers of the seven wells on InventoryRow, measured from the original card.
 const _SLOT_CENTER: PackedFloat32Array = [0.2679, 0.3770, 0.4861, 0.5933, 0.7044, 0.8115, 0.9226]
 const _TAB_OPTIONS := preload("res://assets/gui/tutorial/book/tab_options.png")
+const _TAB_DISTRICT := preload("res://assets/gui/shticker/tab_district.png")
 const _TAB_MAP := preload("res://assets/gui/tutorial/book/tab_map.png")
 const _TAB_GAGS := preload("res://assets/gui/tutorial/book/tab_gags.png")
 const _TAB_TASKS := preload("res://assets/gui/tutorial/book/tab_tasks.png")
@@ -133,6 +135,7 @@ const _HOOD_HIT: Array[Rect2] = [
 
 var _tasks: ToonTasks
 var _cogs: CogGallery
+var _districts_page: DistrictPage
 var _loadout: ToonLoadout
 var _button: TextureButton
 var _dim: ColorRect
@@ -354,13 +357,16 @@ func _build_book() -> void:
 	_cover.visible = false
 	add_child(_cover)
 	_pages.append(_build_options())
+	_districts_page = DistrictPage.new()
+	_cover.add_child(_districts_page)
+	_pages.append(_districts_page)
 	_pages.append(_build_map())
 	_pages.append(_build_gags())
 	_pages.append(_build_tasks())
 	_cogs = CogGallery.new()
 	_cover.add_child(_cogs)
 	_pages.append(_cogs)
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_GEAR]
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_GEAR]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -893,6 +899,8 @@ func _set_page(index: int) -> void:
 func _show_page(index: int) -> void:
 	if index == PAGE_OPTIONS:
 		_refresh_binds()
+	elif index == PAGE_DISTRICTS and _districts_page != null:
+		_districts_page.refresh()
 	elif index == PAGE_MAP:
 		_refresh_map()
 	elif index == PAGE_GAGS:
@@ -1253,7 +1261,7 @@ func _leave_for_chooser() -> void:
 		close()
 		arrival.call("quit_to_chooser")
 		return
-	get_tree().change_scene_to_file(_PICK_SCENE)
+	ToonLoading.change_to(_PICK_SCENE)
 
 
 func _leave_game() -> void:
@@ -1276,7 +1284,7 @@ func _travel(hood: int) -> void:
 	_ARRIVAL.teleport_in = true
 	if _tasks != null:
 		_tasks.note_hood(hood)
-	get_tree().change_scene_to_file(_PLACES.scene_for(hood))
+	ToonLoading.change_to(_PLACES.scene_for(hood))
 
 
 func _show_tab_name(index: int) -> void:
@@ -1330,6 +1338,8 @@ func _layout() -> void:
 			title.size = Vector2(page_size.x, float(title_px) + 8.0)
 			ToonGui.style_label(title, Color(0.08, 0.08, 0.08), title_px, Color(0, 0, 0, 0), 0)
 	_layout_options(page_size, body_px)
+	if _districts_page != null:
+		_districts_page.layout(page_size)
 	_layout_map(page_size, body_px)
 	_layout_gags(page_size, body_px)
 	_layout_tasks(page_size)

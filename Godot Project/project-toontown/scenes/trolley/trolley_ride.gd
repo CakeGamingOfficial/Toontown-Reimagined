@@ -43,7 +43,28 @@ var _choice: Dictionary = {}
 
 func _ready() -> void:
 	_choice = _pick()
+	if _choice.is_empty():
+		var net := ToonNet.live()
+		if net != null and not net.state_changed.is_connected(_on_net_game):
+			net.state_changed.connect(_on_net_game)
+		return
+	_arm()
+
+
+func _on_net_game(channel: String) -> void:
+	if _rules != null or not channel.begins_with("trolley:"):
+		return
+	_choice = _pick()
+	if _choice.is_empty():
+		return
+	_arm()
+
+
+func _arm() -> void:
 	previous_id = int(_choice["id"])
+	var posted := ToonNet.latest("trolley:%d" % ToonNet.district_id())
+	if int(posted.get("by", -1)) == ToonNet.self_peer():
+		MagicWords.note_played(previous_id)
 	_play_song()
 	_show_rules()
 
@@ -72,18 +93,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _pick() -> Dictionary:
-	var wanted := MagicWords.take_trolley_game()
-	if wanted != 0:
-		for entry in _GAMES:
-			if int(entry["id"]) == wanted:
-				return entry
-	var pool: Array[Dictionary] = []
+	# DistributedMinigame on the district AI picks the game. This ride plays it.
+	var wanted := ToonNet.begin_trolley(previous_id)
+	if wanted == 0:
+		return {}
 	for entry in _GAMES:
-		if int(entry["id"]) != previous_id:
-			pool.append(entry)
-	if pool.is_empty():
-		pool = _GAMES
-	return pool[randi() % pool.size()]
+		if int(entry["id"]) == wanted:
+			return entry
+	return {}
 
 
 func _show_rules() -> void:
@@ -166,6 +183,7 @@ func _start() -> void:
 
 
 func _reward(raw: int) -> void:
+	ToonNet.finish_trolley(raw)
 	var paid := clampi(int(round(float(raw) * _multiplier())), 0, 255)
 	_TASKS.for_selected().note_trolley()
 	_quiet(self)
@@ -209,7 +227,7 @@ func _home() -> void:
 	arrival.teleport_in = true
 	if return_scene.is_empty():
 		return_scene = "res://scenes/playgrounds/toontown_central.tscn"
-	get_tree().change_scene_to_file(return_scene)
+	ToonLoading.change_to(return_scene)
 
 
 func _multiplier() -> float:

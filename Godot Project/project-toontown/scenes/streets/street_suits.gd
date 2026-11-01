@@ -3,10 +3,37 @@ class_name StreetSuits
 
 const _COG := preload("res://scenes/cogs/street_cog.gd")
 
-## Spawns the original street population and keeps the suit graph in the scene.
-## Cog HQ streets are not in the map. Suit nametags do not start a battle.
+## DistributedSuitPlannerAI for one street. The street wants the average of its
+## min and max, then drifts inside that range. An upkeep every 10 seconds
+## creates only (deficit + 3) / 4 suits, and the whole district stops at 50.
+## Cog buildings are not in yet. When they are, about 1.5 suits per established
+## building leave by the side door and share that same cap. A future server
+## owns this list and replicates capture() records. Clients only wake a pooled
+## actor from a record. They do not pick DNA themselves.
 
 const DEPTS: PackedStringArray = ["c", "l", "m", "s"]
+const TOTAL_MAX_SUITS := 50
+const SUIT_BUILDING_NUM_SUITS := 1.5
+## SuitHoodInfo min and max for each street zone.
+const HOOD := {
+	1100: Vector2i(1, 5),
+	1200: Vector2i(1, 5),
+	1300: Vector2i(1, 5),
+	2100: Vector2i(5, 15),
+	2200: Vector2i(3, 10),
+	2300: Vector2i(3, 10),
+	3100: Vector2i(1, 5),
+	3200: Vector2i(1, 5),
+	3300: Vector2i(1, 5),
+	4100: Vector2i(1, 5),
+	4200: Vector2i(1, 5),
+	4300: Vector2i(1, 5),
+	5100: Vector2i(1, 5),
+	5200: Vector2i(1, 5),
+	5300: Vector2i(1, 5),
+	9100: Vector2i(1, 5),
+	9200: Vector2i(1, 5),
+}
 const STREETS := {
 	"silly_street": "res://assets/neighborhoods/toontown_central/streets/silly_street_suits.json",
 	"loopy_lane": "res://assets/neighborhoods/toontown_central/streets/loopy_lane_suits.json",
@@ -36,6 +63,16 @@ var _route: PackedInt32Array = PackedInt32Array()
 var _starts: Array[int] = []
 var _nametags: Node
 var _count := 0
+var _zone := 0
+var _street_min := 1
+var _street_max := 5
+var _base := 1
+var _desired := 1
+var _adjust := 0
+var _upkeep := 10.0
+var _adjust_left := 300.0
+var _queue: Array[Dictionary] = []
+var _pool: Dictionary = {}
 var _tracks: Array = []
 var _levels: Array = []
 var _max_type := 6
@@ -43,7 +80,11 @@ var _catalog: Array = []
 var _timing: Dictionary = {}
 var _propeller: Dictionary = {}
 var _living := 0
-var _filling := false
+## False when this node only fills the district AI record and draws nothing.
+var visuals := true
+var district_id := -1
+var _net_sig := ""
+var _net_actors: Dictionary = {}
 
 
 static func attach(host: Node3D) -> void:
@@ -69,26 +110,60 @@ func _ready() -> void:
 	_build_route()
 	if _route.size() < 2:
 		return
+	if district_id < 0:
+		district_id = ToonNet.district_id()
+	if not visuals:
+		_seed()
+		return
 	_build_layout()
 	_prepare_nametags()
-	_filling = true
+	var pool := Node3D.new()
+	pool.name = "CogPool"
+	add_child(pool)
 	tree_exiting.connect(_park)
 	var saved := _claim()
-	var raw_rows: Variant = saved.get("cogs", [])
-	if raw_rows is Array:
-		for item in raw_rows as Array:
-			if item is Dictionary:
-				_spawn_state(item)
-	_filling = _living < _count
-	if _filling:
-		_fill()
+	if not saved.is_empty():
+		_desired = int(saved.get("desired", _desired))
+		_adjust = int(saved.get("adjust", _adjust))
+		_upkeep = float(saved.get("upkeep", randf_range(10.0, 12.0)))
+		_adjust_left = float(saved.get("adjust_left", randf_range(300.0, 310.0)))
+		var raw_rows: Variant = saved.get("cogs", [])
+		if raw_rows is Array:
+			for item in raw_rows as Array:
+				if item is Dictionary:
+					_queue.append(item)
+	else:
+		# initTasks waits POP_UPKEEP_DELAY plus up to two seconds. The street
+		# does not dump its whole population on the first frame.
+		_upkeep = randf_range(10.0, 12.0)
+		_adjust_left = randf_range(300.0, 310.0)
+	if not ToonNet.is_authority():
+		ToonNet.request_suits(district_id, street_slug)
 
 
-func _process(_delta: float) -> void:
-	if _nametags == null:
+func _process(delta: float) -> void:
+	if not visuals:
 		return
-	_nametags.set("camera", get_viewport().get_camera_3d())
-	_nametags.call("place")
+	if _nametags != null:
+		_nametags.set("camera", get_viewport().get_camera_3d())
+		_nametags.call("place")
+	if not ToonNet.is_authority():
+		_apply_net()
+		return
+	if not _queue.is_empty():
+		var job: Dictionary = _queue.pop_front()
+		_spawn_state(job)
+		_publish_net()
+		return
+	_upkeep -= delta
+	if _upkeep <= 0.0:
+		_upkeep = randf_range(10.0, 12.0)
+		_authorize()
+	_adjust_left -= delta
+	if _adjust_left <= 0.0:
+		_adjust_left = randf_range(300.0, 310.0)
+		_nudge()
+	_publish_net()
 
 
 func _prepare_nametags() -> void:
@@ -194,6 +269,14 @@ func _load_street() -> bool:
 		if not _links[index].is_empty():
 			_starts.append(index)
 	_count = int(data.get("count", 0))
+	_zone = int(data.get("zone", 0))
+	var span: Vector2i = HOOD.get(_zone, Vector2i(_count, _count))
+	_street_min = span.x
+	_street_max = maxi(span.y, span.x)
+	_base = int((_street_min + _street_max) / 2)
+	if _base < 1:
+		_base = maxi(_count, 1)
+	_desired = _base
 	_tracks = data.get("tracks", [])
 	_levels = data.get("levels", [])
 	_max_type = int(data.get("max_type", 6))
@@ -326,39 +409,94 @@ func _build_layout() -> void:
 		cells.add_child(area)
 
 
-func _fill() -> void:
-	var spawned := 0
-	while _living < _count:
-		var before := _living
-		if _living > 0:
-			await get_tree().create_timer(randf_range(1.6, 3.4)).timeout
-		if not is_inside_tree():
-			return
-		_spawn()
-		if _living == before:
-			_filling = false
-			return
-	_filling = false
+## Cog buildings are not spawned. A building manager will return the number
+## of established suit buildings, and the upkeep will add about 1.5 suits
+## for each one, leaving from the side door.
+func established_suit_buildings() -> int:
+	return 0
 
 
-func _spawn_state(state: Dictionary) -> void:
-	if _living >= _count:
-		return
+## The record a server would replicate. A client wakes a pooled actor from
+## one of these and does not choose the suit itself.
+## doSummonSingleCog. The named suit flies in at the street point closest
+## to the toon. A level of -1 lets the street roll one, then clamps it to
+## the range that cog type can actually be.
+func summon_named(query: String, level: int, near: Vector3) -> String:
+	var cog := _find_named(query)
+	if cog.is_empty():
+		return "Unknown cog \"%s\"." % query
+	if _route.size() < 2 or _points.is_empty():
+		return "This street has no cog spawn points."
+	var cog_type := int(cog.get("type", 1))
+	var rolled := cog_type
+	if level > 0:
+		rolled = level
+	elif not _levels.is_empty():
+		rolled = int(_levels[randi() % _levels.size()])
+	cog["level"] = clampi(rolled, cog_type, cog_type + 4)
+	# A client does not create the suit. The district AI does, then everyone plays it.
+	if not ToonNet.is_authority():
+		ToonNet.ask_summon(district_id, street_slug, query, int(cog["level"]), near)
+		return "A Level %d %s is flying in." % [int(cog["level"]), String(cog["name"])]
+	if not visuals:
+		return _summon_parked(cog, near)
+	var net_id := ToonNet.next_id()
+	cog["do_id"] = net_id
+	_queue.push_front({
+		"cog": cog,
+		"do_id": net_id,
+		"slot": _closest_slot(near),
+		"phase": -1,
+	})
+	return "A Level %d %s is flying in." % [int(cog["level"]), String(cog["name"])]
+
+
+func _summon_parked(cog: Dictionary, near: Vector3) -> String:
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic == null or not traffic.has_method("inject_suit"):
+		return "This street has no cog spawn points."
+	var net_id := ToonNet.next_id()
+	cog["do_id"] = net_id
+	traffic.call("inject_suit", district_id, street_slug, cog, _closest_slot(near))
+	return "A Level %d %s is flying in." % [int(cog["level"]), String(cog["name"])]
+
+
+func roster() -> Array:
+	var rows: Array = []
+	for child in get_children():
+		if child.has_method("capture"):
+			rows.append(child.call("capture"))
+	for job in _queue:
+		rows.append(job)
+	return rows
+
+
+func _spawn_state(state: Dictionary) -> Node3D:
 	var cog: Variant = state.get("cog", {})
 	if not (cog is Dictionary) or (cog as Dictionary).is_empty():
-		return
-	var suit := _COG.new() as Node3D
-	add_child(suit)
-	suit.connect("departed", _on_departed)
-	suit.call("setup", cog, _points, _route, int(state.get("slot", 0)), _timing, _propeller, state)
+		return null
+	var suit := _take_suit(cog as Dictionary)
+	var playback := not ToonNet.is_authority()
+	if playback:
+		suit.set_meta("playback", true)
+	elif not bool(suit.get_meta("hooked", false)):
+		suit.connect("departed", _on_departed.bind(suit))
+		suit.set_meta("hooked", true)
+	var resume := state
+	if int(state.get("phase", -1)) < 0:
+		resume = {}
 	_living += 1
+	suit.call("setup", cog, _points, _route, int(state.get("slot", 0)), _timing, _propeller, resume)
+	var net_id := int(state.get("do_id", (cog as Dictionary).get("do_id", 0)))
+	suit.set_meta("do_id", net_id)
+	return suit
 
 
 func _claim() -> Dictionary:
 	var traffic := get_node_or_null("/root/StreetTraffic")
 	if traffic == null or not traffic.has_method("claim"):
 		return {}
-	var claimed: Variant = traffic.call("claim", street_slug)
+	var claimed: Variant = traffic.call("claim", district_id, street_slug)
 	if claimed is Dictionary:
 		return claimed
 	return {}
@@ -371,32 +509,98 @@ func _park() -> void:
 	if traffic == null or not traffic.has_method("hold"):
 		return
 	var cogs: Array = []
+	var leaving: Array[Node] = []
 	for child in get_children():
 		if child.has_method("capture"):
-			cogs.append(child.call("capture"))
-	traffic.call("hold", street_slug, {
-		"points": _points,
-		"route": _route,
-		"count": _count,
-		"catalog": _catalog,
-		"levels": _levels,
-		"tracks": _tracks,
-		"max_type": _max_type,
-		"cogs": cogs,
-		"waits": [],
-	})
+			leaving.append(child)
+	for child in leaving:
+		cogs.append(child.call("capture"))
+		_keep(traffic, child)
+	for job in _queue:
+		cogs.append(job)
+	_queue.clear()
+	var holder := get_node_or_null("CogPool")
+	if holder != null:
+		var parked: Array[Node] = []
+		for child in holder.get_children():
+			parked.append(child)
+		for child in parked:
+			_keep(traffic, child)
+	traffic.call("hold", district_id, street_slug, _record(cogs))
 
-func _spawn() -> void:
-	if _living >= _count or _starts.is_empty():
+
+func _authorize() -> void:
+	var building_target := int(float(established_suit_buildings()) * SUIT_BUILDING_NUM_SUITS)
+	var room := TOTAL_MAX_SUITS - building_target - _district_used()
+	var deficit := _desired - (_living + _queue.size())
+	var burst := int((deficit + 3) / 4)
+	burst = mini(burst, room)
+	while burst > 0:
+		var cog := _pick_cog()
+		if cog.is_empty():
+			return
+		var net_id := ToonNet.next_id()
+		cog["do_id"] = net_id
+		_queue.append({
+			"cog": cog,
+			"do_id": net_id,
+			"slot": _open_slot(),
+			"phase": -1,
+		})
+		burst -= 1
+
+
+func _nudge() -> void:
+	if _street_max == 0:
 		return
-	var cog := _pick_cog()
-	if cog.is_empty():
-		return
+	var choices: Array[int] = [-2, -1, -1, 0, 0, 0, 1, 1, 2]
+	_adjust += choices[randi() % choices.size()]
+	var wanted := _base + _adjust
+	if wanted < _street_min:
+		_adjust = _street_min - _base
+	elif wanted > _street_max:
+		_adjust = _street_max - _base
+	_desired = _base + _adjust
+
+
+func _district_used() -> int:
+	var other := 0
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("suit_total"):
+		other = int(traffic.call("suit_total"))
+	return other + _living + _queue.size()
+
+
+func _take_suit(cog: Dictionary) -> Node3D:
+	var code := str(cog.get("code", ""))
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("take_actor"):
+		var reused: Variant = traffic.call("take_actor", code)
+		if reused is Node3D and is_instance_valid(reused):
+			var actor := reused as Node3D
+			add_child(actor)
+			return actor
+	var waiting: Array = _pool.get(code, [])
+	if not waiting.is_empty():
+		var local: Variant = waiting.pop_back()
+		_pool[code] = waiting
+		if local is Node3D and is_instance_valid(local):
+			var actor := local as Node3D
+			add_child(actor)
+			return actor
 	var suit := _COG.new() as Node3D
 	add_child(suit)
-	suit.connect("departed", _on_departed)
-	suit.call("setup", cog, _points, _route, _open_slot(), _timing, _propeller)
-	_living += 1
+	return suit
+
+
+func _keep(traffic: Node, suit: Node) -> void:
+	if not is_instance_valid(suit):
+		return
+	if suit.has_method("retire"):
+		suit.call("retire")
+	suit.set_meta("pooled", true)
+	if traffic.has_method("keep_actor"):
+		traffic.call("keep_actor", str(suit.get("cog_code")), suit)
 
 
 ## Spread arrivals around the loop. Two suits should not land on the same corner.
@@ -408,6 +612,8 @@ func _open_slot() -> int:
 	for child in get_children():
 		if child.has_method("lane_slot"):
 			taken.append(int(child.call("lane_slot")))
+	for job in _queue:
+		taken.append(int(job.get("slot", 0)))
 	if taken.is_empty():
 		return randi() % count
 	var best := 0
@@ -426,20 +632,160 @@ func _open_slot() -> int:
 	return best
 
 
-func _on_departed() -> void:
-	_living -= 1
-	if _filling or not is_inside_tree():
+func _on_departed(suit: Node) -> void:
+	_living = maxi(_living - 1, 0)
+	if not is_instance_valid(suit) or bool(suit.get_meta("discard", false)):
 		return
-	_replace()
+	if suit.has_method("retire"):
+		suit.call("retire")
+	suit.set_meta("pooled", true)
+	var code := str(suit.get("cog_code"))
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("keep_actor") and int(traffic.call("suit_total", district_id)) + _pool_size() < TOTAL_MAX_SUITS:
+		traffic.call("keep_actor", code, suit)
+		return
+	var waiting: Array = _pool.get(code, [])
+	waiting.append(suit)
+	_pool[code] = waiting
+	var holder := get_node_or_null("CogPool")
+	if holder != null:
+		suit.reparent(holder)
 
 
-func _replace() -> void:
-	# POP_UPKEEP_DELAY is 10 seconds, plus up to 2 seconds of jitter.
-	await get_tree().create_timer(randf_range(10.0, 12.0)).timeout
-	if _filling or not is_inside_tree():
+func _pool_size() -> int:
+	var count := 0
+	for code in _pool:
+		var waiting: Array = _pool[code]
+		count += waiting.size()
+	return count
+
+
+func _closest_slot(near: Vector3) -> int:
+	var best := 0
+	var best_distance := INF
+	var flat := Vector2(near.x, near.z)
+	for index in _route.size():
+		var point := _points[_route[index]]
+		var distance := flat.distance_squared_to(Vector2(point.x, point.z))
+		if distance < best_distance:
+			best_distance = distance
+			best = index
+	return best
+
+
+func _find_named(query: String) -> Dictionary:
+	return match_cog(_catalog, query)
+
+
+static func match_cog(catalog: Array, query: String) -> Dictionary:
+	var wanted := cog_key(query)
+	if wanted.is_empty():
+		return {}
+	var prefix: Dictionary = {}
+	for item in catalog:
+		if not (item is Dictionary):
+			continue
+		var cog := (item as Dictionary).duplicate() as Dictionary
+		var code := cog_key(String(cog.get("code", "")))
+		var label := cog_key(String(cog.get("name", "")))
+		if wanted == code or wanted == label:
+			return cog
+		if code.begins_with(wanted) or label.begins_with(wanted):
+			prefix[String(cog.get("name", ""))] = cog
+	if prefix.size() == 1:
+		var only: Variant = prefix.values()[0]
+		if only is Dictionary:
+			return only
+	return {}
+
+
+static func cog_key(raw: String) -> String:
+	var folded := raw.to_lower()
+	var kept := ""
+	for index in folded.length():
+		var letter := folded.substr(index, 1)
+		var alpha := letter >= "a" and letter <= "z"
+		var digit := letter >= "0" and letter <= "9"
+		if alpha or digit:
+			kept += letter
+	return kept
+
+
+func _record(cogs: Array) -> Dictionary:
+	return {
+		"points": _points,
+		"route": _route,
+		"count": _desired,
+		"desired": _desired,
+		"adjust": _adjust,
+		"upkeep": _upkeep,
+		"adjust_left": _adjust_left,
+		"catalog": _catalog,
+		"levels": _levels,
+		"tracks": _tracks,
+		"max_type": _max_type,
+		"cogs": cogs,
+		"waits": [],
+		"district": district_id,
+	}
+
+
+func _seed() -> void:
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("hold"):
+		traffic.call("hold", district_id, street_slug, _record([]))
+
+
+func _publish_net() -> void:
+	var rows := roster()
+	var parts: PackedStringArray = []
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		parts.append("%s:%s:%s:%s:%s" % [row.get("do_id", 0), row.get("phase", -1), row.get("pathed", false), row.get("slot", 0), row.get("edges", 0)])
+	var sig := "|".join(parts)
+	if sig == _net_sig:
 		return
-	if _living < _count:
-		_spawn()
+	_net_sig = sig
+	ToonNet.publish("suits:%d:%s" % [district_id, street_slug], {"rows": rows})
+
+
+func _apply_net() -> void:
+	var snap := ToonNet.latest("suits:%d:%s" % [district_id, street_slug])
+	var raw: Variant = snap.get("rows", [])
+	if not (raw is Array):
+		return
+	var seen: Dictionary = {}
+	for item in raw as Array:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if int(row.get("phase", -1)) < 0:
+			continue
+		var net_id := int(row.get("do_id", 0))
+		if net_id == 0:
+			continue
+		seen[net_id] = true
+		var have: Variant = _net_actors.get(net_id)
+		if have is Node3D and is_instance_valid(have):
+			if (have as Node).has_method("follow_net"):
+				(have as Node).call("follow_net", row)
+			continue
+		var suit := _spawn_state(row)
+		if suit != null:
+			_net_actors[net_id] = suit
+	var gone: Array = []
+	for net_id in _net_actors.keys():
+		if not seen.has(net_id):
+			gone.append(net_id)
+	for net_id in gone:
+		var actor: Variant = _net_actors[net_id]
+		_net_actors.erase(net_id)
+		if actor is Node and is_instance_valid(actor):
+			if (actor as Node).has_method("retire"):
+				(actor as Node).call("retire")
+			(actor as Node).queue_free()
 
 
 func _pick_cog() -> Dictionary:

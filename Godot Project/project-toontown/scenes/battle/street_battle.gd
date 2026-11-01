@@ -115,6 +115,8 @@ func hides_flunky_tag() -> bool:
 
 
 func consider(where: Vector3) -> void:
+	# This flunky belongs to the scene the toon is standing in. A dedicated
+	# server has no toon there, so the player resolves the fight locally.
 	if _active or _cool > 0.0 or _flunky == null or not _flunky.on_street():
 		return
 	if where.x > -16.5:
@@ -430,13 +432,27 @@ func _toon_attack(track: int, level: int) -> void:
 	_spent.append(Vector2i(track, level))
 	_gained[track] = int(_gained.get(track, 0)) + ToonLoadout.SKILL_CREDIT
 	_aim(false)
+	# The hit and the number are chosen before the movie. Playback only shows them.
 	var hit := true
-	if track != ToonLoadout.TOON_UP:
+	var damage := 0
+	var heal := 0
+	if track == ToonLoadout.TOON_UP:
+		heal = ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+	else:
 		hit = randi() % 100 < _loadout.rolled_accuracy(track, level)
+		if hit:
+			damage = ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+	ToonNet.publish("battle:%d" % ToonNet.district_id(), {
+		"kind": "toon",
+		"track": track,
+		"level": level,
+		"hit": hit,
+		"damage": damage,
+		"heal": heal,
+	})
 	var at := _flunky.global_position + Vector3(0, 3.4, 0)
 	await _movie.play_gag(track, level, hit, func() -> void:
 		if track == ToonLoadout.TOON_UP:
-			var heal := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
 			var gained := _loadout.gain_hp(heal)
 			if gained > 0:
 				_floater(_body.global_position + Vector3(0, 3.2, 0), "+%d" % gained, Color(0.35, 0.85, 0.35))
@@ -444,7 +460,6 @@ func _toon_attack(track: int, level: int) -> void:
 		if not hit:
 			_floater(at, "MISSED", Color(1, 1, 1))
 			return
-		var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
 		_cog_hp = maxi(_cog_hp - damage, 0)
 		_set_cog_bar()
 		_pulse_marker()
@@ -458,13 +473,21 @@ func _cog_attack() -> void:
 	_aim(false)
 	_face_each_other()
 	var attack := _pick_attack()
+	var hit := randi() % 100 < int(attack["acc"])
+	var damage := int(attack["hp"]) if hit else 0
+	ToonNet.publish("battle:%d" % ToonNet.district_id(), {
+		"kind": "cog",
+		"name": String(attack["name"]),
+		"line": String(attack["line"]),
+		"hit": hit,
+		"damage": damage,
+	})
 	var banner := _banner(String(attack["name"]).to_upper())
 	await _say(_flunky.global_position + Vector3(0, 4.4, 0), String(attack["line"]), 1.3)
-	var hit := randi() % 100 < int(attack["acc"])
 	var at := _body.global_position + Vector3(0, 2.6, 0)
 	await _movie.play_cog(String(attack["name"]), hit, func() -> void:
 		if hit:
-			var lost := _loadout.take_damage(int(attack["hp"]))
+			var lost := _loadout.take_damage(damage)
 			if lost > 0:
 				_floater(at, "-%d" % lost, Color(0.92, 0.08, 0.08))
 		else:

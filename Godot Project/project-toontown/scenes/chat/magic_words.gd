@@ -11,7 +11,8 @@ const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5\n~togglegm   ~setgm 1\n~districts   ~district host   ~district join 127.0.0.1"
+const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
 const _WORDS: Dictionary = {
 	"help": "help",
@@ -45,6 +46,20 @@ const _WORDS: Dictionary = {
 	"minigame": "minigame",
 	"mg": "minigame",
 	"trolley": "minigame",
+	"suit": "suit",
+	"cog": "suit",
+	"spawn": "suit",
+	"summon": "suit",
+	"togglegm": "gm",
+	"setgm": "gm",
+	"icon": "gm",
+	"seticon": "gm",
+	"gm": "gm",
+	"gmicon": "gm",
+	"setgmicon": "gm",
+	"districts": "districts",
+	"district": "district",
+	"shard": "district",
 }
 
 ## Solo games from MinigamePlayerMatrix. Names match ToontownGlobals.MinigameNames.
@@ -146,12 +161,18 @@ static var _run := false
 static var _oobe := false
 static var _immortal := false
 static var _ghost := false
+
+
+static func ghosting() -> bool:
+	return _ghost
 static var _noclip := false
 static var _hover_y := 0.0
 static var _fly_yaw := 0.0
 static var _fly_pitch := 0.0
 static var _fly_ready := false
 static var _trolley_next := 0
+## SetGM icon id. 0 is off. 1..4 are TOON COUNCIL, TOON TROOPER, RESISTANCE RANGER, GC.
+static var _gm := 0
 
 
 static func looks_like(text: String) -> bool:
@@ -226,6 +247,14 @@ static func invoke(scene: Node, text: String) -> String:
 			return _restock(scene, true)
 		"minigame":
 			return _request_trolley(args)
+		"suit":
+			return _summon_suit(scene, args)
+		"gm":
+			return _set_gm(word, args)
+		"districts":
+			return _districts_word(PackedStringArray())
+		"district":
+			return _districts_word(args)
 	return "Uh-oh! This Magic Word doesn't exist!"
 
 
@@ -329,7 +358,7 @@ static func _teleport(scene: Node, args: PackedStringArray) -> String:
 		tasks.note_hood(hood)
 	_ARRIVAL.teleport_in = true
 	_ARRIVAL.portal_in = true
-	scene.get_tree().change_scene_to_file(_PLACES.scene_for(hood))
+	ToonLoading.change_to(_PLACES.scene_for(hood))
 	return "Teleporting to %s." % place
 
 
@@ -381,7 +410,7 @@ static func _get_pos(scene: Node) -> String:
 	if body == null:
 		return "No toon to measure."
 	var where := body.global_position
-	return "Position is %.2f %.2f %.2f." % [where.x, where.y, where.z]
+	return "Position is %.2f %.2f %.2f.\n%s" % [where.x, where.y, where.z, ToonNet.where_text()]
 
 
 static func _set_pos(scene: Node, args: PackedStringArray) -> String:
@@ -428,6 +457,7 @@ static func _request_trolley(args: PackedStringArray) -> String:
 		return "The next trolley game will be %s. ~mg random puts it back." % String(_TROLLEY_NAMES[_trolley_next])
 	if key == "random" or key == "clear" or key == "off" or key == "any" or key == "none":
 		_trolley_next = 0
+		ToonNet.reserve_trolley(0)
 		return "The next trolley game is random again."
 	var game_id := 0
 	if key.is_valid_int():
@@ -439,7 +469,102 @@ static func _request_trolley(args: PackedStringArray) -> String:
 	if not _TROLLEY_NAMES.has(game_id):
 		return "That game isn't on the solo trolley. " + _trolley_choices()
 	_trolley_next = game_id
+	# RequestMinigame[avId] lives on the district AI, not on this client.
+	ToonNet.reserve_trolley(game_id)
 	return "The next trolley game will be %s." % String(_TROLLEY_NAMES[game_id])
+
+
+## DistributedToonAI.doSummonSingleCog asks the street planner for one named
+## suit. The landing is the closest suit point to the toon.
+static func _districts_word(args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "%s\n%s" % [ToonNet.where_text(), ToonNet.roster_text()]
+	var head := args[0].to_lower()
+	if head == "host":
+		var port := 4343
+		if args.size() > 1 and args[1].is_valid_int():
+			port = int(args[1])
+		return ToonNet.host_game(port)
+	if head == "join":
+		if args.size() < 2:
+			return "Use ~district join address."
+		var port := 4343
+		if args.size() > 2 and args[2].is_valid_int():
+			port = int(args[2])
+		return ToonNet.join_server(args[1], port)
+	if head == "close" or head == "disconnect":
+		return ToonNet.disconnect_net()
+	if head == "open":
+		if args.size() < 2:
+			return "Use ~district open Name."
+		var district_name := ""
+		for index in range(1, args.size()):
+			if district_name != "":
+				district_name += " "
+			district_name += args[index]
+		return ToonNet.open_district(district_name)
+	var district_name := ""
+	for index in args.size():
+		if district_name != "":
+			district_name += " "
+		district_name += args[index]
+	return ToonNet.join_named(district_name)
+
+
+static func gm_type() -> int:
+	return _gm
+
+
+static func gm_name() -> String:
+	return gm_title(_gm)
+
+
+static func gm_title(kind: int) -> String:
+	if kind <= 0 or kind > _GM_NAMES.size():
+		return ""
+	return _GM_NAMES[kind - 1]
+
+
+## The district AI consumed this toon's trolley request by starting that game.
+static func note_played(game_id: int) -> void:
+	if _trolley_next == game_id:
+		_trolley_next = 0
+
+
+## SetGM. ~togglegm with no number flips the Toon Council icon. The original
+## aliases default to 0, which clears it. A number 0..4 sets that icon.
+static func _set_gm(word: String, args: PackedStringArray) -> String:
+	var request := 0
+	if args.is_empty():
+		request = 0 if word != "togglegm" or _gm > 0 else 1
+	elif not args[0].is_valid_int():
+		return "Invalid GM icon ID!"
+	else:
+		request = int(args[0])
+	if request < 0 or request > _GM_NAMES.size():
+		return "Invalid GM icon ID!"
+	# b_setGM(0) then b_setGM(iconRequest). The second call is the one that sticks.
+	_gm = 0
+	_gm = request
+	return "GM icon set to %d." % request
+
+
+static func _summon_suit(scene: Node, args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "Name a cog. Try ~suit flunky, ~suit pp, or ~suit cold caller 5."
+	var level := -1
+	var name_args := args
+	if args.size() > 1 and args[args.size() - 1].is_valid_int():
+		level = int(args[args.size() - 1])
+		name_args = args.slice(0, args.size() - 1)
+	var query := " ".join(name_args)
+	var suits := scene.get_node_or_null("StreetSuits")
+	if suits == null or not suits.has_method("summon_named"):
+		return "Cogs can only be summoned on a street."
+	var body := scene.get_node_or_null("Player") as Node3D
+	if body == null:
+		return "Cogs can only be summoned on a street."
+	return String(suits.call("summon_named", query, level, body.global_position))
 
 
 static func _trolley_choices() -> String:

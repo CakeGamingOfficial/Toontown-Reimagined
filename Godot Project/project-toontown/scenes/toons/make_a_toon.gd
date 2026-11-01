@@ -1223,8 +1223,7 @@ func _on_next() -> void:
 		return
 	ToonRoster.set_slot(ToonRoster.pending_slot, _style)
 	ToonRoster.select_slot(ToonRoster.pending_slot)
-	SpeedChat.clear_saved()
-	get_tree().change_scene_to_file("res://scenes/interiors/toontorial.tscn")
+	ToonLoading.change_to("res://scenes/interiors/toontorial.tscn")
 
 
 func _cancel_to_chooser() -> void:
@@ -1241,7 +1240,7 @@ func _cancel_to_chooser() -> void:
 	var tween := create_tween()
 	tween.tween_property(fade, "color:a", 1.0, 0.5)
 	tween.finished.connect(func() -> void:
-		get_tree().change_scene_to_file(PICK_SCENE)
+		ToonLoading.change_to(PICK_SCENE)
 	)
 
 

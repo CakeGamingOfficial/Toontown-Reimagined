@@ -14,6 +14,9 @@ const _SUIT_CARD_DOWN := Color(0.2, 0.2, 0.2, 0.6)
 const _SUIT_INK := Color(0.0, 0.0, 0.0, 1.0)
 const _SUIT_INK_OVER := Color(0.5, 0.5, 0.5, 1.0)
 const _SUIT_INK_DOWN := Color(1.0, 1.0, 1.0, 1.0)
+const _GM_WHISTLE := preload("res://assets/gui/nametag/gm_whistle.png")
+const _GM_FIST := preload("res://assets/gui/nametag/gm_fist.png")
+const _GM_CONNECTED := preload("res://assets/gui/nametag/gm_connected.png")
 
 var camera: Camera3D
 var layer: CanvasLayer
@@ -22,8 +25,16 @@ var layer: CanvasLayer
 var occlude: Callable = Callable()
 
 signal cog_clicked(actor: Node3D, tag: Control)
+signal friend_clicked(actor: Node3D)
+signal toon_clicked(actor: Node3D)
+
+static var picking_friends := false
 
 var _tags: Array[Dictionary] = []
+
+
+func _ready() -> void:
+	add_to_group("nametag_boards")
 
 
 func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color = Color(0, 0, 0, 0)) -> Control:
@@ -69,8 +80,33 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 	# Measured once, from the resting head. A live head would bob the card.
 	# The scale is remembered so a teleport hole shrinks the card with the toon.
 	var born := actor.global_transform.basis.get_scale().y
-	_tags.append({"label": panel, "actor": actor, "lift": _lift(actor), "scale": born})
+	_tags.append({
+		"label": panel,
+		"actor": actor,
+		"lift": _lift(actor),
+		"scale": born,
+		"kind": kind,
+		"plain": text,
+		"gm": -1,
+	})
 	return panel
+
+
+func release(actor: Node3D) -> void:
+	var kept: Array[Dictionary] = []
+	for item in _tags:
+		var raw: Variant = item.get("actor")
+		var label := item["label"] as Control
+		if raw == actor:
+			if is_instance_valid(label):
+				label.queue_free()
+			var icon: TextureRect = item.get("icon")
+			if icon != null and is_instance_valid(icon):
+				icon.queue_free()
+			_free_chat(item)
+			continue
+		kept.append(item)
+	_tags = kept
 
 
 func place() -> void:
@@ -83,14 +119,21 @@ func place() -> void:
 		if not is_instance_valid(raw):
 			if is_instance_valid(label):
 				label.queue_free()
+			var gone: TextureRect = item.get("icon")
+			if gone != null and is_instance_valid(gone):
+				gone.queue_free()
+			_free_chat(item)
 			continue
 		var actor := raw as Node3D
 		if actor == null or not actor.visible or not actor.is_visible_in_tree():
 			if is_instance_valid(label):
 				label.visible = false
+			_hide_icon(item)
+			_hide_chat(item)
 			kept.append(item)
 			continue
 		kept.append(item)
+		_sync_gm(item)
 		var lift := float(item.get("lift", 3.6))
 		var born := float(item.get("scale", 1.0))
 		var now := actor.global_transform.basis.get_scale().y
@@ -99,12 +142,19 @@ func place() -> void:
 		var point := actor.global_position + Vector3(0.0, lift, 0.0)
 		if occlude.is_valid() and bool(occlude.call(actor, point)):
 			label.visible = false
+			_hide_icon(item)
+			_hide_chat(item)
 			continue
 		if camera.is_position_behind(point):
 			label.visible = false
+			_hide_icon(item)
+			_hide_chat(item)
 			continue
 		_fit(label, point)
 		_place(label, point)
+		_place_icon(item, label)
+		_place_chat(item, label, actor)
+		_arm_friend(item, label)
 	_tags = kept
 
 
@@ -128,6 +178,116 @@ func _on_cog_tag(event: InputEvent, tag: Control, actor: Node3D) -> void:
 		return
 	tag.accept_event()
 	cog_clicked.emit(actor, tag)
+
+
+func _on_friend_tag(event: InputEvent, actor: Node) -> void:
+	if not picking_friends:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse == null or not mouse.pressed or mouse.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not (actor is Node3D) or not is_instance_valid(actor):
+		return
+	get_viewport().set_input_as_handled()
+	friend_clicked.emit(actor as Node3D)
+
+
+func _on_toon_tag(event: InputEvent, actor: Node) -> void:
+	if picking_friends:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse == null or not mouse.pressed or mouse.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not (actor is Node3D) or not is_instance_valid(actor):
+		return
+	get_viewport().set_input_as_handled()
+	toon_clicked.emit(actor as Node3D)
+
+
+func _arm_friend(item: Dictionary, panel: Control) -> void:
+	var kind := String(item.get("kind", ""))
+	if kind != "player" and kind != "toon":
+		return
+	# Another toon's nametag opens ToonAvatarPanel. Pick-a-friend still wins.
+	if kind == "toon" and not picking_friends:
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		panel.z_index = 36
+		if not panel.has_meta("toon_hook"):
+			panel.set_meta("toon_hook", true)
+			var other: Variant = item.get("actor")
+			panel.gui_input.connect(_on_toon_tag.bind(other))
+		return
+	if picking_friends:
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		panel.z_index = 36
+		if not panel.has_meta("friend_hook"):
+			panel.set_meta("friend_hook", true)
+			var actor: Variant = item.get("actor")
+			panel.gui_input.connect(_on_friend_tag.bind(actor))
+		return
+	if panel.has_meta("friend_hook") and not panel.has_meta("toon_hook"):
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+
+func _place_chat(item: Dictionary, label: Control, actor: Node3D) -> void:
+	var line := String(actor.get_meta("chat_line", ""))
+	var until := int(actor.get_meta("chat_until", 0))
+	if line == "" or Time.get_ticks_msec() >= until:
+		_hide_chat(item)
+		return
+	var bubble := _chat_panel(item)
+	var words := bubble.get_node_or_null("Words") as Label
+	if words != null:
+		words.text = line
+	bubble.visible = label.visible
+	bubble.reset_size()
+	bubble.position = label.position + Vector2((label.size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
+
+
+func _chat_panel(item: Dictionary) -> PanelContainer:
+	var existing: PanelContainer = item.get("chat")
+	if existing != null and is_instance_valid(existing):
+		return existing
+	var bubble := PanelContainer.new()
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bubble.z_index = 16
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(1, 1, 1, 0.98)
+	box.border_color = Color(0.05, 0.05, 0.05)
+	box.set_border_width_all(3)
+	box.set_corner_radius_all(12)
+	box.content_margin_left = 8
+	box.content_margin_right = 8
+	box.content_margin_top = 4
+	box.content_margin_bottom = 4
+	bubble.add_theme_stylebox_override("panel", box)
+	var words := Label.new()
+	words.name = "Words"
+	words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.custom_minimum_size = Vector2(40, 0)
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(words, Color(0.05, 0.05, 0.08), 18, Color(0, 0, 0, 0), 0)
+	bubble.add_child(words)
+	bubble.visible = false
+	if layer != null:
+		layer.add_child(bubble)
+	item["chat"] = bubble
+	return bubble
+
+
+func _hide_chat(item: Dictionary) -> void:
+	var bubble: PanelContainer = item.get("chat")
+	if bubble != null and is_instance_valid(bubble):
+		bubble.visible = false
+
+
+func _free_chat(item: Dictionary) -> void:
+	var bubble: PanelContainer = item.get("chat")
+	if bubble != null and is_instance_valid(bubble):
+		bubble.queue_free()
 
 
 func _lift(actor: Node3D) -> float:
@@ -213,6 +373,73 @@ func _place(control: Control, world: Vector3) -> void:
 	var screen := camera.unproject_position(world)
 	control.position = screen - control.size * Vector2(0.5, 1.0)
 	control.visible = true
+
+
+func _sync_gm(item: Dictionary) -> void:
+	var wanted := 0
+	var actor := item.get("actor") as Node
+	if String(item.get("kind", "")) == "player":
+		wanted = MagicWords.gm_type()
+	elif actor != null and actor.has_meta("gm"):
+		wanted = int(actor.get_meta("gm"))
+	if int(item.get("gm", -1)) == wanted:
+		return
+	item["gm"] = wanted
+	var panel := item["label"] as Control
+	var written := panel.get_child(0) as Label if panel != null else null
+	var plain := String(item.get("plain", ""))
+	var title := MagicWords.gm_title(wanted)
+	if written != null:
+		written.text = plain if title == "" else "%s %s" % [title, plain]
+	if wanted <= 0:
+		var old: TextureRect = item.get("icon")
+		if old != null and is_instance_valid(old):
+			old.queue_free()
+		item.erase("icon")
+		return
+	var icon: TextureRect = item.get("icon")
+	if icon == null or not is_instance_valid(icon):
+		icon = TextureRect.new()
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		if layer != null:
+			layer.add_child(icon)
+		item["icon"] = icon
+	icon.texture = _gm_texture(wanted)
+
+
+func _gm_texture(kind: int) -> Texture2D:
+	if kind == 3:
+		return _GM_FIST
+	if kind == 4:
+		return _GM_CONNECTED
+	return _GM_WHISTLE
+
+
+func _hide_icon(item: Dictionary) -> void:
+	var icon: TextureRect = item.get("icon")
+	if icon != null and is_instance_valid(icon):
+		icon.visible = false
+
+
+func _place_icon(item: Dictionary, panel: Control) -> void:
+	var icon: TextureRect = item.get("icon")
+	if icon == null or not is_instance_valid(icon):
+		return
+	if not panel.visible:
+		icon.visible = false
+		return
+	var written := panel.get_child(0) as Label
+	var side := 16.0
+	if written != null:
+		side = float(written.get_theme_font_size("font_size"))
+	icon.custom_minimum_size = Vector2(side, side)
+	icon.size = Vector2(side, side)
+	icon.pivot_offset = icon.size * 0.5
+	icon.rotation = fmod(float(Time.get_ticks_msec()) / 3000.0, 1.0) * TAU
+	icon.position = panel.position + Vector2(-side - 4.0, (panel.size.y - side) * 0.5)
+	icon.visible = true
 
 
 func _find(root: Node, node_name: String) -> Node3D:

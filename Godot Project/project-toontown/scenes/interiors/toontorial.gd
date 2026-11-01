@@ -45,6 +45,7 @@ var _jumping := false
 var _jump_lock := 0.0
 var _billboards: Array[Dictionary] = []
 var _nametags: Nametags
+var _remotes: RemoteToons
 var _bubble: Control
 var _cutscene := false
 var _locked := false
@@ -95,7 +96,7 @@ func _ready() -> void:
 	var tasks := ToonTasks.for_selected()
 	if tasks.in_playground:
 		_ARRIVAL.teleport_in = true
-		get_tree().call_deferred("change_scene_to_file", _PLACES.scene_for(tasks.last_hood))
+		ToonLoading.change_to(_PLACES.scene_for(tasks.last_hood))
 		return
 	TOONTOWN_SKY.ensure(self, "tt")
 	_camera = get_node_or_null("Camera") as Camera3D
@@ -203,6 +204,17 @@ func _spawn_toons() -> void:
 		_player.footsteps = true
 		_add_capsule()
 		_add_tag(_player, style.display_name(), "player")
+		_player.set_meta("av", ToonRoster.avatar_id())
+		var current := get_tree().current_scene
+		var here := current.scene_file_path if current != null else ""
+		if ToonSocial.visit_on and ToonSocial.visit_scene == here and _body != null:
+			ToonSocial.visit_on = false
+			_body.global_position = ToonSocial.visit_point
+			_face(_player, ToonSocial.visit_heading)
+		_remotes = RemoteToons.new()
+		_remotes.name = "RemoteToons"
+		add_child(_remotes)
+		_remotes.bind(self, _body, _player, _nametag_board())
 	var tom := _spawn(_tom_style(), TOM_POSITION, TOM_HEADING, self)
 	tom.follows_ground = true
 	_add_tag(tom, "Tutorial Tom", "npc")
@@ -495,6 +507,8 @@ func _walk(delta: float) -> void:
 			_jump_lock = JUMP_LOCK
 	_face(_player, face_heading)
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
+	if _remotes != null:
+		_remotes.note(face_heading, speed, turning, _jumping or jumped, not _player.visible)
 
 
 func _place_camera() -> void:
@@ -760,7 +774,6 @@ func _ready_loadout() -> void:
 	_meter.name = "LaffMeter"
 	_meter.setup(_player_style())
 	_meter.follow(_loadout)
-	_meter.use_as_hud()
 	_meter.visible = false
 	_hud().add_child(_meter)
 	_briefing = TutorialBriefing.new()
@@ -782,6 +795,9 @@ func _ready_loadout() -> void:
 	var friends := FriendsList.new()
 	friends.name = "FriendsList"
 	_hud().add_child(friends)
+	var avatar_panel := (load("res://scenes/toons/toon_avatar_panel.gd") as GDScript).new() as Control
+	avatar_panel.name = "ToonAvatarPanel"
+	_hud().add_child(avatar_panel)
 
 
 func tasks() -> ToonTasks:

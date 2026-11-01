@@ -159,6 +159,10 @@ def main() -> int:
         "ChtBx_BackBtn_UP",
         "ChtBx_BackBtn_DN",
         "ChtBx_BackBtn_Rllvr",
+        "avatarInfoPanel",
+    ))
+    cards("phase_3.5/models/gui/inventory_gui.bam", (
+        "InventoryButtonUp",
     ))
     return 0
 

@@ -591,7 +591,7 @@ func _play_cycle(clip_name: String, clips: Array, joints: Array, frame_count: in
 	time += delta * 24.0 * direction
 	if loop:
 		time = fposmod(time, float(frame_count))
-	# fposmod can return the modulus itself. That index does not exist.
+		# fposmod can return the modulus itself. That index does not exist.
 		if time >= float(frame_count):
 			time = 0.0
 	else:

@@ -149,6 +149,8 @@ var top_tex := 0
 var top_color := 4
 var bot_tex := 0
 var bot_color := 8
+## Stable id for this toon, the stand-in for a distributed doId.
+var av_id := 0
 
 
 func display_name() -> String:
@@ -315,6 +317,7 @@ func to_dict() -> Dictionary:
 		"top_color": top_color,
 		"bot_tex": bot_tex,
 		"bot_color": bot_color,
+		"av_id": av_id,
 	}
 
 
@@ -334,6 +337,7 @@ static func from_dict(data: Dictionary) -> ToonStyle:
 	style.top_color = int(data.get("top_color", 4))
 	style.bot_tex = int(data.get("bot_tex", 0))
 	style.bot_color = int(data.get("bot_color", 8))
+	style.av_id = int(data.get("av_id", 0))
 	return style
 
 

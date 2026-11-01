@@ -3,7 +3,8 @@ extends RefCounted
 
 ## One toon's friends, saved beside the toon slots. True Friend codes are the
 ## original secret: one use, two days, and typing one makes both toons friends.
-## Online flags stay false until another player can actually be in the world.
+## A friend whose id starts with av: is someone in a district. Their online
+## flag comes from that session. Codes saved here still work while offline.
 
 const MAX_FRIENDS := 50
 const _CODES_PER_DAY := 5
@@ -15,6 +16,7 @@ static var _loaded := false
 static var _slots: Dictionary = {}
 static var _secrets: Array = []
 static var _inbox: Dictionary = {}
+static var _session_ignored: Dictionary = {}
 
 
 static func count() -> int:
@@ -53,7 +55,7 @@ static func page(which: int) -> Array:
 	for friend in _mine():
 		var record: Dictionary = friend
 		var ignored := bool(record.get("ignored", false))
-		var online := bool(record.get("online", false))
+		var online := is_online(record)
 		if which == 0:
 			continue
 		if which == 1 and online and not ignored:
@@ -73,7 +75,84 @@ static func shown_name(friend: Dictionary) -> String:
 
 
 static func is_online(friend: Dictionary) -> bool:
+	var friend_id := String(friend.get("id", ""))
+	if friend_id.begins_with("av:"):
+		return ToonSocial.online(int(friend_id.trim_prefix("av:")))
 	return bool(friend.get("online", false))
+
+
+static func avatar_of(friend: Dictionary) -> int:
+	var friend_id := String(friend.get("id", ""))
+	if friend_id.begins_with("av:"):
+		return int(friend_id.trim_prefix("av:"))
+	return 0
+
+
+static func true_friend_of(av: int) -> bool:
+	if av <= 0:
+		return false
+	var wanted := "av:%d" % av
+	for item in _mine():
+		var record: Dictionary = item
+		if String(record.get("id", "")) == wanted and bool(record.get("true_friend", false)):
+			return not bool(record.get("ignored", false))
+	return false
+
+
+## IgnorePanelAddIgnore lasts for this session, then chat from that toon is dropped.
+static func ignore_for_session(av: int, on: bool) -> void:
+	if av <= 0:
+		return
+	if on:
+		_session_ignored[av] = true
+	else:
+		_session_ignored.erase(av)
+
+
+static func ignored_av(av: int) -> bool:
+	if av <= 0:
+		return false
+	if _session_ignored.has(av):
+		return true
+	var wanted := "av:%d" % av
+	for item in _mine():
+		var record: Dictionary = item
+		if String(record.get("id", "")) == wanted:
+			return bool(record.get("ignored", false))
+	return false
+
+
+## A district friend. true_friend is only set by a True Friend code.
+static func add_avatar(av: int, friend_name: String, true_friend: bool) -> bool:
+	if av <= 0 or av == ToonRoster.avatar_id():
+		return false
+	_ensure()
+	var friend_id := "av:%d" % av
+	var rows: Array = _mine()
+	for item in rows:
+		var record: Dictionary = item
+		if String(record.get("id", "")) != friend_id:
+			continue
+		record["name"] = friend_name
+		record["ignored"] = false
+		if true_friend:
+			record["true_friend"] = true
+		_slots[_key()] = rows
+		_save()
+		return true
+	if rows.size() >= MAX_FRIENDS:
+		return false
+	rows.append({
+		"id": friend_id,
+		"name": friend_name,
+		"slot": -1,
+		"online": false,
+		"true_friend": true_friend,
+		"ignored": false,
+	})
+	_slots[_key()] = rows
+	_save()
+	return true
 
 
 static func is_true_friend(friend: Dictionary) -> bool:

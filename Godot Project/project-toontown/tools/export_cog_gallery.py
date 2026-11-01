@@ -151,6 +151,10 @@ def export_gui() -> None:
         crop(gui.find("**/shadow%d" % index), GUI / ("shadow_%d.png" % index))
     gear = idle.load_model("phase_3.5/models/gui/sos_textures.bam")
     crop(gear.find("**/gui_gear"), GUI / "tab_gear.png")
+    book = ROOT / "assets" / "gui" / "shticker"
+    crop(gear.find("**/district"), book / "tab_district.png")
+    matching = idle.load_model("phase_3.5/models/gui/matching_game_gui.bam")
+    crop(matching.find("**/minnieCircle"), book / "pop_circle.png")
 
 
 def export_heads() -> None:

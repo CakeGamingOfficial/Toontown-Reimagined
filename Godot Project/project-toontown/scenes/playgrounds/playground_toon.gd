@@ -73,6 +73,7 @@ var _body: CharacterBody3D
 var _player: ToonActor
 var _camera: Camera3D
 var _nametags: Nametags
+var _remotes: RemoteToons
 var _heading := 0.0
 var _hood := 0
 var _home := Vector3(-90.7, 0.35, 60.0)
@@ -385,7 +386,18 @@ func _current_hood() -> int:
 	return hood
 
 
+func visit_friend(point: Vector3, heading: float) -> void:
+	if _body == null or _player == null:
+		return
+	_body.global_position = point
+	_heading = heading
+	_face(_player, heading)
+
+
 func _arrival_spot() -> Dictionary:
+	if ToonSocial.visit_on and ToonSocial.visit_scene == _scene_path():
+		ToonSocial.visit_on = false
+		return {"point": ToonSocial.visit_point, "heading": ToonSocial.visit_heading}
 	var scene_path := _scene_path()
 	if _shop_trip == "out":
 		return _shop_outside_drop()
@@ -918,7 +930,7 @@ func _enter_shop() -> void:
 	await _fade_black()
 	_SHOP.hood = _hood
 	_SHOP.trip = "in"
-	get_tree().change_scene_to_file(_PLACES.gag_shop_scene())
+	ToonLoading.change_to(_PLACES.gag_shop_scene())
 
 
 func _leave_shop() -> void:
@@ -927,7 +939,7 @@ func _leave_shop() -> void:
 	await get_tree().create_timer(0.7).timeout
 	await _fade_black()
 	_SHOP.trip = "out"
-	get_tree().change_scene_to_file(_PLACES.scene_for(_SHOP.hood))
+	ToonLoading.change_to(_PLACES.scene_for(_SHOP.hood))
 
 
 func _try_hall_door() -> void:
@@ -974,7 +986,7 @@ func _enter_hall() -> void:
 	await get_tree().create_timer(0.7).timeout
 	await _fade_black()
 	_HALL.trip = "in"
-	get_tree().change_scene_to_file(_PLACES.toon_hall_scene())
+	ToonLoading.change_to(_PLACES.toon_hall_scene())
 
 
 func _leave_hall() -> void:
@@ -983,7 +995,7 @@ func _leave_hall() -> void:
 	await get_tree().create_timer(0.7).timeout
 	await _fade_black()
 	_HALL.trip = "out"
-	get_tree().change_scene_to_file(_PLACES.scene_for(_PLACES.TTC))
+	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
 
 
 func _hall_inside_drop() -> Dictionary:
@@ -1103,7 +1115,7 @@ func _enter_hq(index: int) -> void:
 	_HQ.zone_id = _HQ.zone_for(_HQ.return_scene)
 	_HQ.door_index = index
 	_HQ.trip = "in"
-	get_tree().change_scene_to_file(_PLACES.toon_hq_scene())
+	ToonLoading.change_to(_PLACES.toon_hq_scene())
 
 
 func _leave_hq(index: int) -> void:
@@ -1116,7 +1128,7 @@ func _leave_hq(index: int) -> void:
 	var back := _HQ.return_scene
 	if back.is_empty():
 		back = _PLACES.scene_for(_PLACES.TTC)
-	get_tree().change_scene_to_file(back)
+	ToonLoading.change_to(back)
 
 
 func _hq_inside_drop() -> Dictionary:
@@ -1241,7 +1253,7 @@ func _enter_building() -> void:
 		return
 	_BLDG.remember(zone_id, street_path)
 	_BLDG.trip = "in"
-	get_tree().change_scene_to_file(_PLACES.shop_scene())
+	ToonLoading.change_to(_PLACES.shop_scene())
 
 
 func _leave_building() -> void:
@@ -1253,7 +1265,7 @@ func _leave_building() -> void:
 	var back := _BLDG.street
 	if back.is_empty():
 		back = _PLACES.scene_for(_PLACES.TTC)
-	get_tree().change_scene_to_file(back)
+	ToonLoading.change_to(back)
 
 
 func _building_inside_drop() -> Dictionary:
@@ -1287,7 +1299,7 @@ func _enter_house(slot: int) -> void:
 	await get_tree().create_timer(0.7).timeout
 	await _fade_black()
 	door_trip = "in"
-	get_tree().change_scene_to_file(_PLACES.house_scene(slot))
+	ToonLoading.change_to(_PLACES.house_scene(slot))
 
 
 func _leave_house(slot: int) -> void:
@@ -1296,7 +1308,7 @@ func _leave_house(slot: int) -> void:
 	await get_tree().create_timer(0.7).timeout
 	await _fade_black()
 	door_trip = "out"
-	get_tree().change_scene_to_file(_PLACES.estate_scene(slot))
+	ToonLoading.change_to(_PLACES.estate_scene(slot))
 
 
 func _fade_black() -> void:
@@ -1372,7 +1384,7 @@ func _spawn(underground: bool) -> void:
 	var style := ToonRoster.selected_style()
 	_body = CharacterBody3D.new()
 	_body.name = "Player"
-	_body.floor_snap_length = 0.7
+	_body.floor_snap_length = 0.6
 	# Plaza stair faces run to about 54 degrees. Steeper than that stays a wall.
 	_body.floor_max_angle = deg_to_rad(58.0)
 	# A steep walkable face should not eat forward speed. GravityWalker keeps
@@ -1394,6 +1406,7 @@ func _spawn(underground: bool) -> void:
 	_body.add_child(_player)
 	if style:
 		_player.show_style(style)
+	_player.set_meta("av", ToonRoster.avatar_id())
 	_player.footsteps = true
 	_face(_player, _heading)
 	_add_capsule()
@@ -1406,6 +1419,10 @@ func _spawn(underground: bool) -> void:
 	get_parent().add_child(_camera)
 	_cache_eye_height()
 	_add_world_tags(style)
+	_remotes = RemoteToons.new()
+	_remotes.name = "RemoteToons"
+	add_child(_remotes)
+	_remotes.bind(get_parent(), _body, _player, _nametags)
 	if underground:
 		_player.visible = false
 
@@ -1450,7 +1467,7 @@ func teleport_to_hood(hood: int) -> void:
 	teleport_in = true
 	if _tasks != null:
 		_tasks.note_hood(hood)
-	get_tree().change_scene_to_file(_PLACES.scene_for(hood))
+	ToonLoading.change_to(_PLACES.scene_for(hood))
 
 
 ## Place.__handleBookCloseExit plays TeleportOut, fades, then leaves the shard.
@@ -1468,7 +1485,7 @@ func quit_to_chooser() -> void:
 	await tween.finished
 	if not is_inside_tree():
 		return
-	get_tree().change_scene_to_file(_PICK_SCENE)
+	ToonLoading.change_to(_PICK_SCENE)
 
 
 func _play_teleport_out() -> bool:
@@ -1636,7 +1653,6 @@ func _ready_hud() -> void:
 	else:
 		_meter.setup(ToonStyle.new())
 	_meter.follow(_loadout)
-	_meter.use_as_hud()
 	_hud().add_child(_meter)
 	var view := get_viewport().get_visible_rect().size
 	var pixels := view.y * 0.15
@@ -1666,6 +1682,9 @@ func _ready_hud() -> void:
 	var friends := FriendsList.new()
 	friends.name = "FriendsList"
 	_hud().add_child(friends)
+	var avatar_panel := (load("res://scenes/toons/toon_avatar_panel.gd") as GDScript).new() as Control
+	avatar_panel.name = "ToonAvatarPanel"
+	_hud().add_child(avatar_panel)
 
 
 func _walk(delta: float) -> void:
@@ -1737,14 +1756,13 @@ func _walk(delta: float) -> void:
 		impact = _body.velocity.y
 	if not jumped and (on_floor or (_body.is_on_wall() and _body.velocity.y <= 1.0)):
 		_raise_onto_step()
-	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.7
+	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
 	if _body.position.y < _home.y - 8.0 and not MagicWords.noclip():
 		_body.velocity = Vector3.ZERO
 		_body.position = _home
 		_heading = _home_heading
 		_jumping = false
-		_snap_feet()
 	elif not on_floor and _body.is_on_floor() and not jumped:
 		_jumping = false
 		if impact < HARD_LAND:
@@ -1754,6 +1772,8 @@ func _walk(delta: float) -> void:
 			_jump_lock = JUMP_LOCK
 	_face(_player, face_heading)
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
+	if _remotes != null:
+		_remotes.note(face_heading, speed, turning, _jumping or jumped, not _player.visible)
 
 
 func _place_camera() -> void:
@@ -2054,11 +2074,7 @@ func _leave_tunnel(entry: Dictionary) -> void:
 	_LINKS.depart(from_zone, _LINKS.code_for_zone(from_zone), lateral)
 	if _tasks != null:
 		_tasks.note_hood(_LINKS.hood_of(int(entry["dest_zone"])))
-	var packed := await _wait_scene(scene_path)
-	if packed != null:
-		get_tree().change_scene_to_packed(packed)
-	else:
-		get_tree().change_scene_to_file(scene_path)
+	ToonLoading.change_to(scene_path)
 
 
 ## LocalToon.tunnelOut is a short straight run plus a 2 second pivot. The

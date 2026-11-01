@@ -45,7 +45,8 @@ const _ZONE: Dictionary = {
 	"res://scenes/cog_hq/sellbot_courtyard.tscn": 11000,
 	"res://scenes/cog_hq/sellbot_lobby.tscn": 11100,
 	"res://scenes/cog_hq/sellbot_factory_exterior.tscn": 11200,
-	"res://scenes/cog_hq/sellbot_factory.tscn": 11200,
+	"res://scenes/cog_hq/sellbot_front_factory.tscn": 11200,
+	"res://scenes/cog_hq/sellbot_side_factory.tscn": 11500,
 	"res://scenes/cog_hq/cashbot_trainyard.tscn": 12000,
 	"res://scenes/cog_hq/cashbot_lobby.tscn": 12100,
 	"res://scenes/cog_hq/lawbot_courtyard.tscn": 13000,
@@ -110,6 +111,8 @@ const _PLACE: Dictionary = {
 }
 
 const _PLACE_BY_SCENE: Dictionary = {
+	"res://scenes/cog_hq/sellbot_front_factory.tscn": "Front Entrance",
+	"res://scenes/cog_hq/sellbot_side_factory.tscn": "Side Entrance",
 	"res://scenes/interiors/gag_shop.tscn": "Gag Shop",
 	"res://scenes/interiors/toon_hall.tscn": "Toon Hall",
 	"res://scenes/interiors/toon_hq.tscn": "Toon HQ",

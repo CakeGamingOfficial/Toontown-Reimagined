@@ -15,6 +15,8 @@ var playing := false
 var _over := false
 var _camera: Camera3D
 var _toon: ToonActor
+var _remotes: RemoteToons
+var _last_feet := Vector3.ZERO
 var _hud: Label
 var _clock_face: TextureRect
 var _clock_num: Label
@@ -56,6 +58,7 @@ func _process(delta: float) -> void:
 		_end()
 		return
 	_play(delta)
+	_note_rider(delta)
 	if not is_inside_tree() or _over:
 		return
 	if _hud != null and _hud.visible:
@@ -209,7 +212,34 @@ func _make_toon(at: Vector3) -> ToonActor:
 	if style != null:
 		_toon.show_style(style)
 	_toon.position = at
+	_last_feet = _toon.global_position
+	_remotes = RemoteToons.new()
+	_remotes.name = "RemoteToons"
+	add_child(_remotes)
+	_remotes.bind(self, _toon, _toon, null)
+	var avatar_layer := CanvasLayer.new()
+	avatar_layer.name = "AvatarHud"
+	avatar_layer.layer = 12
+	add_child(avatar_layer)
+	var avatar_panel := (load("res://scenes/toons/toon_avatar_panel.gd") as GDScript).new() as Control
+	avatar_panel.name = "ToonAvatarPanel"
+	avatar_layer.add_child(avatar_panel)
 	return _toon
+
+
+func _note_rider(delta: float) -> void:
+	if _remotes == null or _toon == null or not is_instance_valid(_toon):
+		return
+	var step := 0.0
+	if delta > 0.0:
+		step = _toon.global_position.distance_to(_last_feet) / delta
+	_last_feet = _toon.global_position
+	var speed := 0.0
+	if step >= 8.0:
+		speed = 9.0
+	elif step > 0.5:
+		speed = 4.0
+	_remotes.note(RemoteToons.facing(_toon), speed, false, false, not _toon.visible)
 
 
 func _stick() -> Vector2:

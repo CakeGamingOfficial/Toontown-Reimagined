@@ -1,0 +1,10 @@
+{
+  "port": 4343,
+  "districts": [
+    "Sillyville",
+    "Crazy Grove",
+    "Giggly Hills",
+    "Nutty River",
+    "Silly Summit"
+  ]
+}

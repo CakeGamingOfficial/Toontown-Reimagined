@@ -61,6 +61,17 @@ static func selected_index() -> int:
 	return _selected
 
 
+static func avatar_id() -> int:
+	_ensure()
+	var style := selected_style()
+	if style == null:
+		return 0
+	if style.av_id <= 0:
+		style.av_id = randi() % 900000000 + 100000000
+		_save()
+	return style.av_id
+
+
 static func select_slot(index: int) -> void:
 	_ensure()
 	_selected = index
