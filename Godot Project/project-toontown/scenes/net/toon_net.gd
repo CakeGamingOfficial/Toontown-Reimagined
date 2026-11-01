@@ -34,6 +34,10 @@ var _welcome := false
 var _role := "offline"
 var _states: Dictionary = {}
 var _peers: Dictionary = {}
+## Peer id to the toon's permanent avId. The bank row outlives the connection.
+var _avatars: Dictionary = {}
+var _silence_keep := false
+const _BANK := preload("res://scenes/net/toon_bank.gd")
 var _next_id := 1
 var _port := _PORT
 var _dedicated := false
@@ -720,6 +724,34 @@ func _keep_trolley(peer: int, game_id: int) -> void:
 	_trolley_for[peer] = game_id
 
 
+func _ask_fight(district: int, slug: String, cog_id: int, toon_name: String, hp: int, max_hp: int) -> void:
+	if is_authority():
+		_open_fight(district, slug, cog_id, peer_id(), toon_name, hp, max_hp)
+		return
+	if _role == "client":
+		_request_fight.rpc_id(1, district, slug, cog_id, toon_name, hp, max_hp)
+
+
+func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
+	if is_authority():
+		_choose_fight(fight_id, peer_id(), track, level, target, exp)
+		return
+	if _role == "client":
+		_choose_gag.rpc_id(1, fight_id, track, level, target, exp)
+
+
+func _open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights != null and fights.has_method("open_fight"):
+		fights.call("open_fight", district, slug, cog_id, peer, toon_name, hp, max_hp)
+
+
+func _choose_fight(fight_id: int, peer: int, track: int, level: int, target: int, exp: int) -> void:
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights != null and fights.has_method("choose"):
+		fights.call("choose", fight_id, peer, track, level, target, exp)
+
+
 func _ask_summon(district: int, slug: String, query: String, level: int, near: Vector3) -> void:
 	if is_authority():
 		var traffic := get_node_or_null("/root/StreetTraffic")
@@ -774,11 +806,102 @@ func _finish_trolley(score: int, district: int = -1) -> void:
 	publish(channel, have)
 
 
+static func silence_keep(silent: bool) -> void:
+	var net := live()
+	if net != null:
+		net._silence_keep = silent
+
+
+static func keep_toon() -> void:
+	var net := live()
+	if net == null or net._silence_keep:
+		return
+	var av_id := ToonRoster.avatar_id()
+	if av_id <= 0:
+		return
+	var record: Dictionary = _BANK.capture()
+	if net.is_authority():
+		_BANK.store(av_id, record)
+		net._avatars[net.peer_id()] = av_id
+		return
+	if net._role == "client":
+		net._keep_toon.rpc_id(1, record)
+
+
+static func claim_toon() -> void:
+	var net := live()
+	if net == null:
+		return
+	var av_id := ToonRoster.avatar_id()
+	if av_id <= 0:
+		return
+	var record: Dictionary = _BANK.capture()
+	if net.is_authority():
+		net._accept_claim(net.peer_id(), av_id, record)
+		return
+	if net._role == "client":
+		net._claim_toon.rpc_id(1, av_id, record)
+
+
+static func avatar_of(peer: int) -> int:
+	var net := live()
+	if net == null:
+		return 0
+	return int(net._avatars.get(peer, 0))
+
+
+static func stored_laff(peer: int) -> Vector2i:
+	var row: Dictionary = _BANK.recall(avatar_of(peer))
+	if row.is_empty():
+		return Vector2i(-1, -1)
+	return Vector2i(int(row.get("hp", 1)), int(row.get("max_hp", 1)))
+
+
+static func stored_exp(peer: int, track: int) -> int:
+	var row: Dictionary = _BANK.recall(avatar_of(peer))
+	if row.is_empty():
+		return -1
+	var experience: Array = row.get("exp", [])
+	if track < 0 or track >= experience.size():
+		return 0
+	return int(experience[track])
+
+
+static func persist_laff(av_id: int, hp: int, max_hp: int) -> void:
+	var net := live()
+	if net == null or not net.is_authority():
+		return
+	_BANK.set_laff(av_id, hp, max_hp)
+
+
+static func persist_gag(av_id: int, track: int, level: int) -> void:
+	var net := live()
+	if net == null or not net.is_authority():
+		return
+	_BANK.spend_gag(av_id, track, level)
+
+
+static func ask_fight(district: int, slug: String, cog_id: int, toon_name: String, hp: int, max_hp: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_fight(district, slug, cog_id, toon_name, hp, max_hp)
+
+
+static func ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_gag(fight_id, track, level, target, exp)
+
+
 func _request_suits(district: int, slug: String) -> void:
 	if is_authority():
 		var traffic := get_node_or_null("/root/StreetTraffic")
 		if traffic != null and traffic.has_method("ensure"):
 			traffic.call("ensure", district, slug)
+		if traffic != null and traffic.has_method("ensure_buildings"):
+			traffic.call("ensure_buildings", district, slug)
 		return
 	if _role == "client":
 		_request_street.rpc_id(1, district, slug)
@@ -805,6 +928,7 @@ func _on_peer(id: int) -> void:
 func _on_peer_gone(id: int) -> void:
 	var who := _peer_label(id)
 	_peers.erase(id)
+	_avatars.erase(id)
 	_recount()
 	if _dedicated:
 		print("%s disconnected. %d still connected." % [who, _peers.size()])
@@ -843,6 +967,7 @@ func _on_connected() -> void:
 	_rejoining = false
 	if _notice != null:
 		_notice.call("hide_notice")
+	claim_toon()
 	_return_to_place()
 
 
@@ -1013,6 +1138,7 @@ func _join_result(id: int, reason: String) -> void:
 		_parent = id
 	districts_changed.emit()
 	district_seated.emit(id)
+	claim_toon()
 
 
 @rpc("authority", "reliable")
@@ -1087,6 +1213,68 @@ func _clear_state(channel: String) -> void:
 		return
 	_states.erase(channel)
 	state_changed.emit(channel)
+
+
+func _accept_claim(peer: int, av_id: int, record: Dictionary) -> void:
+	if av_id <= 0:
+		return
+	_avatars[peer] = av_id
+	var kept := _BANK.recall(av_id)
+	if kept.is_empty():
+		_BANK.store(av_id, record)
+		kept = _BANK.recall(av_id)
+	var local := false
+	if multiplayer.multiplayer_peer == null:
+		local = true
+	elif peer == multiplayer.get_unique_id():
+		local = true
+	if local:
+		_BANK.apply(kept)
+		return
+	_claim_result.rpc_id(peer, kept)
+
+
+@rpc("any_peer", "reliable")
+func _claim_toon(av_id: int, record: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_claim(multiplayer.get_remote_sender_id(), av_id, record)
+
+
+@rpc("any_peer", "reliable")
+func _keep_toon(record: Dictionary) -> void:
+	if not is_authority() or not (record is Dictionary):
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var av_id := int(_avatars.get(sender, record.get("av_id", 0)))
+	if av_id <= 0:
+		return
+	_avatars[sender] = av_id
+	_BANK.store(av_id, record)
+
+
+@rpc("authority", "reliable")
+func _claim_result(record: Dictionary) -> void:
+	if is_authority():
+		return
+	_BANK.apply(record)
+
+
+@rpc("any_peer", "reliable")
+func _request_fight(district: int, slug: String, cog_id: int, toon_name: String, hp: int, max_hp: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_open_fight(district, slug, cog_id, sender, toon_name, hp, max_hp)
+
+
+@rpc("any_peer", "reliable")
+func _choose_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
+	if not is_authority():
+		return
+	_choose_fight(fight_id, multiplayer.get_remote_sender_id(), track, level, target, exp)
 
 
 @rpc("any_peer", "reliable")

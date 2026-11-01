@@ -1,0 +1,298 @@
+{
+ "zone": 4200,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  0,
+  0,
+  90,
+  10
+ ],
+ "levels": [
+  3,
+  4,
+  5,
+  6
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "The Schmaltzy Waltz School of Dance",
+   "pos": [
+    120.0,
+    0.0,
+    -345.0
+   ]
+  },
+  {
+   "block": 2,
+   "title": "Timbre! Equipment for the Singing Lumberjack",
+   "pos": [
+    185.0,
+    0.0,
+    -330.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "I Can Handel It!",
+   "pos": [
+    170.0,
+    0.0,
+    -370.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Tina's Concertina Concerts",
+   "pos": [
+    250.0,
+    0.0,
+    -359.5
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Zither Here Nor There",
+   "pos": [
+    210.0,
+    0.0,
+    -305.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Doppler's Sound Effects Studio",
+   "pos": [
+    190.0,
+    0.0,
+    -250.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "On Ballet! Climbing Supplies",
+   "pos": [
+    155.0,
+    0.0,
+    -290.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Hurry Up, Slow Polka! School of Driving",
+   "pos": [
+    60.0,
+    0.0,
+    -260.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "C-Flat Tire Repair",
+   "pos": [
+    100.0,
+    0.0,
+    -375.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "B-Sharp Fine Menswear",
+   "pos": [
+    70.0,
+    0.0,
+    -440.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Four-Part Harmonicas",
+   "pos": [
+    10.0,
+    0.0,
+    -465.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Sonata Your Fault! Discount Auto Insurance",
+   "pos": [
+    20.0,
+    0.0,
+    -605.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Chopin Blocks and Other Kitchen Supplies",
+   "pos": [
+    -30.0,
+    0.0,
+    -605.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Madrigal Motor Homes",
+   "pos": [
+    -10.0,
+    0.0,
+    -475.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Name That Toon",
+   "pos": [
+    -10.0,
+    0.0,
+    -435.0
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Overture Understudies",
+   "pos": [
+    -50.0,
+    0.0,
+    -425.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "Haydn Go Seek Playground Supplies",
+   "pos": [
+    -20.0,
+    0.0,
+    -365.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "White Noise for Girls and Boys",
+   "pos": [
+    -85.0,
+    0.0,
+    -405.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "The Baritone Barber",
+   "pos": [
+    -20.0,
+    0.0,
+    -325.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Vocal Chords Braided",
+   "pos": [
+    -65.0,
+    0.0,
+    -230.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Sing Solo We Can't Hear You",
+   "pos": [
+    -40.0,
+    0.0,
+    -270.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Double Reed Bookstore",
+   "pos": [
+    0.0,
+    0.0,
+    -270.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Lousy Lyrics",
+   "pos": [
+    0.0,
+    0.0,
+    -200.0
+   ]
+  },
+  {
+   "block": 31,
+   "title": "Toon Tunes",
+   "pos": [
+    50.0,
+    0.0,
+    -220.0
+   ]
+  },
+  {
+   "block": 32,
+   "title": "Etude Brute? Theatre Company",
+   "pos": [
+    250.0,
+    0.0,
+    -285.0
+   ]
+  },
+  {
+   "block": 33,
+   "title": "",
+   "pos": [
+    139.0,
+    0.0,
+    -250.0
+   ]
+  },
+  {
+   "block": 34,
+   "title": "",
+   "pos": [
+    50.0,
+    0.0,
+    -491.0
+   ]
+  },
+  {
+   "block": 35,
+   "title": "Accordions, If You Want In, Just Bellow!",
+   "pos": [
+    -100.0,
+    0.0,
+    -285.0
+   ]
+  },
+  {
+   "block": 36,
+   "title": "Her and Hymn Wedding Planners",
+   "pos": [
+    60.0,
+    0.0,
+    -325.0
+   ]
+  },
+  {
+   "block": 37,
+   "title": "Harp Tarps",
+   "pos": [
+    -49.76,
+    0.0,
+    -483.87
+   ]
+  },
+  {
+   "block": 38,
+   "title": "Canticle Your Fancy Gift Shop",
+   "pos": [
+    45.0,
+    0.0,
+    -400.0
+   ]
+  }
+ ]
+}

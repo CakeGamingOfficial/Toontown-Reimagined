@@ -1,0 +1,234 @@
+{
+ "zone": 3300,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  5,
+  85,
+  5,
+  5
+ ],
+ "levels": [
+  7,
+  8,
+  9
+ ],
+ "blocks": [
+  {
+   "block": 6,
+   "title": "Alpine Chow Line",
+   "pos": [
+    55.0,
+    0.0,
+    -280.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Used Groundhog Shadows",
+   "pos": [
+    420.0,
+    0.0,
+    -305.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "The Sweater Lodge",
+   "pos": [
+    320.0,
+    0.0,
+    -230.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Ice Saw It Too",
+   "pos": [
+    340.0,
+    0.0,
+    -300.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "A Better Built Quilt",
+   "pos": [
+    40.0,
+    0.0,
+    -220.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Your Snow Angel",
+   "pos": [
+    320.0,
+    0.0,
+    -390.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Mittens for Kittens",
+   "pos": [
+    160.0,
+    0.0,
+    -229.969
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Snowshoes You Can't Refuse",
+   "pos": [
+    245.0,
+    0.0,
+    -280.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Malt in Your Mouth Soda Fountain",
+   "pos": [
+    405.0,
+    0.0,
+    -190.0
+   ]
+  },
+  {
+   "block": 15,
+   "title": "The Toupee Chalet",
+   "pos": [
+    180.0,
+    0.0,
+    -149.969
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Just So Mistletoe",
+   "pos": [
+    305.0,
+    0.0,
+    -160.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Winter Wonderland Walking Club",
+   "pos": [
+    400.0,
+    0.0,
+    -375.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "The Shovel Hovel",
+   "pos": [
+    380.0,
+    0.0,
+    -235.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Clean Sweep Chimney Service",
+   "pos": [
+    360.0,
+    0.0,
+    -325.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Snow Whitening",
+   "pos": [
+    300.0,
+    0.0,
+    -365.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Hibernation Vacations",
+   "pos": [
+    110.0,
+    0.0,
+    -169.969
+   ]
+  },
+  {
+   "block": 23,
+   "title": "Precipitation Foundation",
+   "pos": [
+    200.0,
+    0.0,
+    -210.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "Open Fire Chestnut Roasting",
+   "pos": [
+    265.0,
+    0.0,
+    -390.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Cool Cat Hats",
+   "pos": [
+    330.0,
+    0.0,
+    -280.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Oh My Galoshes!",
+   "pos": [
+    230.0,
+    0.0,
+    -160.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Choral Wreaths",
+   "pos": [
+    260.0,
+    0.0,
+    -315.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Snowman's Land",
+   "pos": [
+    125.0,
+    0.0,
+    -280.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Pinecone Zone",
+   "pos": [
+    200.0,
+    0.0,
+    -250.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Wait and See Goggle Defogging",
+   "pos": [
+    110.0,
+    0.0,
+    -240.0
+   ]
+  }
+ ]
+}

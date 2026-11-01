@@ -24,6 +24,7 @@ var _anim := ""
 var _sent_gm := -1
 var _meter: LaffMeter
 var _puppets: Dictionary = {}
+var _pins: Dictionary = {}
 
 
 func bind(world: Node, body: Node3D, actor: ToonActor, tags: Nametags) -> void:
@@ -197,11 +198,37 @@ func _create(state: Dictionary) -> ToonActor:
 	return actor
 
 
+func pin(peer: int, point: Vector3, heading: float) -> void:
+	_pins[peer] = {"pos": point, "heading": heading}
+	var actor := actor_for(peer)
+	if actor == null:
+		return
+	actor.global_position = point
+	_face(actor, heading)
+
+
+func unpin_all() -> void:
+	_pins.clear()
+
+
+func actor_for(peer: int) -> ToonActor:
+	var puppet: Dictionary = _puppets.get(peer, {})
+	var actor: ToonActor = puppet.get("actor")
+	if actor != null and is_instance_valid(actor):
+		return actor
+	return null
+
+
 func _move_puppets(delta: float) -> void:
 	for peer in _puppets.keys():
 		var puppet: Dictionary = _puppets[peer]
 		var actor: ToonActor = puppet.get("actor")
 		if actor == null or not is_instance_valid(actor) or not actor.visible:
+			continue
+		if _pins.has(peer):
+			var pinned: Dictionary = _pins[peer]
+			actor.global_position = pinned.get("pos", actor.global_position)
+			_face(actor, float(pinned.get("heading", 0.0)))
 			continue
 		var target: Vector3 = puppet.get("pos", actor.global_position)
 		var blend := clampf(delta / _PERIOD, 0.0, 1.0)
@@ -242,6 +269,7 @@ func _drop(peer: int) -> void:
 	if actor != null and is_instance_valid(actor):
 		actor.queue_free()
 	_puppets.erase(peer)
+	_pins.erase(peer)
 
 
 func _exit_tree() -> void:

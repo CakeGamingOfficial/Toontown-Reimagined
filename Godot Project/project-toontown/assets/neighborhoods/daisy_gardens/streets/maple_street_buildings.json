@@ -1,0 +1,235 @@
+{
+ "zone": 5200,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  10,
+  70,
+  0,
+  20
+ ],
+ "levels": [
+  3,
+  4,
+  5,
+  6
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "From Start to Spinach",
+   "pos": [
+    45.0,
+    0.0,
+    30.0
+   ]
+  },
+  {
+   "block": 2,
+   "title": "Jake's Rakes",
+   "pos": [
+    115.0,
+    0.0,
+    90.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "Photo Cynthia's Camera Shop",
+   "pos": [
+    230.0,
+    0.0,
+    90.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Lisa Lemon Used Cars",
+   "pos": [
+    234.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Poison Oak Furniture",
+   "pos": [
+    320.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "14 Carrot Jewelers",
+   "pos": [
+    295.0,
+    0.0,
+    -80.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Musical Fruit",
+   "pos": [
+    235.0,
+    0.0,
+    -80.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "We'd Be Gone Travel Agency",
+   "pos": [
+    295.0,
+    0.0,
+    -195.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Astroturf Mowers",
+   "pos": [
+    359.83,
+    -0.05,
+    -98.84
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Tuft Guy Gym",
+   "pos": [
+    365.0,
+    0.0,
+    -196.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Garden Hosiery",
+   "pos": [
+    455.0,
+    0.0,
+    -100.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Silly Statues",
+   "pos": [
+    355.0,
+    0.0,
+    -34.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Trowels and Tribulations",
+   "pos": [
+    455.0,
+    -0.05,
+    -20.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Spring Rain Seltzer Bottles",
+   "pos": [
+    405.0,
+    -0.75,
+    59.75
+   ]
+  },
+  {
+   "block": 15,
+   "title": "Hayseed News",
+   "pos": [
+    490.0,
+    0.0,
+    90.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Take It or Leaf It Pawn Shop",
+   "pos": [
+    525.0,
+    0.0,
+    -10.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "The Squirting Flower",
+   "pos": [
+    590.0,
+    0.0,
+    90.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "The Dandy Lion Pet Shop",
+   "pos": [
+    594.96,
+    -0.06,
+    27.15
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Trellis the Truth! Private Investi\u0003gators",
+   "pos": [
+    645.0,
+    0.0,
+    -20.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Vine and Dandy Menswear",
+   "pos": [
+    574.04,
+    0.0,
+    -58.8
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Root 66 Diner",
+   "pos": [
+    595.04,
+    0.0,
+    -119.8
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Barley, Hops, and Malt Shop",
+   "pos": [
+    30.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Bert's Dirt",
+   "pos": [
+    20.0,
+    0.0,
+    -51.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Gopher Broke Savings & Loan",
+   "pos": [
+    96.0,
+    0.0,
+    -2.0
+   ]
+  }
+ ]
+}

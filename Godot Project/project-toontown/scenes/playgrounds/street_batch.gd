@@ -214,6 +214,9 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 
 static func _leave_alone(node_name: String) -> bool:
 	var lowered := node_name.to_lower()
+	# Landmark buildings stay whole so a cog takeover can hide that one block.
+	if lowered.contains("toon_landmark") or lowered.contains("animated_building"):
+		return true
 	if lowered.contains("__billboard") or lowered.contains("drop_shadow") or lowered.contains("sky"):
 		return true
 	while lowered.ends_with("_") or (lowered.length() > 0 and lowered.substr(lowered.length() - 1, 1).is_valid_int()):

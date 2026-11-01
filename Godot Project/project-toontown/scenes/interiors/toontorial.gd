@@ -763,6 +763,13 @@ func _try_battle() -> void:
 	_battle.consider(_body.global_position)
 
 
+func adopt_record(record: Dictionary) -> void:
+	if _loadout != null:
+		_loadout.apply_dict(record)
+	if _tasks != null:
+		_tasks.apply_dict(record)
+
+
 func _ready_loadout() -> void:
 	_loadout = ToonLoadout.for_selected()
 	_panel = GagPanel.new()
@@ -787,6 +794,7 @@ func _ready_loadout() -> void:
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
+	ToonNet.claim_toon()
 	_speed = SpeedChat.new()
 	_speed.name = "SpeedChat"
 	_hud().add_child(_speed)

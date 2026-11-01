@@ -44,7 +44,9 @@ func _ready() -> void:
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	_ready_playground_treasures()
 	_attach_returning_toon()
+	preload("res://scenes/streets/street_buildings.gd").attach(self)
 	preload("res://scenes/streets/street_suits.gd").attach(self)
+	preload("res://scenes/battle/street_fight.gd").attach(self)
 	_current_zone = ""
 	_zone_sample = Vector2(INF, INF)
 	_process_zones(_view_camera())

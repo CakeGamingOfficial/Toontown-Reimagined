@@ -1,0 +1,297 @@
+{
+ "zone": 3200,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  10,
+  20,
+  30,
+  40
+ ],
+ "levels": [
+  5,
+  6,
+  7
+ ],
+ "blocks": [
+  {
+   "block": 2,
+   "title": "Winter Storage",
+   "pos": [
+    160.0,
+    0.0,
+    -325.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "",
+   "pos": [
+    245.0,
+    0.0,
+    -300.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Icicles Built for Two",
+   "pos": [
+    290.0,
+    0.0,
+    -300.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "Shiverin' Shakes Malt Shop",
+   "pos": [
+    260.0,
+    0.0,
+    -350.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Snowplace Like Home",
+   "pos": [
+    335.0,
+    0.0,
+    -350.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Pluto's Place",
+   "pos": [
+    300.0,
+    0.0,
+    -390.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Dropping Degrees Diner",
+   "pos": [
+    400.0,
+    0.0,
+    -335.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "",
+   "pos": [
+    360.0,
+    0.0,
+    -315.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Go With the Floe",
+   "pos": [
+    400.0,
+    0.0,
+    -275.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Chattering Teeth, Subzero Dentist",
+   "pos": [
+    345.0,
+    0.0,
+    -210.0
+   ]
+  },
+  {
+   "block": 15,
+   "title": "Aunt Arctic's Soup Shop",
+   "pos": [
+    240.0,
+    0.0,
+    -260.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Road Salt and Pepper",
+   "pos": [
+    280.0,
+    0.0,
+    -230.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Juneau What I Mean?",
+   "pos": [
+    220.0,
+    0.0,
+    -140.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Designer Inner Tubes",
+   "pos": [
+    180.0,
+    0.0,
+    -210.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Ice Cube on a Stick",
+   "pos": [
+    220.0,
+    0.0,
+    -280.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Noggin's Toboggan Bargains",
+   "pos": [
+    0.0,
+    3.29,
+    -0.0
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Snow Bunny Ski Shop",
+   "pos": [
+    100.0,
+    0.0,
+    -260.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "Shakey's Snow Globes",
+   "pos": [
+    140.0,
+    0.0,
+    -315.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "The Chattering Chronicle",
+   "pos": [
+    85.0,
+    0.0,
+    -300.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "You Sleigh Me",
+   "pos": [
+    80.0,
+    0.0,
+    -340.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Solar Powered Blankets",
+   "pos": [
+    25.0,
+    0.0,
+    -340.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Lowbrow Snowplows",
+   "pos": [
+    0.0,
+    0.0,
+    -225.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "",
+   "pos": [
+    40.0,
+    0.0,
+    -275.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Snowmen Bought & Sold",
+   "pos": [
+    20.0,
+    0.0,
+    -180.0
+   ]
+  },
+  {
+   "block": 31,
+   "title": "Portable Fireplaces",
+   "pos": [
+    70.0,
+    0.0,
+    -180.0
+   ]
+  },
+  {
+   "block": 32,
+   "title": "The Frozen Nose",
+   "pos": [
+    120.0,
+    0.0,
+    -205.0
+   ]
+  },
+  {
+   "block": 34,
+   "title": "Icy Fine, Do You? Optometry",
+   "pos": [
+    141.0,
+    0.0,
+    -250.0
+   ]
+  },
+  {
+   "block": 35,
+   "title": "Polar Ice Caps",
+   "pos": [
+    285.0,
+    0.0,
+    -290.0
+   ]
+  },
+  {
+   "block": 36,
+   "title": "Diced Ice at a Nice Price",
+   "pos": [
+    400.0,
+    0.0,
+    -382.0
+   ]
+  },
+  {
+   "block": 37,
+   "title": "Downhill Diner",
+   "pos": [
+    210.0,
+    0.0,
+    -340.0
+   ]
+  },
+  {
+   "block": 38,
+   "title": "Heat-Get It While It's Hot",
+   "pos": [
+    0.0,
+    0.0,
+    -285.0
+   ]
+  }
+ ]
+}

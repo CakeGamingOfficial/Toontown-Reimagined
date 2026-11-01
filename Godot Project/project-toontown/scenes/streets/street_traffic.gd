@@ -7,8 +7,15 @@ const WALK_SPEED := 4.8
 const FROM_SKY := 6.5
 const SKY_HEIGHT := FROM_SKY * WALK_SPEED
 const TOTAL_MAX_SUITS := 50
+## clearOutToonInterior, then the drop starts. The cog is already inside.
+const _CLEAR_OUT := 4.0
+const _DEPTS: PackedStringArray = ["c", "l", "m", "s"]
+const _BUILDINGS := preload("res://scenes/streets/street_buildings.gd")
 
 var _streets: Dictionary = {}
+var _blocks: Dictionary = {}
+var _plans: Dictionary = {}
+var _pending: Dictionary = {}
 var _actors: Dictionary = {}
 ## A street the local scene is showing. The data sim must not plan that one too.
 var _live: Dictionary = {}
@@ -21,6 +28,12 @@ func _ready() -> void:
 	var sim := Node.new()
 	sim.name = "SuitSim"
 	add_child(sim)
+	var buildings := Node.new()
+	buildings.name = "BuildingSim"
+	add_child(buildings)
+	var fights: Node = load("res://scenes/battle/street_fights.gd").new()
+	fights.name = "StreetFights"
+	add_child(fights)
 
 
 ## Parked suits in one district. The live street adds the suits it is drawing.
@@ -75,6 +88,7 @@ func hold(district: int, slug: String, record: Dictionary) -> void:
 		return
 	var key := _key(district, slug)
 	record["district"] = district
+	record["slug"] = slug
 	_live.erase(key)
 	_streets[key] = record
 
@@ -188,12 +202,216 @@ func ensure(district: int, slug: String) -> void:
 	sim.add_child(node)
 
 
+func has_buildings(district: int, slug: String) -> bool:
+	return _blocks.has(_key(district, slug))
+
+
+func building_rows(district: int, slug: String) -> Array:
+	var found: Variant = _blocks.get(_key(district, slug), [])
+	if found is Array:
+		return found
+	return []
+
+
+func keep_buildings(district: int, slug: String, rows: Array) -> void:
+	var key := _key(district, slug)
+	_blocks[key] = rows
+	ToonNet.publish("buildings:" + key, {"rows": rows})
+
+
+## The street remembers its quota. Buildings are not taken until a cog arrives.
+func prepare_buildings(district: int, slug: String, data: Dictionary) -> void:
+	if not ToonNet.is_authority():
+		return
+	var key := _key(district, slug)
+	if not _plans.has(key):
+		var blocks: Array = data.get("blocks", [])
+		var target := 0
+		if district != 0:
+			target = _BUILDINGS.target_count(blocks.size(), int(data.get("bmin", 0)), int(data.get("bmax", 0)))
+		_plans[key] = {
+			"target": target,
+			"blocks": blocks,
+			"tracks": data.get("tracks", []),
+			"levels": data.get("levels", []),
+		}
+	if not _blocks.has(key):
+		_blocks[key] = []
+	keep_buildings(district, slug, building_rows(district, slug))
+
+
+## newSuitShouldAttemptTakeover. One walking cog is reserved per building still needed.
+func claim_takeover(district: int, slug: String) -> Dictionary:
+	if not ToonNet.is_authority() or district == 0:
+		return {}
+	var key := _key(district, slug)
+	if not _plans.has(key):
+		return {}
+	var plan: Dictionary = _plans[key]
+	var target := int(plan.get("target", 0))
+	var used := {}
+	for item in building_rows(district, slug):
+		if item is Dictionary:
+			used[int((item as Dictionary).get("block", 0))] = true
+	var pending: Array = _pending.get(key, [])
+	for block in pending:
+		used[int(block)] = true
+	if used.size() >= target:
+		return {}
+	var picked: Dictionary = _BUILDINGS.plan_one(plan.get("blocks", []), plan.get("tracks", []), plan.get("levels", []), used)
+	if picked.is_empty():
+		return {}
+	pending.append(int(picked.get("block", 0)))
+	_pending[key] = pending
+	return picked
+
+
+func release_takeover(district: int, slug: String, block: int) -> void:
+	var key := _key(district, slug)
+	var pending: Array = _pending.get(key, [])
+	pending.erase(block)
+	_pending[key] = pending
+
+
+## The cog reached the door. The shop locks, then the drop starts 4 seconds later.
+func start_takeover(district: int, slug: String, plan: Dictionary) -> void:
+	if not ToonNet.is_authority():
+		return
+	var block := int(plan.get("block", 0))
+	var rows: Array = building_rows(district, slug).duplicate()
+	for item in rows:
+		if item is Dictionary and int((item as Dictionary).get("block", 0)) == block:
+			return
+	release_takeover(district, slug, block)
+	rows.append({
+		"block": block,
+		"track": String(plan.get("track", "c")),
+		"difficulty": int(plan.get("difficulty", 0)),
+		"floors": int(plan.get("floors", 1)),
+		"title": String(plan.get("title", "")),
+		"state": "clearing",
+		"clear_left": _CLEAR_OUT,
+	})
+	keep_buildings(district, slug, rows)
+
+
+static func door_steps(from_slot: int, door_slot: int, count: int) -> int:
+	if count < 2:
+		return 2
+	var steps := posmod(door_slot - from_slot, count)
+	if steps < 2:
+		steps += count
+	return steps
+
+
+static func nearest_route(points: Array, route: PackedInt32Array, building: Vector3) -> int:
+	var best := 0
+	var best_distance := INF
+	var flat := Vector2(building.x, building.z)
+	for index in route.size():
+		var point := _route_point(points, route[index])
+		var distance := flat.distance_squared_to(Vector2(point.x, point.z))
+		if distance < best_distance:
+			best_distance = distance
+			best = index
+	return best
+
+
+static func stand_outside(sidewalk: Vector3, building: Vector3) -> Vector3:
+	# STAND_OUTSIDE_DOOR is 2.5. The sidewalk point is already outside, so the
+	# last step toward the shop stays short of the building center.
+	var flat := Vector2(building.x - sidewalk.x, building.z - sidewalk.z)
+	var dist := flat.length()
+	if dist < 0.001:
+		return sidewalk
+	var travel := minf(dist - 2.5, 8.0)
+	if travel <= 0.0:
+		return sidewalk
+	var dir := flat / dist
+	return Vector3(sidewalk.x + dir.x * travel, lerpf(sidewalk.y, building.y, travel / dist), sidewalk.z + dir.y * travel)
+
+
+static func read_pos(value: Variant) -> Vector3:
+	if value is Vector3:
+		return value
+	if value is Array and (value as Array).size() >= 3:
+		var nums: Array = value
+		return Vector3(float(nums[0]), float(nums[1]), float(nums[2]))
+	return Vector3.ZERO
+
+
+static func _route_point(points: Array, index: int) -> Vector3:
+	if index < 0 or index >= points.size():
+		return Vector3.ZERO
+	var value: Variant = points[index]
+	if value is Vector3:
+		return value
+	return Vector3.ZERO
+
+
+## A client asked for buildings on a street this process is not standing on.
+func ensure_buildings(district: int, slug: String) -> void:
+	if not ToonNet.is_authority():
+		return
+	if district == 0:
+		keep_buildings(district, slug, [])
+		return
+	if has_buildings(district, slug):
+		keep_buildings(district, slug, building_rows(district, slug))
+		return
+	if not StreetSuits.STREETS.has(slug):
+		return
+	var sim := get_node_or_null("BuildingSim")
+	var node_name := "%d_%s" % [district, slug]
+	if sim == null or sim.get_node_or_null(node_name) != null:
+		return
+	var path := str(StreetSuits.STREETS[slug]).replace("_suits.json", "_buildings.json")
+	if not FileAccess.file_exists(path):
+		return
+	var script := load("res://scenes/streets/street_buildings.gd") as GDScript
+	var node := script.new() as Node
+	node.name = node_name
+	node.set("json_path", path)
+	node.set("street_slug", slug)
+	node.set("visuals", false)
+	node.set("district_id", district)
+	sim.add_child(node)
+
+
 func _process(delta: float) -> void:
-	if not ToonNet.is_authority() or _streets.is_empty():
+	if not ToonNet.is_authority():
+		return
+	_tick_buildings(delta)
+	if _streets.is_empty():
 		return
 	for key in _streets.keys():
 		_advance(_streets[key] as Dictionary, delta)
 		_publish_street(String(key))
+
+
+func _tick_buildings(delta: float) -> void:
+	var now := int(Time.get_unix_time_from_system() * 1000.0)
+	for key in _blocks.keys():
+		var rows: Array = _blocks[key]
+		var changed := false
+		for item in rows:
+			if not (item is Dictionary):
+				continue
+			var row: Dictionary = item
+			if String(row.get("state", "suit")) != "clearing":
+				continue
+			row["clear_left"] = float(row.get("clear_left", _CLEAR_OUT)) - delta
+			if float(row["clear_left"]) > 0.0:
+				continue
+			row["state"] = "becoming"
+			row["since"] = now
+			row.erase("clear_left")
+			changed = true
+		if not changed:
+			continue
+		var parts := String(key).split(":")
+		var slug := parts[1] if parts.size() > 1 else ""
+		keep_buildings(int(parts[0]), slug, rows)
 
 
 func _advance(record: Dictionary, delta: float) -> void:
@@ -203,16 +421,21 @@ func _advance(record: Dictionary, delta: float) -> void:
 		return
 	var cogs: Array = record.get("cogs", [])
 	var kept: Array = []
+	var district := int(record.get("district", 1))
+	var slug := String(record.get("slug", ""))
 	for index in cogs.size():
 		var cog: Dictionary = cogs[index]
-		if _step_cog(cog, points, route, cogs, index, delta):
+		if _step_cog(cog, points, route, cogs, index, delta, district, slug):
 			kept.append(cog)
 	record["cogs"] = kept
 	_tick(record, points, route, delta)
 
 
-func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Array, index: int, delta: float) -> bool:
+func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Array, index: int, delta: float, district: int, slug: String) -> bool:
 	var phase := int(cog.get("phase", 1))
+	var fights := get_node_or_null("StreetFights")
+	if phase == 1 and fights != null and fights.has_method("cog_paused") and bool(fights.call("cog_paused", int(cog.get("do_id", 0)))):
+		return true
 	if phase == 0:
 		var staying := _step_fly(cog, delta, false)
 		if int(cog.get("phase", 0)) == 1 and not bool(cog.get("pathed", false)):
@@ -220,6 +443,9 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 		return staying
 	if phase == 2:
 		return _step_fly(cog, delta, true)
+	var take: Dictionary = cog.get("takeover", {})
+	if not take.is_empty() and String(cog.get("take_stage", "lane")) == "door":
+		return _step_door(cog, take, delta, district, slug)
 	var slot := int(cog.get("slot", 0))
 	if slot < 0 or slot >= route.size():
 		return false
@@ -241,6 +467,11 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 		cog["slot"] = slot
 		cog["edges"] = int(cog.get("edges", 1)) - 1
 		if int(cog["edges"]) <= 0:
+			if not take.is_empty():
+				cog["take_stage"] = "door"
+				cog["position"] = goal
+				cog["door_goal"] = stand_outside(goal, read_pos(take.get("pos", [])))
+				return true
 			cog["phase"] = 2
 			cog["fly"] = 0.0
 			cog["ground"] = goal
@@ -261,6 +492,27 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 	var span := Vector2(origin.x, origin.z).distance_to(target)
 	if span > 0.001:
 		pos.y = lerpf(origin.y, goal.y, 1.0 - remaining / span)
+	cog["position"] = pos
+	cog["yaw"] = atan2(-walk.x, -walk.y)
+	cog["walk"] = float(cog.get("walk", 0.0)) + delta * 24.0
+	return true
+
+
+func _step_door(cog: Dictionary, take: Dictionary, delta: float, district: int, slug: String) -> bool:
+	var goal := read_pos(cog.get("door_goal", Vector3.ZERO))
+	var pos := _vec_at(cog, "position", goal)
+	var flat := Vector2(pos.x, pos.z)
+	var target := Vector2(goal.x, goal.z)
+	var remaining := flat.distance_to(target)
+	if remaining < 0.08:
+		cog["position"] = goal
+		start_takeover(district, slug, take)
+		return false
+	var step := minf(WALK_SPEED * delta, remaining)
+	var walk := (target - flat) / remaining
+	pos.x += walk.x * step
+	pos.z += walk.y * step
+	pos.y = lerpf(pos.y, goal.y, step / remaining)
 	cog["position"] = pos
 	cog["yaw"] = atan2(-walk.x, -walk.y)
 	cog["walk"] = float(cog.get("walk", 0.0)) + delta * 24.0
@@ -376,12 +628,20 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 	var desired := int(record.get("desired", record.get("count", 0)))
 	var deficit := desired - cogs.size()
 	var district := int(record.get("district", 1))
+	var slug := String(record.get("slug", ""))
 	var burst := mini(int((deficit + 3) / 4), TOTAL_MAX_SUITS - suit_total(district))
 	while burst > 0:
-		var cog := _pick(record)
+		var plan := claim_takeover(district, slug)
+		var cog := _pick(record) if plan.is_empty() else _pick_planned(record, plan)
 		if cog.is_empty():
+			if not plan.is_empty():
+				release_takeover(district, slug, int(plan.get("block", 0)))
 			break
-		cogs.append(_fresh(cog, points, route, cogs))
+		var job := _fresh(cog, points, route, cogs)
+		if not plan.is_empty():
+			job["takeover"] = plan
+			job["take_stage"] = "lane"
+		cogs.append(job)
 		burst -= 1
 	record["cogs"] = cogs
 
@@ -417,6 +677,22 @@ func _assign_path(cog: Dictionary, points: Array, route: PackedInt32Array) -> vo
 		cog["phase"] = 2
 		return
 	var slot := int(cog.get("slot", 0))
+	var take: Dictionary = cog.get("takeover", {})
+	if not take.is_empty():
+		var door_slot := nearest_route(points, route, read_pos(take.get("pos", [])))
+		var door_next := (slot + 1) % route.size()
+		var door_point := _point_at(points, route[door_next])
+		var door_ground := _point_at(points, route[slot])
+		var door_toward := Vector2(door_point.x - door_ground.x, door_point.z - door_ground.z)
+		cog["edges"] = door_steps(slot, door_slot, route.size())
+		cog["goal"] = door_point
+		cog["ground"] = door_ground
+		cog["pathed"] = true
+		cog["take_stage"] = "lane"
+		if door_toward.length_squared() > 0.0001:
+			var door_flat := door_toward.normalized()
+			cog["yaw"] = atan2(-door_flat.x, -door_flat.y)
+		return
 	var ground := _point_at(points, route[slot])
 	var ahead := randi_range(1, route.size() - 1)
 	var path_points := ahead + 1
@@ -507,6 +783,29 @@ func _pick(record: Dictionary) -> Dictionary:
 	return cog
 
 
+func _pick_planned(record: Dictionary, plan: Dictionary) -> Dictionary:
+	var catalog: Array = record.get("catalog", [])
+	if catalog.is_empty():
+		return {}
+	var level := int(plan.get("level", 1))
+	var max_type := int(record.get("max_type", 6))
+	var low := maxi(level - 4, 1)
+	var high := mini(level, max_type)
+	if high < low:
+		high = low
+	var cog_type := randi_range(low, high)
+	var dept := _DEPTS.find(String(plan.get("track", "c")))
+	if dept < 0:
+		dept = 0
+	var index := dept * 8 + cog_type - 1
+	if index < 0 or index >= catalog.size():
+		return {}
+	var source: Dictionary = catalog[index]
+	var cog := source.duplicate() as Dictionary
+	cog["level"] = level
+	return cog
+
+
 func _pick_dept(tracks: Array) -> int:
 	var roll := randi_range(0, 99)
 	var count := 0
@@ -538,6 +837,70 @@ func _publish_street(key: String) -> void:
 		return
 	record["sig"] = sig
 	ToonNet.publish("suits:" + key, {"rows": rows})
+
+
+## The street the player is standing on keeps its suits on StreetSuits.
+## Every other street in the district is the parked record.
+func cog_rows(district: int, slug: String) -> Array:
+	var scene := get_tree().current_scene
+	if scene != null:
+		var suits := scene.get_node_or_null("StreetSuits")
+		if suits != null and int(suits.get("district_id")) == district and str(suits.get("street_slug")) == slug and bool(suits.get("visuals")):
+			var live: Array = []
+			for child in suits.get_children():
+				if child.has_method("capture"):
+					live.append(child.call("capture"))
+			return live
+	var record: Variant = _streets.get(_key(district, slug), {})
+	if record is Dictionary:
+		return (record as Dictionary).get("cogs", [])
+	return []
+
+
+func park_cog(district: int, slug: String, cog_id: int, point: Array) -> void:
+	var key := _key(district, slug)
+	if not _streets.has(key) or point.size() < 3:
+		return
+	var record: Dictionary = _streets[key]
+	for item in record.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		if int(cog.get("do_id", 0)) != cog_id:
+			continue
+		cog["position"] = Vector3(float(point[0]), float(point[1]), float(point[2]))
+		record.erase("sig")
+		_streets[key] = record
+		_publish_street(key)
+		return
+
+
+func dismiss_cog(district: int, slug: String, cog_id: int) -> void:
+	var scene := get_tree().current_scene
+	if scene != null:
+		var suits := scene.get_node_or_null("StreetSuits")
+		if suits != null and int(suits.get("district_id")) == district and str(suits.get("street_slug")) == slug and bool(suits.get("visuals")):
+			for child in suits.get_children():
+				if int(child.get_meta("do_id", 0)) != cog_id:
+					continue
+				if bool(child.get_meta("playback", false)):
+					return
+				if child.has_method("defeat"):
+					child.call("defeat")
+				return
+	var key := _key(district, slug)
+	if not _streets.has(key):
+		return
+	var record: Dictionary = _streets[key]
+	var kept: Array = []
+	for item in record.get("cogs", []):
+		if item is Dictionary and int((item as Dictionary).get("do_id", 0)) == cog_id:
+			continue
+		kept.append(item)
+	record["cogs"] = kept
+	record.erase("sig")
+	_streets[key] = record
+	_publish_street(key)
 
 
 func _sig(rows: Array) -> String:

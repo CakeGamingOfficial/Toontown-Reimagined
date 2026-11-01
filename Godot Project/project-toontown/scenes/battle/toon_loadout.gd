@@ -381,12 +381,73 @@ static func accuracy_word(percent: int) -> String:
 	return "Very Low"
 
 
-static func affects_label(track: int) -> String:
+## ToontownBattleGlobals.isGroup. AvPropTarget picks the row, AvPropTargetCat the level.
+static func affects_group(track: int, level: int) -> bool:
+	var cats: Array = [
+		[0, 1, 0, 1, 0, 1, 1],
+		[0, 0, 0, 0, 0, 0, 1],
+		[1, 1, 1, 1, 1, 1, 1],
+		[0, 0, 0, 0, 0, 0, 1],
+	]
+	var which: Array[int] = [0, 3, 0, 2, 3, 3, 3]
+	if track < 0 or track >= which.size():
+		return false
+	var row: Array = cats[which[track]]
+	if level < 0 or level >= row.size():
+		return false
+	return int(row[level]) == 1
+
+
+static func affects_label(track: int, level: int = -1) -> String:
+	if level < 0:
+		if track == TOON_UP:
+			return "One Toon"
+		if track == 3 or track == 6:
+			return "All Cogs"
+		return "One Cog"
+	if affects_group(track, level):
+		if track == TOON_UP:
+			return "All Toons"
+		return "All Cogs"
 	if track == TOON_UP:
 		return "One Toon"
-	if track == 3 or track == 6:
-		return "All Cogs"
 	return "One Cog"
+
+
+func apply_dict(record: Dictionary) -> void:
+	max_hp = maxi(int(record.get("max_hp", max_hp)), 1)
+	hp = clampi(int(record.get("hp", hp)), 0, max_hp)
+	max_carry = clampi(int(record.get("max_carry", max_carry)), 1, MAX_CARRY)
+	var counts: Array = record.get("counts", [])
+	var owned: Array = record.get("unlocked", [])
+	if not counts.is_empty():
+		_blank()
+		for track in mini(counts.size(), TRACK_COUNT):
+			var row: Array = counts[track]
+			var flags: Array = owned[track] if track < owned.size() and owned[track] is Array else []
+			for level in mini(row.size(), LEVEL_COUNT):
+				_counts[track][level] = maxi(int(row[level]), 0)
+				if level < flags.size():
+					_unlocked[track][level] = bool(flags[level])
+	var experience: Array = record.get("exp", [])
+	for track in mini(experience.size(), TRACK_COUNT):
+		_exp[track] = maxi(int(experience[track]), 0)
+	hp_changed.emit(hp, max_hp)
+
+
+func pocket_counts() -> Array:
+	return _counts.duplicate(true)
+
+
+func pocket_unlocked() -> Array:
+	return _unlocked.duplicate(true)
+
+
+func track_experience() -> Array:
+	var row: Array = []
+	for amount in _exp:
+		row.append(int(amount))
+	return row
 
 
 func set_hp(current: int, maximum: int) -> void:
@@ -462,6 +523,7 @@ func save() -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify(root))
+	ToonNet.keep_toon()
 
 
 func _blank() -> void:

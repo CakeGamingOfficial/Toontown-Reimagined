@@ -1,0 +1,351 @@
+{
+ "zone": 3100,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  90,
+  10,
+  0,
+  0
+ ],
+ "levels": [
+  5,
+  6,
+  7
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "Northern Lights Electric Company",
+   "pos": [
+    390.0,
+    0.0,
+    -230.0
+   ]
+  },
+  {
+   "block": 2,
+   "title": "Nor'easter Bonnets",
+   "pos": [
+    390.0,
+    0.0,
+    -175.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "",
+   "pos": [
+    350.0,
+    0.0,
+    -145.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "The Blizzard Wizard",
+   "pos": [
+    385.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Nothing to Luge",
+   "pos": [
+    320.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Mike's Massive Mukluk Mart",
+   "pos": [
+    320.0,
+    0.0,
+    -80.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Mr. Cow's Snow Plows",
+   "pos": [
+    285.0,
+    0.0,
+    -100.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Igloo Design",
+   "pos": [
+    270.0,
+    0.0,
+    -60.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Ice Cycle Bikes",
+   "pos": [
+    230.0,
+    0.0,
+    -100.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Snowflakes Cereal Company",
+   "pos": [
+    270.0,
+    0.0,
+    -125.0
+   ]
+  },
+  {
+   "block": 15,
+   "title": "Fried Baked Alaskas",
+   "pos": [
+    240.0,
+    0.0,
+    -180.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Cold Air Balloon Rides",
+   "pos": [
+    150.0,
+    0.0,
+    -145.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Snow Big Deal! Crisis Management",
+   "pos": [
+    150.0,
+    0.0,
+    -109.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Skiing Clinic",
+   "pos": [
+    180.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "The Melting Ice Cream Bar",
+   "pos": [
+    90.0,
+    0.0,
+    -15.0
+   ]
+  },
+  {
+   "block": 22,
+   "title": "",
+   "pos": [
+    200.0,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "The Mostly Toasty Bread Company",
+   "pos": [
+    240.0,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "Subzero Sandwich Shop",
+   "pos": [
+    255.0,
+    0.0,
+    50.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Auntie Freeze's Radiator Supply",
+   "pos": [
+    305.0,
+    0.0,
+    50.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "St. Bernard Kennel Club",
+   "pos": [
+    390.0,
+    0.0,
+    50.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Pea Soup Cafe",
+   "pos": [
+    350.0,
+    0.0,
+    95.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Icy London, Icy France Travel Agency",
+   "pos": [
+    380.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 34,
+   "title": "Easy Chair Lifts",
+   "pos": [
+    220.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 35,
+   "title": "Used Firewood",
+   "pos": [
+    190.0,
+    0.0,
+    130.0
+   ]
+  },
+  {
+   "block": 36,
+   "title": "Affordable Goosebumps",
+   "pos": [
+    230.0,
+    0.0,
+    75.0
+   ]
+  },
+  {
+   "block": 37,
+   "title": "Kate's Skates",
+   "pos": [
+    200.0,
+    0.0,
+    40.0
+   ]
+  },
+  {
+   "block": 38,
+   "title": "Toboggan or Not Toboggan",
+   "pos": [
+    390.0,
+    0.0,
+    -135.0
+   ]
+  },
+  {
+   "block": 41,
+   "title": "Fred's Red Sled Beds",
+   "pos": [
+    190.0,
+    0.0,
+    -100.0
+   ]
+  },
+  {
+   "block": 42,
+   "title": "Eye of the Storm Optics",
+   "pos": [
+    325.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 43,
+   "title": "Snowball Hall",
+   "pos": [
+    390.0,
+    0.0,
+    105.0
+   ]
+  },
+  {
+   "block": 44,
+   "title": "Melted Ice Cubes",
+   "pos": [
+    274.0,
+    0.0,
+    130.0
+   ]
+  },
+  {
+   "block": 47,
+   "title": "The Sanguine Penguin Tuxedo Shop",
+   "pos": [
+    265.173,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 48,
+   "title": "Instant Ice",
+   "pos": [
+    350.0,
+    0.0,
+    -95.0
+   ]
+  },
+  {
+   "block": 49,
+   "title": "Hambrrrgers",
+   "pos": [
+    390.0,
+    0.0,
+    -75.0
+   ]
+  },
+  {
+   "block": 50,
+   "title": "Antarctic Antiques",
+   "pos": [
+    280.0,
+    0.0,
+    -30.0
+   ]
+  },
+  {
+   "block": 51,
+   "title": "Frosty Freddy's Frozen Frankfurters",
+   "pos": [
+    196.0,
+    0.0,
+    -180.0
+   ]
+  },
+  {
+   "block": 53,
+   "title": "Ice House Jewelry",
+   "pos": [
+    294.929,
+    0.0,
+    170.0
+   ]
+  }
+ ]
+}

@@ -84,6 +84,7 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
+var _battle_hold := false
 var _filming := false
 var _portaling := false
 var _tunnel_ready := false
@@ -303,6 +304,10 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _battle_hold:
+		if _body != null:
+			_body.velocity = Vector3.ZERO
+		return
 	if not _active or _locked:
 		return
 	_walk(delta)
@@ -406,6 +411,73 @@ func _current_hood() -> int:
 	if hood == 0:
 		hood = _PLACES.TTC
 	return hood
+
+
+func hold_for_battle(held: bool) -> void:
+	_battle_hold = held
+	if not held or _player == null:
+		return
+	_player.set_locomotion(0.0, false, false, 0.0)
+
+
+func battle_busy() -> bool:
+	if not _active or _locked or _filming or _portaling or _bank_open or _battle_hold:
+		return true
+	return _book != null and _book.is_open()
+
+
+func battle_point() -> Vector3:
+	if _body == null:
+		return Vector3.ZERO
+	return _body.global_position
+
+
+func battle_name() -> String:
+	var style := ToonRoster.selected_style()
+	if style == null:
+		return "Toon"
+	return style.display_name()
+
+
+func battle_hp() -> Vector2i:
+	if _loadout == null:
+		return Vector2i(ToonLoadout.START_HP, ToonLoadout.START_HP)
+	return Vector2i(_loadout.hp, _loadout.max_hp)
+
+
+func battle_loadout() -> ToonLoadout:
+	return _loadout
+
+
+func adopt_record(record: Dictionary) -> void:
+	if _loadout != null:
+		_loadout.apply_dict(record)
+	if _tasks != null:
+		_tasks.apply_dict(record)
+
+
+func battle_actor() -> ToonActor:
+	return _player
+
+
+func place_for_battle(point: Vector3, heading: float) -> void:
+	visit_friend(point, heading)
+
+
+func pin_remote(peer: int, point: Vector3, heading: float) -> void:
+	if _remotes != null:
+		_remotes.pin(peer, point, heading)
+
+
+func unpin_remotes() -> void:
+	if _remotes != null:
+		_remotes.unpin_all()
+
+
+func remote_actor(peer: int) -> ToonActor:
+	if _remotes == null:
+		return null
+	return _remotes.actor_for(peer)
 
 
 func visit_friend(point: Vector3, heading: float) -> void:
@@ -1688,6 +1760,7 @@ func _ready_hud() -> void:
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
+	ToonNet.claim_toon()
 	# The open book covers the street map. The map stays above the laff meter.
 	_book.z_index = 20
 	var street_zone := _BLDG.street_zone(_scene_path())

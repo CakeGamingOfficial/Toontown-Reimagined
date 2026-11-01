@@ -87,6 +87,16 @@ static func clamp_transfer(amount: int) -> int:
 	return amount
 
 
+static func set_saved(pouch_amount: int, bank_amount: int) -> void:
+	_ensure()
+	var slot := _slot()
+	if slot < 0:
+		return
+	_pouch[slot] = clampi(pouch_amount, 0, POUCH_MAX)
+	_bank[slot] = clampi(bank_amount, 0, BANK_MAX)
+	_write()
+
+
 static func reset_slot(index: int) -> void:
 	_ensure()
 	if index < 0 or index >= ToonRoster.SLOT_COUNT:
@@ -145,3 +155,4 @@ static func _write() -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify({"slots": slots}))
+	ToonNet.keep_toon()

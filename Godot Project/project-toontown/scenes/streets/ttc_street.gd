@@ -36,7 +36,9 @@ func _ready() -> void:
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	if preload("res://scenes/places/tunnel_links.gd").arriving() or preload("res://scenes/interiors/shop_door.gd").trip == "out":
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
+	preload("res://scenes/streets/street_buildings.gd").attach(self)
 	preload("res://scenes/streets/street_suits.gd").attach(self)
+	preload("res://scenes/battle/street_fight.gd").attach(self)
 	# The fly camera picked the first block. Settle on the toon before physics.
 	_current_zone = ""
 	_zone_sample = Vector2(INF, INF)

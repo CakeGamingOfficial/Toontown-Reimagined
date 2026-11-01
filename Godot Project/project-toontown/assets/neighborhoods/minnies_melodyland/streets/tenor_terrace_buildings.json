@@ -1,0 +1,343 @@
+{
+ "zone": 4300,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  50,
+  50,
+  0,
+  0
+ ],
+ "levels": [
+  3,
+  4,
+  5,
+  6
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "Marshall's Stacks",
+   "pos": [
+    40.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "What a Mezzo! Maid Service",
+   "pos": [
+    50.0,
+    0.0,
+    -120.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Mixolydian Scales",
+   "pos": [
+    159.94,
+    0.0,
+    -150.04
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Relax the Bach",
+   "pos": [
+    120.0,
+    0.0,
+    -165.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "I Can't Understanza!",
+   "pos": [
+    240.0,
+    0.0,
+    -190.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "",
+   "pos": [
+    200.0,
+    0.0,
+    -128.8
+   ]
+  },
+  {
+   "block": 17,
+   "title": "The Ternary Pet Shop",
+   "pos": [
+    200.0,
+    0.0,
+    -95.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Yuki's Ukeleles",
+   "pos": [
+    235.0,
+    0.0,
+    -80.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "",
+   "pos": [
+    150.0,
+    0.0,
+    -80.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Anna's Cruises",
+   "pos": [
+    125.0,
+    0.0,
+    -240.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Common Time Watches",
+   "pos": [
+    215.0,
+    0.0,
+    -240.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Schumann's Shoes for Men",
+   "pos": [
+    240.0,
+    0.0,
+    -230.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Pachelbel's Canonballs",
+   "pos": [
+    250.0,
+    0.0,
+    -120.0
+   ]
+  },
+  {
+   "block": 35,
+   "title": "Ursatz for Kool Katz",
+   "pos": [
+    305.0,
+    0.0,
+    -20.0
+   ]
+  },
+  {
+   "block": 36,
+   "title": "Reggae Regalia",
+   "pos": [
+    305.0,
+    0.0,
+    15.0
+   ]
+  },
+  {
+   "block": 38,
+   "title": "Kazoology School of Music",
+   "pos": [
+    395.0,
+    0.0,
+    -120.0
+   ]
+  },
+  {
+   "block": 40,
+   "title": "Coda Pop Musical Beverages",
+   "pos": [
+    425.0,
+    0.0,
+    -60.0
+   ]
+  },
+  {
+   "block": 41,
+   "title": "Lyre, Lyre, Pants on Fire!",
+   "pos": [
+    340.0,
+    0.0,
+    25.0
+   ]
+  },
+  {
+   "block": 42,
+   "title": "The Syncopation Corporation",
+   "pos": [
+    445.0,
+    0.0,
+    -15.0
+   ]
+  },
+  {
+   "block": 43,
+   "title": "",
+   "pos": [
+    415.0,
+    0.0,
+    145.0
+   ]
+  },
+  {
+   "block": 44,
+   "title": "Con Moto Cycles",
+   "pos": [
+    370.0,
+    0.0,
+    125.0
+   ]
+  },
+  {
+   "block": 45,
+   "title": "Ellie's Elegant Elegies",
+   "pos": [
+    440.0,
+    0.0,
+    100.0
+   ]
+  },
+  {
+   "block": 48,
+   "title": "Lotsa Lute Savings & Loan",
+   "pos": [
+    480.0,
+    0.0,
+    -15.0
+   ]
+  },
+  {
+   "block": 49,
+   "title": "",
+   "pos": [
+    505.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 50,
+   "title": "The Borrowed Chord Pawn Shop",
+   "pos": [
+    465.0,
+    0.0,
+    80.0
+   ]
+  },
+  {
+   "block": 52,
+   "title": "Flowery Flute Fleeces",
+   "pos": [
+    465.0,
+    0.0,
+    135.0
+   ]
+  },
+  {
+   "block": 53,
+   "title": "Leo's Fenders",
+   "pos": [
+    505.0,
+    0.0,
+    65.0
+   ]
+  },
+  {
+   "block": 54,
+   "title": "Wagner's Vocational Violin Videos",
+   "pos": [
+    495.0,
+    0.0,
+    145.0
+   ]
+  },
+  {
+   "block": 55,
+   "title": "The Teli-Caster Network",
+   "pos": [
+    535.0,
+    0.0,
+    145.0
+   ]
+  },
+  {
+   "block": 56,
+   "title": "",
+   "pos": [
+    530.0,
+    0.0,
+    40.0
+   ]
+  },
+  {
+   "block": 62,
+   "title": "Quentin's Quintessen\u0003tial Quadrilles",
+   "pos": [
+    645.0,
+    0.0,
+    -110.0
+   ]
+  },
+  {
+   "block": 67,
+   "title": "Mr. Costello's Yellow Cellos",
+   "pos": [
+    613.0,
+    0.0,
+    -215.0
+   ]
+  },
+  {
+   "block": 68,
+   "title": "",
+   "pos": [
+    425.0,
+    0.0,
+    -95.0
+   ]
+  },
+  {
+   "block": 70,
+   "title": "Ziggy's Zoo of Zigeuner\u0003musik",
+   "pos": [
+    545.0,
+    0.0,
+    -45.0
+   ]
+  },
+  {
+   "block": 71,
+   "title": "Harry's House of Harmonious Humbuckers",
+   "pos": [
+    605.0,
+    0.0,
+    -165.0
+   ]
+  },
+  {
+   "block": 72,
+   "title": "Fast Freddie's Fretless Fingerboards",
+   "pos": [
+    600.833,
+    0.0,
+    35.185
+   ]
+  }
+ ]
+}
