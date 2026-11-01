@@ -46,7 +46,11 @@ var _boot_code := 0
 var _voluntary := false
 var _lost := false
 var _rejoining := false
+var _suppress_drop := false
 var _reset_told := false
+var _shutdown_started := false
+var _stop_file := ""
+var _stop_wait := 0.0
 var _notice: Node
 
 
@@ -62,6 +66,9 @@ func _ready() -> void:
 	add_child(_notice)
 	_notice.connect("retry_connect", _retry_connect)
 	_notice.connect("leave_game", _leave_after_drop)
+	var window := get_tree().root
+	if window != null and not window.close_requested.is_connected(_request_shutdown):
+		window.close_requested.connect(_request_shutdown)
 	var link := multiplayer
 	link.peer_connected.connect(_on_peer)
 	link.peer_disconnected.connect(_on_peer_gone)
@@ -324,6 +331,10 @@ func _apply_server_args() -> void:
 			var port := int(port_text)
 			if port >= 1 and port <= 65535:
 				_port = port
+		elif arg == "--stop-file" and index + 1 < args.size():
+			_stop_file = String(args[index + 1])
+		elif arg.begins_with("--stop-file="):
+			_stop_file = arg.trim_prefix("--stop-file=")
 
 
 func _become_dedicated() -> void:
@@ -337,8 +348,23 @@ func _become_dedicated() -> void:
 		print(result)
 		get_tree().quit(1)
 		return
-	_status = "Dedicated server listening on UDP port %d.\nDistricts: %s\n%s\nStop this process to close the server." % [_port, ", ".join(names), _address_block()]
+	_status = "Dedicated server listening on UDP port %d.\nDistricts: %s\n%s\nCtrl+C tells connected toons, then stops the server." % [_port, ", ".join(names), _address_block()]
 	print(_status)
+
+
+func _process(delta: float) -> void:
+	if _stop_file == "" or _shutdown_started:
+		return
+	_stop_wait -= delta
+	if _stop_wait > 0.0:
+		return
+	_stop_wait = 0.25
+	if not FileAccess.file_exists(_stop_file):
+		return
+	var text := FileAccess.get_file_as_string(_stop_file).strip_edges()
+	if text.is_empty():
+		return
+	_request_shutdown()
 
 
 func _address_block() -> String:
@@ -620,7 +646,8 @@ func _close_district() -> void:
 
 
 func _drop_host_soon() -> void:
-	await get_tree().process_frame
+	# The boot packet has to leave before this process drops the link.
+	await get_tree().create_timer(0.5).timeout
 	_finish_offline()
 
 
@@ -830,6 +857,9 @@ func _on_failed() -> void:
 
 
 func _on_dropped() -> void:
+	# Reconnect closes the old link. That close is not another outage.
+	if _suppress_drop:
+		return
 	var was_client := _role == "client"
 	var code := _boot_code
 	var voluntary := _voluntary
@@ -857,11 +887,19 @@ func _on_dropped() -> void:
 
 
 func _notification(what: int) -> void:
-	if what != NOTIFICATION_WM_CLOSE_REQUEST:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_request_shutdown()
+
+
+func _request_shutdown() -> void:
+	if _shutdown_started:
 		return
-	if _role == "host" and not _reset_told and multiplayer.multiplayer_peer != null:
+	_shutdown_started = true
+	if _role == "host" and not _reset_told and multiplayer.multiplayer_peer != null and not _peers.is_empty():
 		_reset_told = true
 		_voluntary = true
+		if _dedicated:
+			print("District closing. Telling connected toons.")
 		_boot.rpc(153)
 		_quit_after_boot()
 		return
@@ -869,7 +907,7 @@ func _notification(what: int) -> void:
 
 
 func _quit_after_boot() -> void:
-	await get_tree().create_timer(0.25).timeout
+	await get_tree().create_timer(0.5).timeout
 	if is_inside_tree():
 		get_tree().quit()
 
@@ -881,16 +919,31 @@ func _show_disconnect(code: int) -> void:
 
 func _retry_connect() -> void:
 	_lost = false
+	# Drop the old link before opening another, without showing this dialog again.
+	_suppress_drop = true
+	_voluntary = true
 	_role = "offline"
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer = null
+	_voluntary = false
 	if _last_address == "":
 		get_tree().quit()
 		return
 	_rejoining = true
 	var result := _join_server(_last_address, _last_port)
-	if result.begins_with("Joining"):
+	if not result.begins_with("Joining"):
+		_rejoining = false
+		_suppress_drop = false
+		_show_disconnect(0)
 		return
-	_rejoining = false
-	_show_disconnect(0)
+	_release_suppress()
+
+
+func _release_suppress() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if _rejoining:
+		_suppress_drop = false
 
 
 func _leave_after_drop() -> void:
@@ -936,6 +989,11 @@ func _boot(code: int) -> void:
 	if is_authority():
 		return
 	_boot_code = code
+	if _role != "client" or _voluntary:
+		return
+	# The district is closing now. The socket may still look open for a moment.
+	_lost = true
+	_show_disconnect(code)
 
 
 @rpc("authority", "reliable")
