@@ -25,6 +25,7 @@ const MID_POP := 599
 const _PORT := 4343
 const _TROLLEY: Array[int] = [2, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
 const _CONFIG := "res://scenes/net/districts.json"
+const _TOON := preload("res://scenes/playgrounds/playground_toon.gd")
 
 var _districts: Array[Dictionary] = []
 var _here := 1
@@ -39,12 +40,28 @@ var _dedicated := false
 var _status := ""
 ## RequestMinigame, keyed by the peer who typed ~mg. 0 is the offline player.
 var _trolley_for: Dictionary = {}
+var _last_address := ""
+var _last_port := 0
+var _boot_code := 0
+var _voluntary := false
+var _lost := false
+var _rejoining := false
+var _reset_told := false
+var _notice: Node
 
 
 func _ready() -> void:
+	# A host has to tell clients the district is closing before the window goes.
+	get_tree().auto_accept_quit = false
 	_load_config()
 	_apply_server_args()
 	_recount()
+	var script := load("res://scenes/net/disconnect_notice.gd") as GDScript
+	_notice = script.new() as Node
+	_notice.name = "DisconnectNotice"
+	add_child(_notice)
+	_notice.connect("retry_connect", _retry_connect)
+	_notice.connect("leave_game", _leave_after_drop)
 	var link := multiplayer
 	link.peer_connected.connect(_on_peer)
 	link.peer_disconnected.connect(_on_peer_gone)
@@ -66,6 +83,9 @@ static func is_authority() -> bool:
 	var net := live()
 	if net == null:
 		return true
+	# The lost-connection dialog is up. This process must not plan the district.
+	if net._lost:
+		return false
 	return net._role != "client"
 
 
@@ -567,6 +587,8 @@ func _join_server(address: String, port: int) -> String:
 	var err := peer.create_client(address, port)
 	if err != OK:
 		return "Could not join %s:%d." % [address, port]
+	_last_address = address
+	_last_port = port
 	multiplayer.multiplayer_peer = peer
 	_role = "client"
 	return "Joining %s:%d." % [address, port]
@@ -575,12 +597,35 @@ func _join_server(address: String, port: int) -> String:
 func _disconnect_net() -> String:
 	if _role == "offline":
 		return "You are already on the local district."
-	multiplayer.multiplayer_peer = null
+	if _role == "host":
+		_close_district()
+		return "Closing the district."
+	_voluntary = true
+	_finish_offline()
+	return "Back on the local district, %s." % _seat_name()
+
+
+func _close_district() -> void:
+	_voluntary = true
+	if not _reset_told and multiplayer.multiplayer_peer != null:
+		_reset_told = true
+		_boot.rpc(153)
+		_drop_host_soon()
+		return
+	_finish_offline()
+
+
+func _drop_host_soon() -> void:
+	await get_tree().process_frame
+	_finish_offline()
+
+
+func _finish_offline() -> void:
 	_role = "offline"
 	_peers.clear()
+	multiplayer.multiplayer_peer = null
 	_recount()
 	districts_changed.emit()
-	return "Back on the local district, %s." % _seat_name()
 
 
 func _recount() -> void:
@@ -727,26 +772,56 @@ func _on_peer(id: int) -> void:
 
 
 func _on_peer_gone(id: int) -> void:
+	var who := _peer_label(id)
 	_peers.erase(id)
 	_recount()
 	if _dedicated:
-		print("Peer %d left. %d connected." % [id, _peers.size()])
+		print("%s disconnected. %d still connected." % [who, _peers.size()])
 	_broadcast()
 	districts_changed.emit()
 	_drop_toon(id)
 
 
+func _peer_label(id: int) -> String:
+	var state: Dictionary = _states.get("toon:%d" % id, {})
+	var toon_name := String(state.get("name", "")).strip_edges()
+	if toon_name == "":
+		return "Peer %d" % id
+	return "%s (peer %d)" % [toon_name, id]
+
+
 func _on_connected() -> void:
+	_lost = false
 	_role = "client"
+	if not _rejoining:
+		return
+	_rejoining = false
+	if _notice != null:
+		_notice.call("hide_notice")
+	_return_to_place()
 
 
 func _on_failed() -> void:
 	_role = "offline"
 	multiplayer.multiplayer_peer = null
+	if not _rejoining:
+		return
+	_rejoining = false
+	_lost = true
+	_show_disconnect(0)
 
 
 func _on_dropped() -> void:
+	var was_client := _role == "client"
+	var code := _boot_code
+	var voluntary := _voluntary
+	_boot_code = 0
+	_voluntary = false
+	# An unexpected drop must not turn this process into the district AI
+	# while the lost-connection dialog is waiting for an answer.
 	_role = "offline"
+	if was_client and not voluntary:
+		_lost = true
 	_peers.clear()
 	multiplayer.multiplayer_peer = null
 	_recount()
@@ -759,6 +834,61 @@ func _on_dropped() -> void:
 	for channel in gone:
 		_states.erase(channel)
 		state_changed.emit(channel)
+	if was_client and not voluntary:
+		_show_disconnect(code)
+
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_WM_CLOSE_REQUEST:
+		return
+	if _role == "host" and not _reset_told and multiplayer.multiplayer_peer != null:
+		_reset_told = true
+		_voluntary = true
+		_boot.rpc(153)
+		_quit_after_boot()
+		return
+	get_tree().quit()
+
+
+func _quit_after_boot() -> void:
+	await get_tree().create_timer(0.25).timeout
+	if is_inside_tree():
+		get_tree().quit()
+
+
+func _show_disconnect(code: int) -> void:
+	if _notice != null:
+		_notice.call("show_reason", code)
+
+
+func _retry_connect() -> void:
+	_lost = false
+	_role = "offline"
+	if _last_address == "":
+		get_tree().quit()
+		return
+	_rejoining = true
+	var result := _join_server(_last_address, _last_port)
+	if result.begins_with("Joining"):
+		return
+	_rejoining = false
+	_show_disconnect(0)
+
+
+func _leave_after_drop() -> void:
+	get_tree().quit()
+
+
+func _return_to_place() -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var path := scene.scene_file_path
+	if path.is_empty() or path.ends_with("pick_a_toon.tscn"):
+		return
+	_TOON.teleport_in = true
+	_TOON.portal_in = true
+	ToonLoading.change_to(path)
 
 
 func _drop_toon(id: int) -> void:
@@ -781,6 +911,13 @@ func _request_join(id: int) -> void:
 		_join_result.rpc_id(peer, id, reason)
 		return
 	_join_result.rpc_id(peer, id, "")
+
+
+@rpc("authority", "reliable")
+func _boot(code: int) -> void:
+	if is_authority():
+		return
+	_boot_code = code
 
 
 @rpc("authority", "reliable")

@@ -150,6 +150,13 @@ func place() -> void:
 			_hide_icon(item)
 			_hide_chat(item)
 			continue
+		# Suit nametags are world cards on the cog. An off-screen suit does not
+		# leave its name pinned to the edge of the view.
+		if String(item.get("kind", "")) == "cog" and not _in_view(point):
+			label.visible = false
+			_hide_icon(item)
+			_hide_chat(item)
+			continue
 		_fit(label, point)
 		_place(label, point)
 		_place_icon(item, label)
@@ -362,6 +369,13 @@ func _suit_colors(panel: Control, label: Label, card: Color, ink: Color) -> void
 	if box != null:
 		box.modulate_color = card
 	label.add_theme_color_override("font_color", ink)
+
+
+func _in_view(point: Vector3) -> bool:
+	if not camera.is_position_in_frustum(point):
+		return false
+	var view := camera.get_viewport().get_visible_rect()
+	return view.has_point(camera.unproject_position(point))
 
 
 func _place(control: Control, world: Vector3) -> void:

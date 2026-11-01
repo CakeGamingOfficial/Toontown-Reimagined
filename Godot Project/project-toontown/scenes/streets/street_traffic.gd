@@ -365,6 +365,8 @@ func _step_fly(cog: Dictionary, delta: float, leaving: bool) -> bool:
 
 
 func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: float) -> void:
+	# adjustSuitPopulation drifts the street every five minutes. Upkeep is separate.
+	_drift(record, delta)
 	var left := float(record.get("upkeep", 10.0)) - delta
 	if left > 0.0:
 		record["upkeep"] = left
@@ -382,6 +384,32 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 		cogs.append(_fresh(cog, points, route, cogs))
 		burst -= 1
 	record["cogs"] = cogs
+
+
+## adjustSuitPopulation adds -2..2, weighted toward zero, and clamps to the street.
+func _drift(record: Dictionary, delta: float) -> void:
+	if not record.has("base"):
+		return
+	var street_max := int(record.get("street_max", 0))
+	if street_max == 0:
+		return
+	var left := float(record.get("adjust_left", 300.0)) - delta
+	if left > 0.0:
+		record["adjust_left"] = left
+		return
+	record["adjust_left"] = randf_range(300.0, 310.0)
+	var choices: Array[int] = [-2, -1, -1, 0, 0, 0, 1, 1, 2]
+	var adjust := int(record.get("adjust", 0)) + choices[randi() % choices.size()]
+	var base := int(record.get("base", 1))
+	var street_min := int(record.get("street_min", 1))
+	var wanted := base + adjust
+	if wanted < street_min:
+		adjust = street_min - base
+	elif wanted > street_max:
+		adjust = street_max - base
+	record["adjust"] = adjust
+	record["desired"] = base + adjust
+	record["count"] = base + adjust
 
 
 func _assign_path(cog: Dictionary, points: Array, route: PackedInt32Array) -> void:
