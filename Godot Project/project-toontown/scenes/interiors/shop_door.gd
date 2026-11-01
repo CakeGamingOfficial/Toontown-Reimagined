@@ -121,7 +121,7 @@ static func closest(where: Vector3) -> Dictionary:
 	var here := Vector2(where.x, where.z)
 	for entry in _entries:
 		var building: Node3D = entry["building"]
-		if not is_instance_valid(building):
+		if not is_instance_valid(building) or building.has_meta("cog_building") or building.has_meta("suit_approaching"):
 			continue
 		var point: Vector3 = entry["point"]
 		var distance := here.distance_to(Vector2(point.x, point.z))

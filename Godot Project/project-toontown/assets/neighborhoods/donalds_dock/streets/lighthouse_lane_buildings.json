@@ -1,0 +1,262 @@
+{
+ "zone": 1300,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  40,
+  40,
+  10,
+  10
+ ],
+ "levels": [
+  3,
+  4,
+  5,
+  6
+ ],
+ "blocks": [
+  {
+   "block": 2,
+   "title": "Nautical But Nice",
+   "pos": [
+    155.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Mussel Beach Gymnasium",
+   "pos": [
+    85.0,
+    0.0,
+    110.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Tackle Box Lunches",
+   "pos": [
+    155.0,
+    0.0,
+    95.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "Cap Size Hat Store",
+   "pos": [
+    115.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Keel Deals",
+   "pos": [
+    170.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Knots So Fast",
+   "pos": [
+    265.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Rusty Buckets",
+   "pos": [
+    285.0,
+    0.0,
+    135.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Anchor Management",
+   "pos": [
+    240.0,
+    0.0,
+    95.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "What's Canoe With You?",
+   "pos": [
+    285.0,
+    0.0,
+    30.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Pier Pressure Plumbing",
+   "pos": [
+    230.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "The Yo Ho Stop and Go",
+   "pos": [
+    245.0,
+    0.0,
+    -30.0
+   ]
+  },
+  {
+   "block": 15,
+   "title": "What's Up, Dock?",
+   "pos": [
+    295.0,
+    0.0,
+    -30.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Seven Seas Cafe",
+   "pos": [
+    400.0,
+    0.0,
+    60.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Docker's Diner",
+   "pos": [
+    445.0,
+    0.0,
+    40.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Hook, Line, and Sinker Prank Shop",
+   "pos": [
+    390.0,
+    0.0,
+    150.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "King Neptoon's Cannery",
+   "pos": [
+    465.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "The Clam Bake Diner",
+   "pos": [
+    465.0,
+    0.0,
+    120.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "Dog Paddles",
+   "pos": [
+    515.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Wholly Mackerel! Fish Market",
+   "pos": [
+    590.0,
+    0.0,
+    145.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Claggart's Clever Clovis Closet",
+   "pos": [
+    580.0,
+    0.0,
+    90.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Alice's Ballast Palace",
+   "pos": [
+    545.0,
+    0.0,
+    5.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Seagull Statue Store",
+   "pos": [
+    80.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Lost and Flounder",
+   "pos": [
+    65.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 31,
+   "title": "Kelp Around the House",
+   "pos": [
+    115.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 32,
+   "title": "Melville's Massive Mizzenmast Mart",
+   "pos": [
+    85.0,
+    0.0,
+    40.0
+   ]
+  },
+  {
+   "block": 33,
+   "title": "This Transom Man Custom Tailored Suits",
+   "pos": [
+    410.0,
+    0.0,
+    -30.0
+   ]
+  },
+  {
+   "block": 34,
+   "title": "Rudderly Ridiculous!",
+   "pos": [
+    530.0,
+    0.0,
+    61.0
+   ]
+  }
+ ]
+}

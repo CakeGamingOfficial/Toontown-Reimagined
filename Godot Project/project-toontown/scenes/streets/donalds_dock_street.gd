@@ -22,7 +22,9 @@ func _ready() -> void:
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, true)
 	if preload("res://scenes/places/tunnel_links.gd").arriving() or preload("res://scenes/interiors/shop_door.gd").trip == "out":
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
+	preload("res://scenes/streets/street_buildings.gd").attach(self)
 	preload("res://scenes/streets/street_suits.gd").attach(self)
+	preload("res://scenes/battle/street_fight.gd").attach(self)
 
 
 func _process(_delta: float) -> void:

@@ -233,6 +233,40 @@ func task_lines() -> PackedStringArray:
 	return lines
 
 
+func task_entries() -> Array:
+	var rows: Array = []
+	for entry in _active:
+		rows.append({"id": int(entry["id"]), "progress": int(entry["progress"])})
+	return rows
+
+
+func finished_ids() -> Array:
+	var rows: Array = []
+	for quest_id in _done:
+		rows.append(int(quest_id))
+	return rows
+
+
+func apply_dict(record: Dictionary) -> void:
+	has_book = bool(record.get("has_book", has_book))
+	met_flippy = bool(record.get("met_flippy", met_flippy))
+	in_playground = bool(record.get("in_playground", in_playground))
+	last_hood = int(record.get("last_hood", last_hood))
+	visited.clear()
+	for hood in record.get("visited", []):
+		_remember(int(hood))
+	_done.clear()
+	for finished in record.get("done", []):
+		_done.append(int(finished))
+	_active.clear()
+	for entry in record.get("active", []):
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var quest_num := int(entry.get("id", 0))
+		if CATALOG.has(quest_num):
+			_active.append({"id": quest_num, "progress": int(entry.get("progress", 0))})
+
+
 func save() -> void:
 	var root := _read_file()
 	var slots: Array = root.get("slots", [])
@@ -257,6 +291,7 @@ func save() -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify(root))
+	ToonNet.keep_toon()
 
 
 func _is_active(quest_id: int) -> bool:

@@ -6,10 +6,10 @@ const _COG := preload("res://scenes/cogs/street_cog.gd")
 ## DistributedSuitPlannerAI for one street. The street wants the average of its
 ## min and max, then drifts inside that range. An upkeep every 10 seconds
 ## creates only (deficit + 3) / 4 suits, and the whole district stops at 50.
-## Cog buildings are not in yet. When they are, about 1.5 suits per established
-## building leave by the side door and share that same cap. A future server
-## owns this list and replicates capture() records. Clients only wake a pooled
-## actor from a record. They do not pick DNA themselves.
+## An established cog building reserves about 1.5 street suits. Those suits
+## leave by the side door and are not spawned yet, so the reservation only
+## keeps them inside the district cap. Clients wake a pooled actor from a
+## record. They do not pick DNA themselves.
 
 const DEPTS: PackedStringArray = ["c", "l", "m", "s"]
 const TOTAL_MAX_SUITS := 50
@@ -409,10 +409,12 @@ func _build_layout() -> void:
 		cells.add_child(area)
 
 
-## Cog buildings are not spawned. A building manager will return the number
-## of established suit buildings, and the upkeep will add about 1.5 suits
-## for each one, leaving from the side door.
+## Established suit buildings on this street. The count is the server's list.
 func established_suit_buildings() -> int:
+	var snap := ToonNet.latest("buildings:%d:%s" % [district_id, street_slug])
+	var rows: Variant = snap.get("rows", [])
+	if rows is Array:
+		return (rows as Array).size()
 	return 0
 
 
@@ -476,6 +478,9 @@ func _spawn_state(state: Dictionary) -> Node3D:
 	if not (cog is Dictionary) or (cog as Dictionary).is_empty():
 		return null
 	var suit := _take_suit(cog as Dictionary)
+	var takeover: Variant = state.get("takeover", {})
+	if takeover is Dictionary:
+		suit.set_meta("takeover", takeover)
 	var playback := not ToonNet.is_authority()
 	if playback:
 		suit.set_meta("playback", true)
@@ -536,18 +541,34 @@ func _authorize() -> void:
 	var burst := int((deficit + 3) / 4)
 	burst = mini(burst, room)
 	while burst > 0:
-		var cog := _pick_cog()
+		var traffic := get_node_or_null("/root/StreetTraffic")
+		var plan := {}
+		if traffic != null and traffic.has_method("claim_takeover"):
+			plan = traffic.call("claim_takeover", district_id, street_slug)
+		var cog := _pick_cog() if plan.is_empty() else _pick_planned(plan)
 		if cog.is_empty():
+			if not plan.is_empty() and traffic != null:
+				traffic.call("release_takeover", district_id, street_slug, int(plan.get("block", 0)))
 			return
 		var net_id := ToonNet.next_id()
 		cog["do_id"] = net_id
-		_queue.append({
+		var job := {
 			"cog": cog,
 			"do_id": net_id,
 			"slot": _open_slot(),
 			"phase": -1,
-		})
+		}
+		if not plan.is_empty():
+			job["takeover"] = plan
+			job["take_stage"] = "lane"
+		_queue.append(job)
 		burst -= 1
+
+
+func finish_takeover(plan: Dictionary) -> void:
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("start_takeover"):
+		traffic.call("start_takeover", district_id, street_slug, plan)
 
 
 func _nudge() -> void:
@@ -801,6 +822,27 @@ func _pick_cog() -> Dictionary:
 		high = low
 	var cog_type := randi_range(low, high)
 	var dept := _pick_dept()
+	var index := dept * 8 + cog_type - 1
+	if index < 0 or index >= _catalog.size():
+		return {}
+	var source: Dictionary = _catalog[index]
+	var cog := source.duplicate() as Dictionary
+	cog["level"] = level
+	return cog
+
+
+func _pick_planned(plan: Dictionary) -> Dictionary:
+	if _catalog.is_empty():
+		return {}
+	var level := int(plan.get("level", 1))
+	var low := maxi(level - 4, 1)
+	var high := mini(level, _max_type)
+	if high < low:
+		high = low
+	var cog_type := randi_range(low, high)
+	var dept := DEPTS.find(String(plan.get("track", "c")))
+	if dept < 0:
+		dept = 0
 	var index := dept * 8 + cog_type - 1
 	if index < 0 or index >= _catalog.size():
 		return {}

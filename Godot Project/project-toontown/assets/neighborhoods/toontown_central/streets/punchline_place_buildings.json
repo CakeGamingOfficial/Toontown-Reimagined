@@ -1,0 +1,207 @@
+{
+ "zone": 2300,
+ "bmin": 0,
+ "bmax": 5,
+ "tracks": [
+  10,
+  10,
+  40,
+  40
+ ],
+ "levels": [
+  1,
+  2,
+  3
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "Sofa Whoopee Cushions",
+   "pos": [
+    80.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 2,
+   "title": "Inflatable Wrecking Balls",
+   "pos": [
+    105.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "The Karnival Kid",
+   "pos": [
+    160.0,
+    0.0,
+    -65.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Dr. Pulyurleg, Chiropractor",
+   "pos": [
+    120.0,
+    0.0,
+    -80.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "",
+   "pos": [
+    333.008,
+    0.0,
+    -51.377
+   ]
+  },
+  {
+   "block": 9,
+   "title": "The Punch Line Gym",
+   "pos": [
+    320.0,
+    0.0,
+    -90.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Toontown Theatre",
+   "pos": [
+    279.9,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "The Flying Pie",
+   "pos": [
+    550.0,
+    0.0,
+    -105.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "",
+   "pos": [
+    570.0,
+    0.0,
+    -60.0
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Rubber Chicken Sandwiches",
+   "pos": [
+    585.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "Sundae Funnies Ice Cream",
+   "pos": [
+    730.0,
+    0.0,
+    -60.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "Punchline Movie Palace",
+   "pos": [
+    700.0,
+    0.0,
+    -120.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Phony Baloney",
+   "pos": [
+    415.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Zippy's Zingers",
+   "pos": [
+    480.0,
+    0.0,
+    -55.0
+   ]
+  },
+  {
+   "block": 31,
+   "title": "Professor Wiggle's House of Giggles",
+   "pos": [
+    500.0,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 33,
+   "title": "",
+   "pos": [
+    475.0,
+    0.0,
+    -210.0
+   ]
+  },
+  {
+   "block": 34,
+   "title": "Funny Bone Emergency Room",
+   "pos": [
+    417.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 36,
+   "title": "",
+   "pos": [
+    367.474,
+    0.0,
+    10.399
+   ]
+  },
+  {
+   "block": 37,
+   "title": "Hardy Harr Seminars",
+   "pos": [
+    230.0,
+    0.0,
+    -10.0
+   ]
+  },
+  {
+   "block": 39,
+   "title": "Barely Palatable Pasta",
+   "pos": [
+    175.0,
+    0.0,
+    -177.0
+   ]
+  },
+  {
+   "block": 41,
+   "title": "",
+   "pos": [
+    266.146,
+    0.0,
+    -197.914
+   ]
+  }
+ ]
+}

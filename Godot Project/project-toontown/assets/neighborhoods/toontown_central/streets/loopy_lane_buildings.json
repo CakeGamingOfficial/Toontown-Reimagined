@@ -1,0 +1,270 @@
+{
+ "zone": 2200,
+ "bmin": 0,
+ "bmax": 5,
+ "tracks": [
+  10,
+  70,
+  10,
+  10
+ ],
+ "levels": [
+  1,
+  2,
+  3
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "",
+   "pos": [
+    -600.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Movie Multiplex",
+   "pos": [
+    -550.0,
+    0.0,
+    -100.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Wiseacre's Noisemakers",
+   "pos": [
+    -465.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Blue Glue",
+   "pos": [
+    -520.0,
+    0.0,
+    80.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Toontown Post Office",
+   "pos": [
+    -410.0,
+    0.0,
+    100.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Chortle Cafe",
+   "pos": [
+    -370.0,
+    0.0,
+    35.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Laughter Hours Cafe",
+   "pos": [
+    -420.0,
+    0.0,
+    60.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Kooky CinePlex",
+   "pos": [
+    -450.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Soup and Crack Ups",
+   "pos": [
+    -390.0,
+    0.0,
+    -140.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Bottled Cans",
+   "pos": [
+    -370.0,
+    0.0,
+    -30.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Crack Up Auto Repair",
+   "pos": [
+    -325.0,
+    0.0,
+    50.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "",
+   "pos": [
+    -190.0,
+    0.0,
+    -35.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Seltzer Bottles and Cans",
+   "pos": [
+    -145.0,
+    0.0,
+    -85.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Vanishing Cream",
+   "pos": [
+    -110.0,
+    0.0,
+    -25.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "14 Karat Goldfish",
+   "pos": [
+    -610.0,
+    0.0,
+    -25.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "News for the Amused",
+   "pos": [
+    -560.0,
+    0.0,
+    -35.0
+   ]
+  },
+  {
+   "block": 31,
+   "title": "",
+   "pos": [
+    -535.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 32,
+   "title": "Spaghetti and Goofballs",
+   "pos": [
+    -465.0,
+    0.0,
+    15.0
+   ]
+  },
+  {
+   "block": 33,
+   "title": "Cast Iron Kites",
+   "pos": [
+    -460.0,
+    0.0,
+    -60.0
+   ]
+  },
+  {
+   "block": 34,
+   "title": "Suction Cups and Saucers",
+   "pos": [
+    -360.0,
+    0.0,
+    -5.0
+   ]
+  },
+  {
+   "block": 35,
+   "title": "The Kaboomery",
+   "pos": [
+    -250.0,
+    0.0,
+    65.0
+   ]
+  },
+  {
+   "block": 39,
+   "title": "Sidesplitter's Mending",
+   "pos": [
+    -305.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "block": 40,
+   "title": "Used Firecrackers",
+   "pos": [
+    -150.0,
+    0.0,
+    -25.0
+   ]
+  },
+  {
+   "block": 41,
+   "title": "",
+   "pos": [
+    -175.0,
+    0.0,
+    -75.0
+   ]
+  },
+  {
+   "block": 43,
+   "title": "Ragtime Dry Cleaners",
+   "pos": [
+    -437.0,
+    0.0,
+    200.0
+   ]
+  },
+  {
+   "block": 44,
+   "title": "",
+   "pos": [
+    -393.0,
+    0.0,
+    200.0
+   ]
+  },
+  {
+   "block": 47,
+   "title": "Visible Ink",
+   "pos": [
+    -200.0,
+    0.0,
+    5.0
+   ]
+  },
+  {
+   "block": 48,
+   "title": "Jest for Laughs",
+   "pos": [
+    -310.0,
+    0.0,
+    -100.0
+   ]
+  }
+ ]
+}

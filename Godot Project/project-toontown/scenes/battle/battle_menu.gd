@@ -119,6 +119,23 @@ func choose() -> Vector2i:
 	return Vector2i(int(result[0]), int(result[1]))
 
 
+## The round ended while the inventory was still up. -3 is not a gag and not a pass.
+func cancel() -> void:
+	if not _waiting:
+		return
+	_waiting = false
+	visible = false
+	mouse_filter = MOUSE_FILTER_IGNORE
+	picked.emit(-3, -1)
+
+
+static func icon_for(track: int, level: int) -> Texture2D:
+	var index := track * ToonLoadout.LEVEL_COUNT + level
+	if index < 0 or index >= _ICONS.size():
+		return null
+	return _ICONS[index]
+
+
 func _build() -> void:
 	_menu = _image(_MENU)
 	for track in ToonLoadout.TRACK_COUNT:
@@ -190,6 +207,7 @@ func _build() -> void:
 	_pass = _command("PASS", _PRESSABLE)
 	_pass.pressed.connect(_pass_turn)
 	_run = _command("RUN", _PRESSABLE)
+	_run.pressed.connect(_run_away)
 	_sos = _command("SOS", _PRESSABLE)
 
 
@@ -330,7 +348,7 @@ func _show_detail(track: int, level: int) -> void:
 		_TRACK_ACC[track],
 		kind,
 		ToonLoadout.gag_damage(track, level, exp),
-		ToonLoadout.affects_label(track),
+		ToonLoadout.affects_label(track, level),
 	]
 	_detail_credit.text = "Skill credit: %d" % ToonLoadout.SKILL_CREDIT
 
@@ -347,6 +365,13 @@ func _pass_turn() -> void:
 		return
 	_waiting = false
 	picked.emit(-1, -1)
+
+
+func _run_away() -> void:
+	if not _waiting:
+		return
+	_waiting = false
+	picked.emit(-2, -1)
 
 
 func _image(texture: Texture2D) -> TextureRect:

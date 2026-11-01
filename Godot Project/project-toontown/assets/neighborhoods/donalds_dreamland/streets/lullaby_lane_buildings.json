@@ -1,0 +1,316 @@
+{
+ "zone": 9100,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  25,
+  25,
+  25,
+  25
+ ],
+ "levels": [
+  6,
+  7,
+  8,
+  9
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "Snuggle Inn",
+   "pos": [
+    5.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 2,
+   "title": "Forty Winks for the Price of Twenty",
+   "pos": [
+    55.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Ed's Red Bed Spreads",
+   "pos": [
+    36.877,
+    0.0,
+    80.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Cloud Nine Design",
+   "pos": [
+    -54.0,
+    0.0,
+    66.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Big Mama's Bahama Pajamas",
+   "pos": [
+    -15.0,
+    0.0,
+    15.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Cat Nip for Cat Naps",
+   "pos": [
+    -55.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Deep Sleep for Cheap",
+   "pos": [
+    -105.52,
+    0.0,
+    0.1
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Clock Cleaners",
+   "pos": [
+    -95.0,
+    0.0,
+    51.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Lights Out Electric Co.",
+   "pos": [
+    -177.14,
+    0.0,
+    72.99
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Crib Notes - Music to Sleep By",
+   "pos": [
+    -142.0,
+    0.0,
+    92.124
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Relax to the Max",
+   "pos": [
+    -182.14,
+    0.0,
+    147.63
+   ]
+  },
+  {
+   "block": 20,
+   "title": "PJ's Taxi Service",
+   "pos": [
+    -148.0,
+    0.0,
+    126.77
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Sleepy Time Pieces",
+   "pos": [
+    -89.0,
+    0.0,
+    189.28
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Curl Up Beauty Parlor",
+   "pos": [
+    -102.128,
+    0.0,
+    109.28
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Bed Time Stories",
+   "pos": [
+    -15.0,
+    0.0,
+    123.28
+   ]
+  },
+  {
+   "block": 27,
+   "title": "The Sleepy Teepee",
+   "pos": [
+    -15.0,
+    0.0,
+    218.28
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Call It a Day Calendars",
+   "pos": [
+    -66.0,
+    0.0,
+    269.28
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Silver Lining Jewelers",
+   "pos": [
+    -129.0,
+    0.0,
+    269.28
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Rock to Sleep Quarry",
+   "pos": [
+    -196.92,
+    0.0,
+    217.25
+   ]
+  },
+  {
+   "block": 31,
+   "title": "Down Time Watch Repair",
+   "pos": [
+    -250.98,
+    0.0,
+    103.038
+   ]
+  },
+  {
+   "block": 33,
+   "title": "The Dreamland Screening Room",
+   "pos": [
+    -283.92,
+    0.0,
+    225.98
+   ]
+  },
+  {
+   "block": 34,
+   "title": "Mind Over Mattress",
+   "pos": [
+    -273.65,
+    0.0,
+    283.8
+   ]
+  },
+  {
+   "block": 36,
+   "title": "Insomniac Insurance",
+   "pos": [
+    -213.66,
+    0.0,
+    227.64
+   ]
+  },
+  {
+   "block": 39,
+   "title": "House of Hibernation",
+   "pos": [
+    -195.736,
+    0.0,
+    283.75
+   ]
+  },
+  {
+   "block": 40,
+   "title": "Nightstand Furniture Company",
+   "pos": [
+    -174.58,
+    0.0,
+    323.36
+   ]
+  },
+  {
+   "block": 42,
+   "title": "Sawing Wood Slumber Lumber",
+   "pos": [
+    -94.28,
+    0.0,
+    288.92
+   ]
+  },
+  {
+   "block": 43,
+   "title": "Shut-Eye Optometry",
+   "pos": [
+    -104.28,
+    0.0,
+    383.92
+   ]
+  },
+  {
+   "block": 44,
+   "title": "Pillow Fights Nightly",
+   "pos": [
+    -154.28,
+    0.0,
+    343.92
+   ]
+  },
+  {
+   "block": 45,
+   "title": "The All Tucked Inn",
+   "pos": [
+    -214.28,
+    0.0,
+    404.924
+   ]
+  },
+  {
+   "block": 47,
+   "title": "Make Your Bed! Hardware Store",
+   "pos": [
+    -174.28,
+    0.0,
+    388.92
+   ]
+  },
+  {
+   "block": 49,
+   "title": "Snore or Less",
+   "pos": [
+    -144.28,
+    0.0,
+    453.92
+   ]
+  },
+  {
+   "block": 50,
+   "title": "Crack of Dawn Repairs",
+   "pos": [
+    -110.698,
+    0.0,
+    398.92
+   ]
+  },
+  {
+   "block": 51,
+   "title": "For Richer or Snorer",
+   "pos": [
+    -64.28,
+    0.0,
+    413.92
+   ]
+  }
+ ]
+}

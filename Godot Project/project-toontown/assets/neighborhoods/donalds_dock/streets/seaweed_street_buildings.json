@@ -1,0 +1,226 @@
+{
+ "zone": 1200,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  0,
+  0,
+  90,
+  10
+ ],
+ "levels": [
+  3,
+  4,
+  5,
+  6
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "Buoys and Gulls Nursery School",
+   "pos": [
+    -350.0,
+    0.0,
+    410.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "Wok the Plank Chinese Food",
+   "pos": [
+    -375.0,
+    0.0,
+    370.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Sails for Sale",
+   "pos": [
+    -375.0,
+    0.0,
+    310.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "Peanut Butter and Jellyfish",
+   "pos": [
+    -355.0,
+    0.0,
+    350.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Gifts With a Porpoise",
+   "pos": [
+    -320.0,
+    0.0,
+    400.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Windjammers and Jellies",
+   "pos": [
+    -220.0,
+    0.0,
+    400.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Barnacle Bargains",
+   "pos": [
+    -205.0,
+    0.0,
+    310.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Deep Sea Diner",
+   "pos": [
+    -245.0,
+    0.0,
+    275.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Able-Bodied Gym",
+   "pos": [
+    -205.0,
+    0.0,
+    240.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Art's Smart Chart Mart",
+   "pos": [
+    -175.0,
+    0.0,
+    320.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Reel 'Em Inn",
+   "pos": [
+    -135.0,
+    0.0,
+    295.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Mermaid Swimwear",
+   "pos": [
+    -85.0,
+    0.0,
+    350.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Be More Pacific Ocean Notions",
+   "pos": [
+    5.0,
+    0.0,
+    350.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Run Aground Taxi Service",
+   "pos": [
+    -35.0,
+    0.0,
+    335.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Duck's Back Water Company",
+   "pos": [
+    -20.0,
+    0.0,
+    270.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "The Reel Deal",
+   "pos": [
+    -50.0,
+    0.0,
+    310.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "All For Nautical",
+   "pos": [
+    -85.0,
+    0.0,
+    250.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "Squid's Seaweed",
+   "pos": [
+    -85.0,
+    0.0,
+    130.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "That's  a Moray!",
+   "pos": [
+    -105.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Ahab's Prefab Sea Crab Center",
+   "pos": [
+    -380.0,
+    0.0,
+    450.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Root Beer Afloats",
+   "pos": [
+    -298.0,
+    0.0,
+    360.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "This Oar That",
+   "pos": [
+    -104.0,
+    0.0,
+    390.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Good Luck Horseshoe Crabs",
+   "pos": [
+    -45.0,
+    0.0,
+    208.0
+   ]
+  }
+ ]
+}

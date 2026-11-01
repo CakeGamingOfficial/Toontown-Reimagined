@@ -1,0 +1,316 @@
+{
+ "zone": 9200,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  5,
+  5,
+  85,
+  5
+ ],
+ "levels": [
+  6,
+  7,
+  8,
+  9
+ ],
+ "blocks": [
+  {
+   "block": 3,
+   "title": "Fly By Night Travel Agency",
+   "pos": [
+    20.0,
+    0.0,
+    -72.265
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Night Owl Pet Shop",
+   "pos": [
+    103.149,
+    0.0,
+    -71.118
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Asleep At The Wheel Car Repair",
+   "pos": [
+    154.387,
+    0.0,
+    -100.141
+   ]
+  },
+  {
+   "block": 6,
+   "title": "Tooth Fairy Dentistry",
+   "pos": [
+    225.044,
+    0.0,
+    -39.847
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Dawn's Yawn & Garden Center",
+   "pos": [
+    309.106,
+    0.0,
+    -59.298
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Bed Of Roses Florist",
+   "pos": [
+    49.915,
+    0.0,
+    20.146
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Pipe Dream Plumbers",
+   "pos": [
+    186.569,
+    0.0,
+    -20.787
+   ]
+  },
+  {
+   "block": 10,
+   "title": "REM Optometry",
+   "pos": [
+    353.531,
+    0.0,
+    15.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Wake-Up Call Phone Company",
+   "pos": [
+    272.135,
+    0.0,
+    45.961
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Counting Sheep So You Don't Have To!",
+   "pos": [
+    185.836,
+    0.0,
+    25.128
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Wynken, Blynken & Nod, Attorneys at Law",
+   "pos": [
+    262.87,
+    0.0,
+    102.106
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Dreamboat Marine Supply",
+   "pos": [
+    263.599,
+    0.0,
+    150.906
+   ]
+  },
+  {
+   "block": 15,
+   "title": "First Security Blanket Bank",
+   "pos": [
+    72.103,
+    0.0,
+    226.562
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Wet Blanket Party Planners",
+   "pos": [
+    213.928,
+    0.0,
+    80.856
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Baker's Dozin' Doughnuts",
+   "pos": [
+    174.078,
+    0.0,
+    283.228
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Sandman's Sandwiches",
+   "pos": [
+    207.59,
+    0.0,
+    267.926
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Armadillo Pillow Company",
+   "pos": [
+    -65.458,
+    0.0,
+    6.334
+   ]
+  },
+  {
+   "block": 20,
+   "title": "Talking In Your Sleep Voice Training",
+   "pos": [
+    15.178,
+    0.0,
+    121.587
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Snug As A Bug Rug Dealer",
+   "pos": [
+    130.109,
+    0.0,
+    113.198
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Dream On Talent Agency",
+   "pos": [
+    -58.11,
+    0.0,
+    49.352
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Cat's Pajamas",
+   "pos": [
+    317.522,
+    0.0,
+    132.921
+   ]
+  },
+  {
+   "block": 27,
+   "title": "You Snooze, You Lose",
+   "pos": [
+    117.327,
+    0.0,
+    -12.076
+   ]
+  },
+  {
+   "block": 36,
+   "title": "Dream Jobs Employment Agency",
+   "pos": [
+    72.041,
+    0.0,
+    7.31
+   ]
+  },
+  {
+   "block": 37,
+   "title": "Waltzing Matilda's Dance School",
+   "pos": [
+    226.872,
+    0.0,
+    -12.469
+   ]
+  },
+  {
+   "block": 38,
+   "title": "House of Zzzzzs",
+   "pos": [
+    148.818,
+    0.0,
+    97.535
+   ]
+  },
+  {
+   "block": 40,
+   "title": "Hit The Sack Fencing School",
+   "pos": [
+    266.569,
+    0.0,
+    -105.0
+   ]
+  },
+  {
+   "block": 41,
+   "title": "Don't Let The Bed Bugs Bite",
+   "pos": [
+    69.078,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 44,
+   "title": "Rip Van Winkle's Wrinkle Cream",
+   "pos": [
+    379.551,
+    0.0,
+    89.932
+   ]
+  },
+  {
+   "block": 52,
+   "title": "Midnight Oil & Gas Company",
+   "pos": [
+    89.095,
+    0.0,
+    -89.508
+   ]
+  },
+  {
+   "block": 53,
+   "title": "Moonbeam's Ice Creams",
+   "pos": [
+    267.467,
+    0.0,
+    6.804
+   ]
+  },
+  {
+   "block": 54,
+   "title": "Sleepless in the Saddle- All Night Pony Rides",
+   "pos": [
+    241.738,
+    0.0,
+    123.637
+   ]
+  },
+  {
+   "block": 55,
+   "title": "Bedknobs & Broomsticks Movie House",
+   "pos": [
+    218.565,
+    0.0,
+    -120.173
+   ]
+  },
+  {
+   "block": 59,
+   "title": "Sleeping Beauty Parlor",
+   "pos": [
+    191.261,
+    0.0,
+    225.502
+   ]
+  }
+ ]
+}

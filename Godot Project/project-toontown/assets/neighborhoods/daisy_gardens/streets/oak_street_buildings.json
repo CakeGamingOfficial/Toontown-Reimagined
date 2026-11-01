@@ -1,0 +1,172 @@
+{
+ "zone": 5300,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  5,
+  5,
+  5,
+  85
+ ],
+ "levels": [
+  3,
+  4,
+  5,
+  6
+ ],
+ "blocks": [
+  {
+   "block": 4,
+   "title": "Just Vase It",
+   "pos": [
+    -17.714,
+    0.0,
+    9.954
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Snail Mail",
+   "pos": [
+    -340.825,
+    0.0,
+    -210.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Fungi Clown School",
+   "pos": [
+    -151.247,
+    0.0,
+    -182.932
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Honeydew This",
+   "pos": [
+    -20.927,
+    0.0,
+    -207.663
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Lettuce Inn",
+   "pos": [
+    -88.224,
+    0.0,
+    -193.671
+   ]
+  },
+  {
+   "block": 15,
+   "title": "Grass Roots",
+   "pos": [
+    65.0,
+    0.0,
+    -59.237
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Apples and Oranges",
+   "pos": [
+    22.258,
+    0.0,
+    -132.317
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Green Bean Jeans",
+   "pos": [
+    -256.0,
+    0.0,
+    -185.889
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Squash and Stretch Gym",
+   "pos": [
+    -268.624,
+    0.0,
+    -246.402
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Ant Farming Supplies",
+   "pos": [
+    -95.781,
+    0.0,
+    -54.682
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Dirt. Cheap.",
+   "pos": [
+    -27.2,
+    0.0,
+    -102.39
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Couch Potato Furniture",
+   "pos": [
+    -200.143,
+    0.0,
+    -89.907
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Spill the Beans",
+   "pos": [
+    -173.885,
+    0.0,
+    -232.437
+   ]
+  },
+  {
+   "block": 33,
+   "title": "The Salad Bar",
+   "pos": [
+    -52.759,
+    0.0,
+    79.985
+   ]
+  },
+  {
+   "block": 35,
+   "title": "Flower Bed and Breakfast",
+   "pos": [
+    65.124,
+    0.0,
+    11.511
+   ]
+  },
+  {
+   "block": 36,
+   "title": "April's Showers and Tubs",
+   "pos": [
+    5.08,
+    0.0,
+    -35.633
+   ]
+  },
+  {
+   "block": 37,
+   "title": "School of Vine Arts",
+   "pos": [
+    -158.964,
+    0.0,
+    -34.745
+   ]
+  }
+ ]
+}

@@ -1,0 +1,189 @@
+{
+ "zone": 1100,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  90,
+  10,
+  0,
+  0
+ ],
+ "levels": [
+  2,
+  3,
+  4
+ ],
+ "blocks": [
+  {
+   "block": 2,
+   "title": "Used Life Preservers",
+   "pos": [
+    245.0,
+    0.0,
+    -15.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Wet Suit Dry Cleaners",
+   "pos": [
+    225.0,
+    0.0,
+    -130.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "Hook's Clock Repair",
+   "pos": [
+    305.0,
+    0.0,
+    -60.0
+   ]
+  },
+  {
+   "block": 8,
+   "title": "Luff 'N Stuff",
+   "pos": [
+    330.0,
+    0.0,
+    -10.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Every Little Bait",
+   "pos": [
+    255.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Dime & Quarterdeck Bank",
+   "pos": [
+    305.0,
+    0.0,
+    120.0
+   ]
+  },
+  {
+   "block": 13,
+   "title": "Squid Pro Quo, Attorneys at Law",
+   "pos": [
+    305.0,
+    0.0,
+    205.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Trim the Nail Boutique",
+   "pos": [
+    345.09,
+    0.0,
+    249.99
+   ]
+  },
+  {
+   "block": 15,
+   "title": "Yacht's All, Folks!",
+   "pos": [
+    375.0,
+    0.0,
+    170.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Blackbeard's Beauty Parlor",
+   "pos": [
+    440.0,
+    0.0,
+    145.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Out to See Optics",
+   "pos": [
+    350.0,
+    0.0,
+    140.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "Disembark! Tree Surgeons",
+   "pos": [
+    390.0,
+    0.0,
+    60.0
+   ]
+  },
+  {
+   "block": 20,
+   "title": "From Fore to Aft",
+   "pos": [
+    260.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Poop Deck Gym",
+   "pos": [
+    245.0,
+    0.0,
+    -75.0
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Bait and Switches Electrical Shop",
+   "pos": [
+    290.0,
+    0.0,
+    -90.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "Soles Repaired While U Wait",
+   "pos": [
+    350.0,
+    0.0,
+    69.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Salmon Chanted Evening Formal Wear",
+   "pos": [
+    205.0,
+    0.0,
+    -10.0
+   ]
+  },
+  {
+   "block": 27,
+   "title": "Billy Budd's Big Bargain Binnacle Barn",
+   "pos": [
+    297.0,
+    0.0,
+    160.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Piano Tuna",
+   "pos": [
+    255.0,
+    0.0,
+    105.0
+   ]
+  }
+ ]
+}

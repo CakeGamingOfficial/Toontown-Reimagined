@@ -1,0 +1,378 @@
+{
+ "zone": 4100,
+ "bmin": 0,
+ "bmax": 99,
+ "tracks": [
+  0,
+  0,
+  50,
+  50
+ ],
+ "levels": [
+  2,
+  3,
+  4
+ ],
+ "blocks": [
+  {
+   "block": 3,
+   "title": "Tom-Tom's Drums",
+   "pos": [
+    -385.0,
+    0.0,
+    -220.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "In Four-Four Time",
+   "pos": [
+    -425.0,
+    0.0,
+    -150.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Fifi's Fiddles",
+   "pos": [
+    -385.0,
+    0.0,
+    -155.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "Casa De Castanets",
+   "pos": [
+    -1.68,
+    0.03,
+    -0.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Catchy Toon Apparel",
+   "pos": [
+    -490.0,
+    0.0,
+    -110.0
+   ]
+  },
+  {
+   "block": 9,
+   "title": "Do, Rae, Me Piano Keys",
+   "pos": [
+    -505.0,
+    0.0,
+    50.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Please Refrain",
+   "pos": [
+    -465.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "Tuning Forks and Spoons",
+   "pos": [
+    -465.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 12,
+   "title": "Dr. Fret's Dentistry",
+   "pos": [
+    -505.0,
+    0.0,
+    -25.0
+   ]
+  },
+  {
+   "block": 14,
+   "title": "Shave and a Haircut for a Song",
+   "pos": [
+    -395.0,
+    0.0,
+    95.0
+   ]
+  },
+  {
+   "block": 15,
+   "title": "Piccolo's Pizza",
+   "pos": [
+    -435.0,
+    0.0,
+    25.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Happy Mandolins",
+   "pos": [
+    0.34,
+    0.14,
+    -0.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "Rests Rooms",
+   "pos": [
+    -340.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 19,
+   "title": "More Scores",
+   "pos": [
+    -380.0,
+    0.0,
+    30.0
+   ]
+  },
+  {
+   "block": 22,
+   "title": "Chin Rest Pillows",
+   "pos": [
+    -240.0,
+    0.0,
+    20.0
+   ]
+  },
+  {
+   "block": 23,
+   "title": "Flats Sharpened",
+   "pos": [
+    -240.0,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "Tuba Toothpaste",
+   "pos": [
+    -280.0,
+    0.0,
+    -50.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Notations",
+   "pos": [
+    -275.0,
+    0.0,
+    -150.0
+   ]
+  },
+  {
+   "block": 28,
+   "title": "Accidental Insurance",
+   "pos": [
+    -340.0,
+    0.0,
+    -160.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "Riff's Paper Plates",
+   "pos": [
+    -340.0,
+    0.0,
+    -215.0
+   ]
+  },
+  {
+   "block": 30,
+   "title": "Music Is Our Forte",
+   "pos": [
+    -300.0,
+    0.0,
+    -225.0
+   ]
+  },
+  {
+   "block": 31,
+   "title": "Canto Help You",
+   "pos": [
+    -325.0,
+    0.0,
+    -300.0
+   ]
+  },
+  {
+   "block": 32,
+   "title": "Dance Around the Clock Shop",
+   "pos": [
+    -270.0,
+    0.0,
+    -300.0
+   ]
+  },
+  {
+   "block": 35,
+   "title": "Tenor Times",
+   "pos": [
+    -230.0,
+    0.0,
+    -160.0
+   ]
+  },
+  {
+   "block": 37,
+   "title": "For Good Measure",
+   "pos": [
+    -180.0,
+    0.0,
+    -185.0
+   ]
+  },
+  {
+   "block": 38,
+   "title": "Hard Rock Shop",
+   "pos": [
+    -220.0,
+    0.0,
+    -115.0
+   ]
+  },
+  {
+   "block": 39,
+   "title": "Four Score Antiques",
+   "pos": [
+    -220.0,
+    0.0,
+    -74.0
+   ]
+  },
+  {
+   "block": 41,
+   "title": "Blues News",
+   "pos": [
+    -220.0,
+    0.0,
+    -15.0
+   ]
+  },
+  {
+   "block": 42,
+   "title": "Ragtime Dry Cleaners",
+   "pos": [
+    -195.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "block": 45,
+   "title": "Club 88",
+   "pos": [
+    -505.0,
+    0.0,
+    -83.0
+   ]
+  },
+  {
+   "block": 46,
+   "title": "",
+   "pos": [
+    -395.0,
+    0.0,
+    5.0
+   ]
+  },
+  {
+   "block": 48,
+   "title": "Carry a Toon Movers",
+   "pos": [
+    -297.1,
+    0.0,
+    -110.0
+   ]
+  },
+  {
+   "block": 49,
+   "title": "",
+   "pos": [
+    -270.0,
+    0.0,
+    -215.0
+   ]
+  },
+  {
+   "block": 52,
+   "title": "Full Stop Shop",
+   "pos": [
+    -215.0,
+    0.0,
+    -200.0
+   ]
+  },
+  {
+   "block": 53,
+   "title": "",
+   "pos": [
+    -179.8,
+    0.0,
+    -133.0
+   ]
+  },
+  {
+   "block": 54,
+   "title": "Pitch Perfect Roofing",
+   "pos": [
+    -280.0,
+    0.0,
+    45.0
+   ]
+  },
+  {
+   "block": 55,
+   "title": "The Treble Chef's Cooking School",
+   "pos": [
+    -441.18,
+    0.0,
+    120.0
+   ]
+  },
+  {
+   "block": 56,
+   "title": "",
+   "pos": [
+    -240.0,
+    0.0,
+    -108.0
+   ]
+  },
+  {
+   "block": 57,
+   "title": "Barbershop Quartet",
+   "pos": [
+    -308.0,
+    0.0,
+    -40.0
+   ]
+  },
+  {
+   "block": 58,
+   "title": "Plummeting Pianos",
+   "pos": [
+    -230.0,
+    0.0,
+    -250.0
+   ]
+  }
+ ]
+}

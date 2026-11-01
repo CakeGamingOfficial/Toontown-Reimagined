@@ -1,0 +1,387 @@
+{
+ "zone": 2100,
+ "bmin": 0,
+ "bmax": 5,
+ "tracks": [
+  25,
+  25,
+  25,
+  25
+ ],
+ "levels": [
+  1,
+  2,
+  3
+ ],
+ "blocks": [
+  {
+   "block": 1,
+   "title": "All Smiles Tooth Repair",
+   "pos": [
+    -180.0,
+    0.0,
+    140.0
+   ]
+  },
+  {
+   "block": 2,
+   "title": "",
+   "pos": [
+    -145.0,
+    0.0,
+    180.0
+   ]
+  },
+  {
+   "block": 3,
+   "title": "One-Liner Miners",
+   "pos": [
+    -250.0,
+    0.0,
+    180.0
+   ]
+  },
+  {
+   "block": 4,
+   "title": "Hogwash & Dry",
+   "pos": [
+    -250.0,
+    0.0,
+    90.0
+   ]
+  },
+  {
+   "block": 5,
+   "title": "Toontown Sign Factory",
+   "pos": [
+    -331.374,
+    0.0,
+    162.0
+   ]
+  },
+  {
+   "block": 6,
+   "title": "",
+   "pos": [
+    -300.0,
+    0.0,
+    250.0
+   ]
+  },
+  {
+   "block": 7,
+   "title": "Jumping Beans",
+   "pos": [
+    -245.0,
+    0.0,
+    255.0
+   ]
+  },
+  {
+   "block": 10,
+   "title": "Dr. Tom Foolery",
+   "pos": [
+    -145.0,
+    0.0,
+    190.0
+   ]
+  },
+  {
+   "block": 11,
+   "title": "",
+   "pos": [
+    -150.0,
+    0.0,
+    285.0
+   ]
+  },
+  {
+   "block": 16,
+   "title": "Weird Beard's Disguise Shop",
+   "pos": [
+    -10.0,
+    0.0,
+    420.0
+   ]
+  },
+  {
+   "block": 17,
+   "title": "Silly Stunts",
+   "pos": [
+    -80.0,
+    0.0,
+    410.0
+   ]
+  },
+  {
+   "block": 18,
+   "title": "All That Razz",
+   "pos": [
+    -110.0,
+    0.0,
+    385.0
+   ]
+  },
+  {
+   "block": 21,
+   "title": "Paper Airplanes",
+   "pos": [
+    -170.0,
+    0.0,
+    335.0
+   ]
+  },
+  {
+   "block": 24,
+   "title": "Happy Hooligans",
+   "pos": [
+    -150.0,
+    0.0,
+    480.0
+   ]
+  },
+  {
+   "block": 25,
+   "title": "House of Bad Pies",
+   "pos": [
+    -105.0,
+    0.0,
+    470.0
+   ]
+  },
+  {
+   "block": 26,
+   "title": "Jesse's Joke Repair",
+   "pos": [
+    -80.0,
+    0.0,
+    430.0
+   ]
+  },
+  {
+   "block": 29,
+   "title": "The Laughin' Place",
+   "pos": [
+    -65.0,
+    0.0,
+    630.0
+   ]
+  },
+  {
+   "block": 32,
+   "title": "Clown Class",
+   "pos": [
+    -135.0,
+    0.0,
+    560.0
+   ]
+  },
+  {
+   "block": 33,
+   "title": "Tee-Hee Tea Shop",
+   "pos": [
+    -205.0,
+    0.0,
+    630.0
+   ]
+  },
+  {
+   "block": 38,
+   "title": "Toontown Playhouse",
+   "pos": [
+    -230.0,
+    0.0,
+    330.0
+   ]
+  },
+  {
+   "block": 39,
+   "title": "Monkey Tricks",
+   "pos": [
+    -285.0,
+    0.0,
+    320.0
+   ]
+  },
+  {
+   "block": 43,
+   "title": "Canned Bottles",
+   "pos": [
+    -380.65,
+    0.0,
+    359.48
+   ]
+  },
+  {
+   "block": 44,
+   "title": "Impractical Jokes",
+   "pos": [
+    -140.0,
+    0.0,
+    125.0
+   ]
+  },
+  {
+   "block": 49,
+   "title": "All Fun and Games Shop",
+   "pos": [
+    -215.0,
+    0.0,
+    185.0
+   ]
+  },
+  {
+   "block": 52,
+   "title": "",
+   "pos": [
+    -135.0,
+    0.0,
+    620.0
+   ]
+  },
+  {
+   "block": 53,
+   "title": "",
+   "pos": [
+    -150.0,
+    0.0,
+    525.0
+   ]
+  },
+  {
+   "block": 54,
+   "title": "Laughing Lessons",
+   "pos": [
+    -240.0,
+    0.0,
+    530.0
+   ]
+  },
+  {
+   "block": 55,
+   "title": "Funny Money Savings & Loan",
+   "pos": [
+    -180.0,
+    0.0,
+    479.0
+   ]
+  },
+  {
+   "block": 56,
+   "title": "Used Clown Cars",
+   "pos": [
+    -230.0,
+    0.0,
+    450.0
+   ]
+  },
+  {
+   "block": 57,
+   "title": "Frank's Pranks",
+   "pos": [
+    -190.0,
+    0.0,
+    350.0
+   ]
+  },
+  {
+   "block": 59,
+   "title": "Joy Buzzers to the World",
+   "pos": [
+    -290.0,
+    0.0,
+    370.0
+   ]
+  },
+  {
+   "block": 60,
+   "title": "Tickle Machines",
+   "pos": [
+    -185.0,
+    0.0,
+    255.0
+   ]
+  },
+  {
+   "block": 61,
+   "title": "Daffy Taffy",
+   "pos": [
+    -40.0,
+    0.0,
+    525.0
+   ]
+  },
+  {
+   "block": 62,
+   "title": "Dr. I.M. Euphoric",
+   "pos": [
+    -60.0,
+    0.0,
+    260.0
+   ]
+  },
+  {
+   "block": 63,
+   "title": "Toontown Cinerama",
+   "pos": [
+    -55.0,
+    0.0,
+    300.0
+   ]
+  },
+  {
+   "block": 64,
+   "title": "The Merry Mimes",
+   "pos": [
+    10.0,
+    0.0,
+    340.0
+   ]
+  },
+  {
+   "block": 65,
+   "title": "Mary's Go Around Travel Company",
+   "pos": [
+    -170.0,
+    0.0,
+    410.0
+   ]
+  },
+  {
+   "block": 66,
+   "title": "Laughing Gas Station",
+   "pos": [
+    -130.0,
+    0.0,
+    390.0
+   ]
+  },
+  {
+   "block": 67,
+   "title": "Happy Times",
+   "pos": [
+    -100.0,
+    0.0,
+    550.0
+   ]
+  },
+  {
+   "block": 69,
+   "title": "Muldoon's Maroon Balloons",
+   "pos": [
+    -336.0,
+    0.0,
+    320.0
+   ]
+  },
+  {
+   "block": 70,
+   "title": "Soup Forks",
+   "pos": [
+    -125.0,
+    0.0,
+    310.0
+   ]
+  }
+ ]
+}
