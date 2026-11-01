@@ -25,6 +25,7 @@ func _ready() -> void:
 	_open_backdrops(self)
 	_ready_waterfall()
 	if not Engine.is_editor_hint():
+		preload("res://scenes/playgrounds/playground_treasures.gd").attach(self, "oz")
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 

@@ -154,6 +154,21 @@ static func attach(host: Node) -> void:
 	host.add_child(arrival)
 
 
+func laff_missing() -> int:
+	if _loadout == null:
+		return 0
+	return maxi(_loadout.max_hp - _loadout.hp, 0)
+
+
+func heal(amount: int) -> void:
+	if _loadout == null or amount <= 0 or _loadout.hp >= _loadout.max_hp:
+		return
+	_loadout.set_hp(mini(_loadout.hp + amount, _loadout.max_hp), _loadout.max_hp)
+	# The laff meter follows this loadout live, and other players read it from
+	# the same object. The file is what the next launch loads.
+	_loadout.save()
+
+
 func _ready() -> void:
 	_tasks = ToonTasks.for_selected()
 	var arriving := from_toontorial
@@ -253,6 +268,8 @@ func _exit_tree() -> void:
 func _keep_quests() -> void:
 	if _tasks != null and _tasks.in_playground:
 		_tasks.save()
+	if _loadout != null:
+		_loadout.save()
 
 
 func _process(delta: float) -> void:
@@ -426,8 +443,12 @@ func _arrival_spot() -> Dictionary:
 		return _estate_door_drop()
 	if _hood == _PLACES.ESTATE:
 		return _estate_drop()
-	if _hood == _PLACES.TTC:
-		return {"point": _PLACES.drop_for(_hood), "heading": _PLACES.heading_for(_hood)}
+	if _PLACES.is_playground(_hood):
+		# Playground.enterTeleportIn uses HoodMgr.getPlaygroundCenterFromId,
+		# which picks one of that playground's drop points at random.
+		var choice: Dictionary = _PLACES.random_drop(_hood)
+		var spot: Vector3 = choice["point"]
+		return {"point": _snap_drop(spot), "heading": float(choice["heading"])}
 	if _PLACES.has_drop(_hood):
 		return {
 			"point": _snap_drop(_PLACES.drop_for(_hood)),

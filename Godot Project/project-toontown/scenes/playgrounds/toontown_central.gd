@@ -2,14 +2,12 @@
 extends Node3D
 
 ## Playground motion that the bind-pose export cannot carry on its own.
-## The sky is the shared Toontown dome. Fish, the HQ telescope, butterflies, and ice-cream treasures
+## The sky is the shared Toontown dome. Fish, the HQ telescope, and butterflies
 ## replay the original cycles. Flat cards yaw to face the camera.
 
 const FISH_PATH := "res://assets/neighborhoods/toontown_central/props/fish_swim.json"
 const TELESCOPE_PATH := "res://assets/neighborhoods/toontown_central/props/telescope.json"
 const BUTTERFLY_SCENE := "res://assets/neighborhoods/toontown_central/props/butterfly.glb"
-const TREASURE_SCENE := "res://assets/neighborhoods/toontown_central/props/icecream.glb"
-const SHADOW_TEXTURE := "res://assets/neighborhoods/toontown_central/props/drop_shadow.png"
 const MUSIC_PATH := "res://assets/neighborhoods/toontown_central/audio/TC_nbrhood.ogg"
 const MUSIC_VOLUME := 0.8
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
@@ -29,7 +27,6 @@ var _scope_normals := PackedVector3Array()
 var _scope_fps := 24.0
 
 var _butterflies: Array[Dictionary] = []
-var _treasures: Array[Node3D] = []
 
 var _time := 0.0
 
@@ -45,7 +42,8 @@ func _ready() -> void:
 	_ready_fish()
 	_ready_telescope()
 	_ready_butterflies()
-	_ready_treasures()
+	preload("res://scenes/playgrounds/ttc_hedges.gd").apply(self)
+	preload("res://scenes/playgrounds/playground_treasures.gd").attach(self, "tt")
 	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
@@ -81,7 +79,6 @@ func _process(delta: float) -> void:
 	_process_fish()
 	_process_telescope()
 	_process_butterflies(delta)
-	_process_treasures(delta, camera)
 
 
 func _view_camera() -> Camera3D:
@@ -447,76 +444,6 @@ func _process_butterflies(delta: float) -> void:
 			landed.visible = not fluttering
 
 
-func _ready_treasures() -> void:
-	if not ResourceLoader.exists(TREASURE_SCENE):
-		return
-	var packed := load(TREASURE_SCENE) as PackedScene
-	var points := _treasure_points()
-	for point in points:
-		var root := Node3D.new()
-		root.name = "treasure_%d" % _treasures.size()
-		root.scale = Vector3(0.9, 0.9, 0.9)
-		add_child(root)
-		root.global_position = point
-		var model := packed.instantiate() as Node3D
-		model.name = "model"
-		root.add_child(model)
-		_style_actor(model)
-		root.add_child(_make_treasure_shadow())
-		root.visible = false
-		_treasures.append(model)
-	# Five are placed at the start. They stay until grabbed. The original 20
-	# second task only fills an empty spot; it does not move one that is still there.
-	var order: Array[int] = []
-	for i in _treasures.size():
-		order.append(i)
-	order.shuffle()
-	for n in mini(order.size(), 5):
-		(_treasures[order[n]].get_parent() as Node3D).visible = true
-
-
-func _process_treasures(_delta: float, camera: Camera3D) -> void:
-	if camera == null:
-		return
-	for model in _treasures:
-		var root := model.get_parent() as Node3D
-		if root == null or not root.visible:
-			continue
-		var flat := camera.global_position - root.global_position
-		flat.y = 0.0
-		if flat.length() < 0.001:
-			continue
-		# The cone's visible side is +Z. look_at aims -Z at the point, so aim
-		# it away from the camera and the picture faces the player. The shadow
-		# stays flat on the ground.
-		model.look_at(model.global_position - flat, Vector3.UP)
-
-
-func _make_treasure_shadow() -> MeshInstance3D:
-	# phase_3/models/props/drop_shadow, tinted black at half strength, sitting
-	# just above the ground. The card is 8 units across and then scaled by 0.4.
-	var mesh := QuadMesh.new()
-	mesh.orientation = PlaneMesh.FACE_Y
-	mesh.size = Vector2(8.0, 8.0)
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = Color(0.0, 0.0, 0.0, 0.5)
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-	var texture := load(SHADOW_TEXTURE) as Texture2D
-	if texture:
-		material.albedo_texture = texture
-	var shadow := MeshInstance3D.new()
-	shadow.name = "shadow"
-	shadow.mesh = mesh
-	shadow.material_override = material
-	shadow.position = Vector3(0.0, 0.025, 0.0)
-	shadow.scale = Vector3(0.4, 0.4, 0.4)
-	return shadow
-
-
 func _style_actor(root: Node) -> void:
 	if root is MeshInstance3D:
 		var mesh_instance := root as MeshInstance3D
@@ -755,20 +682,6 @@ func _butterfly_areas() -> Array:
 		_points([[-53.0, 3.0, -1.8], [-58.0, 2.0, -1.8], [-76.0, 2.0, -1.8], [-69.0, 11.0, -1.8], [-100.0, 14.0, -4.1], [-104.0, 17.0, -2.6], [-125.0, 34.0, 0.1], [-124.0, 30.0, 0.1], [-113.0, 73.0, 0.6], [-33.0, 78.0, 0.1], [-65.0, 48.0, -3.0], [-51.0, 33.0, -3.0], [-30.0, 71.0, 0.1], [-26.0, 71.0, 0.1], [-23.0, 69.0, 0.1], [-23.0, 64.0, 0.1], [-5.0, 42.0, 0.1], [-22.0, 22.0, 0.1], [-27.0, 22.0, 0.1]]),
 		_points([[14.0, 93.0, 3.1], [17.0, 93.0, 3.1], [20.0, 122.0, 2.6], [21.0, 127.0, 2.6], [23.0, 123.0, 2.6], [32.0, 130.0, 2.6], [48.0, 148.0, 2.6], [64.0, 111.0, 2.6], [32.0, 82.0, 2.6], [63.0, 90.0, 3.1], [68.0, 85.0, 3.1], [65.0, 85.0, 3.1], [70.0, 95.0, 3.1]]),
 	]
-
-
-func _treasure_points() -> Array[Vector3]:
-	var raw := [
-		[-59.9, -6.9, 0.84], [-90.6, -3.0, -0.75], [27.1, -93.5, 2.5], [94.2, 33.5, 4.0], [35.4, 43.1, 4.0],
-		[67.1, 105.5, 2.5], [-99.15, -87.3407, 0.52499], [1.60586, -119.492, 3.025], [43.2026, -76.287, 3.025],
-		[129.137, -61.9039, 2.525], [92.99, -158.399, 3.025], [111.749, -8.59927, 4.57466], [41.999, -30.2923, 4.025],
-		[31.0649, -43.9149, 4.025], [10.0156, 105.218, 2.525], [46.9667, 169.143, 3.025], [100.68, 93.9896, 2.525],
-		[129.285, 58.6107, 2.525], [-28.6272, 85.9833, 0.525], [-114.613, 86.1727, 0.525], [-132.528, 31.255, 0.025],
-	]
-	var points: Array[Vector3] = []
-	for item in raw:
-		points.append(Vector3(item[0], item[2], -item[1]))
-	return points
 
 
 func _points(raw: Array) -> Array[Vector3]:

@@ -42,6 +42,7 @@ func _ready() -> void:
 		preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
+	_ready_playground_treasures()
 	_attach_returning_toon()
 	preload("res://scenes/streets/street_suits.gd").attach(self)
 	_current_zone = ""
@@ -65,6 +66,22 @@ func _collect_other_houses(node: Node, kept: String, extra: Array[Node]) -> void
 			extra.append(child)
 		else:
 			_collect_other_houses(child, kept, extra)
+
+
+func _ready_playground_treasures() -> void:
+	var file := scene_file_path.get_file()
+	var playground := ""
+	if file == "daisy_gardens.tscn":
+		playground = "dg"
+	elif file == "minnies_melodyland.tscn":
+		playground = "mm"
+	elif file == "the_burrrgh.tscn":
+		playground = "br"
+	elif file == "donalds_dreamland.tscn":
+		playground = "dl"
+	if playground == "":
+		return
+	preload("res://scenes/playgrounds/playground_treasures.gd").attach(self, playground)
 
 
 func _attach_returning_toon() -> void:

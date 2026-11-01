@@ -53,6 +53,7 @@ func _ready() -> void:
 	_ready_boat()
 	_close_hq_doors(self)
 	if not Engine.is_editor_hint():
+		preload("res://scenes/playgrounds/playground_treasures.gd").attach(self, "dd")
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
 
