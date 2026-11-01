@@ -2,8 +2,11 @@ class_name DistrictPage
 extends Control
 
 ## ShardPage. The district tab lists every shard, colors its population the
-## original way, and shows how many toons are there. The current district
-## cannot be clicked. A full one answers with the original rejection.
+## original way, and shows how many toons are there. Clicking a name teleports
+## into that district's copy of the playground. The current district cannot be
+## clicked. A full one answers with the original rejection.
+
+const _PLACES := preload("res://scenes/places/hood_places.gd")
 
 const _CIRCLE := preload("res://assets/gui/shticker/pop_circle.png")
 const _SCROLL_UP := preload("res://assets/gui/friends/FndsLst_ScrollUp.png")
@@ -20,6 +23,7 @@ const _REJECT := "Sorry, that district is full. Please try another one."
 
 var _page := Vector2.ZERO
 var _wait := 5.0
+var _pending := -1
 var _first := 0
 var _queued := false
 var _drawn := -1
@@ -49,6 +53,7 @@ func _ready() -> void:
 	if net != null:
 		net.districts_changed.connect(refresh)
 		net.district_rejected.connect(_on_rejected)
+		net.district_seated.connect(_on_seated)
 
 
 func _process(delta: float) -> void:
@@ -284,21 +289,79 @@ func _row_box(color: Color) -> StyleBoxFlat:
 
 
 func _pick(id: int, district_name: String, count: int) -> void:
-	if id == ToonNet.district_id():
+	if _pending >= 0 or id == ToonNet.district_id():
+		return
+	if not _can_leave():
 		return
 	if id != ToonNet.WELCOME_VALLEY and count > ToonNet.MID_POP:
 		_show_reject(_REJECT)
 		return
+	_pending = id
 	var result := ToonNet.join_named(district_name)
-	if result.begins_with("Sorry"):
-		_show_reject(result)
+	if result.begins_with("Asking"):
+		return
+	if not result.begins_with("You are in"):
+		_pending = -1
+		if result != "":
+			_show_reject(result)
+		return
+	_depart(id)
+
+
+func _on_seated(id: int) -> void:
+	if id != _pending:
+		return
+	_depart(id)
 
 
 func _on_rejected(reason: String) -> void:
+	_pending = -1
 	if reason == "":
 		return
 	_show_reject(reason)
 	refresh()
+
+
+## choseShard sends Welcome Valley to its playground and every other district
+## to lastHood. The hole plays after the district AI accepts the seat.
+func _depart(id: int) -> void:
+	_pending = -1
+	var book := _book()
+	if book == null:
+		return
+	var welcome := id == ToonNet.WELCOME_VALLEY
+	book.call("teleport_district", _hood_for(id), not welcome)
+
+
+func _hood_for(id: int) -> int:
+	if id == ToonNet.WELCOME_VALLEY:
+		return _PLACES.TTC
+	var tasks := ToonTasks.for_selected()
+	var hood := 0
+	if tasks != null:
+		hood = tasks.return_hood()
+	if hood < 1000:
+		var scene := get_tree().current_scene
+		if scene != null:
+			hood = _PLACES.hood_for_scene(scene.scene_file_path)
+	hood = _PLACES.hood_of(hood)
+	if hood < 1000 or hood == _PLACES.ESTATE:
+		return _PLACES.TTC
+	return hood
+
+
+func _can_leave() -> bool:
+	var book := _book()
+	return book != null and book.has_method("can_leave") and bool(book.call("can_leave"))
+
+
+func _book() -> Node:
+	var node: Node = self
+	while node != null:
+		if node.has_method("teleport_district"):
+			return node
+		node = node.get_parent()
+	return null
 
 
 func _nudge(step: int) -> void:

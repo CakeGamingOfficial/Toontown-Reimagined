@@ -15,6 +15,8 @@ class_name ToonNet
 
 signal districts_changed
 signal district_rejected(reason: String)
+## The seat this client asked for. Population updates do not emit this.
+signal district_seated(id: int)
 signal state_changed(channel: String)
 
 const WELCOME_VALLEY := 0
@@ -707,6 +709,10 @@ func _request_suits(district: int, slug: String) -> void:
 
 
 func _on_peer(id: int) -> void:
+	# peer_connected also fires on a client, and the new peer is the server.
+	# Those welcome calls are authority-only, so a client must not send them.
+	if not multiplayer.is_server():
+		return
 	_peers[id] = _here
 	_recount()
 	if _dedicated:
@@ -793,6 +799,7 @@ func _join_result(id: int, reason: String) -> void:
 		_here = id
 		_parent = id
 	districts_changed.emit()
+	district_seated.emit(id)
 
 
 @rpc("authority", "reliable")

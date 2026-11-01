@@ -44,6 +44,8 @@ const _ESTATE_HEADING: Array[float] = [-90.0, 116.565, 77.1957, 356.6, 248.962, 
 
 static var from_toontorial := false
 static var teleport_in := false
+## Welcome Valley is a copy of Toontown Central. Arriving there must not replace lastHood.
+static var keep_last_hood := false
 # Set with teleport_in when the map threw a portal. Arrival then plays
 # getTeleportInTrack instead of the login disc.
 static var portal_in := false
@@ -228,7 +230,10 @@ func _ready() -> void:
 	if arriving:
 		_tasks.note_playground()
 	elif _tasks.in_playground:
-		_tasks.note_hood(_hood)
+		if keep_last_hood:
+			keep_last_hood = false
+		else:
+			_tasks.note_hood(_hood)
 	if arriving or logging_in:
 		if from_portal:
 			await _portal_in()
@@ -1460,12 +1465,13 @@ func _pop_up() -> void:
 
 ## MapPage teleports throw the hole, then jump in. The scene changes when the
 ## track finishes, and the next place plays the jump back out.
-func teleport_to_hood(hood: int) -> void:
+func teleport_to_hood(hood: int, remember := true) -> void:
 	if not await _play_teleport_out():
 		return
 	portal_in = true
 	teleport_in = true
-	if _tasks != null:
+	keep_last_hood = not remember
+	if remember and _tasks != null:
 		_tasks.note_hood(hood)
 	ToonLoading.change_to(_PLACES.scene_for(hood))
 

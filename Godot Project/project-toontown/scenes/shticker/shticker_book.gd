@@ -1272,6 +1272,30 @@ func _leave_game() -> void:
 	get_tree().quit()
 
 
+func can_leave() -> bool:
+	return not _guided
+
+
+## ShardPage.choseShard. Welcome Valley keeps lastHood. Any other district
+## throws the hole and comes up in that district's copy of the playground.
+func teleport_district(hood: int, remember: bool) -> void:
+	if not can_leave():
+		return
+	var scene := get_tree().current_scene
+	var arrival: Node = scene.get_node_or_null("PlaygroundToon") if scene != null else null
+	if arrival != null and arrival.has_method("teleport_to_hood"):
+		close()
+		arrival.call("teleport_to_hood", hood, remember)
+		return
+	close()
+	_ARRIVAL.keep_last_hood = not remember
+	_ARRIVAL.teleport_in = true
+	_ARRIVAL.portal_in = true
+	if remember and _tasks != null:
+		_tasks.note_hood(hood)
+	ToonLoading.change_to(_PLACES.scene_for(hood))
+
+
 func _travel(hood: int) -> void:
 	if _guided:
 		return
