@@ -524,6 +524,7 @@ func _known(id: int) -> bool:
 func _take_seat(peer: int, id: int) -> String:
 	if _full(id) and not (peer == 0 and id == _seat_id()):
 		return "Sorry, that district is full. Please try another one."
+	var previous := -1
 	if peer == 0:
 		if id == WELCOME_VALLEY:
 			if not _welcome:
@@ -534,10 +535,13 @@ func _take_seat(peer: int, id: int) -> String:
 			_here = id
 			_parent = id
 	else:
+		previous = int(_peers.get(peer, -1))
 		_peers[peer] = id
 	_recount()
 	_broadcast()
 	districts_changed.emit()
+	if _dedicated and peer != 0 and previous != id:
+		_print_move(peer, previous, id)
 	if peer == 0:
 		return "You are in the %s District." % _seat_name()
 	return ""
@@ -761,7 +765,7 @@ func _on_peer(id: int) -> void:
 	_peers[id] = _here
 	_recount()
 	if _dedicated:
-		print("Peer %d joined. %d connected." % [id, _peers.size()])
+		print("Peer %d joined %s. %d connected." % [id, _district_phrase(_here), _peers.size()])
 	_broadcast()
 	districts_changed.emit()
 	_receive_districts.rpc_id(id, _pack_rows())
@@ -788,6 +792,20 @@ func _peer_label(id: int) -> String:
 	if toon_name == "":
 		return "Peer %d" % id
 	return "%s (peer %d)" % [toon_name, id]
+
+
+func _district_phrase(id: int) -> String:
+	if id == WELCOME_VALLEY:
+		return "Welcome Valley"
+	return "the %s District" % _name_of(id)
+
+
+func _print_move(peer: int, previous: int, id: int) -> void:
+	var who := _peer_label(peer)
+	if previous < 0:
+		print("%s entered %s." % [who, _district_phrase(id)])
+		return
+	print("%s left %s and entered %s." % [who, _district_phrase(previous), _district_phrase(id)])
 
 
 func _on_connected() -> void:
