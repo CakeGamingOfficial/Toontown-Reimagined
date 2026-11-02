@@ -18,6 +18,7 @@ const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _MARGINS := preload("res://scenes/toons/margin_tags.gd")
 const _TROLLEY := preload("res://scenes/trolley/trolley.gd")
 const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
 const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
@@ -83,6 +84,7 @@ var _body: CharacterBody3D
 var _player: ToonActor
 var _camera: Camera3D
 var _nametags: Nametags
+var _margins: Node
 var _remotes: RemoteToons
 var _heading := 0.0
 var _hood := 0
@@ -154,6 +156,17 @@ var _reversing := false
 var _active := false
 
 
+## DevConsole sets _reload_armed before it rebuilds the place. A street only
+## builds this toon for a tunnel or a shop door, so a reload has to notice
+## that flag or the free-fly camera is what comes back.
+static func reload_resume() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return false
+	var console := tree.root.get_node_or_null("DevConsole")
+	return console != null and bool(console.get("_reload_armed"))
+
+
 static func attach(host: Node) -> void:
 	if Engine.is_editor_hint():
 		return
@@ -198,6 +211,7 @@ func _ready() -> void:
 	var from_hq := String(_HQ.trip)
 	var from_bldg := String(_BLDG.trip)
 	var from_tunnel := _LINKS.arriving()
+	var restoring := reload_resume()
 	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel
 	from_toontorial = false
 	teleport_in = false
@@ -212,7 +226,7 @@ func _ready() -> void:
 	_hall_trip = from_hall
 	_hq_trip = from_hq
 	_bldg_trip = from_bldg
-	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
+	if not restoring and not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
 	var trip: Dictionary = {}
@@ -268,7 +282,7 @@ func _ready() -> void:
 		return
 	if arriving:
 		_tasks.note_playground()
-	elif _tasks.in_playground:
+	elif _tasks.in_playground and not restoring:
 		if keep_last_hood:
 			keep_last_hood = false
 		else:
@@ -500,6 +514,11 @@ func pin_remote(peer: int, point: Vector3, heading: float) -> void:
 		_remotes.pin(peer, point, heading)
 
 
+func unpin_remote(peer: int) -> void:
+	if _remotes != null:
+		_remotes.unpin(peer)
+
+
 func unpin_remotes() -> void:
 	if _remotes != null:
 		_remotes.unpin_all()
@@ -517,6 +536,14 @@ func visit_friend(point: Vector3, heading: float) -> void:
 	_body.global_position = point
 	_heading = heading
 	_face(_player, heading)
+
+
+## DevConsole's Reload button frees the place and builds it again. This puts
+## the toon back on the spot they were standing, facing the same way.
+func plant(point: Vector3, heading: float) -> void:
+	visit_friend(point, heading)
+	_home = point
+	_home_heading = heading
 
 
 func _arrival_spot() -> Dictionary:
@@ -2167,6 +2194,18 @@ func _place_nametag() -> void:
 		return
 	_nametags.camera = _camera
 	_nametags.place()
+	if _margins != null:
+		var people: Array = _nametags.cards()
+		var host := get_parent()
+		if host != null:
+			var suits := host.get_node_or_null("StreetSuits")
+			if suits != null:
+				var board := suits.get_node_or_null("Nametags")
+				if board != null and board.has_method("cards"):
+					var extra: Variant = board.call("cards")
+					if extra is Array:
+						people.append_array(extra)
+		_margins.call("place", _camera, host, people)
 
 
 ## The local toon, plus any clerk already standing in this area.
@@ -2176,6 +2215,10 @@ func _add_world_tags(style: ToonStyle) -> void:
 	add_child(_nametags)
 	_nametags.camera = _camera
 	_nametags.layer = _hud()
+	_margins = _MARGINS.new()
+	_margins.name = "MarginTags"
+	add_child(_margins)
+	_margins.call("setup", _hud())
 	var spoken := "Toon" if style == null else style.display_name()
 	_nametags.add(_player, spoken, "player")
 	var host := get_parent()
@@ -2574,6 +2617,8 @@ func _walk_tunnels(node: Node) -> void:
 		var origin := _LINKS.origin_under(node)
 		var scene := _LINKS.scene_for_zone(int(parsed["zone"]))
 		var from_zone := _zone_above(node)
+		if from_zone < 1000 and node.has_meta("link_from_zone"):
+			from_zone = int(node.get_meta("link_from_zone"))
 		if origin != null and scene != "" and from_zone >= 1000:
 			_LINKS.request_scene(scene)
 			_tunnels.append({

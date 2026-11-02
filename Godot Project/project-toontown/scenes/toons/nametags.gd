@@ -92,6 +92,19 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 	return panel
 
 
+## The margin board reads these. The 3D card stays up while the head is on screen.
+func cards() -> Array:
+	var rows: Array = []
+	for item in _tags:
+		rows.append({
+			"actor": item.get("actor"),
+			"kind": String(item.get("kind", "")),
+			"plain": String(item.get("plain", "")),
+			"lift": float(item.get("lift", 3.2)),
+		})
+	return rows
+
+
 func release(actor: Node3D) -> void:
 	var kept: Array[Dictionary] = []
 	for item in _tags:

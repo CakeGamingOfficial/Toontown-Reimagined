@@ -95,6 +95,10 @@ func board(district: int, slug: String, block: int, peer: int, toon_name: String
 			"room": "lobby",
 			"state": "boarding",
 			"left": BOARD_TIME,
+			## acceptExiter resets the clock once. depart holds the doors for the walk-in.
+			"grace": 1.0,
+			"depart": false,
+			"bailed": false,
 			"toons": [],
 			"cogs": [],
 			"fight": 0,
@@ -107,7 +111,7 @@ func board(district: int, slug: String, block: int, peer: int, toon_name: String
 				run["exit"] = pos
 		_next += 1
 		_runs.append(run)
-	elif String(run.get("state", "")) != "boarding":
+	elif String(run.get("state", "")) != "boarding" or bool(run.get("depart", false)):
 		return
 	if _has(run, peer) or (run["toons"] as Array).size() >= MAX_TOONS:
 		return
@@ -116,7 +120,40 @@ func board(district: int, slug: String, block: int, peer: int, toon_name: String
 		"name": toon_name,
 		"hp": hp,
 		"max_hp": max_hp,
+		"seat": _open_seat(run),
 	})
+	## The last boarder gets TOON_BOARD_ELEVATOR_TIME before the doors close.
+	run["grace"] = 1.0
+	run["depart"] = false
+	_mark(run)
+
+
+## DistributedElevatorExtAI.acceptExiter. The first hop restarts the countdown.
+func hop(district: int, slug: String, block: int, peer: int) -> void:
+	if not ToonNet.is_authority() or peer < 0 or block == 0:
+		return
+	var run := _run_for(district, slug, block)
+	if run.is_empty():
+		return
+	if String(run.get("state", "")) != "boarding" or bool(run.get("depart", false)):
+		return
+	var kept: Array = []
+	var found := false
+	for item in run.get("toons", []):
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == peer:
+			found = true
+			continue
+		kept.append(item)
+	if not found:
+		return
+	run["toons"] = kept
+	if kept.is_empty():
+		run["state"] = "gone"
+	elif not bool(run.get("bailed", false)):
+		run["bailed"] = true
+		run["left"] = BOARD_TIME
+		run["grace"] = 0.0
+		run["depart"] = false
 	_mark(run)
 
 
@@ -139,11 +176,23 @@ func _tick(run: Dictionary, delta: float) -> void:
 		else:
 			_after_floor(run)
 		return
+	if state == "boarding":
+		run["grace"] = maxf(float(run.get("grace", 0.0)) - delta, 0.0)
 	run["left"] = maxf(float(run.get("left", 0.0)) - delta, 0.0)
 	if float(run["left"]) > 0.0:
+		## The clock and the door slide read left every frame.
+		_mark(run)
 		return
 	if state == "boarding":
+		var grace := float(run.get("grace", 0.0))
+		if grace > 0.0 and not bool(run.get("depart", false)):
+			run["depart"] = true
+			run["left"] = grace
+			run["grace"] = 0.0
+			_mark(run)
+			return
 		run["state"] = "closing"
+		run["depart"] = false
 		run["left"] = CLOSE_TIME
 	elif state == "closing":
 		run["state"] = "riding"
@@ -392,6 +441,21 @@ func _run_for(district: int, slug: String, block: int) -> Dictionary:
 		if int(run.get("district", -1)) == district and String(run.get("slug", "")) == slug and int(run.get("block", 0)) == block and String(run.get("state", "")) != "gone":
 			return run
 	return {}
+
+
+func _open_seat(run: Dictionary) -> int:
+	var used := {}
+	var index := 0
+	for item in run.get("toons", []):
+		if item is Dictionary and (item as Dictionary).has("seat"):
+			used[int((item as Dictionary).get("seat", index))] = true
+		else:
+			used[index] = true
+		index += 1
+	for seat in MAX_TOONS:
+		if not used.has(seat):
+			return seat
+	return index
 
 
 func _has(run: Dictionary, peer: int) -> bool:

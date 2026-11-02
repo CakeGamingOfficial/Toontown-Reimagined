@@ -3,6 +3,8 @@ extends CanvasLayer
 ## Performance readout above the Laff meter, and the developer log the
 ## SpeedChat++ Console tab reads. F1 shows where the toon is standing.
 ## F2 shows and hides the performance readout. The Shticker Book can rebind both.
+## A debug build also gets a Reload button: changed scripts are read back off
+## disk, then the current place comes back with the toon on the same spot.
 
 signal changed
 
@@ -25,11 +27,17 @@ var _dirty := false
 var _sample_wait := 0.0
 var _fps_wait := 0.0
 var _view := Vector2.ZERO
+var _reload_armed := false
+var _reload_point := Vector3.ZERO
+var _reload_heading := 0.0
 
 
 func _ready() -> void:
 	layer = 40
 	_build_panel()
+	_build_reload()
+	if not get_tree().scene_changed.is_connected(_on_scene_changed):
+		get_tree().scene_changed.connect(_on_scene_changed)
 	_logger = _Capture.new(self)
 	OS.add_logger(_logger)
 	_push("Console ready.", false)
@@ -242,6 +250,133 @@ func _find_toon(node: Node) -> Node3D:
 		if found != null:
 			return found
 	return null
+
+
+func _build_reload() -> void:
+	if not OS.is_debug_build():
+		return
+	var button := Button.new()
+	button.name = "HotReload"
+	button.text = "Reload"
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.position = Vector2(10, 8)
+	button.custom_minimum_size = Vector2(96, 30)
+	button.size = Vector2(96, 30)
+	button.add_theme_font_override("font", ToonGui.font())
+	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_color_override("font_color", Color(0.86, 0.94, 1.0))
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_pressed_color", Color(0.75, 0.86, 0.96))
+	var normal := _reload_style(Color(0.08, 0.16, 0.28, 0.84))
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", _reload_style(Color(0.16, 0.34, 0.54, 0.94)))
+	button.add_theme_stylebox_override("pressed", _reload_style(Color(0.04, 0.09, 0.16, 0.96)))
+	button.pressed.connect(_hot_reload)
+	add_child(button)
+
+
+func _reload_style(tint: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = tint
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 8.0
+	style.content_margin_right = 8.0
+	style.content_margin_top = 2.0
+	style.content_margin_bottom = 2.0
+	return style
+
+
+func _hot_reload() -> void:
+	if _reload_armed:
+		return
+	var scene := get_tree().current_scene
+	if scene == null or scene.scene_file_path.is_empty():
+		_push("No scene to reload.", true)
+		return
+	var body := _player_body()
+	if body != null:
+		_reload_point = body.global_position
+		_reload_heading = _heading_of(body)
+		_reload_armed = true
+	var changed := _refresh_scripts()
+	var path := scene.scene_file_path
+	var packed: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	if packed == null:
+		_reload_armed = false
+		_push("Could not read %s." % path.get_file(), true)
+		return
+	var err := get_tree().reload_current_scene()
+	if err != OK:
+		_reload_armed = false
+		_push("Scene reload failed.", true)
+		return
+	_push("Reload: %d script(s), %s." % [changed, path.get_file()], false)
+
+
+func _on_scene_changed() -> void:
+	if not _reload_armed:
+		return
+	call_deferred("_restore_pose")
+
+
+func _restore_pose() -> void:
+	if not _reload_armed:
+		return
+	_reload_armed = false
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var host := scene.get_node_or_null("PlaygroundToon")
+	if host != null and host.has_method("plant"):
+		host.call("plant", _reload_point, _reload_heading)
+		return
+	var body := _player_body()
+	if body != null:
+		body.global_position = _reload_point
+
+
+func _refresh_scripts() -> int:
+	var paths: Array[String] = []
+	_script_paths("res://", paths)
+	var changed := 0
+	for path in paths:
+		if path.ends_with("dev_console.gd"):
+			continue
+		if not ResourceLoader.has_cached(path):
+			continue
+		var cached: Resource = load(path)
+		if not cached is GDScript:
+			continue
+		var script := cached as GDScript
+		if script.source_code.is_empty():
+			continue
+		var disk := FileAccess.get_file_as_string(path).replace("\r\n", "\n")
+		if disk.is_empty():
+			continue
+		if disk == script.source_code.replace("\r\n", "\n"):
+			continue
+		script.source_code = disk
+		var err := script.reload(true)
+		if err != OK:
+			_push("Script reload failed: %s" % path.get_file(), true)
+			continue
+		changed += 1
+	return changed
+
+
+func _script_paths(dir_path: String, into: Array[String]) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	var listed := dir.get_files()
+	for name in listed:
+		if name.ends_with(".gd"):
+			into.append(dir_path.path_join(name))
+	for name in dir.get_directories():
+		if name == "addons" or name.begins_with("."):
+			continue
+		_script_paths(dir_path.path_join(name), into)
 
 
 func _build_panel() -> void:

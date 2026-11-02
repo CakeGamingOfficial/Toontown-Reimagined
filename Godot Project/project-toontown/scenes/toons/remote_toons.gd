@@ -213,6 +213,10 @@ func pin(peer: int, point: Vector3, heading: float) -> void:
 	_face(actor, heading)
 
 
+func unpin(peer: int) -> void:
+	_pins.erase(peer)
+
+
 func unpin_all() -> void:
 	_pins.clear()
 

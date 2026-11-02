@@ -9,6 +9,7 @@ extends Node3D
 const _BATCH := preload("res://scenes/playgrounds/street_batch.gd")
 
 var _built := false
+var _lawbot := false
 
 
 static func finish(host: Node, flat: bool) -> void:
@@ -21,6 +22,12 @@ static func finish(host: Node, flat: bool) -> void:
 func _ready() -> void:
 	if _on_street() and not Engine.is_editor_hint():
 		return
+	# Closed HQ doors are a painted flat. Hide the leaves before they become solid.
+	var host := get_parent()
+	if host != null:
+		_lawbot = host.scene_file_path.get_file().begins_with("lawbot")
+		preload("res://scenes/cog_hq/sellbot_doors.gd").place(host)
+		preload("res://scenes/cog_hq/factory_floor.gd").place(host)
 	_add_collision(self)
 
 
@@ -64,7 +71,8 @@ func _collide_mesh(mesh: MeshInstance3D) -> void:
 	if material is BaseMaterial3D:
 		cutout = (material as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 	# Party gates are masked cards. The tunnel, stairs, and signs still need to stop a toon.
-	if cutout and not _party_piece(mesh):
+	# Lawbot floors are translucent so the reflection shows through. They are still the floor.
+	if cutout and not _party_piece(mesh) and not (_lawbot and _lawbot_floor(mesh)):
 		return
 	mesh.create_trimesh_collision()
 
@@ -77,6 +85,13 @@ func _facade_piece(mesh: MeshInstance3D) -> bool:
 			return true
 		current = current.get_parent()
 	return false
+
+
+func _lawbot_floor(mesh: MeshInstance3D) -> bool:
+	var lower := str(mesh.name).to_lower()
+	if lower.contains("shadow") or lower.contains("shad") or lower.contains("refl"):
+		return false
+	return lower.contains("floor") or lower.contains("ground")
 
 
 ## partyGate_TT and the other playground gates. Hats, clocks, and pole balls are

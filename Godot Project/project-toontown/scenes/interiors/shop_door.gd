@@ -83,6 +83,10 @@ static func remember(zone_id: int, street_path: String) -> void:
 	title = String(record(zone_id).get("title", ""))
 
 
+static func named_doors() -> Array:
+	return _entries
+
+
 static func prepare(host: Node) -> void:
 	_buildings.clear()
 	_entries.clear()
