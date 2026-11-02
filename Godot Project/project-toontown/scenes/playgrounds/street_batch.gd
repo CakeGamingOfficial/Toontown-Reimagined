@@ -118,8 +118,16 @@ static func set_solid(zone: Node, shown: bool) -> void:
 			zone.set_meta("street_bodies", bodies)
 	for item in bodies:
 		var object := item as CollisionObject3D
-		if object != null and object.collision_layer != layer:
-			object.collision_layer = layer
+		if object == null:
+			continue
+		var use := layer
+		# A taken shop is hidden in place. Turning the block back on must not
+		# bring that shell back while the cog tower is standing there.
+		var host := object.get_parent()
+		if shown and host is Node3D and not (host as Node3D).visible:
+			use = 0
+		if object.collision_layer != use:
+			object.collision_layer = use
 
 
 static func _show_zone(zone: Node, shown: bool) -> void:
@@ -207,6 +215,11 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 	if node != zone and node is Node3D and _toon_shop(String(node.name)):
 		_flatten_landmark(node as Node3D)
 		return
+	# Swinging doors stay on their joints. The shell still needs a solid, or the
+	# front can be walked through.
+	if node != zone and node is Node3D and _animated_facade(String(node.name)):
+		_solid_facade(node as Node3D)
+		return
 	if node != zone and _leave_alone(String(node.name)):
 		return
 	if node is MeshInstance3D and node != zone:
@@ -219,6 +232,10 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 
 static func _toon_shop(node_name: String) -> bool:
 	return node_name.to_lower().contains("toon_landmark")
+
+
+static func _animated_facade(node_name: String) -> bool:
+	return node_name.to_lower().contains("animated_building")
 
 
 static func _landmark(node_name: String) -> bool:
@@ -271,7 +288,37 @@ static func _flatten_landmark(landmark: Node3D) -> void:
 		# Keep the node visible. Door cards are children of the wall, and
 		# hiding the wall hides the door even though its own mesh is still there.
 		mesh.mesh = null
+	# The faces are the wall triangles, in this node's space. Door nodes are
+	# not collected, so the doorway stays open for the shop and the elevator.
+	_add_landmark_solid(landmark, job.faces)
 	landmark.set_meta("landmark_flat", true)
+
+
+## The animated front keeps its joints. Only the shell becomes solid.
+static func _solid_facade(building: Node3D) -> void:
+	if building.get_node_or_null("LandmarkSolid") != null:
+		return
+	var job := Job.new()
+	var taken: Array[MeshInstance3D] = []
+	var into := building.global_transform.affine_inverse()
+	for child in building.get_children():
+		_collect(child, building, into, job, taken)
+	_add_landmark_solid(building, job.faces)
+
+
+static func _add_landmark_solid(landmark: Node3D, faces: PackedVector3Array) -> void:
+	if faces.is_empty() or landmark.get_node_or_null("LandmarkSolid") != null:
+		return
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	var body := StaticBody3D.new()
+	body.name = "LandmarkSolid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	body.add_child(collision)
+	landmark.add_child(body)
 
 
 static func _leave_alone(node_name: String) -> bool:

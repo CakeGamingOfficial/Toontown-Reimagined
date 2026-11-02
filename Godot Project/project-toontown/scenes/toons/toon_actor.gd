@@ -78,6 +78,7 @@ var _lashes: Array[MeshInstance3D] = []
 var _eyes_closed: Texture2D
 var _eyes_shut := false
 var _blink_left := 0.0
+var _blink_started_msec := 0
 var _blink_wait := 1.0
 var _look_wait := 2.0
 var _look_enabled := true
@@ -434,11 +435,16 @@ func gesture_finished() -> bool:
 
 ## angry, sad, and surprised are the eye sets the quest movie swaps in.
 func set_expression(mood: String) -> void:
+	# Sad locomotion asks for this every frame. Rebuilding the eye card each
+	# time would throw away the open sheet on the next blink.
+	if mood == _mood:
+		return
 	_mood = mood
 	_mood_open = _expression_texture(mood, false)
 	_mood_closed = _expression_texture(mood, true)
 	if mood == "normal":
 		_eyes_shut = false
+		_blink_left = 0.0
 	_apply_eyes()
 
 
@@ -1117,12 +1123,11 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 	if source == null:
 		return
 	# The cards already sit on the face. Pushing them along the normal opened a
-	# gap. A depth bias keeps whites, then pupils, then lashes in front without
-	# moving the mesh. They stay in the opaque pass (alpha scissor). Alpha
-	# blending sorted those cards behind the head and left holes in the face.
+	# gap. They stay in the opaque pass (alpha scissor). Writing DEPTH to fake
+	# that gap drops the cards in the compatibility renderer, so the eyes vanish.
+	# Alpha blending sorted those cards behind the head and left holes in the face.
 	var scissor := 0.0
 	var push := 0.0
-	var bias := 0.0
 	match kind:
 		"muzzle":
 			push = 0.001
@@ -1130,13 +1135,10 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 			push = 0.0015
 		"eyes":
 			scissor = 0.5
-			bias = 0.000008
 		"pupil":
 			scissor = 0.5
-			bias = 0.000016
 		"lashes":
 			scissor = 0.5
-			bias = 0.000024
 	mesh.material_override = null
 	for surface in source.get_surface_count():
 		var texture: Texture2D = null
@@ -1149,16 +1151,46 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 				var standard := material as BaseMaterial3D
 				texture = standard.albedo_texture
 				color = standard.albedo_color
-		mesh.set_surface_override_material(surface, _face_material(texture, color, scissor, push, bias))
+		# The blink swaps in a plain image. The open sheet has to be one too, or the
+		# sclera's alpha does not survive and the fur shows through the eye.
+		if kind == "eyes" or kind == "pupil" or kind == "lashes":
+			texture = _raw_face_texture(texture)
+		if kind == "eyes" and texture:
+			# The open sheet stays on the mesh. Putting it back onto a material
+			# that already showed the closed lids does not stick in this renderer.
+			mesh.set_meta(&"open_eye", texture)
+			mesh.set_meta(&"eye_color", color)
+		mesh.set_surface_override_material(surface, _face_material(texture, color, scissor, push))
 
 
-func _face_material(texture: Texture2D, color: Color, scissor: float, push: float, bias: float) -> ShaderMaterial:
+static var _raw_face_textures: Dictionary = {}
+
+
+func _raw_face_texture(texture: Texture2D) -> Texture2D:
+	if texture == null:
+		return null
+	var path := texture.resource_path
+	if path.is_empty():
+		return texture
+	if _raw_face_textures.has(path):
+		return _raw_face_textures[path] as Texture2D
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.is_empty():
+		return texture
+	var image := Image.new()
+	if image.load_png_from_buffer(bytes) != OK:
+		return texture
+	var raw := ImageTexture.create_from_image(image)
+	_raw_face_textures[path] = raw
+	return raw
+
+
+func _face_material(texture: Texture2D, color: Color, scissor: float, push: float) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = _FACE_GHOST if _ghost_local else _FACE_SHADER
 	material.set_shader_parameter("albedo_color", color)
 	material.set_shader_parameter("scissor_threshold", scissor)
 	material.set_shader_parameter("surface_push", push)
-	material.set_shader_parameter("depth_bias", bias)
 	material.set_shader_parameter("use_albedo_texture", 1.0 if texture else 0.0)
 	if texture:
 		material.set_shader_parameter("albedo_texture", texture)
@@ -1486,11 +1518,14 @@ func _collect_face(node: Node) -> void:
 		var mesh := node as MeshInstance3D
 		var kind := _face_kind(_part_name(mesh))
 		if kind == "eyes":
-			var material := mesh.get_surface_override_material(0) as ShaderMaterial
 			var open_texture: Texture2D = null
-			if material:
-				open_texture = material.get_shader_parameter("albedo_texture")
-			_eyes.append({"material": material, "open": open_texture})
+			var eye_color := Color.WHITE
+			if mesh.has_meta(&"open_eye"):
+				open_texture = mesh.get_meta(&"open_eye") as Texture2D
+			if mesh.has_meta(&"eye_color"):
+				eye_color = mesh.get_meta(&"eye_color")
+			# Stamp matches the painted card, so the first blink is what builds a new one.
+			_eyes.append({"mesh": mesh, "open": open_texture, "color": eye_color, "stamp": "0" + _mood})
 		elif kind == "pupil":
 			var mover := mesh as Node3D
 			var parent := mesh.get_parent()
@@ -1515,11 +1550,10 @@ func _tick_blink(delta: float) -> void:
 		return
 	if _eyes_shut:
 		_blink_left -= delta
-		if _blink_left > 0.0:
+		var elapsed := Time.get_ticks_msec() - _blink_started_msec
+		if _blink_left > 0.0 and elapsed < 125:
 			return
-		_eyes_shut = false
-		_apply_eyes()
-		_blink_wait = 0.2 if randf() < 0.1 else randf() * 4.0 + 1.0
+		_finish_blink()
 		return
 	_blink_wait -= delta
 	if _blink_wait <= 0.0:
@@ -1527,8 +1561,26 @@ func _tick_blink(delta: float) -> void:
 
 
 func _shut_eyes() -> void:
+	if _eyes_shut:
+		return
 	_eyes_shut = true
 	_blink_left = 0.125
+	_blink_started_msec = Time.get_ticks_msec()
+	_apply_eyes()
+	var tree := get_tree()
+	if tree == null:
+		return
+	# The frame clock and a one-shot both open the lids, so a hitch cannot leave them down.
+	var timer := tree.create_timer(0.125)
+	timer.timeout.connect(_finish_blink, CONNECT_ONE_SHOT)
+
+
+func _finish_blink() -> void:
+	if not _eyes_shut or _mood == "surprised":
+		return
+	_eyes_shut = false
+	_blink_left = 0.0
+	_blink_wait = 0.2 if randf() < 0.1 else randf() * 4.0 + 1.0
 	_apply_eyes()
 
 
@@ -1547,16 +1599,32 @@ func _expression_texture(mood: String, closed: bool) -> Texture2D:
 
 
 func _apply_eyes() -> void:
-	var closed := _mood_closed if _mood_closed else _load_closed_eyes()
+	# A material that has already drawn the closed lids keeps them if we only
+	# write the open sheet back onto it. Each change gets a new material.
+	var stamp: String = ("1" if _eyes_shut else "0") + _mood
 	for eye in _eyes:
-		var material := eye["material"] as ShaderMaterial
-		if material == null:
+		var mesh := eye["mesh"] as MeshInstance3D
+		if not is_instance_valid(mesh):
 			continue
+		if String(eye.get("stamp", "")) == stamp:
+			continue
+		eye["stamp"] = stamp
 		var open: Texture2D = _mood_open if _mood_open else eye["open"]
+		if open == null and mesh.has_meta(&"open_eye"):
+			open = mesh.get_meta(&"open_eye") as Texture2D
+			eye["open"] = open
+		var closed: Texture2D = _mood_closed if _mood_closed else _load_closed_eyes()
 		var texture: Texture2D = closed if _eyes_shut and closed else open
-		if texture:
-			material.set_shader_parameter("albedo_texture", texture)
-			material.set_shader_parameter("use_albedo_texture", 1.0)
+		if texture == null:
+			continue
+		var color: Color = eye["color"] if eye.has("color") else Color.WHITE
+		var material := _face_material(texture, color, 0.5, 0.0)
+		mesh.material_override = material
+		var surfaces := 1
+		if mesh.mesh:
+			surfaces = maxi(mesh.mesh.get_surface_count(), 1)
+		for surface in surfaces:
+			mesh.set_surface_override_material(surface, material)
 	for pupil in _pupils:
 		var mesh := pupil["mesh"] as MeshInstance3D
 		if is_instance_valid(mesh):
@@ -1625,7 +1693,6 @@ func _begin_look() -> void:
 	var pupil_y := clampf(z / 1.5, -1.0, 1.0)
 	_left_target = _pupil_point(true, pupil_x, pupil_y) * 0.5
 	_right_target = _pupil_point(false, pupil_x, pupil_y) * 0.5
-	_shut_eyes()
 
 
 func _ease_out(t: float) -> float:

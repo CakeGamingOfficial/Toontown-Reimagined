@@ -32,8 +32,10 @@ func _ready() -> void:
 	_ready_billboards()
 	# Measure doorways while the wall meshes still exist. Batching clears them.
 	preload("res://scenes/interiors/shop_door.gd").prepare(self)
-	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
+	# The pond hedge mesh is cleared by the street batch, so the wall and the
+	# leaf cutout have to be in place before that.
 	_raise_pond_hedge()
+	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	if preload("res://scenes/places/tunnel_links.gd").arriving() or preload("res://scenes/interiors/shop_door.gd").trip == "out":
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
@@ -469,99 +471,148 @@ func _show_both_sides(mesh_instance: MeshInstance3D) -> void:
 ## The leafy hedge around Loopy Lane's pond is a 4-foot card. The original
 ## collision wall on that same line is 15 feet tall, so a jump cannot clear it.
 const _POND_HEDGE_HEIGHT := 15.0
+const _POND_HEDGE_THICK := 1.6
 
 
 func _raise_pond_hedge() -> void:
 	if not scene_file_path.ends_with("loopy_lane.tscn"):
 		return
 	var fence := find_child("TTpd_fence", true, false) as Node3D
-	if fence == null or fence.get_node_or_null("PondHedge") != null:
+	if fence == null:
 		return
-	var mesh := _pond_hedge_mesh(fence)
-	if mesh == null or mesh.mesh == null:
+	# The leaf map is blended, so the pond and the far hedge draw through it.
+	# A cutout writes depth and the holes in the leaves stay open.
+	_cut_pond_hedge(fence)
+	if fence.get_node_or_null("PondHedge") != null:
 		return
-	var triangles := _pond_hedge_triangles(mesh)
-	if triangles.is_empty():
-		return
-	var base_y := INF
-	for item in triangles:
-		var tri: PackedVector3Array = item
-		base_y = minf(base_y, minf(tri[0].y, minf(tri[1].y, tri[2].y)))
-	var top_y := base_y + _POND_HEDGE_HEIGHT
-	var faces := PackedVector3Array()
-	for item in triangles:
-		var tri: PackedVector3Array = item
-		var cross := (tri[1] - tri[0]).cross(tri[2] - tri[0])
-		var span := cross.length()
-		if span < 0.08 or absf(cross.y) / span > 0.55:
-			continue
-		for index in 3:
-			var p0 := tri[index]
-			var p1 := tri[(index + 1) % 3]
-			var run := Vector2(p1.x - p0.x, p1.z - p0.z)
-			if run.length() < 0.35:
-				continue
-			var low0 := Vector3(p0.x, base_y, p0.z)
-			var low1 := Vector3(p1.x, base_y, p1.z)
-			var high0 := Vector3(p0.x, top_y, p0.z)
-			var high1 := Vector3(p1.x, top_y, p1.z)
-			faces.append(low0)
-			faces.append(low1)
-			faces.append(high1)
-			faces.append(low0)
-			faces.append(high1)
-			faces.append(high0)
-	if faces.is_empty():
-		return
-	var into := fence.global_transform.affine_inverse()
-	for index in faces.size():
-		faces[index] = into * faces[index]
+	var up := _fence_up(fence)
+	var edges: Array[Dictionary] = []
+	_collect_pond_edges(fence, fence.global_transform.affine_inverse(), up, edges)
 	var body := StaticBody3D.new()
 	body.name = "PondHedge"
 	body.collision_layer = 1
 	body.collision_mask = 0
-	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(faces)
-	var collision := CollisionShape3D.new()
-	collision.shape = shape
-	body.add_child(collision)
+	for edge in edges:
+		var shape := _pond_edge_box(edge["a"], edge["b"], up)
+		if shape != null:
+			body.add_child(shape)
+	if body.get_child_count() == 0:
+		return
 	fence.add_child(body)
 
 
-func _pond_hedge_mesh(fence: Node) -> MeshInstance3D:
-	if fence is MeshInstance3D and (fence as MeshInstance3D).mesh != null:
-		return fence as MeshInstance3D
-	for child in fence.get_children():
-		var found := _pond_hedge_mesh(child)
-		if found != null:
-			return found
-	return null
+func _cut_pond_hedge(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			for surface in mesh.mesh.get_surface_count():
+				var material := mesh.get_active_material(surface)
+				if material is StandardMaterial3D:
+					var standard := (material as StandardMaterial3D).duplicate() as StandardMaterial3D
+					standard.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+					standard.alpha_scissor_threshold = 0.5
+					standard.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY
+					standard.cull_mode = BaseMaterial3D.CULL_DISABLED
+					mesh.set_surface_override_material(surface, standard)
+	for child in node.get_children():
+		_cut_pond_hedge(child)
 
 
-func _pond_hedge_triangles(mesh: MeshInstance3D) -> Array:
-	var triangles: Array = []
-	var to_world := mesh.global_transform
-	for surface in mesh.mesh.get_surface_count():
-		var arrays: Array = mesh.mesh.surface_get_arrays(surface)
-		var verts := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
-		var ids := PackedInt32Array()
-		if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
-			ids = arrays[Mesh.ARRAY_INDEX]
-		var limit := ids.size() if ids.size() >= 3 else verts.size()
-		var cursor := 0
-		while cursor + 2 < limit:
-			var i0 := cursor
-			var i1 := cursor + 1
-			var i2 := cursor + 2
-			if ids.size() >= 3:
-				i0 = ids[cursor]
-				i1 = ids[cursor + 1]
-				i2 = ids[cursor + 2]
-			if i0 >= 0 and i1 >= 0 and i2 >= 0 and i0 < verts.size() and i1 < verts.size() and i2 < verts.size():
-				triangles.append(PackedVector3Array([
-					to_world * verts[i0],
-					to_world * verts[i1],
-					to_world * verts[i2],
-				]))
-			cursor += 3
-	return triangles
+func _fence_up(fence: Node3D) -> Vector3:
+	var basis := fence.global_transform.basis
+	var best := Vector3(0.0, 0.0, 1.0)
+	var score := -1.0
+	var axes: Array[Vector3] = [Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1)]
+	for axis in axes:
+		var world: Vector3 = basis * axis
+		var amount := absf(world.dot(Vector3.UP))
+		if amount > score:
+			score = amount
+			best = axis if world.dot(Vector3.UP) >= 0.0 else -axis
+	return best
+
+
+func _collect_pond_edges(node: Node, into_fence: Transform3D, up: Vector3, edges: Array[Dictionary]) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			var to_fence := into_fence * mesh.global_transform
+			var seen := {}
+			for surface in mesh.mesh.get_surface_count():
+				var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+				var verts := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+				var ids := PackedInt32Array()
+				if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
+					ids = arrays[Mesh.ARRAY_INDEX]
+				var limit := ids.size() if ids.size() >= 3 else verts.size()
+				var cursor := 0
+				while cursor + 2 < limit:
+					var i0 := cursor
+					var i1 := cursor + 1
+					var i2 := cursor + 2
+					if ids.size() >= 3:
+						i0 = ids[cursor]
+						i1 = ids[cursor + 1]
+						i2 = ids[cursor + 2]
+					if i0 >= 0 and i1 >= 0 and i2 >= 0 and i0 < verts.size() and i1 < verts.size() and i2 < verts.size():
+						var a := to_fence * verts[i0]
+						var b := to_fence * verts[i1]
+						var c := to_fence * verts[i2]
+						_keep_pond_base(edges, seen, a, b, c, up)
+						_keep_pond_base(edges, seen, b, c, a, up)
+						_keep_pond_base(edges, seen, c, a, b, up)
+					cursor += 3
+	for child in node.get_children():
+		_collect_pond_edges(child, into_fence, up, edges)
+
+
+func _keep_pond_base(edges: Array[Dictionary], seen: Dictionary, a: Vector3, b: Vector3, other: Vector3, up: Vector3) -> void:
+	var ua := a.dot(up)
+	var ub := b.dot(up)
+	# The foot of the card. The top edge is the same line, raised.
+	if absf(ua - ub) > 0.35:
+		return
+	if other.dot(up) < minf(ua, ub) + 0.2:
+		return
+	var flat := b - a
+	flat = flat - up * flat.dot(up)
+	if flat.length() < 0.5:
+		return
+	var key := _pond_edge_key(a, b)
+	if seen.has(key):
+		return
+	seen[key] = true
+	edges.append({"a": a, "b": b})
+
+
+func _pond_edge_key(a: Vector3, b: Vector3) -> String:
+	var ak := Vector3i(roundi(a.x * 20.0), roundi(a.y * 20.0), roundi(a.z * 20.0))
+	var bk := Vector3i(roundi(b.x * 20.0), roundi(b.y * 20.0), roundi(b.z * 20.0))
+	if ak.x > bk.x or (ak.x == bk.x and (ak.y > bk.y or (ak.y == bk.y and ak.z > bk.z))):
+		var swap := ak
+		ak = bk
+		bk = swap
+	return "%s|%s" % [ak, bk]
+
+
+func _pond_edge_box(a: Vector3, b: Vector3, up: Vector3) -> CollisionShape3D:
+	var along := b - a
+	along = along - up * along.dot(up)
+	var length := along.length()
+	if length < 0.5:
+		return null
+	var tangent := along / length
+	var normal := up.cross(tangent)
+	if normal.length_squared() < 0.0001:
+		return null
+	normal = normal.normalized()
+	var base := minf(a.dot(up), b.dot(up))
+	var mid := (a + b) * 0.5
+	mid = mid + up * ((base + _POND_HEDGE_HEIGHT * 0.5) - mid.dot(up))
+	var box := BoxShape3D.new()
+	# A short overlap at each end closes the crack where two cards meet.
+	box.size = Vector3(length + 0.4, _POND_HEDGE_HEIGHT, _POND_HEDGE_THICK)
+	var shape := CollisionShape3D.new()
+	shape.shape = box
+	shape.transform = Transform3D(Basis(tangent, up, normal), mid)
+	return shape

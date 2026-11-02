@@ -1464,7 +1464,7 @@ func _walk_into_door(goal: Vector3) -> void:
 		_face(_player, _heading)
 	_body.velocity = Vector3.ZERO
 	var clock := 0.0
-	var fade: Tween
+	var cover: ColorRect
 	while clock < duration:
 		var delta := minf(get_process_delta_time(), 0.05)
 		if delta <= 0.0:
@@ -1477,18 +1477,20 @@ func _walk_into_door(goal: Vector3) -> void:
 		_player.set_locomotion(4.0, false, false, delta)
 		if _remotes != null:
 			_remotes.note(_heading, 4.0, false, false, false)
-		if fade == null and clock >= duration * 0.5:
-			var cover := _blackout()
-			fade = create_tween()
-			fade.tween_property(cover, "color:a", 1.0, duration * 0.5)
+		# The iris follows this clock. A separate tween runs on real time, so a
+		# hitch finishes it early and the scene change waits on a signal that
+		# already fired. The screen stays black and the building never loads.
+		if clock >= duration * 0.5:
+			if cover == null:
+				cover = _blackout()
+			cover.color.a = clampf((clock - duration * 0.5) / (duration * 0.5), 0.0, 1.0)
 		await get_tree().process_frame
 	_player.set_locomotion(0.0, false, false, 0.0)
 	if _remotes != null:
 		_remotes.note(_heading, 0.0, false, false, false)
-	if fade != null and fade.is_valid():
-		await fade.finished
-	else:
-		await _fade_black()
+	if cover == null:
+		cover = _blackout()
+	cover.color.a = 1.0
 
 
 ## doorX is 1.5 and the enter point sits two units through the doorway.

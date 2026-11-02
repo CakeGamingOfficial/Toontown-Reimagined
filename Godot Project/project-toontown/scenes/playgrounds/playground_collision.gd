@@ -55,6 +55,10 @@ func _add_collision(node: Node) -> void:
 func _collide_mesh(mesh: MeshInstance3D) -> void:
 	if not mesh.visible or mesh.mesh == null or mesh.has_meta("street_batched"):
 		return
+	# Shop and cog fronts get one solid from their wall triangles. A trimesh
+	# on the door slab would close the opening the player has to walk up to.
+	if _facade_piece(mesh):
+		return
 	var material := mesh.get_active_material(0)
 	var cutout := false
 	if material is BaseMaterial3D:
@@ -63,6 +67,16 @@ func _collide_mesh(mesh: MeshInstance3D) -> void:
 	if cutout and not _party_piece(mesh):
 		return
 	mesh.create_trimesh_collision()
+
+
+func _facade_piece(mesh: MeshInstance3D) -> bool:
+	var current: Node = mesh
+	while current != null:
+		var low := String(current.name).to_lower()
+		if low.contains("toon_landmark") or low.contains("animated_building") or low.contains("suit_landmark"):
+			return true
+		current = current.get_parent()
+	return false
 
 
 ## partyGate_TT and the other playground gates. Hats, clocks, and pole balls are

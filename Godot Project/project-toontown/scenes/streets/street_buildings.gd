@@ -337,6 +337,9 @@ func _restore_piece(piece: Node) -> void:
 	if not is_instance_valid(piece):
 		return
 	piece.visible = true
+	var solid := piece.get_node_or_null("LandmarkSolid") as CollisionObject3D
+	if solid != null:
+		solid.collision_layer = 1
 	if piece is Node3D and piece.has_meta("shop_scale"):
 		(piece as Node3D).scale = piece.get_meta("shop_scale")
 	_clear_dark(piece)
@@ -499,6 +502,11 @@ func _cull_towers() -> void:
 		var actor := building as Node3D
 		if actor.visible != show:
 			actor.visible = show
+		var solid := actor.get_node_or_null("LandmarkSolid") as CollisionObject3D
+		if solid != null:
+			var layer: int = 1 if show else 0
+			if solid.collision_layer != layer:
+				solid.collision_layer = layer
 
 
 func _zone_shown(landmark: Node) -> bool:
@@ -935,6 +943,9 @@ func _squash_list(landmark: Node3D, key: String, crush: float, darken: float, hi
 				body.visible = false
 				body.scale = shop_scale
 				_clear_dark(body)
+			var solid := body.get_node_or_null("LandmarkSolid") as CollisionObject3D
+			if solid != null:
+				solid.collision_layer = 0
 			continue
 		var next := Vector3(shop_scale.x, shop_scale.y * crush, shop_scale.z)
 		body.visible = true
