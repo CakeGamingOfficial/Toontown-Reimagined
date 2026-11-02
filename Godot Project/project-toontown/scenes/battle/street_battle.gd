@@ -97,7 +97,7 @@ func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky,
 	_menu.name = "BattleMenu"
 	_menu.visible = false
 	_hud.add_child(_menu)
-	_menu.setup(loadout)
+	_menu.setup(loadout, true)
 	_apply_cog_vitals()
 	_build_card()
 	_movie = BattleMovie.new()

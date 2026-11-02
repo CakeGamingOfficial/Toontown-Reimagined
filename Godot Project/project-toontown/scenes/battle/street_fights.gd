@@ -2,42 +2,51 @@ extends Node
 
 ## DistributedBattleAI for a street. The district server owns the round:
 ## who joined, which gag each toon picked, and whether it hit. Clients only
-## show that. A battle holds four toons and four cogs. Face-off stays open,
-## then everyone has BBbattleInputTimeout seconds to choose.
+## show that. A battle holds four toons and four cogs. The face-off plays
+## before choosing. The clock is BBbattleInputTimeout, not a delay before the fight.
 
-const JOIN_TIME := 5.0
 const INPUT_TIME := 20.0
+const REWARD_TIME := 120.0
+const FACEOFF_TAUNT_T := 3.5
+const SUIT_SPEED := 4.8
 const MAX_TOONS := 4
 const MAX_COGS := 4
 const NEAR_COG := 15.0
-const _ATTACKS: Array[String] = ["Pound Key", "Shred", "Clip On Tie", "Glower Power"]
-const _ATTACK_KEYS: Array[String] = ["phone", "throw-paper", "finger-wag", "glower"]
+# BattleBase.suitPoints / toonPoints. X is across the line, Y is toward the cogs.
+const _SUIT_POINTS: Array = [
+	[Vector2(0.0, 5.0)],
+	[Vector2(2.0, 5.3), Vector2(-2.0, 5.3)],
+	[Vector2(4.0, 5.2), Vector2(0.0, 6.0), Vector2(-4.0, 5.2)],
+	[Vector2(6.0, 4.4), Vector2(2.0, 6.3), Vector2(-2.0, 6.3), Vector2(-6.0, 4.4)],
+]
+const _TOON_POINTS: Array = [
+	[Vector2(0.0, -6.0)],
+	[Vector2(1.5, -6.5), Vector2(-1.5, -6.5)],
+	[Vector2(3.0, -6.75), Vector2(0.0, -7.0), Vector2(-3.0, -6.75)],
+	[Vector2(4.5, -7.0), Vector2(1.5, -7.5), Vector2(-1.5, -7.5), Vector2(-4.5, -7.0)],
+]
 
 var _fights: Array = []
 var _next := 1
 var _dirty: Dictionary = {}
 var _publish_wait := 0.0
-var _attacks_by_code: Dictionary = {}
+var _taunts: Dictionary = {}
+var _attack_tables: Dictionary = {}
 
 
 func _ready() -> void:
-	var text := FileAccess.get_file_as_string("res://assets/cogs/catalog.json")
+	_load_taunts()
+	var text := FileAccess.get_file_as_string("res://assets/cogs/attack_tables.json")
 	var parsed: Variant = JSON.parse_string(text)
-	if not (parsed is Dictionary):
-		return
-	var rows: Array = (parsed as Dictionary).get("cogs", [])
-	for item in rows:
-		if not (item is Dictionary):
-			continue
-		var cog: Dictionary = item
-		var files: Array = []
-		for attack in cog.get("attacks", []):
-			if not (attack is Dictionary):
-				continue
-			var file := String((attack as Dictionary).get("file", ""))
-			if file != "":
-				files.append(file)
-		_attacks_by_code[String(cog.get("code", ""))] = files
+	if parsed is Dictionary:
+		_attack_tables = parsed
+
+
+func _load_taunts() -> void:
+	var text := FileAccess.get_file_as_string("res://assets/battle/faceoff_taunts.json")
+	var parsed: Variant = JSON.parse_string(text)
+	if parsed is Dictionary:
+		_taunts = parsed
 
 
 func _process(delta: float) -> void:
@@ -67,8 +76,12 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 		return
 	var existing := _fight_with(district, slug, peer, cog_id)
 	if not existing.is_empty():
-		if String(existing.get("state", "")) == "join":
+		var existing_state := String(existing.get("state", ""))
+		if existing_state == "faceoff" or existing_state == "input":
 			_add_toon(existing, peer, toon_name, hp, max_hp)
+			if existing_state == "faceoff":
+				_place(existing)
+				_mark(existing)
 		return
 	var cog := _find_cog(district, slug, cog_id)
 	if cog.is_empty() or int(cog.get("phase", -1)) != 1:
@@ -77,16 +90,24 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 		"id": _next,
 		"district": district,
 		"slug": slug,
-		"state": "join",
-		"left": JOIN_TIME,
+		"state": "faceoff",
+		"left": FACEOFF_TAUNT_T,
 		"seq": 1,
 		"round": 1,
 		"toons": [],
 		"cogs": [],
 		"choices": [],
 		"beats": [],
-		"origin": cog.get("pos", [0.0, 0.0, 0.0]),
+		"origin": [0.0, 0.0, 0.0],
+		"yaw": 180.0,
 	}
+	var cog_pos := _point(cog.get("pos", []))
+	var yaw := _opening_yaw(cog_pos)
+	var forward := _battle_forward(yaw)
+	var origin := cog_pos - forward * 5.0
+	origin.y = cog_pos.y
+	fight["origin"] = [origin.x, origin.y, origin.z]
+	fight["yaw"] = yaw
 	_next += 1
 	_fights.append(fight)
 	_add_cog(fight, cog)
@@ -98,7 +119,63 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 		_add_cog(fight, extra)
 	_add_toon(fight, peer, toon_name, hp, max_hp)
 	_place(fight)
-	_mark(fight)
+	_begin_faceoff(fight)
+
+
+## A cog-building floor. The cogs are not on the street; the run already picked them.
+func open_roster(district: int, slug: String, cogs: Array, reserves: Array, riders: Array, origin: Vector3, yaw: float, building: int, out: Variant = null) -> int:
+	if not ToonNet.is_authority() or cogs.is_empty() or riders.is_empty():
+		return 0
+	var exit_at: Array = [origin.x, origin.y, origin.z]
+	if out is Array:
+		exit_at = out
+	var fight := {
+		"id": _next,
+		"district": district,
+		"slug": slug,
+		"building": building,
+		"state": "faceoff",
+		"left": FACEOFF_TAUNT_T,
+		"seq": 1,
+		"round": 1,
+		"toons": [],
+		"cogs": [],
+		"reserves": reserves,
+		"joining": [],
+		"choices": [],
+		"beats": [],
+		"origin": [origin.x, origin.y, origin.z],
+		"out": exit_at,
+		"yaw": yaw,
+	}
+	_next += 1
+	_fights.append(fight)
+	for cog in cogs:
+		if cog is Dictionary:
+			_add_cog(fight, cog)
+	for rider in riders:
+		if not (rider is Dictionary):
+			continue
+		var toon: Dictionary = rider
+		_add_toon(fight, int(toon.get("id", -1)), String(toon.get("name", "Toon")), int(toon.get("hp", 1)), int(toon.get("max_hp", 1)))
+	_place(fight)
+	_begin_faceoff(fight)
+	return int(fight.get("id", 0))
+
+
+func state_of(fight_id: int) -> String:
+	var fight := _by_id(fight_id)
+	if fight.is_empty():
+		return "gone"
+	return String(fight.get("state", "gone"))
+
+
+func toon_hp(fight_id: int, peer: int) -> int:
+	var fight := _by_id(fight_id)
+	for item in fight.get("toons", []):
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == peer:
+			return int((item as Dictionary).get("hp", 0))
+	return -1
 
 
 func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: int) -> void:
@@ -134,12 +211,12 @@ func _tick(fight: Dictionary, delta: float) -> void:
 	if state == "gone" or state == "":
 		return
 	fight["left"] = maxf(float(fight.get("left", 0.0)) - delta, 0.0)
-	if state == "join" or state == "input":
+	if state == "faceoff" or state == "input":
 		fight["pulse"] = float(fight.get("pulse", 0.0)) + delta
 		if float(fight["pulse"]) >= 0.5:
 			fight["pulse"] = 0.0
 			_mark(fight)
-	if state == "join":
+	if state == "faceoff":
 		_drop_missing(fight)
 		if float(fight["left"]) <= 0.0:
 			_begin_input(fight)
@@ -156,9 +233,160 @@ func _tick(fight: Dictionary, delta: float) -> void:
 	if state == "movie" and float(fight["left"]) <= 0.0:
 		_finish_movie(fight)
 		return
-	if state == "reward" and float(fight["left"]) <= 0.0:
+	if state == "reserves" and float(fight["left"]) <= 0.0:
+		fight["joining"] = []
+		_begin_input(fight)
+		return
+	if state == "reward":
+		_drop_missing(fight)
+		if float(fight["left"]) <= 0.0 or _reward_complete(fight):
+			fight["state"] = "gone"
+			_mark(fight)
+
+
+func reward_done(fight_id: int, peer: int) -> void:
+	if not ToonNet.is_authority():
+		return
+	var fight := _by_id(fight_id)
+	if fight.is_empty() or String(fight.get("state", "")) != "reward":
+		return
+	var done: Array = fight.get("finished", [])
+	if not done.has(peer):
+		done.append(peer)
+	fight["finished"] = done
+	if _reward_complete(fight):
+		fight["state"] = "gone"
+	_mark(fight)
+
+
+func _reward_complete(fight: Dictionary) -> bool:
+	var done: Array = fight.get("finished", [])
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		if int(toon.get("hp", 0)) <= 0:
+			continue
+		if not done.has(int(toon.get("id", 0))):
+			return false
+	return true
+
+
+func _reward_rows(fight: Dictionary, roster: Array) -> Array:
+	var rows: Array = []
+	var seen: Dictionary = {}
+	for item in roster:
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		var peer := int(toon.get("id", 0))
+		seen[peer] = true
+		rows.append(_reward_row(fight, peer, String(toon.get("name", "Toon")), toon))
+	var book: Dictionary = fight.get("skill", {})
+	for key in book.keys():
+		var peer := int(key)
+		if seen.has(peer):
+			continue
+		rows.append(_reward_row(fight, peer, "Toon", {}))
+	return rows
+
+
+func _reward_row(fight: Dictionary, peer: int, toon_name: String, toon: Dictionary) -> Dictionary:
+	var earned := _earned_for(fight, peer)
+	var before: Array = []
+	var total: Array = []
+	for track in ToonLoadout.TRACK_COUNT:
+		var known := ToonNet.stored_exp(peer, track)
+		var start := 0 if known < 0 else known
+		var gained := int(earned[track]) if track < earned.size() else 0
+		var summed := mini(start + gained, 10500)
+		before.append(start)
+		total.append(summed)
+		earned[track] = summed - start
+	var av := int(toon.get("av", 0))
+	if av <= 0:
+		av = ToonNet.avatar_of(peer)
+	ToonNet.persist_exp(av, total)
+	return {"id": peer, "name": toon_name, "before": before, "earned": earned}
+
+
+func _skill_copy(fight: Dictionary, peer: int) -> Array:
+	var earned := _earned_for(fight, peer)
+	var copy: Array = []
+	for amount in earned:
+		copy.append(int(amount))
+	return copy
+
+
+## movieDone grants the sad toon's experience before the battle continues.
+## The book entry is cleared so the victory card does not add it a second time.
+func _cash_out(fight: Dictionary, toon: Dictionary) -> void:
+	var peer := int(toon.get("id", 0))
+	_reward_row(fight, peer, String(toon.get("name", "Toon")), toon)
+	var book: Dictionary = fight.get("skill", {})
+	book.erase(str(peer))
+	fight["skill"] = book
+
+
+func _earned_for(fight: Dictionary, peer: int) -> Array:
+	var book: Dictionary = fight.get("skill", {})
+	var row: Variant = book.get(str(peer), [0, 0, 0, 0, 0, 0, 0])
+	var earned: Array = []
+	var source: Array = row if row is Array else []
+	for track in ToonLoadout.TRACK_COUNT:
+		earned.append(int(source[track]) if track < source.size() else 0)
+	return earned
+
+
+func _grant(fight: Dictionary, peer: int, track: int, level: int) -> void:
+	if peer == 0 or track < 0 or track >= ToonLoadout.TRACK_COUNT or level < 0:
+		return
+	var book: Dictionary = fight.get("skill", {})
+	var key := str(peer)
+	var row: Array = book.get(key, [0, 0, 0, 0, 0, 0, 0])
+	while row.size() < ToonLoadout.TRACK_COUNT:
+		row.append(0)
+	row[track] = mini(int(row[track]) + level + 1, 10500)
+	book[key] = row
+	fight["skill"] = book
+
+
+func _begin_faceoff(fight: Dictionary) -> void:
+	if (fight["toons"] as Array).is_empty() or (fight["cogs"] as Array).is_empty():
 		fight["state"] = "gone"
 		_mark(fight)
+		return
+	var walk := _face_walk(fight)
+	var lead: Dictionary = (fight["cogs"] as Array)[0]
+	fight["state"] = "faceoff"
+	fight["taunt_for"] = FACEOFF_TAUNT_T
+	fight["walk"] = walk
+	fight["left"] = FACEOFF_TAUNT_T + walk
+	fight["taunt"] = _taunt_line(lead)
+	fight["taunt_cog"] = int(lead.get("id", 0))
+	fight["cam_side"] = 5.0 if randi() % 2 == 0 else -5.0
+	fight["cam_high"] = randi() % 3
+	fight["seq"] = int(fight.get("seq", 0)) + 1
+	_mark(fight)
+
+
+func _face_walk(fight: Dictionary) -> float:
+	var longest := 0.1
+	for item in fight.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		var dist := _flat(_point(cog.get("from", [])), _point(cog.get("slot", [])))
+		longest = maxf(longest, dist / SUIT_SPEED)
+	return longest
+
+
+func _taunt_line(cog: Dictionary) -> String:
+	var code := String(cog.get("code", ""))
+	var lines: Array = _taunts.get(code, _taunts.get("_", ["Boo!"]))
+	if lines.is_empty():
+		return "Boo!"
+	return String(lines[absi(int(cog.get("id", 0))) % lines.size()])
 
 
 func _begin_input(fight: Dictionary) -> void:
@@ -248,17 +476,20 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		return
 	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)))
 	var accuracy := ToonLoadout.gag_accuracy(track, level)
+	var landed := false
 	for cog in targets:
 		var suit: Dictionary = cog
 		if int(suit.get("hp", 0)) <= 0:
 			continue
 		var cog_name := String(suit.get("name", "cog"))
 		if track == 1:
-			suit["trap"] = {"damage": damage, "gag": gag, "by": who}
+			suit["trap"] = {"damage": damage, "gag": gag, "by": who, "owner": int(toon.get("id", 0)), "level": level}
 			beats.append(_beat("%s set a %s on the %s." % [who, gag, cog_name], track, level, toon, suit, true, 0))
+			landed = true
 			continue
 		if track == 2:
-			_lure(fight, toon, suit, gag, accuracy, beats, track, level)
+			if _lure(fight, toon, suit, gag, accuracy, beats, track, level):
+				landed = true
 			continue
 		var lured := bool(suit.get("lured", false))
 		if track == 3 and lured:
@@ -275,19 +506,22 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		if int(suit.get("hp", 0)) <= 0:
 			line += " The %s is defeated." % cog_name
 		beats.append(_beat(line, track, level, toon, suit, true, damage))
+		landed = true
+	if landed and track != 1:
+		_grant(fight, int(toon.get("id", 0)), track, level)
 
 
-func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, accuracy: int, beats: Array, track: int, level: int) -> void:
+func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, accuracy: int, beats: Array, track: int, level: int) -> bool:
 	var who := String(toon.get("name", "A toon"))
 	var cog_name := String(suit.get("name", "cog"))
 	if bool(suit.get("lured", false)) or randi_range(0, 99) >= accuracy:
 		beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
-		return
+		return false
 	suit["lured"] = true
 	beats.append(_beat("%s's %s lured the %s." % [who, gag, cog_name], track, level, toon, suit, true, 0))
 	var trap: Variant = suit.get("trap", {})
 	if not (trap is Dictionary) or (trap as Dictionary).is_empty():
-		return
+		return true
 	var laid: Dictionary = trap
 	var damage := int(laid.get("damage", 0))
 	suit["trap"] = {}
@@ -296,6 +530,8 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, a
 	if int(suit.get("hp", 0)) <= 0:
 		line += " The %s is defeated." % cog_name
 	beats.append(_beat(line, 1, 0, toon, suit, true, damage))
+	_grant(fight, int(laid.get("owner", 0)), 1, int(laid.get("level", 0)))
+	return true
 
 
 func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String, who: String, beats: Array) -> void:
@@ -311,6 +547,7 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		if picked.is_empty():
 			picked = toon
 		targets = [picked]
+	var landed := false
 	for item in targets:
 		var patient: Dictionary = item
 		if int(patient.get("hp", 0)) <= 0:
@@ -325,18 +562,44 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		healed["toon_hp"] = int(patient.get("hp", 0))
 		healed["toon_id"] = int(patient.get("id", 0))
 		beats.append(healed)
+		landed = true
+	if landed:
+		_grant(fight, int(toon.get("id", 0)), track, level)
 
 
-func _attack_label(key: String) -> String:
-	var words := key.split("-")
-	var titled: PackedStringArray = []
-	for word in words:
-		if word == "":
+## SuitBattleGlobals.getSuitAttack. The printed level is getActualLevel, so the
+## table index is that level minus the cog's base level, minus one.
+func _rel_level(suit: Dictionary) -> int:
+	var table: Dictionary = _attack_tables.get(String(suit.get("code", "")), {})
+	var base := int(table.get("base", 0))
+	return clampi(int(suit.get("level", 1)) - base - 1, 0, 4)
+
+
+func _table_at(row: Array, index: int) -> int:
+	if row.is_empty():
+		return 0
+	return int(row[clampi(index, 0, row.size() - 1)])
+
+
+## pickSuitAttack rolls 0-99 against the frequency column for this level.
+func _pick_attack(suit: Dictionary) -> Dictionary:
+	var table: Dictionary = _attack_tables.get(String(suit.get("code", "")), {})
+	var attacks: Array = table.get("attacks", [])
+	if attacks.is_empty():
+		return {}
+	var rel := _rel_level(suit)
+	var roll := randi_range(0, 99)
+	var count := 0
+	var chosen: Dictionary = attacks[attacks.size() - 1]
+	for item in attacks:
+		if not (item is Dictionary):
 			continue
-		titled.append(word.substr(0, 1).to_upper() + word.substr(1))
-	if titled.is_empty():
-		return "an attack"
-	return " ".join(titled)
+		var attack: Dictionary = item
+		count += _table_at(attack.get("freq", []), rel)
+		if roll < count:
+			chosen = attack
+			break
+	return chosen
 
 
 func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
@@ -347,49 +610,79 @@ func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 			living.append(candidate)
 	if living.is_empty():
 		return
-	var victim: Dictionary = living[randi() % living.size()]
-	var level := int(suit.get("level", 1))
-	var files: Array = _attacks_by_code.get(String(suit.get("code", "")), [])
-	var which := 0
-	if not files.is_empty():
-		which = posmod(level + int(fight.get("round", 1)), files.size())
-	else:
-		which = posmod(level, _ATTACK_KEYS.size())
-	var accuracy := mini(70 + mini(level, 5) * 3, 95)
-	var damage := (level + 1) * 2
+	var attack := _pick_attack(suit)
+	var rel := _rel_level(suit)
+	var damage := _table_at(attack.get("hp", []), rel)
+	var accuracy := _table_at(attack.get("acc", []), rel)
+	if attack.is_empty():
+		damage = (int(suit.get("level", 1)) + 1) * 2
+		accuracy = 75
 	var cog_name := String(suit.get("name", "cog"))
-	var anim := String(files[which]) if not files.is_empty() else _ATTACK_KEYS[which]
-	var attack := _attack_label(anim)
-	if randi_range(0, 99) >= accuracy:
-		beats.append({
-			"text": "%s dodged the %s." % [String(victim.get("name", "A toon")), cog_name],
-			"kind": "cog",
-			"hit": false,
-			"cog": int(suit.get("id", 0)),
-			"toon": int(victim.get("id", 0)),
-			"anim": anim,
-			"react": "sidestep-left",
-		})
-		return
-	victim["hp"] = maxi(int(victim.get("hp", 0)) - damage, 0)
-	var line := "The %s used %s on %s for %d damage." % [cog_name, attack, String(victim.get("name", "a toon")), damage]
-	if int(victim.get("hp", 0)) <= 0:
-		line += " %s is sad." % String(victim.get("name", "A toon"))
+	var title := String(attack.get("name", "Glower Power!"))
+	var anim := String(attack.get("anim", "glower"))
+	var targets: Array = living
+	if not bool(attack.get("group", false)):
+		targets = [living[randi() % living.size()]]
+	var victims: Array = []
+	var any_hit := false
+	var any_died := false
+	for item in targets:
+		var victim: Dictionary = item
+		var landed := randi_range(0, 99) < accuracy
+		var row := {
+			"id": int(victim.get("id", 0)),
+			"name": String(victim.get("name", "a toon")),
+			"hit": landed,
+			"damage": 0,
+			"hp": int(victim.get("hp", 0)),
+			"died": false,
+		}
+		if landed:
+			any_hit = true
+			victim["hp"] = maxi(int(victim.get("hp", 0)) - damage, 0)
+			row["damage"] = damage
+			row["hp"] = int(victim.get("hp", 0))
+			row["died"] = int(victim.get("hp", 0)) <= 0
+			if bool(row["died"]):
+				any_died = true
+				row["skill"] = _skill_copy(fight, int(victim.get("id", 0)))
+				_cash_out(fight, victim)
+				ToonNet.persist_zero_gags(_avatar(victim))
+		victims.append(row)
+	var first: Dictionary = victims[0]
+	var line := "The %s used %s" % [cog_name, title]
+	if victims.size() == 1 and bool(first.get("hit", false)):
+		line = "The %s used %s on %s for %d damage." % [cog_name, title, String(first.get("name", "a toon")), int(first.get("damage", 0))]
+		if bool(first.get("died", false)):
+			line += " %s is sad." % String(first.get("name", "A toon"))
+	elif victims.size() == 1:
+		line = "%s dodged the %s." % [String(first.get("name", "A toon")), cog_name]
 	beats.append({
 		"text": line,
 		"kind": "cog",
-		"hit": true,
+		"hit": any_hit,
 		"damage": damage,
 		"cog": int(suit.get("id", 0)),
-		"toon": int(victim.get("id", 0)),
-		"toon_hp": int(victim.get("hp", 0)),
+		"toon": int(first.get("id", 0)),
 		"anim": anim,
-		"react": "cringe",
+		"attack": title,
+		"died": any_died,
+		"victims": victims,
 	})
 
 
 func _finish_movie(fight: Dictionary) -> void:
 	var cogs: Array = fight["cogs"]
+	var total_hp := 0
+	var total_max := 0
+	for item in cogs:
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		total_max += int(cog.get("max_hp", cog.get("hp", 0)))
+		if int(cog.get("hp", 0)) > 0:
+			total_hp += int(cog.get("hp", 0))
+	fight["hurt"] = 0.0 if total_max <= 0 else 100.0 - float(total_hp) / float(total_max) * 100.0
 	var kept: Array = []
 	var traffic := get_parent()
 	for item in cogs:
@@ -407,21 +700,70 @@ func _finish_movie(fight: Dictionary) -> void:
 	for member in fight["toons"]:
 		var toon: Dictionary = member
 		if int(toon.get("hp", 0)) <= 0:
-			toon["hp"] = 1
+			toon["hp"] = 0
+			ToonNet.persist_zero_gags(_avatar(toon))
 		else:
 			toons.append(toon)
 		_persist_one(toon)
 	fight["toons"] = toons
 	_place(fight)
-	if kept.is_empty() or toons.is_empty():
+	if toons.is_empty():
+		fight["reward_rows"] = _reward_rows(fight, toons)
 		fight["state"] = "reward"
-		fight["left"] = 2.4
+		fight["left"] = REWARD_TIME
+		fight["finished"] = []
+		fight["beats"] = []
+		fight["seq"] = int(fight.get("seq", 0)) + 1
+		_mark(fight)
+		return
+	if _join_reserves(fight, kept):
+		return
+	if kept.is_empty():
+		fight["reward_rows"] = _reward_rows(fight, toons)
+		fight["state"] = "reward"
+		fight["left"] = REWARD_TIME
+		fight["finished"] = []
 		fight["beats"] = []
 		fight["seq"] = int(fight.get("seq", 0)) + 1
 		_mark(fight)
 		return
 	fight["round"] = int(fight.get("round", 1)) + 1
 	_begin_input(fight)
+
+
+## DistributedSuitInteriorAI.__handleRoundDone. A reserve joins when the
+## floor has lost at least its join chance in cog laff, and the line is under 4.
+func _join_reserves(fight: Dictionary, kept: Array) -> bool:
+	var reserves: Array = fight.get("reserves", [])
+	if reserves.is_empty() or kept.size() >= 4:
+		return false
+	var hurt := float(fight.get("hurt", 0.0))
+	var joining: Array = []
+	var stay: Array = []
+	for item in reserves:
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		if float(cog.get("join", 100)) <= hurt and kept.size() + joining.size() < 4:
+			joining.append(cog)
+		else:
+			stay.append(cog)
+	fight["reserves"] = stay
+	if joining.is_empty():
+		return false
+	var ids: Array = []
+	for cog in joining:
+		_add_cog(fight, cog)
+		ids.append(int((cog as Dictionary).get("id", 0)))
+	_place(fight)
+	fight["joining"] = ids
+	fight["state"] = "reserves"
+	fight["left"] = 3.0
+	fight["beats"] = []
+	fight["choices"] = []
+	fight["seq"] = int(fight.get("seq", 0)) + 1
+	_mark(fight)
+	return true
 
 
 ## Lengths match GagMovie. A group gag plays once, so the extra hits take no extra time.
@@ -458,35 +800,8 @@ func _same_gag(lead: Dictionary, other: Variant) -> bool:
 
 
 func _beat_dur(beat: Dictionary) -> float:
-	var kind := String(beat.get("kind", ""))
-	if kind == "run" or kind == "lured":
-		return 1.3
-	if kind == "cog":
-		return 3.8
-	var track := int(beat.get("track", -1))
-	var level := int(beat.get("level", 0))
-	if track == 4:
-		return 4.8
-	if track == 5 and level == 0:
-		return 3.6
-	if track == 5 and level == 4:
-		return 5.0
-	if track == 5 and level >= 5:
-		return 4.2
-	if track == 5:
-		return 3.6
-	if track == 6:
-		return 5.6
-	if track == 1:
-		return 3.6
-	if track == 2:
-		return 4.2
-	if track == 3:
-		return 4.2
-	if track == 0:
-		var heal_time: Array[float] = [3.2, 3.6, 3.4, 6.4, 4.6, 7.7, 9.0]
-		return heal_time[clampi(level, 0, heal_time.size() - 1)]
-	return 2.2
+	# Toon.getDiedInterval starts at the hit. The movie stays up through the shrink.
+	return GagMovie.seconds(String(beat.get("kind", "")), int(beat.get("track", -1)), int(beat.get("level", 0)), bool(beat.get("died", false)))
 
 
 func _beat(text: String, track: int, level: int, toon: Dictionary, cog: Dictionary, hit: bool, damage: int, react: String = "auto") -> Dictionary:
@@ -612,26 +927,60 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 		"max_hp": hp,
 		"lured": false,
 		"trap": {},
+		"dept": String(cog.get("dept", "c")),
+		"body": String(cog.get("body", "c")),
+		"height": float(cog.get("height", 4.0)),
+		"from": cog.get("pos", [0.0, 0.0, 0.0]),
 		"slot": cog.get("pos", [0.0, 0.0, 0.0]),
 	})
 
 
 func _place(fight: Dictionary) -> void:
 	var origin := _point(fight.get("origin", []))
+	var yaw := float(fight.get("yaw", 180.0))
+	var forward := _battle_forward(yaw)
+	var right := Vector3.UP.cross(forward)
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
 	var cogs: Array = fight.get("cogs", [])
 	var toons: Array = fight.get("toons", [])
+	var suit_row: Array = _SUIT_POINTS[clampi(cogs.size(), 1, 4) - 1]
+	var toon_row: Array = _TOON_POINTS[clampi(toons.size(), 1, 4) - 1]
 	for index in cogs.size():
 		var cog: Dictionary = cogs[index]
-		cog["slot"] = _slot(origin, index, cogs.size(), 4.0)
+		var spot: Vector2 = suit_row[mini(index, suit_row.size() - 1)] as Vector2
+		cog["slot"] = _battle_slot(origin, right, forward, spot)
 	for index in toons.size():
 		var toon: Dictionary = toons[index]
-		toon["slot"] = _slot(origin, index, toons.size(), -7.0)
+		var spot: Vector2 = toon_row[mini(index, toon_row.size() - 1)] as Vector2
+		toon["slot"] = _battle_slot(origin, right, forward, spot)
 
 
-func _slot(origin: Vector3, index: int, count: int, side: float) -> Array:
-	var span := 3.4
-	var start := -span * float(count - 1) * 0.5
-	return [origin.x + start + span * float(index), origin.y, origin.z + side]
+func _battle_slot(origin: Vector3, right: Vector3, forward: Vector3, spot: Vector2) -> Array:
+	var placed := origin + right * spot.x + forward * spot.y
+	placed.y = origin.y
+	return [placed.x, placed.y, placed.z]
+
+
+func _opening_yaw(cog_pos: Vector3) -> float:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return 180.0
+	var body := scene.find_child("Player", true, false) as Node3D
+	if body == null:
+		return 180.0
+	var flat := Vector2(cog_pos.x - body.global_position.x, cog_pos.z - body.global_position.z)
+	if flat.length_squared() < 0.04:
+		return 180.0
+	return rad_to_deg(atan2(-flat.x, -flat.y))
+
+
+func _battle_forward(heading: float) -> Vector3:
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))
+	return upright * Vector3(0, 1, 0)
 
 
 func _all_chosen(fight: Dictionary) -> bool:

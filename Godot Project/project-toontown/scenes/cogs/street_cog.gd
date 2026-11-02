@@ -300,6 +300,10 @@ func hold_fight(held: bool, point: Vector3, yaw: float) -> void:
 	rotation.y = yaw
 
 
+func march(walking: bool) -> void:
+	_fight_key = "walk" if walking else ""
+
+
 func begin_react(key: String, elapsed: float) -> void:
 	_fight_key = key
 	_fight_time = elapsed
@@ -385,7 +389,9 @@ func _street_stay(count: int) -> int:
 
 func _process(delta: float) -> void:
 	if bool(get_meta("in_fight", false)):
-		if _fight_key != "":
+		if _fight_key == "walk":
+			_march(delta)
+		elif _fight_key != "":
 			play_attack(_fight_key, _fight_time)
 		else:
 			_idle(delta)
@@ -673,6 +679,18 @@ func _face(toward: Vector2) -> void:
 	rotation.y = atan2(-toward.x, -toward.y)
 
 
+func _march(delta: float) -> void:
+	var frames := int(_walk.get("frames", 1))
+	if frames <= 1:
+		_idle(delta)
+		return
+	_walk_time = fposmod(_walk_time + delta * _walk_fps, float(frames))
+	var frame := int(_walk_time)
+	if frame >= frames:
+		frame = 0
+	_pose_clip(_walk, frame, (frame + 1) % frames, _walk_time - float(frame))
+
+
 func _idle(delta: float) -> void:
 	var frames := int(_neutral.get("frames", 1))
 	if frames <= 1:
@@ -921,7 +939,9 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 	if _detail == 0:
 		bank["shown"] = -1
 		return
-	var fraction := clampf(blend, 0.0, 1.0)
+	# Suits at the far end of a block snap to the clip frame. Blending every
+	# joint, every frame, is what kept a crowded street under the refresh rate.
+	var fraction := 0.0 if _detail < 2 else clampf(blend, 0.0, 1.0)
 	# Each frame is a finished mesh shared by every suit on that body. Swapping
 	# it does not rewrite vertex buffers, which was both corrupting the pose
 	# and stalling the street.
@@ -970,9 +990,19 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 			var nxt := _joint_at(record, following)
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
 			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, fraction)
-		var bind: Transform3D = record["bind"]
+		var stamp := frame * 1000 + int(fraction * 20.0)
+		if int(record.get("stamp", -1)) == stamp:
+			continue
+		record["stamp"] = stamp
+		var bind_inv := Transform3D.IDENTITY
+		if record.has("bind_inv"):
+			bind_inv = record["bind_inv"] as Transform3D
+		else:
+			var bind: Transform3D = record["bind"]
+			bind_inv = bind.affine_inverse()
+			record["bind_inv"] = bind_inv
 		var rest: Transform3D = record["rest"]
-		joint.transform = rest * bind.affine_inverse() * posed_frame
+		joint.transform = rest * bind_inv * posed_frame
 
 
 func _camera_detail() -> int:
@@ -987,8 +1017,9 @@ func _camera_detail() -> int:
 	# the clip every frame, including one at the far end of the street.
 	if dist2 > 16.0 * 16.0 and cam.is_position_behind(chest) and not cam.is_position_in_frustum(chest):
 		return 0
-	# The pose changes with the clip, about 24 times a second. Suits on screen
-	# all get that update. Off-screen suits hold the last one.
+	# Close suits blend. The rest of the block holds the current clip frame.
+	if dist2 < 20.0 * 20.0 and cam.is_position_in_frustum(chest):
+		return 2
 	return 1
 
 

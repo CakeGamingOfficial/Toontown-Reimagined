@@ -39,6 +39,37 @@ static func set_laff(av_id: int, hp: int, max_hp: int) -> void:
 	store(av_id, row)
 
 
+static func zero_gags(av_id: int) -> void:
+	var row := recall(av_id)
+	if row.is_empty():
+		return
+	var counts: Array = row.get("counts", [])
+	for track in counts.size():
+		if not (counts[track] is Array):
+			continue
+		var pocket: Array = counts[track]
+		for level in pocket.size():
+			pocket[level] = 0
+		counts[track] = pocket
+	row["counts"] = counts
+	store(av_id, row)
+
+
+static func merge_exp(av_id: int, record: Dictionary) -> Dictionary:
+	var existing := recall(av_id)
+	if existing.is_empty():
+		return record
+	var left: Array = existing.get("exp", []) if existing.get("exp", []) is Array else []
+	var right: Array = record.get("exp", []) if record.get("exp", []) is Array else []
+	var merged: Array = []
+	for track in ToonLoadout.TRACK_COUNT:
+		var kept := int(left[track]) if track < left.size() else 0
+		var incoming := int(right[track]) if track < right.size() else 0
+		merged.append(maxi(kept, incoming))
+	record["exp"] = merged
+	return record
+
+
 static func spend_gag(av_id: int, track: int, level: int) -> void:
 	var row := recall(av_id)
 	if row.is_empty() or track < 0 or level < 0:
@@ -52,10 +83,17 @@ static func spend_gag(av_id: int, track: int, level: int) -> void:
 	pocket[level] = int(pocket[level]) - 1
 	counts[track] = pocket
 	row["counts"] = counts
-	var experience: Array = row.get("exp", [])
-	while experience.size() <= track:
-		experience.append(0)
-	experience[track] = int(experience[track]) + ToonLoadout.SKILL_CREDIT
+	store(av_id, row)
+
+
+static func set_exp(av_id: int, amounts: Array) -> void:
+	var row := recall(av_id)
+	if row.is_empty():
+		return
+	var experience: Array = []
+	for track in ToonLoadout.TRACK_COUNT:
+		var amount := int(amounts[track]) if track < amounts.size() else 0
+		experience.append(clampi(amount, 0, 10500))
 	row["exp"] = experience
 	store(av_id, row)
 

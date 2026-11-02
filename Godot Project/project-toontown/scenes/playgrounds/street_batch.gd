@@ -226,6 +226,34 @@ static func _landmark(node_name: String) -> bool:
 	return lowered.contains("toon_landmark") or lowered.contains("animated_building")
 
 
+static func flatten_prop(root: Node3D) -> void:
+	if root == null:
+		return
+	_flatten_landmark(root)
+
+
+static func sweep_empty(root: Node) -> void:
+	# Batching nulls the source meshes and leaves the nodes. A street is a few
+	# thousand of those, and the renderer still walks every one.
+	var guard := 0
+	while guard < 6:
+		guard += 1
+		var drop: Array[Node] = []
+		_gather_empty(root, drop)
+		if drop.is_empty():
+			return
+		for item in drop:
+			if is_instance_valid(item) and item != root:
+				item.free()
+
+
+static func _gather_empty(node: Node, drop: Array[Node]) -> void:
+	for child in node.get_children():
+		_gather_empty(child, drop)
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh == null and node.get_child_count() == 0 and not node.has_meta("street_batched") and not "door" in String(node.name).to_lower():
+		drop.append(node)
+
+
 static func _flatten_landmark(landmark: Node3D) -> void:
 	if landmark.has_meta("landmark_flat"):
 		return
@@ -240,8 +268,9 @@ static func _flatten_landmark(landmark: Node3D) -> void:
 			continue
 		_instance(landmark, mesh)
 	for mesh in taken:
+		# Keep the node visible. Door cards are children of the wall, and
+		# hiding the wall hides the door even though its own mesh is still there.
 		mesh.mesh = null
-		mesh.visible = false
 	landmark.set_meta("landmark_flat", true)
 
 
@@ -250,6 +279,10 @@ static func _leave_alone(node_name: String) -> bool:
 	if _landmark(lowered):
 		return true
 	if lowered.contains("__billboard") or lowered.contains("drop_shadow") or lowered.contains("sky"):
+		return true
+	# The painted door and its frame sit on the wall mesh. Folding them into
+	# that mesh and then hiding the wall node removes the door and leaves a hole.
+	if "door" in lowered:
 		return true
 	while lowered.ends_with("_") or (lowered.length() > 0 and lowered.substr(lowered.length() - 1, 1).is_valid_int()):
 		lowered = lowered.substr(0, lowered.length() - 1)
@@ -399,6 +432,7 @@ static func _bucket_shared(job: Job, material: Material, has_uv: bool, has_color
 	bucket.has_uv = has_uv
 	bucket.has_color = has_color
 	bucket.material = material
+	_relax_filter(bucket.material)
 	job.buckets[key] = bucket
 	return bucket
 
@@ -421,8 +455,17 @@ static func _bucket(job: Job, material: Material, has_uv: bool, has_color: bool)
 		bucket.material = copy
 	else:
 		bucket.material = material
+	_relax_filter(bucket.material)
 	job.buckets[key] = bucket
 	return bucket
+
+
+## Anisotropic 16 on a sidewalk seen down its length samples the texture many
+## times per pixel. The street is that view. Mipmaps without it stay sharp
+## enough and the block stops filling the frame rate.
+static func _relax_filter(material: Material) -> void:
+	if material is BaseMaterial3D:
+		(material as BaseMaterial3D).texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 
 static func _key(material: Material) -> String:

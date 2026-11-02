@@ -126,6 +126,10 @@ TOON_ANIMS = [
     ("toss", "phase_5", "toss"),
     ("hold-magnet", "phase_5", "hold-magnet"),
     ("hypnotize", "phase_5", "hypnotize"),
+    # Toon.getDiedInterval plays lose, then the playground Sad state uses these.
+    ("lose", "phase_5", "lose"),
+    ("sad-neutral", "phase_4", "sad-neutral"),
+    ("sad-walk", "phase_4", "losewalk"),
 ]
 
 # suitC files. Flunky is a C body. Tutorial reacts live in phase 4;
@@ -154,6 +158,7 @@ SOUNDS = [
     "phase_3.5/audio/sfx/AV_side_step.mp3",
     "phase_3.5/audio/sfx/Cog_Death.mp3",
     "phase_3.5/audio/sfx/ENC_cogfall_apart.mp3",
+    "phase_5/audio/sfx/ENC_Lose.ogg",
 ]
 
 
@@ -453,6 +458,7 @@ def export_added() -> int:
         "battlecast", "water-gun", "hold-bottle", "firehose", "spit", "tickle",
         "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "sound",
         "toss", "hold-magnet", "hypnotize",
+        "lose", "sad-neutral", "sad-walk",
     }
     for suffix, phase, anim in TOON_ANIMS:
         if suffix not in added_anims:

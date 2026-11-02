@@ -183,8 +183,13 @@ func _ready() -> void:
 		if traffic != null and traffic.has_method("prepare_buildings"):
 			traffic.call("prepare_buildings", district_id, street_slug, _data)
 	_pull()
-	if _active.is_empty():
-		set_process(false)
+	if get_parent() != null and get_parent().get_node_or_null("CogBuilding") == null:
+		var rider: Node = load("res://scenes/buildings/cog_building.gd").new()
+		rider.name = "CogBuilding"
+		get_parent().add_child(rider)
+	# Settled towers sit outside the visgroup, so culling has to keep running
+	# after the drop finishes or every tower on the street stays drawn.
+	set_process(not _actors.is_empty() or not _active.is_empty())
 
 
 func _on_net(channel: String) -> void:
@@ -197,10 +202,11 @@ func _process(_delta: float) -> void:
 		set_process(false)
 		return
 	_pull()
-	if _active.is_empty():
+	if not _active.is_empty():
+		_animate()
+	_cull_towers()
+	if _active.is_empty() and _actors.is_empty():
 		set_process(false)
-		return
-	_animate()
 
 
 func _pull() -> void:
@@ -377,6 +383,9 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	_dress(building, row)
 	_use_vertex_colors(building)
 	_quiet(building)
+	# One surface per texture. The elevator alone was a dozen separate draws,
+	# and every taken block on the street paid that cost.
+	preload("res://scenes/playgrounds/street_batch.gd").flatten_prop(building)
 	_actors[block] = building
 	return building
 
@@ -476,6 +485,32 @@ func _paint(node: Node, mat: Material) -> void:
 
 ## The street already has its own shadows. A suit tower that casts them
 ## redraws the block every frame.
+## The tower is parented beside the street, not inside the visgroup, so hiding
+## the block did not hide it. Follow the zone the shop lives in.
+func _cull_towers() -> void:
+	for block in _actors.keys():
+		var building: Variant = _actors[block]
+		if not (building is Node3D) or not is_instance_valid(building):
+			continue
+		var landmark: Node = _landmarks.get(block)
+		var show := true
+		if landmark != null and is_instance_valid(landmark):
+			show = _zone_shown(landmark)
+		var actor := building as Node3D
+		if actor.visible != show:
+			actor.visible = show
+
+
+func _zone_shown(landmark: Node) -> bool:
+	var current: Node = landmark
+	while current != null:
+		var node_name := String(current.name)
+		if node_name.length() >= 4 and node_name.is_valid_int() and current is Node3D:
+			return (current as Node3D).is_visible_in_tree()
+		current = current.get_parent()
+	return true
+
+
 func _quiet(node: Node) -> void:
 	if node is GeometryInstance3D:
 		var geom := node as GeometryInstance3D
@@ -641,6 +676,39 @@ func _show_story(elevator: Node, story: int) -> void:
 			color = _LIGHT_ON
 		_paint_bulb(light, color)
 	_set_doors(elevator, story >= 0)
+
+
+func elevator_spot(block: int) -> Vector3:
+	var have: Variant = _actors.get(block)
+	if not (have is Node3D) or not is_instance_valid(have):
+		return Vector3.ZERO
+	var building := have as Node3D
+	var door := _find(building, "elevator")
+	if door == null:
+		return building.global_position
+	return door.global_position
+
+
+func set_doors(block: int, closed: float) -> void:
+	var have: Variant = _actors.get(block)
+	if not (have is Node) or not is_instance_valid(have):
+		return
+	if not (have as Node).has_meta("elevator"):
+		return
+	var elevator: Node = (have as Node).get_meta("elevator")
+	if not is_instance_valid(elevator):
+		return
+	var slide := _DOOR_SLIDE * clampf(closed, 0.0, 1.0)
+	var left := _find(elevator, "left-door")
+	if left == null:
+		left = _find(elevator, "left_door")
+	var right := _find(elevator, "right-door")
+	if right == null:
+		right = _find(elevator, "right_door")
+	if left != null:
+		left.position.x = slide
+	if right != null:
+		right.position.x = -slide
 
 
 func set_story(block: int, story: int) -> void:

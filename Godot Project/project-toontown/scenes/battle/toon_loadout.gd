@@ -159,6 +159,14 @@ func set_gag(track: int, level: int, amount: int, owned: bool) -> void:
 	_counts[track][level] = maxi(amount, 0)
 
 
+## InventoryBase.zeroInv. Going sad empties every pocket, including the level 7 gag.
+func zero_gags() -> void:
+	for track in TRACK_COUNT:
+		for level in LEVEL_COUNT:
+			if _valid(track, level):
+				_counts[track][level] = 0
+
+
 func spend_gag(track: int, level: int) -> bool:
 	if count_of(track, level) <= 0:
 		return false

@@ -60,6 +60,8 @@ var _idle_joints: Array = []
 var _idle_loaded := false
 var _idle_missing := false
 var _posing := false
+var _pose_lock := false
+var _sad := false
 var _clip := ""
 var _jump_kind := ""
 var _land_kind := ""
@@ -126,6 +128,7 @@ func show_style(style: ToonStyle) -> void:
 	_idle_loaded = false
 	_idle_missing = false
 	_posing = false
+	_pose_lock = false
 	_clip = ""
 	_jump_kind = ""
 	_land_kind = ""
@@ -248,12 +251,32 @@ func play_run(delta: float) -> void:
 	_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
 
 
+func set_sad(sad: bool) -> void:
+	_sad = sad
+	set_expression("sad" if sad else "normal")
+
+
+func is_sad() -> bool:
+	return _sad
+
+
 func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: float) -> void:
 	if _style == null:
 		return
 	# The face tick plays dog ears on its own unless locomotion just posed them.
 	_locomotion_msec = Time.get_ticks_msec()
+	if _pose_lock:
+		return
 	_ensure_clips()
+	if _sad:
+		set_expression("sad")
+		_footsteps(forward_speed, turning)
+		var moving := absf(forward_speed) > _WALK_SPEED or turning
+		if moving and _play_bank("sad-walk", 1.2 if forward_speed >= 0.0 else -1.0, delta):
+			return
+		if not moving and _play_bank("sad-neutral", 1.0, delta):
+			return
+		jumping = false
 	_look_enabled = _gesture == ""
 	if _gesture != "":
 		_play_bank(_gesture, _gesture_rate, delta, _gesture_loop)
@@ -435,7 +458,7 @@ func _ensure_clips() -> void:
 	if not load_extra_clips:
 			return
 	# Extra clips have to load with the walk, while the joints are still at rest.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -503,6 +526,7 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	var clips: Array = bank.get("clips", [])
 	if frames <= 1 or clips.is_empty():
 		return
+	_pose_lock = true
 	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
 	var frame := mini(int(time), frames - 1)
 	var following := mini(frame + 1, frames - 1)
@@ -553,6 +577,7 @@ func end_action(suffix: String) -> void:
 	if _clip == suffix:
 		_clip = ""
 		_posing = false
+		_pose_lock = false
 
 
 func _play_idle(delta: float) -> void:

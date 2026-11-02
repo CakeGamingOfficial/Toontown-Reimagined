@@ -33,6 +33,7 @@ func build_street(flat: bool) -> void:
 	else:
 		_BATCH.apply(self)
 	_add_collision(self)
+	_BATCH.sweep_empty(self)
 
 
 func _on_street() -> bool:

@@ -38,6 +38,9 @@ func _ready() -> void:
 	var fights: Node = load("res://scenes/battle/street_fights.gd").new()
 	fights.name = "StreetFights"
 	add_child(fights)
+	var runs: Node = load("res://scenes/buildings/building_runs.gd").new()
+	runs.name = "BuildingRuns"
+	add_child(runs)
 
 
 ## Parked suits in one district. The live street adds the suits it is drawing.
@@ -275,6 +278,28 @@ func claim_takeover(district: int, slug: String) -> Dictionary:
 	pending.append(int(picked.get("block", 0)))
 	_pending[key] = pending
 	return picked
+
+
+## The toons cleared the top floor. The shop comes back and another takeover can start.
+func retake_building(district: int, slug: String, block: int) -> void:
+	if not ToonNet.is_authority():
+		return
+	var rows: Array = []
+	for item in building_rows(district, slug):
+		if item is Dictionary and int((item as Dictionary).get("block", 0)) == block:
+			continue
+		rows.append(item)
+	keep_buildings(district, slug, rows)
+
+
+func block_pos(district: int, slug: String, block: int) -> Array:
+	var plan: Dictionary = _plans.get(_key(district, slug), {})
+	for item in plan.get("blocks", []):
+		if item is Dictionary and int((item as Dictionary).get("block", 0)) == block:
+			var pos: Variant = (item as Dictionary).get("pos", [])
+			if pos is Array:
+				return pos
+	return [0.0, 0.0, 0.0]
 
 
 func release_takeover(district: int, slug: String, block: int) -> void:

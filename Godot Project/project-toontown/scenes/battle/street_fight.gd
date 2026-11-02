@@ -5,15 +5,23 @@ extends Node
 
 const REACH := 6.0
 const JOIN_REACH := 20.0
+## Movie.play runs for anyone who can see the battle. The camera track is
+## added only when the local toon is pending or active.
+const WATCH_REACH := 60.0
 const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
 const BATTLE_VOLUME := 0.9
 const PLACE_VOLUME := 0.8
+const _LOSE := "res://assets/audio/battle/ENC_Lose.ogg"
+const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _PLACES := preload("res://scenes/places/hood_places.gd")
+## Toon.getDiedInterval: lose, ENC_Lose at 2s, then a 1.5s shrink starting at 5.333.
+const _LOSE_SHRINK := 5.333
+const _LOSE_END := 6.833
 
 var _layer: CanvasLayer
-var _panels: Control
 var _banner: Label
-var _timer: Label
-var _targets: VBoxContainer
+var _hud: BattleHud
+var _reward: RewardPanel
 var _menu: BattleMenu
 var _fight: Dictionary = {}
 var _asking := false
@@ -22,7 +30,6 @@ var _pending := Vector2i(-1, -1)
 var _need_target := false
 var _sent_seq := -1
 var _spent_seq := -1
-var _credit_seq := -1
 var _movie_seq := -1
 var _show_gen := 0
 var _gags
@@ -36,6 +43,20 @@ var _clock_key := ""
 var _clock_left := 0.0
 var _clock_age := 0.0
 var _ask_wait := 0.0
+var _saved_fov := -1.0
+var _reward_seq := -1
+var _reward_token := 0
+var _paid_key := ""
+var _dance := 0.0
+var _dying := false
+var _sad_started: Dictionary = {}
+var _face_key := ""
+var _face_left := 0.0
+var _face_age := 0.0
+var _face_elapsed := 0.0
+var _face_from: Dictionary = {}
+var _face_spoke := ""
+static var sad_fight := -1
 
 
 static func attach(host: Node) -> void:
@@ -57,19 +78,18 @@ func _ready() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(root)
-	_panels = Control.new()
-	_panels.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_panels.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_panels)
 	_banner = _caption(root)
-	_timer = _caption(root)
-	_targets = VBoxContainer.new()
-	_targets.alignment = BoxContainer.ALIGNMENT_CENTER
-	_targets.visible = false
-	root.add_child(_targets)
 	_menu = BattleMenu.new()
 	_menu.visible = false
+	_menu.z_index = 2
 	root.add_child(_menu)
+	_hud = BattleHud.new()
+	_hud.bind_host(self)
+	_hud.chose.connect(_on_target)
+	_hud.backed.connect(_on_back)
+	root.add_child(_hud)
+	_reward = RewardPanel.new()
+	root.add_child(_reward)
 	_gags = load("res://scenes/battle/gag_movie.gd").new()
 	_gags.name = "GagMovie"
 	add_child(_gags)
@@ -82,6 +102,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_cool = maxf(_cool - delta, 0.0)
 	_ask_wait = maxf(_ask_wait - delta, 0.0)
+	if _dying:
+		return
 	var rows := _rows()
 	var fight := _joined(rows)
 	var mine := not fight.is_empty()
@@ -91,32 +113,32 @@ func _process(delta: float) -> void:
 		toon.call("unpin_remotes")
 	for item in rows:
 		if item is Dictionary:
-			_place_bodies(item)
+			_place_bodies(item, delta)
+			if String((item as Dictionary).get("state", "")) == "reward":
+				_apply_my_reward(item)
 	_release_idle(rows)
 	if not mine:
-		_clear_movie()
-		_show_panels([])
-		_banner.text = ""
-		_timer.text = ""
-		_targets.visible = false
-		_stop_music()
-		_scan += delta
-		if _scan < 0.35:
-			return
-		_scan = 0.0
-		var opening := _joinable(rows)
-		if opening.is_empty():
-			_try_start()
-		else:
-			_fight = opening
-			_try_join(opening, false)
+		_watch(rows, delta)
 		return
 	_fight = fight
-	_start_music()
-	_timer.text = _clock(fight, delta)
-	_show_panels(fight.get("toons", []))
+	_aim_camera(fight)
+	var battle_state := String(fight.get("state", ""))
+	if int(fight.get("building", 0)) != 0 and battle_state == "reward":
+		_stop_music()
+	else:
+		_start_music()
+	if battle_state == "faceoff" or battle_state == "reserves":
+		_hud.hide_all()
+		_banner.text = "More Cogs are coming!" if battle_state == "reserves" else ""
+		if _asking and _menu != null:
+			_menu.cancel()
+			_asking = false
+		return
+	_show_hud(fight, delta)
 	_spend(fight)
 	_play(fight, delta)
+	if String(fight.get("state", "")) == "movie":
+		_aim_camera(fight)
 	_choose(fight, true)
 
 
@@ -140,6 +162,60 @@ func _joined(rows: Array) -> Dictionary:
 	return {}
 
 
+## A bystander keeps the follow camera and never gets the gag menu. The
+## face-off, the movies, and the victory dance still play in the world.
+func _watch(rows: Array, delta: float) -> void:
+	_hud.hide_all()
+	_stop_music()
+	if _asking and _menu != null:
+		_menu.cancel()
+		_asking = false
+	var watching := _watchable(rows)
+	var watching_id := int(watching.get("id", -1))
+	var current_id := int(_fight.get("id", -2))
+	if watching.is_empty():
+		if _movie_seq != -1 or not _fight.is_empty():
+			_show_gen += 1
+			_clear_movie()
+			_banner.text = ""
+	else:
+		if watching_id != current_id:
+			_show_gen += 1
+			_clear_movie()
+		_fight = watching
+		if String(watching.get("state", "")) != "movie":
+			_banner.text = ""
+		_play(watching, delta)
+	_scan += delta
+	if _scan < 0.35:
+		return
+	_scan = 0.0
+	var opening := _joinable(rows)
+	if opening.is_empty():
+		_try_start()
+	else:
+		_try_join(opening, false)
+
+
+func _watchable(rows: Array) -> Dictionary:
+	var here := _point()
+	var best: Dictionary = {}
+	var best_dist := WATCH_REACH
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var fight: Dictionary = item
+		var state := String(fight.get("state", ""))
+		if state != "faceoff" and state != "input" and state != "movie" and state != "reward":
+			continue
+		var origin := _vec(fight.get("origin", []))
+		var dist := Vector2(origin.x - here.x, origin.z - here.z).length()
+		if dist <= best_dist:
+			best = fight
+			best_dist = dist
+	return best
+
+
 func _joinable(rows: Array) -> Dictionary:
 	var here := _point()
 	var best: Dictionary = {}
@@ -148,7 +224,8 @@ func _joinable(rows: Array) -> Dictionary:
 		if not (item is Dictionary):
 			continue
 		var fight: Dictionary = item
-		if String(fight.get("state", "")) != "join":
+		var opening_state := String(fight.get("state", ""))
+		if opening_state != "faceoff" and opening_state != "input":
 			continue
 		var origin := _vec(fight.get("origin", []))
 		var dist := Vector2(origin.x - here.x, origin.z - here.z).length()
@@ -195,7 +272,8 @@ func _try_start() -> void:
 
 
 func _try_join(fight: Dictionary, mine: bool) -> void:
-	if mine or _ask_wait > 0.0 or _busy() or String(fight.get("state", "")) != "join":
+	var join_state := String(fight.get("state", ""))
+	if mine or _ask_wait > 0.0 or _busy() or (join_state != "faceoff" and join_state != "input"):
 		return
 	var origin := _vec(fight.get("origin", []))
 	var here := _point()
@@ -217,7 +295,7 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 			_menu.cancel()
 		if state != "input":
 			_need_target = false
-			_targets.visible = false
+			_hud.hide_choose()
 		return
 	var toon := _toon()
 	if toon == null:
@@ -226,8 +304,7 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 	if loadout == null or loadout.hp <= 0:
 		return
 	if _need_target and _ask_seq == seq:
-		if not _targets.visible:
-			_show_targets(fight, loadout)
+		_show_targets(fight)
 		return
 	if _asking:
 		return
@@ -252,48 +329,65 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 		return
 	_pending = pick
 	_need_target = true
-	_show_targets(_fight, loadout)
+	_show_targets(_fight)
 
 
-func _show_targets(fight: Dictionary, loadout: ToonLoadout) -> void:
-	for child in _targets.get_children():
-		child.queue_free()
+func _show_targets(fight: Dictionary) -> void:
 	var track := _pending.x
-	var prompt := Label.new()
-	prompt.text = "Click a toon" if track == ToonLoadout.TOON_UP else "Click a cog"
-	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prompt.add_theme_font_override("font", ToonGui.font())
-	prompt.add_theme_font_size_override("font_size", 22)
-	_targets.add_child(prompt)
-	if track == ToonLoadout.TOON_UP:
-		for item in fight.get("toons", []):
-			var toon: Dictionary = item
-			if int(toon.get("hp", 0)) <= 0:
-				continue
-			_target_button(String(toon.get("name", "Toon")), int(toon.get("id", 0)), loadout)
-	else:
-		for item in fight.get("cogs", []):
-			var cog: Dictionary = item
-			if int(cog.get("hp", 0)) <= 0:
-				continue
-			var title := "Level %d %s" % [int(cog.get("level", 1)), String(cog.get("name", "Cog"))]
-			_target_button(title, int(cog.get("id", 0)), loadout)
-	_targets.visible = true
-	_layout()
+	var toons := track == ToonLoadout.TOON_UP
+	var rows: Array = fight.get("toons", []) if toons else fight.get("cogs", [])
+	var invalid := PackedInt32Array()
+	var skip := -1
+	for index in rows.size():
+		if not (rows[index] is Dictionary):
+			invalid.append(index)
+			continue
+		var body: Dictionary = rows[index]
+		if int(body.get("hp", 0)) <= 0:
+			invalid.append(index)
+		elif not toons and _blocked_cog(body, track):
+			invalid.append(index)
+		elif toons and int(body.get("id", 0)) == ToonNet.peer_id():
+			skip = index
+	_hud.show_choose(toons, rows.size(), invalid, skip)
 
 
-func _target_button(title: String, target: int, loadout: ToonLoadout) -> void:
-	var button := Button.new()
-	button.text = title
-	button.custom_minimum_size = Vector2(280, 36)
-	button.pressed.connect(_send.bind(_pending.x, _pending.y, target, loadout.experience_of(_pending.x)))
-	_targets.add_child(button)
+## A lured cog cannot be lured or trapped again, and a trapped cog cannot take another trap.
+func _blocked_cog(cog: Dictionary, track: int) -> bool:
+	var lured := bool(cog.get("lured", false))
+	var trapped := cog.get("trap", {}) is Dictionary and not (cog.get("trap", {}) as Dictionary).is_empty()
+	if lured and (track == 1 or track == 2):
+		return true
+	return trapped and track == 1
+
+
+func _on_target(slot: int) -> void:
+	var toons := _pending.x == ToonLoadout.TOON_UP
+	var rows: Array = _fight.get("toons", []) if toons else _fight.get("cogs", [])
+	if slot < 0 or slot >= rows.size() or not (rows[slot] is Dictionary):
+		return
+	var loadout := _loadout()
+	var exp := 0 if loadout == null else loadout.experience_of(_pending.x)
+	_send(_pending.x, _pending.y, int((rows[slot] as Dictionary).get("id", 0)), exp)
+
+
+func _on_back() -> void:
+	_need_target = false
+	_pending = Vector2i(-1, -1)
+	_hud.hide_choose()
+	_asking = false
+
+
+func _loadout() -> ToonLoadout:
+	var toon := _toon()
+	if toon == null:
+		return null
+	return toon.call("battle_loadout")
 
 
 func _send(track: int, level: int, target: int, exp: int) -> void:
 	_need_target = false
-	_targets.visible = false
-	_sent_seq = int(_fight.get("seq", -1))
+	_hud.hide_choose()
 	ToonNet.ask_gag(int(_fight.get("id", 0)), track, level, target, exp)
 
 
@@ -321,6 +415,9 @@ func _play(fight: Dictionary, _delta: float) -> void:
 	var state := String(fight.get("state", ""))
 	var seq := int(fight.get("seq", 0))
 	if state != "movie":
+		var movie := _gags as GagMovie
+		if movie != null:
+			movie.end_aim()
 		if _movie_seq != -1:
 			_show_gen += 1
 			_movie_seq = -1
@@ -331,7 +428,15 @@ func _play(fight: Dictionary, _delta: float) -> void:
 			_remember(fight, false)
 	if state == "reward":
 		_banner.text = "You did it!" if _mine(fight) else ""
-		_pose_local("victory", 0.0)
+		_banner.text = ""
+		if _reward_seq != seq:
+			_reward_seq = seq
+			_dance = 0.0
+			if _mine(fight):
+				_reward_token += 1
+				_show_reward(fight, _reward_token)
+		_dance += _delta
+		_pose_roster(fight, "victory", _dance)
 		return
 	if state != "movie" or _movie_seq == seq:
 		return
@@ -401,6 +506,28 @@ func _actor_for(peer: int) -> ToonActor:
 
 
 func _apply_beat(beat: Dictionary) -> void:
+	var victims: Array = beat.get("victims", [])
+	if victims.is_empty():
+		_apply_one(beat)
+		return
+	for item in victims:
+		if not (item is Dictionary):
+			continue
+		var victim: Dictionary = item
+		var row := {
+			"cog": int(beat.get("cog", 0)),
+			"toon": int(victim.get("id", 0)),
+			"toon_id": int(victim.get("id", 0)),
+			"hit": bool(victim.get("hit", false)),
+			"died": bool(victim.get("died", false)),
+			"skill": victim.get("skill", []),
+		}
+		if bool(victim.get("hit", false)):
+			row["toon_hp"] = int(victim.get("hp", 0))
+		_apply_one(row)
+
+
+func _apply_one(beat: Dictionary) -> void:
 	var cog_id := int(beat.get("cog", 0))
 	if beat.has("cog_hp") and int(beat.get("cog_hp", -1)) >= 0 and cog_id != 0:
 		_shown["c:%d" % cog_id] = int(beat.get("cog_hp", 0))
@@ -409,24 +536,104 @@ func _apply_beat(beat: Dictionary) -> void:
 		_shown["t:%d" % int(beat.get("toon_id", toon_id))] = int(beat.get("toon_hp", 0))
 		toon_id = int(beat.get("toon_id", toon_id))
 	_push_laff(toon_id)
+	if bool(beat.get("hit", false)) and int(beat.get("toon_hp", 1)) <= 0:
+		_begin_sad(toon_id, beat)
 
 
-func _credit(fight: Dictionary, beat: Dictionary) -> void:
-	if int(beat.get("toon", 0)) != ToonNet.peer_id():
+func _credit(_fight: Dictionary, _beat: Dictionary) -> void:
+	return
+
+
+## DistributedToon.died starts Toon.getDiedInterval at the hit. Every client
+## plays it. Only the toon who fell over leaves for the playground.
+func _begin_sad(peer: int, beat: Dictionary) -> void:
+	if _sad_started.has(peer):
 		return
-	var track := int(beat.get("track", -1))
-	if track < 0 or _credit_seq == int(fight.get("seq", 0)):
+	_sad_started[peer] = true
+	var local := peer == ToonNet.peer_id()
+	if local:
+		_dying = true
+		_grant_sad_skill(beat)
+		var loadout := _loadout()
+		if loadout != null:
+			loadout.zero_gags()
+			loadout.set_hp(0, loadout.max_hp)
+			loadout.save()
+		_hud.hide_all()
+		_banner.text = ""
+	var actor := _actor_for(peer)
+	if actor == null:
+		if local:
+			_leave_sad()
 		return
-	_credit_seq = int(fight.get("seq", 0))
-	var toon := _toon()
-	if toon == null:
+	actor.set_expression("sad")
+	actor.set_look_enabled(false)
+	var base_scale := actor.scale
+	var elapsed := 0.0
+	var sounded := false
+	while elapsed < _LOSE_END:
+		if not is_inside_tree():
+			return
+		if not is_instance_valid(actor):
+			break
+		actor.pose_action("lose", elapsed)
+		if elapsed >= 2.0 and not sounded:
+			sounded = true
+			_play_lose()
+		if elapsed >= _LOSE_SHRINK:
+			var shrunk := clampf((elapsed - _LOSE_SHRINK) / 1.5, 0.0, 1.0)
+			actor.scale = base_scale * lerpf(1.0, 0.01, shrunk)
+		await get_tree().process_frame
+		elapsed += get_process_delta_time()
+	if not is_inside_tree():
 		return
-	var loadout: ToonLoadout = toon.call("battle_loadout")
+	if local:
+		_leave_sad()
+		return
+	if is_instance_valid(actor):
+		actor.set_meta("gone_sad", true)
+		actor.visible = false
+
+
+func _grant_sad_skill(beat: Dictionary) -> void:
+	var fight_id := int(_fight.get("id", 0))
+	if sad_fight == fight_id and fight_id != 0:
+		return
+	var loadout := _loadout()
 	if loadout == null:
 		return
-	loadout.add_experience(track, ToonLoadout.SKILL_CREDIT)
-	loadout.save()
+	var gained: Variant = beat.get("skill", [])
+	if not (gained is Array) or (gained as Array).is_empty():
+		return
+	var skill: Array = gained
+	for track in mini(skill.size(), ToonLoadout.TRACK_COUNT):
+		loadout.add_experience(track, int(skill[track]))
+	sad_fight = fight_id
 
+
+func _leave_sad() -> void:
+	var tasks := ToonTasks.for_selected()
+	var hood := 0 if tasks == null else tasks.return_hood()
+	if hood == 0:
+		hood = _PLACES.TTC
+	_ARRIVAL.went_sad = true
+	_ARRIVAL.teleport_in = true
+	_ARRIVAL.portal_in = true
+	ToonLoading.change_to(_PLACES.scene_for(hood))
+
+
+func _play_lose() -> void:
+	var stream := load(_LOSE)
+	if not (stream is AudioStream):
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	var tree := get_tree()
+	if tree == null:
+		return
+	tree.root.add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
 
 func _remember(fight: Dictionary, opening: bool) -> void:
 	for item in fight.get("toons", []):
@@ -456,6 +663,8 @@ func _push_laff(toon_id: int) -> void:
 	if loadout == null:
 		return
 	loadout.set_hp(int(_shown["t:%d" % toon_id]), loadout.max_hp)
+	if loadout.hp <= 0:
+		return
 	loadout.save()
 
 
@@ -475,6 +684,8 @@ func _idle_others(active_peer: int) -> void:
 
 
 func _pose_local(clip: String, elapsed: float) -> void:
+	if not _has_toon(_fight, ToonNet.peer_id()):
+		return
 	var toon := _toon()
 	if toon == null:
 		return
@@ -487,12 +698,18 @@ func _pose_local(clip: String, elapsed: float) -> void:
 	actor.pose_action(clip, elapsed)
 
 
-func _place_bodies(fight: Dictionary) -> void:
+func _place_bodies(fight: Dictionary, delta: float) -> void:
+	var state := String(fight.get("state", ""))
+	var faceoff := state == "faceoff"
+	if faceoff:
+		_age_faceoff(fight, delta)
 	var toon := _toon()
 	var cog_center := _center(fight.get("cogs", []))
 	var toon_center := _center(fight.get("toons", []))
 	if toon == null:
 		toon_center = cog_center
+	elif faceoff:
+		_walk_toons(fight, toon, delta)
 	else:
 		for member in fight.get("toons", []):
 			var row: Dictionary = member
@@ -508,105 +725,317 @@ func _place_bodies(fight: Dictionary) -> void:
 		var cog := _cog_node(int(suit.get("id", 0)))
 		if cog == null or not cog.has_method("hold_fight"):
 			continue
-		cog.call("hold_fight", true, stand, deg_to_rad(_yaw(stand, toon_center)))
-		if String(fight.get("state", "")) != "movie" and cog.has_method("begin_react"):
-			cog.call("begin_react", "", 0.0)
+		if faceoff:
+			_walk_cog(fight, suit, cog, toon_center)
+		elif state == "reserves" and _is_joining(fight, int(suit.get("id", 0))):
+			var door := _vec(suit.get("from", suit.get("slot", [])))
+			cog.call("hold_fight", true, door, deg_to_rad(_yaw(door, toon_center)))
+			if cog.has_method("march"):
+				cog.call("march", false)
+		else:
+			cog.call("hold_fight", true, stand, deg_to_rad(_yaw(stand, toon_center)))
+			if state != "movie":
+				if cog.has_method("march"):
+					cog.call("march", false)
+				if cog.has_method("begin_react"):
+					cog.call("begin_react", "", 0.0)
+			_clear_taunt(cog, fight)
 
 
-func _show_panels(toons: Array) -> void:
-	var signature := _panel_sig(toons)
-	if signature != str(_panels.get_meta("sig", "")):
-		for child in _panels.get_children():
-			child.queue_free()
-		_panels.set_meta("sig", signature)
-		for item in toons:
-			var built: Dictionary = item
-			var panel := Panel.new()
-			panel.name = "Toon%d" % int(built.get("id", 0))
-			panel.modulate = Color(0.55, 0.9, 0.45, 0.92)
-			var name := Label.new()
-			name.name = "Name"
-			name.add_theme_font_override("font", ToonGui.font())
-			name.add_theme_font_size_override("font_size", 16)
-			name.add_theme_color_override("font_color", Color(0.05, 0.14, 0.4))
-			panel.add_child(name)
-			var laff := Label.new()
-			laff.name = "Laff"
-			laff.add_theme_font_override("font", ToonGui.font())
-			laff.add_theme_font_size_override("font_size", 14)
-			laff.add_theme_color_override("font_color", Color(0.05, 0.14, 0.4))
-			panel.add_child(laff)
-			var icon := TextureRect.new()
-			icon.name = "Icon"
-			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			panel.add_child(icon)
-			var which := Label.new()
-			which.name = "Which"
-			which.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			which.add_theme_font_override("font", ToonGui.font())
-			which.add_theme_font_size_override("font_size", 18)
-			which.add_theme_color_override("font_color", Color(0.05, 0.14, 0.4))
-			panel.add_child(which)
-			_panels.add_child(panel)
-		_layout()
-	for member in toons:
-		var row: Dictionary = member
-		var card := _panels.get_node_or_null("Toon%d" % int(row.get("id", 0))) as Panel
-		if card == null:
+func _age_faceoff(fight: Dictionary, delta: float) -> void:
+	var total := float(fight.get("taunt_for", 3.5)) + float(fight.get("walk", 0.1))
+	var posted := float(fight.get("left", total))
+	var key := "%s:%s" % [int(fight.get("id", 0)), int(fight.get("seq", 0))]
+	if key != _face_key:
+		_face_key = key
+		_face_left = posted
+		_face_age = 0.0
+		_face_from.clear()
+	elif absf(posted - (_face_left - _face_age)) > 0.75:
+		_face_left = posted
+		_face_age = 0.0
+	else:
+		_face_age += delta
+	var remain := maxf(_face_left - _face_age, 0.0)
+	_face_elapsed = clampf(total - remain, 0.0, total)
+
+
+func _walk_toons(fight: Dictionary, toon: Node, delta: float) -> void:
+	var taunt_for := float(fight.get("taunt_for", 3.5))
+	var walk := maxf(float(fight.get("walk", 0.1)), 0.1)
+	var along := 0.0
+	if _face_elapsed > taunt_for:
+		along = clampf((_face_elapsed - taunt_for) / walk, 0.0, 1.0)
+	var lead := _cog_node(int(fight.get("taunt_cog", _lead_cog(fight))))
+	var focus := _center(fight.get("cogs", []))
+	if lead is Node3D:
+		focus = (lead as Node3D).global_position
+	for member in fight.get("toons", []):
+		if not (member is Dictionary):
 			continue
-		var name_label := card.get_node("Name") as Label
-		var laff_label := card.get_node("Laff") as Label
-		var icon_rect := card.get_node("Icon") as TextureRect
-		var which_label := card.get_node("Which") as Label
-		name_label.text = String(row.get("name", "Toon"))
+		var row: Dictionary = member
+		var peer := int(row.get("id", 0))
+		var slot := _vec(row.get("slot", []))
+		var key := "t:%d" % peer
+		var current := _toon_here(toon, peer, slot)
+		if not _face_from.has(key):
+			_face_from[key] = _join_from(current, slot, along)
+		var start: Vector3 = _face_from[key]
+		var spot := start.lerp(slot, along)
+		var facing := _yaw(spot, focus) if along <= 0.001 else _yaw(start, slot)
+		var actor: ToonActor = null
+		if peer == ToonNet.peer_id():
+			toon.call("place_for_battle", spot, facing)
+			actor = toon.call("battle_actor")
+		else:
+			toon.call("pin_remote", peer, spot, facing)
+			actor = toon.call("remote_actor", peer)
+		if actor == null:
+			continue
+		if along > 0.001 and along < 1.0:
+			actor.set_locomotion(9.0, false, false, delta)
+		else:
+			actor.set_locomotion(0.0, false, false, delta)
+
+
+func _toon_here(toon: Node, peer: int, fallback: Vector3) -> Vector3:
+	if peer == ToonNet.peer_id():
+		return _point()
+	var actor: ToonActor = toon.call("remote_actor", peer)
+	if actor == null:
+		return fallback
+	return actor.global_position
+
+
+func _join_from(current: Vector3, slot: Vector3, along: float) -> Vector3:
+	if along <= 0.001 or along >= 0.999:
+		return current
+	return (current - slot * along) / (1.0 - along)
+
+
+func _is_joining(fight: Dictionary, cog_id: int) -> bool:
+	var joining: Variant = fight.get("joining", [])
+	if joining is Array:
+		return (joining as Array).has(cog_id)
+	return false
+
+
+func _walk_cog(fight: Dictionary, suit: Dictionary, cog: Node, toon_center: Vector3) -> void:
+	var taunt_for := float(fight.get("taunt_for", 3.5))
+	var walk := maxf(float(fight.get("walk", 0.1)), 0.1)
+	var along := 0.0
+	if _face_elapsed > taunt_for:
+		along = clampf((_face_elapsed - taunt_for) / walk, 0.0, 1.0)
+	var start := _vec(suit.get("from", suit.get("slot", [])))
+	var slot := _vec(suit.get("slot", []))
+	var spot := start.lerp(slot, along)
+	var facing := _yaw(spot, toon_center) if along <= 0.001 else _yaw(start, slot)
+	cog.call("hold_fight", true, spot, deg_to_rad(facing))
+	var walking := along > 0.001 and along < 1.0
+	if cog.has_method("march"):
+		cog.call("march", walking)
+	if int(suit.get("id", 0)) == int(fight.get("taunt_cog", 0)) and _face_elapsed < taunt_for:
+		_show_taunt(fight, cog, taunt_for - _face_elapsed)
+	else:
+		_clear_taunt(cog, fight)
+
+
+func _show_taunt(fight: Dictionary, cog: Node, remain: float) -> void:
+	var text := String(fight.get("taunt", ""))
+	if text == "":
+		return
+	var token := "%s:%s" % [int(fight.get("id", 0)), int(fight.get("seq", 0))]
+	if _face_spoke != token:
+		_face_spoke = token
+		ToonSpeech.cog(text)
+		cog.set_meta("chat_line", text)
+		cog.set_meta("chat_until", Time.get_ticks_msec() + int(maxf(remain, 0.2) * 1000.0))
+		cog.set_meta("faceoff_chat", int(fight.get("id", 0)))
+
+
+func _clear_taunt(cog: Node, fight: Dictionary) -> void:
+	if int(cog.get_meta("faceoff_chat", -1)) != int(fight.get("id", 0)):
+		return
+	cog.set_meta("chat_line", "")
+	cog.set_meta("chat_until", 0)
+	cog.set_meta("faceoff_chat", -1)
+
+
+func _show_hud(fight: Dictionary, delta: float) -> void:
+	var cards: Array = []
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var card := row.duplicate()
 		var hp := int(_shown.get("t:%d" % int(row.get("id", 0)), row.get("hp", 0)))
-		laff_label.text = "%d / %d" % [hp, int(row.get("max_hp", hp))]
-		_fill_choice(icon_rect, which_label, row)
+		card["hp"] = hp
+		var choice := _choice_for(int(row.get("id", 0)))
+		if String(fight.get("state", "")) != "join" and not choice.is_empty():
+			var track := int(choice.get("track", -1))
+			var level := int(choice.get("level", -1))
+			card["track"] = track
+			card["level"] = level
+			card["which"] = _which_marks(track, level, int(choice.get("target", -1)), int(row.get("id", 0)))
+		cards.append(card)
+	_hud.show_battle(cards, String(fight.get("state", "")), _seconds(fight, delta))
 
 
-func _fill_choice(icon: TextureRect, which: Label, toon: Dictionary) -> void:
-	var choice := _choice_for(int(toon.get("id", 0)))
-	if choice.is_empty() or String(_fight.get("state", "")) == "join":
-		icon.texture = null
-		which.text = "?"
-		return
-	var track := int(choice.get("track", -1))
-	var level := int(choice.get("level", -1))
+## TownBattleToonPanel.determineWhichText. The first mark is the leftmost body.
+func _which_marks(track: int, level: int, target: int, owner: int) -> String:
 	if track < 0:
-		icon.texture = null
-		which.text = "Pass" if track == -1 else "Run"
-		return
-	icon.texture = BattleMenu.icon_for(track, level)
-	which.text = _which_text(track, level, int(choice.get("target", -1)))
-
-
-func _which_text(track: int, level: int, target: int) -> String:
+		return ""
+	var rows: Array = fight_rows_for(track, level)
 	var marks := ""
-	if track == ToonLoadout.TOON_UP and not ToonLoadout.affects_group(track, level):
-		for item in _fight.get("toons", []):
-			var toon: Dictionary = item
-			marks += "X" if int(toon.get("id", 0)) == target else "-"
-		return marks
-	if ToonLoadout.affects_group(track, level):
-		for item in _fight.get("cogs", []):
-			var group: Dictionary = item
-			marks += "X" if int(group.get("hp", 0)) > 0 else "-"
-		return marks
-	for item in _fight.get("cogs", []):
-		var single: Dictionary = item
-		marks += "X" if int(single.get("id", 0)) == target else "-"
+	for index in range(rows.size() - 1, -1, -1):
+		if not (rows[index] is Dictionary):
+			marks += "-"
+			continue
+		var body: Dictionary = rows[index]
+		if target == -1:
+			marks += "X" if int(body.get("hp", 0)) > 0 else "-"
+		elif target == -2:
+			marks += "-" if int(body.get("id", 0)) == owner else "X"
+		else:
+			marks += "X" if int(body.get("id", 0)) == target else "-"
 	return marks
 
 
-func _panel_sig(toons: Array) -> String:
-	var parts: PackedStringArray = []
-	for item in toons:
-		if item is Dictionary:
-			parts.append(str((item as Dictionary).get("id", 0)))
-	parts.append(str(_fight.get("seq", 0)))
-	return "|".join(parts)
+func fight_rows_for(track: int, level: int) -> Array:
+	if track == ToonLoadout.TOON_UP and not ToonLoadout.affects_group(track, level):
+		return _fight.get("toons", [])
+	return _fight.get("cogs", [])
 
+
+func _seconds(fight: Dictionary, delta: float) -> int:
+	var state := String(fight.get("state", ""))
+	if state != "input":
+		return -1
+	var key := "%s:%s" % [fight.get("id", 0), fight.get("seq", 0)]
+	var posted := float(fight.get("left", 0.0))
+	if key != _clock_key:
+		_clock_key = key
+		_clock_left = posted
+		_clock_age = 0.0
+	elif absf(posted - (_clock_left - _clock_age)) > 0.75:
+		_clock_left = posted
+		_clock_age = 0.0
+	else:
+		_clock_age += delta
+	return int(ceil(maxf(_clock_left - _clock_age, 0.0)))
+
+
+func _show_reward(fight: Dictionary, token: int) -> void:
+	var rows: Array = fight.get("reward_rows", [])
+	_apply_my_reward(fight)
+	for item in rows:
+		if token != _reward_token or not is_inside_tree():
+			return
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var before := _exp_dict(row.get("before", []))
+		var earned := _exp_dict(row.get("earned", []))
+		var display := _loadout()
+		if int(row.get("id", 0)) != ToonNet.peer_id():
+			display = _display_loadout(row.get("before", []), row.get("earned", []))
+		if display == null:
+			continue
+		await _reward.present(String(row.get("name", "Toon")), display, before, earned, "", false)
+	if token != _reward_token or not is_inside_tree():
+		return
+	if not _any_earned(rows, ToonNet.peer_id()):
+		await get_tree().create_timer(1.6).timeout
+	if token != _reward_token or not is_inside_tree():
+		return
+	ToonNet.finish_reward(int(fight.get("id", 0)))
+
+
+func _apply_my_reward(fight: Dictionary) -> void:
+	if int(fight.get("id", 0)) == sad_fight and sad_fight != 0:
+		return
+	var key := "%s:%s" % [fight.get("id", 0), fight.get("seq", 0)]
+	if _paid_key == key:
+		return
+	var loadout := _loadout()
+	if loadout == null:
+		return
+	var rows: Array = fight.get("reward_rows", [])
+	var applied := false
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if int(row.get("id", 0)) != ToonNet.peer_id():
+			continue
+		var earned: Array = row.get("earned", [])
+		for track in mini(earned.size(), ToonLoadout.TRACK_COUNT):
+			loadout.add_experience(track, int(earned[track]))
+		loadout.save()
+		applied = true
+		break
+	if applied:
+		_paid_key = key
+
+
+func _display_loadout(before: Variant, earned: Variant) -> ToonLoadout:
+	var prior: Array = before if before is Array else []
+	var gained: Array = earned if earned is Array else []
+	var exp: Array = []
+	for track in ToonLoadout.TRACK_COUNT:
+		exp.append(int(prior[track]) if track < prior.size() else 0)
+	for track in ToonLoadout.TRACK_COUNT:
+		var amount := int(gained[track]) if track < gained.size() else 0
+		if amount > 0 and int(exp[track]) <= 0 and track != ToonLoadout.THROW and track != ToonLoadout.SQUIRT:
+			exp[track] = 1
+	var display := ToonLoadout.new()
+	display.apply_dict({"hp": 15, "max_hp": 15, "exp": exp})
+	return display
+
+
+func _exp_dict(value: Variant) -> Dictionary:
+	var packed := {}
+	var row: Array = value if value is Array else []
+	for track in row.size():
+		packed[track] = int(row[track])
+	return packed
+
+
+func _any_earned(rows: Array, peer: int) -> bool:
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if int(row.get("id", 0)) != peer:
+			continue
+		for amount in row.get("earned", []):
+			if int(amount) > 0:
+				return true
+	return false
+
+
+func _pose_roster(fight: Dictionary, clip: String, elapsed: float) -> void:
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var actor := _actor_for(int((item as Dictionary).get("id", 0)))
+		if actor == null:
+			continue
+		var length := actor.action_length(clip)
+		var at := elapsed if length <= 0.0 else fposmod(elapsed, length)
+		actor.pose_action(clip, at)
+
+
+func battle_style(peer: int) -> ToonStyle:
+	if peer == ToonNet.peer_id():
+		var mine := ToonRoster.selected_style()
+		return mine if mine != null else ToonStyle.new()
+	var actor := _actor_for(peer)
+	if actor != null:
+		var raw: Variant = actor.get_meta("style", {})
+		if raw is Dictionary:
+			return ToonStyle.from_dict(raw)
+	return ToonStyle.new()
 
 func _choice_for(peer: int) -> Dictionary:
 	for item in _fight.get("choices", []):
@@ -624,6 +1053,8 @@ func _my_choice(fight: Dictionary) -> Dictionary:
 
 
 func _hold(active: bool) -> void:
+	if _dying:
+		return
 	if active == _in_it:
 		if not active:
 			_release_remotes()
@@ -636,25 +1067,16 @@ func _hold(active: bool) -> void:
 		_cool = 2.0
 		_sent_seq = -1
 		_need_target = false
-		_targets.visible = false
-		if _asking:
-			_menu.cancel()
+		_hud.hide_all()
+		_reward_token += 1
+		_reward.stop()
+		_menu.cancel()
 		_show_gen += 1
 		if _gags != null:
 			_gags.clear_traps()
 		_release_cogs()
 		_release_remotes()
-		_recover()
-
-
-func _recover() -> void:
-	var toon := _toon()
-	if toon == null:
-		return
-	var loadout: ToonLoadout = toon.call("battle_loadout")
-	if loadout != null and loadout.hp <= 0:
-		loadout.set_hp(1, loadout.max_hp)
-		loadout.save()
+		_restore_camera()
 
 
 func _release_cogs() -> void:
@@ -675,59 +1097,16 @@ func _release_remotes() -> void:
 func _clear_movie() -> void:
 	_movie_seq = -1
 	_fight = {}
-
-
-func _clock(fight: Dictionary, delta: float) -> String:
-	var state := String(fight.get("state", ""))
-	if state != "join" and state != "input":
-		return ""
-	var key := "%s:%s" % [fight.get("id", 0), fight.get("seq", 0)]
-	var posted := float(fight.get("left", 0.0))
-	if key != _clock_key:
-		_clock_key = key
-		_clock_left = posted
-		_clock_age = 0.0
-	elif absf(posted - (_clock_left - _clock_age)) > 0.75:
-		_clock_left = posted
-		_clock_age = 0.0
-	else:
-		_clock_age += delta
-	var left := maxf(_clock_left - _clock_age, 0.0)
-	if state == "join":
-		return "Join  %d" % int(ceil(left))
-	return "Pick a gag  %d" % int(ceil(left))
+	var movie := _gags as GagMovie
+	if movie != null:
+		movie.end_aim()
 
 
 func _layout() -> void:
 	var view := get_viewport().get_visible_rect().size
 	if view.y < 1.0:
 		return
-	var count := _panels.get_child_count()
-	for index in count:
-		var panel := _panels.get_child(index) as Control
-		var span := 0.55
-		var x := (float(index) - float(count - 1) * 0.5) * span
-		ToonGui.place(panel, view, x, 0.78, 0.5, 0.34)
-		var name := panel.get_node_or_null("Name") as Control
-		var laff := panel.get_node_or_null("Laff") as Control
-		var icon := panel.get_node_or_null("Icon") as Control
-		var which := panel.get_node_or_null("Which") as Control
-		if name != null:
-			name.position = Vector2(8, 4)
-			name.size = Vector2(panel.size.x - 16, 22)
-		if laff != null:
-			laff.position = Vector2(8, 26)
-			laff.size = Vector2(panel.size.x - 16, 20)
-		if icon != null:
-			icon.position = Vector2(panel.size.x * 0.5 - 28, 50)
-			icon.size = Vector2(56, 56)
-		if which != null:
-			which.position = Vector2(8, panel.size.y - 28)
-			which.size = Vector2(panel.size.x - 16, 24)
 	ToonGui.place(_banner, view, 0.0, 0.42, 1.6, 0.12)
-	ToonGui.place(_timer, view, 0.0, 0.95, 0.8, 0.1)
-	ToonGui.place(_targets, view, 0.0, -0.15, 0.9, 0.7)
-
 
 func _caption(parent: Node) -> Label:
 	var label := Label.new()
@@ -811,9 +1190,14 @@ func _cog_node(cog_id: int) -> Node:
 	if cog_id == 0:
 		return null
 	var suits := get_parent().get_node_or_null("StreetSuits")
-	if suits == null:
+	if suits != null:
+		for child in suits.get_children():
+			if int(child.get_meta("do_id", 0)) == cog_id:
+				return child
+	var floors := get_parent().get_node_or_null("CogBuilding/FloorSuits")
+	if floors == null:
 		return null
-	for child in suits.get_children():
+	for child in floors.get_children():
 		if int(child.get_meta("do_id", 0)) == cog_id:
 			return child
 	return null
@@ -860,10 +1244,122 @@ func _center(rows: Array) -> Vector3:
 
 
 func _yaw(from: Vector3, to: Vector3) -> float:
-	var flat := Vector2(to.x - from.x, to.z - from.z)
+	var flat := to - from
+	flat.y = 0.0
 	if flat.length_squared() < 0.0001:
 		return 0.0
-	return rad_to_deg(atan2(-flat.x, -flat.y))
+	flat = flat.normalized()
+	return rad_to_deg(atan2(-flat.x, -flat.z))
+
+
+## DistributedBattleBase camera. The battle node faces the cogs. The menu
+## view sits behind the toons; the face-off starts on the cog, then drops low.
+func _aim_camera(fight: Dictionary) -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	if _saved_fov < 0.0:
+		_saved_fov = camera.fov
+	var basis := _battle_basis(fight)
+	var origin: Vector3 = basis["origin"]
+	var forward: Vector3 = basis["forward"]
+	var right: Vector3 = basis["right"]
+	var state := String(fight.get("state", ""))
+	if state == "reserves":
+		var out := _vec(fight.get("out", []))
+		camera.global_position = out + Vector3(0.0, 2.0, 8.0)
+		if camera.global_position.distance_squared_to(out) > 0.04:
+			camera.look_at(out + Vector3(0.0, 2.0, 0.0), Vector3.UP)
+		camera.fov = 52.0
+		return
+	if state == "movie":
+		var movie := _gags as GagMovie
+		if movie != null and movie.has_aim():
+			movie.aim_camera(camera, basis)
+			return
+	var fov := 80.0
+	var pos := origin - forward * 8.6 + Vector3.UP * 16.5
+	var look := origin
+	if state == "faceoff":
+		var taunt_for := float(fight.get("taunt_for", 3.5))
+		var lead := _cog_node(int(fight.get("taunt_cog", _lead_cog(fight))))
+		var cog_pos := _center(fight.get("cogs", []))
+		if lead is Node3D:
+			cog_pos = (lead as Node3D).global_position
+		if _face_elapsed < taunt_for:
+			fov = 30.0
+			var height := _cog_height(int(fight.get("taunt_cog", _lead_cog(fight))))
+			var chest := maxf(height * 0.66, height - 1.8)
+			var cam_h := chest
+			var high := int(fight.get("cam_high", 0))
+			if high == 1:
+				cam_h = 1.0
+			elif high == 2:
+				cam_h = 11.0
+			var side := float(fight.get("cam_side", 5.0))
+			pos = cog_pos - forward * 16.0 + right * side + Vector3.UP * cam_h
+			look = cog_pos + Vector3.UP * height
+		else:
+			fov = 80.0
+			pos = origin - forward * 10.0 + Vector3.UP * 4.0
+			look = cog_pos
+	elif state == "input":
+		fov = 65.0
+	camera.fov = fov
+	camera.global_position = pos
+	if camera.global_position.distance_squared_to(look) > 0.25:
+		camera.look_at(look, Vector3.UP)
+
+
+func _restore_camera() -> void:
+	if _saved_fov < 0.0:
+		return
+	var camera := get_viewport().get_camera_3d()
+	if camera != null:
+		camera.fov = _saved_fov
+	_saved_fov = -1.0
+
+
+func _battle_basis(fight: Dictionary) -> Dictionary:
+	var origin := _vec(fight.get("origin", []))
+	var yaw := float(fight.get("yaw", 180.0))
+	var forward := _battle_forward(yaw)
+	if origin == Vector3.ZERO:
+		var suits := _center(fight.get("cogs", []))
+		var toons := _center(fight.get("toons", []))
+		forward = suits - toons
+		forward.y = 0.0
+		if forward.length_squared() < 0.04:
+			forward = Vector3(0.0, 0.0, 1.0)
+		else:
+			forward = forward.normalized()
+		origin = (suits + toons) * 0.5
+	var right := Vector3.UP.cross(forward)
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
+	return {"origin": origin, "forward": forward, "right": right}
+
+
+func _battle_forward(heading: float) -> Vector3:
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))
+	return upright * Vector3(0, 1, 0)
+
+
+func _lead_cog(fight: Dictionary) -> int:
+	var rows: Array = fight.get("cogs", [])
+	if rows.is_empty() or not (rows[0] is Dictionary):
+		return 0
+	return int((rows[0] as Dictionary).get("id", 0))
+
+
+func _cog_height(cog_id: int) -> float:
+	var cog := _cog_node(cog_id)
+	if cog == null:
+		return 4.0
+	return maxf(float(cog.get("height")), 1.0)
 
 
 func _vec(value: Variant) -> Vector3:

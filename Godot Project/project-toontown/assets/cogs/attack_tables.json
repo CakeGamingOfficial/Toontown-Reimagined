@@ -1,0 +1,3564 @@
+{
+ "f": {
+  "base": 0,
+  "attacks": [
+   {
+    "name": "Pound Key!",
+    "key": "PoundKey",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     3,
+     4,
+     6
+    ],
+    "acc": [
+     75,
+     75,
+     80,
+     80,
+     90
+    ],
+    "freq": [
+     30,
+     35,
+     40,
+     45,
+     50
+    ]
+   },
+   {
+    "name": "Shred!",
+    "key": "Shred",
+    "anim": "shredder",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "acc": [
+     50,
+     55,
+     60,
+     65,
+     70
+    ],
+    "freq": [
+     10,
+     15,
+     20,
+     25,
+     30
+    ]
+   },
+   {
+    "name": "Clip On Tie!",
+    "key": "ClipOnTie",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     2,
+     2,
+     3
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     60,
+     50,
+     40,
+     30,
+     20
+    ]
+   }
+  ]
+ },
+ "p": {
+  "base": 1,
+  "attacks": [
+   {
+    "name": "Fountain Pen!",
+    "key": "FountainPen",
+    "anim": "pen-squirt",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     6,
+     9
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Rub Out!",
+    "key": "RubOut",
+    "anim": "hold-eraser",
+    "group": false,
+    "hp": [
+     4,
+     5,
+     6,
+     8,
+     12
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Finger Wag!",
+    "key": "FingerWag",
+    "anim": "finger-wag",
+    "group": false,
+    "hp": [
+     1,
+     2,
+     2,
+     3,
+     4
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     35,
+     30,
+     25,
+     20,
+     15
+    ]
+   },
+   {
+    "name": "Write Off!",
+    "key": "WriteOff",
+    "anim": "hold-pencil",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     8,
+     10,
+     12
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     5,
+     10,
+     15,
+     20,
+     25
+    ]
+   },
+   {
+    "name": "Fill With Lead!",
+    "key": "FillWithLead",
+    "anim": "pencil-sharpener",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   }
+  ]
+ },
+ "ym": {
+  "base": 2,
+  "attacks": [
+   {
+    "name": "Rubber Stamp!",
+    "key": "RubberStamp",
+    "anim": "rubber-stamp",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     3,
+     3,
+     4
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Razzle Dazzle!",
+    "key": "RazzleDazzle",
+    "anim": "smile",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     25,
+     20,
+     15,
+     10,
+     5
+    ]
+   },
+   {
+    "name": "Synergy!",
+    "key": "Synergy",
+    "anim": "magic3",
+    "group": true,
+    "hp": [
+     4,
+     5,
+     6,
+     7,
+     8
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     5,
+     10,
+     15,
+     20,
+     25
+    ]
+   },
+   {
+    "name": "Tee Off!",
+    "key": "TeeOff",
+    "anim": "golf-club-swing",
+    "group": false,
+    "hp": [
+     3,
+     3,
+     4,
+     4,
+     5
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   }
+  ]
+ },
+ "mm": {
+  "base": 3,
+  "attacks": [
+   {
+    "name": "Demotion!",
+    "key": "Demotion",
+    "anim": "magic1",
+    "group": false,
+    "hp": [
+     6,
+     8,
+     12,
+     15,
+     18
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Finger Wag!",
+    "key": "FingerWag",
+    "anim": "finger-wag",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     10,
+     10,
+     10,
+     10,
+     10
+    ]
+   },
+   {
+    "name": "Fountain Pen!",
+    "key": "FountainPen",
+    "anim": "pen-squirt",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     6,
+     8,
+     10
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Brain Storm!",
+    "key": "BrainStorm",
+    "anim": "effort",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     5,
+     5,
+     5,
+     5,
+     5
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Buzz Word!",
+    "key": "BuzzWord",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   }
+  ]
+ },
+ "ds": {
+  "base": 4,
+  "attacks": [
+   {
+    "name": "Canned!",
+    "key": "Canned",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     8,
+     10,
+     12
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Downsize!",
+    "key": "Downsize",
+    "anim": "magic2",
+    "group": false,
+    "hp": [
+     8,
+     9,
+     11,
+     13,
+     15
+    ],
+    "acc": [
+     50,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Pink Slip!",
+    "key": "PinkSlip",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     4,
+     5,
+     6,
+     7,
+     8
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     80,
+     85
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Sacked!",
+    "key": "Sacked",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     7,
+     8,
+     9
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   }
+  ]
+ },
+ "hh": {
+  "base": 5,
+  "attacks": [
+   {
+    "name": "Fountain Pen!",
+    "key": "FountainPen",
+    "anim": "pen-squirt",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     8,
+     10,
+     12
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Glower Power!",
+    "key": "GlowerPower",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     7,
+     8,
+     10,
+     12,
+     13
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Half Windsor!",
+    "key": "HalfWindsor",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     8,
+     10,
+     12,
+     14,
+     16
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Head Shrink!",
+    "key": "HeadShrink",
+    "anim": "magic1",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     15,
+     18,
+     21
+    ],
+    "acc": [
+     65,
+     75,
+     80,
+     85,
+     95
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Rolodex!",
+    "key": "Rolodex",
+    "anim": "roll-o-dex",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     8,
+     9,
+     10
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     10,
+     10,
+     10,
+     10,
+     10
+    ]
+   }
+  ]
+ },
+ "cr": {
+  "base": 6,
+  "attacks": [
+   {
+    "name": "Canned!",
+    "key": "Canned",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     8,
+     9,
+     10
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Evil Eye!",
+    "key": "EvilEye",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     12,
+     15,
+     18,
+     21,
+     24
+    ],
+    "acc": [
+     60,
+     70,
+     75,
+     80,
+     90
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Play Hardball!",
+    "key": "PlayHardball",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     7,
+     8,
+     12,
+     15,
+     16
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Power Tie!",
+    "key": "PowerTie",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     14,
+     16,
+     18
+    ],
+    "acc": [
+     65,
+     75,
+     80,
+     85,
+     95
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   }
+  ]
+ },
+ "tbc": {
+  "base": 7,
+  "attacks": [
+   {
+    "name": "Cigar Smoke!",
+    "key": "CigarSmoke",
+    "anim": "cigar-smoke",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     15,
+     18,
+     20
+    ],
+    "acc": [
+     55,
+     65,
+     75,
+     85,
+     95
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Flood The Market!",
+    "key": "FloodTheMarket",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     14,
+     16,
+     18,
+     20,
+     22
+    ],
+    "acc": [
+     70,
+     75,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     10,
+     10,
+     10,
+     10,
+     10
+    ]
+   },
+   {
+    "name": "Song And Dance!",
+    "key": "SongAndDance",
+    "anim": "song-and-dance",
+    "group": false,
+    "hp": [
+     14,
+     15,
+     17,
+     19,
+     20
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Tee Off!",
+    "key": "TeeOff",
+    "anim": "golf-club-swing",
+    "group": false,
+    "hp": [
+     8,
+     11,
+     14,
+     17,
+     20
+    ],
+    "acc": [
+     55,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   }
+  ]
+ },
+ "cc": {
+  "base": 0,
+  "attacks": [
+   {
+    "name": "Freeze Assets!",
+    "key": "FreezeAssets",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "acc": [
+     90,
+     90,
+     90,
+     90,
+     90
+    ],
+    "freq": [
+     5,
+     10,
+     15,
+     20,
+     25
+    ]
+   },
+   {
+    "name": "Pound Key!",
+    "key": "PoundKey",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     3,
+     4,
+     5
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Double Talk!",
+    "key": "DoubleTalk",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     6,
+     8
+    ],
+    "acc": [
+     50,
+     55,
+     60,
+     65,
+     70
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Hot Air!",
+    "key": "HotAir",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     6,
+     8,
+     10
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     45,
+     40,
+     35,
+     30,
+     25
+    ]
+   }
+  ]
+ },
+ "tm": {
+  "base": 1,
+  "attacks": [
+   {
+    "name": "Clip On Tie!",
+    "key": "ClipOnTie",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     3,
+     3,
+     4
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Pick Pocket!",
+    "key": "PickPocket",
+    "anim": "pickpocket",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Rolodex!",
+    "key": "Rolodex",
+    "anim": "roll-o-dex",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     7,
+     9,
+     12
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Double Talk!",
+    "key": "DoubleTalk",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     7,
+     9,
+     12
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     40,
+     40,
+     40,
+     40,
+     40
+    ]
+   }
+  ]
+ },
+ "nd": {
+  "base": 2,
+  "attacks": [
+   {
+    "name": "Razzle Dazzle!",
+    "key": "RazzleDazzle",
+    "anim": "smile",
+    "group": false,
+    "hp": [
+     4,
+     5,
+     6,
+     9,
+     12
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Rolodex!",
+    "key": "Rolodex",
+    "anim": "roll-o-dex",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     7,
+     10,
+     14
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     40,
+     40,
+     40,
+     40,
+     40
+    ]
+   },
+   {
+    "name": "Synergy!",
+    "key": "Synergy",
+    "anim": "magic3",
+    "group": true,
+    "hp": [
+     3,
+     4,
+     6,
+     9,
+     12
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Pick Pocket!",
+    "key": "PickPocket",
+    "anim": "pickpocket",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   }
+  ]
+ },
+ "gh": {
+  "base": 3,
+  "attacks": [
+   {
+    "name": "Rubber Stamp!",
+    "key": "RubberStamp",
+    "anim": "rubber-stamp",
+    "group": false,
+    "hp": [
+     4,
+     3,
+     3,
+     2,
+     1
+    ],
+    "acc": [
+     90,
+     70,
+     50,
+     30,
+     10
+    ],
+    "freq": [
+     40,
+     30,
+     20,
+     10,
+     5
+    ]
+   },
+   {
+    "name": "Fountain Pen!",
+    "key": "FountainPen",
+    "anim": "pen-squirt",
+    "group": false,
+    "hp": [
+     3,
+     3,
+     2,
+     1,
+     1
+    ],
+    "acc": [
+     70,
+     60,
+     50,
+     40,
+     30
+    ],
+    "freq": [
+     40,
+     30,
+     20,
+     10,
+     5
+    ]
+   },
+   {
+    "name": "Filibuster!",
+    "key": "Filibuster",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     30,
+     40,
+     50,
+     60,
+     70
+    ],
+    "freq": [
+     10,
+     20,
+     30,
+     40,
+     45
+    ]
+   },
+   {
+    "name": "Schmooze!",
+    "key": "Schmooze",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     5,
+     7,
+     11,
+     15,
+     20
+    ],
+    "acc": [
+     55,
+     65,
+     75,
+     85,
+     95
+    ],
+    "freq": [
+     10,
+     20,
+     30,
+     40,
+     45
+    ]
+   }
+  ]
+ },
+ "ms": {
+  "base": 4,
+  "attacks": [
+   {
+    "name": "Brain Storm!",
+    "key": "BrainStorm",
+    "anim": "effort",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     8,
+     10,
+     12
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Half Windsor!",
+    "key": "HalfWindsor",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     6,
+     9,
+     11,
+     13,
+     16
+    ],
+    "acc": [
+     50,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Quake!",
+    "key": "Quake",
+    "anim": "quick-jump",
+    "group": true,
+    "hp": [
+     9,
+     12,
+     15,
+     18,
+     21
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     80,
+     85
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Shake!",
+    "key": "Shake",
+    "anim": "stomp",
+    "group": true,
+    "hp": [
+     6,
+     8,
+     10,
+     12,
+     14
+    ],
+    "acc": [
+     70,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Tremor!",
+    "key": "Tremor",
+    "anim": "stomp",
+    "group": true,
+    "hp": [
+     5,
+     6,
+     7,
+     8,
+     9
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   }
+  ]
+ },
+ "tf": {
+  "base": 5,
+  "attacks": [
+   {
+    "name": "Evil Eye!",
+    "key": "EvilEye",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     14,
+     16,
+     18
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Hang Up!",
+    "key": "HangUp",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     7,
+     8,
+     10,
+     12,
+     13
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Razzle Dazzle!",
+    "key": "RazzleDazzle",
+    "anim": "smile",
+    "group": false,
+    "hp": [
+     8,
+     10,
+     12,
+     14,
+     16
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Red Tape!",
+    "key": "RedTape",
+    "anim": "throw-object",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     8,
+     9,
+     10
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     85,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   }
+  ]
+ },
+ "m": {
+  "base": 6,
+  "attacks": [
+   {
+    "name": "Buzz Word!",
+    "key": "BuzzWord",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     10,
+     11,
+     13,
+     15,
+     16
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Paradigm Shift!",
+    "key": "ParadigmShift",
+    "anim": "magic2",
+    "group": true,
+    "hp": [
+     12,
+     15,
+     18,
+     21,
+     24
+    ],
+    "acc": [
+     60,
+     70,
+     75,
+     80,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Power Trip!",
+    "key": "PowerTrip",
+    "anim": "magic1",
+    "group": true,
+    "hp": [
+     10,
+     13,
+     14,
+     15,
+     18
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Schmooze!",
+    "key": "Schmooze",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     7,
+     8,
+     12,
+     15,
+     16
+    ],
+    "acc": [
+     55,
+     65,
+     75,
+     85,
+     95
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Tee Off!",
+    "key": "TeeOff",
+    "anim": "golf-club-swing",
+    "group": false,
+    "hp": [
+     8,
+     9,
+     10,
+     11,
+     12
+    ],
+    "acc": [
+     70,
+     75,
+     80,
+     85,
+     95
+    ],
+    "freq": [
+     10,
+     10,
+     10,
+     10,
+     10
+    ]
+   }
+  ]
+ },
+ "mh": {
+  "base": 7,
+  "attacks": [
+   {
+    "name": "Power Trip!",
+    "key": "PowerTrip",
+    "anim": "magic1",
+    "group": true,
+    "hp": [
+     10,
+     12,
+     15,
+     18,
+     20
+    ],
+    "acc": [
+     55,
+     65,
+     75,
+     85,
+     95
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   },
+   {
+    "name": "Razzle Dazzle!",
+    "key": "RazzleDazzle",
+    "anim": "smile",
+    "group": false,
+    "hp": [
+     8,
+     11,
+     14,
+     17,
+     20
+    ],
+    "acc": [
+     70,
+     75,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   }
+  ]
+ },
+ "sc": {
+  "base": 0,
+  "attacks": [
+   {
+    "name": "Watercooler!",
+    "key": "Watercooler",
+    "anim": "watercooler",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     3,
+     4,
+     6
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Bounce Check!",
+    "key": "BounceCheck",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     3,
+     5,
+     7,
+     9,
+     11
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Clip On Tie!",
+    "key": "ClipOnTie",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     2,
+     2,
+     3
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Pick Pocket!",
+    "key": "PickPocket",
+    "anim": "pickpocket",
+    "group": false,
+    "hp": [
+     2,
+     2,
+     3,
+     4,
+     6
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     40,
+     40,
+     40,
+     40,
+     40
+    ]
+   }
+  ]
+ },
+ "pp": {
+  "base": 1,
+  "attacks": [
+   {
+    "name": "Bounce Check!",
+    "key": "BounceCheck",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     4,
+     5,
+     6,
+     8,
+     12
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     45,
+     45,
+     45,
+     45,
+     45
+    ]
+   },
+   {
+    "name": "Freeze Assets!",
+    "key": "FreezeAssets",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     6,
+     9
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Finger Wag!",
+    "key": "FingerWag",
+    "anim": "finger-wag",
+    "group": false,
+    "hp": [
+     1,
+     2,
+     3,
+     4,
+     6
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   }
+  ]
+ },
+ "tw": {
+  "base": 2,
+  "attacks": [
+   {
+    "name": "Fired!",
+    "key": "Fired",
+    "anim": "magic2",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     5,
+     5,
+     6
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     75,
+     5,
+     5,
+     5,
+     5
+    ]
+   },
+   {
+    "name": "Glower Power!",
+    "key": "GlowerPower",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     6,
+     9,
+     12
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     10,
+     15,
+     20,
+     25,
+     30
+    ]
+   },
+   {
+    "name": "Finger Wag!",
+    "key": "FingerWag",
+    "anim": "finger-wag",
+    "group": false,
+    "hp": [
+     3,
+     3,
+     4,
+     4,
+     5
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     5,
+     70,
+     5,
+     5,
+     5
+    ]
+   },
+   {
+    "name": "Freeze Assets!",
+    "key": "FreezeAssets",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     6,
+     9,
+     12
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     5,
+     5,
+     65,
+     5,
+     30
+    ]
+   },
+   {
+    "name": "Bounce Check!",
+    "key": "BounceCheck",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     9,
+     13,
+     18
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     5,
+     5,
+     5,
+     60,
+     30
+    ]
+   }
+  ]
+ },
+ "bc": {
+  "base": 3,
+  "attacks": [
+   {
+    "name": "Audit!",
+    "key": "Audit",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Calculate!",
+    "key": "Calculate",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Tabulate!",
+    "key": "Tabulate",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Write Off!",
+    "key": "WriteOff",
+    "anim": "hold-pencil",
+    "group": false,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   }
+  ]
+ },
+ "nc": {
+  "base": 4,
+  "attacks": [
+   {
+    "name": "Audit!",
+    "key": "Audit",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     8,
+     10,
+     12
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Calculate!",
+    "key": "Calculate",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     9,
+     11,
+     13
+    ],
+    "acc": [
+     50,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Crunch!",
+    "key": "Crunch",
+    "anim": "throw-object",
+    "group": false,
+    "hp": [
+     8,
+     9,
+     11,
+     13,
+     15
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     80,
+     85
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Tabulate!",
+    "key": "Tabulate",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     7,
+     8,
+     9
+    ],
+    "acc": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   }
+  ]
+ },
+ "mb": {
+  "base": 5,
+  "attacks": [
+   {
+    "name": "Liquidate!",
+    "key": "Liquidate",
+    "anim": "magic1",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     14,
+     16,
+     18
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Market Crash!",
+    "key": "MarketCrash",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     8,
+     10,
+     12,
+     14,
+     16
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     45,
+     45,
+     45,
+     45,
+     45
+    ]
+   },
+   {
+    "name": "Power Tie!",
+    "key": "PowerTie",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     8,
+     9,
+     10
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     85,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   }
+  ]
+ },
+ "ls": {
+  "base": 6,
+  "attacks": [
+   {
+    "name": "Bite!",
+    "key": "Bite",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     10,
+     11,
+     13,
+     15,
+     16
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Chomp!",
+    "key": "Chomp",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     12,
+     15,
+     18,
+     21,
+     24
+    ],
+    "acc": [
+     60,
+     70,
+     75,
+     80,
+     90
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Play Hardball!",
+    "key": "PlayHardball",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     9,
+     11,
+     12,
+     13,
+     15
+    ],
+    "acc": [
+     55,
+     65,
+     75,
+     85,
+     95
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Write Off!",
+    "key": "WriteOff",
+    "anim": "hold-pencil",
+    "group": false,
+    "hp": [
+     6,
+     8,
+     10,
+     12,
+     14
+    ],
+    "acc": [
+     70,
+     75,
+     80,
+     85,
+     95
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   }
+  ]
+ },
+ "rb": {
+  "base": 7,
+  "attacks": [
+   {
+    "name": "Power Trip!",
+    "key": "PowerTrip",
+    "anim": "magic1",
+    "group": true,
+    "hp": [
+     11,
+     14,
+     16,
+     18,
+     21
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   },
+   {
+    "name": "Tee Off!",
+    "key": "TeeOff",
+    "anim": "golf-club-swing",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     14,
+     16,
+     18
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     85,
+     90
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   }
+  ]
+ },
+ "bf": {
+  "base": 0,
+  "attacks": [
+   {
+    "name": "Rubber Stamp!",
+    "key": "RubberStamp",
+    "anim": "rubber-stamp",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Shred!",
+    "key": "Shred",
+    "anim": "shredder",
+    "group": false,
+    "hp": [
+     2,
+     4,
+     6,
+     8,
+     10
+    ],
+    "acc": [
+     50,
+     55,
+     60,
+     65,
+     70
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Watercooler!",
+    "key": "Watercooler",
+    "anim": "watercooler",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     10,
+     10,
+     10,
+     10,
+     10
+    ]
+   },
+   {
+    "name": "Pick Pocket!",
+    "key": "PickPocket",
+    "anim": "pickpocket",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     2,
+     2,
+     3
+    ],
+    "acc": [
+     25,
+     30,
+     35,
+     40,
+     45
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   }
+  ]
+ },
+ "b": {
+  "base": 1,
+  "attacks": [
+   {
+    "name": "Eviction Notice!",
+    "key": "EvictionNotice",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     1,
+     2,
+     3,
+     3,
+     4
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Red Tape!",
+    "key": "RedTape",
+    "anim": "throw-object",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     6,
+     9
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Withdrawal!",
+    "key": "Withdrawal",
+    "anim": "magic1",
+    "group": false,
+    "hp": [
+     6,
+     8,
+     10,
+     12,
+     14
+    ],
+    "acc": [
+     95,
+     95,
+     95,
+     95,
+     95
+    ],
+    "freq": [
+     10,
+     10,
+     10,
+     10,
+     10
+    ]
+   },
+   {
+    "name": "Liquidate!",
+    "key": "Liquidate",
+    "anim": "magic1",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     6,
+     9
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   }
+  ]
+ },
+ "dt": {
+  "base": 2,
+  "attacks": [
+   {
+    "name": "Rubber Stamp!",
+    "key": "RubberStamp",
+    "anim": "rubber-stamp",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     5,
+     5,
+     5,
+     5,
+     5
+    ]
+   },
+   {
+    "name": "Bounce Check!",
+    "key": "BounceCheck",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     5,
+     5,
+     5,
+     5,
+     5
+    ]
+   },
+   {
+    "name": "Buzz Word!",
+    "key": "BuzzWord",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     1,
+     2,
+     3,
+     5,
+     6
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Double Talk!",
+    "key": "DoubleTalk",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     6,
+     6,
+     9,
+     13,
+     18
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Jargon!",
+    "key": "Jargon",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     6,
+     9,
+     12
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Mumbo Jumbo!",
+    "key": "MumboJumbo",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     6,
+     9,
+     12
+    ],
+    "acc": [
+     50,
+     60,
+     70,
+     80,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   }
+  ]
+ },
+ "ac": {
+  "base": 3,
+  "attacks": [
+   {
+    "name": "Shake!",
+    "key": "Shake",
+    "anim": "stomp",
+    "group": true,
+    "hp": [
+     4,
+     6,
+     9,
+     12,
+     15
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Red Tape!",
+    "key": "RedTape",
+    "anim": "throw-object",
+    "group": false,
+    "hp": [
+     6,
+     8,
+     12,
+     15,
+     19
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Rolodex!",
+    "key": "Rolodex",
+    "anim": "roll-o-dex",
+    "group": false,
+    "hp": [
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Hang Up!",
+    "key": "HangUp",
+    "anim": "phone",
+    "group": false,
+    "hp": [
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "acc": [
+     75,
+     75,
+     75,
+     75,
+     75
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   }
+  ]
+ },
+ "bs": {
+  "base": 4,
+  "attacks": [
+   {
+    "name": "Guilt Trip!",
+    "key": "GuiltTrip",
+    "anim": "magic1",
+    "group": true,
+    "hp": [
+     8,
+     11,
+     13,
+     15,
+     18
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     40,
+     40,
+     40,
+     40,
+     40
+    ]
+   },
+   {
+    "name": "Restraining Order!",
+    "key": "RestrainingOrder",
+    "anim": "throw-paper",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     9,
+     11,
+     13
+    ],
+    "acc": [
+     50,
+     65,
+     70,
+     75,
+     90
+    ],
+    "freq": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   {
+    "name": "Finger Wag!",
+    "key": "FingerWag",
+    "anim": "finger-wag",
+    "group": false,
+    "hp": [
+     5,
+     6,
+     7,
+     8,
+     9
+    ],
+    "acc": [
+     50,
+     55,
+     65,
+     75,
+     80
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   }
+  ]
+ },
+ "sd": {
+  "base": 5,
+  "attacks": [
+   {
+    "name": "Paradigm Shift!",
+    "key": "ParadigmShift",
+    "anim": "magic2",
+    "group": true,
+    "hp": [
+     9,
+     10,
+     13,
+     16,
+     17
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   },
+   {
+    "name": "Quake!",
+    "key": "Quake",
+    "anim": "quick-jump",
+    "group": true,
+    "hp": [
+     8,
+     10,
+     12,
+     14,
+     16
+    ],
+    "acc": [
+     60,
+     65,
+     70,
+     75,
+     80
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Spin!",
+    "key": "Spin",
+    "anim": "magic3",
+    "group": false,
+    "hp": [
+     10,
+     12,
+     15,
+     18,
+     20
+    ],
+    "acc": [
+     70,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Write Off!",
+    "key": "WriteOff",
+    "anim": "hold-pencil",
+    "group": false,
+    "hp": [
+     6,
+     7,
+     8,
+     9,
+     10
+    ],
+    "acc": [
+     60,
+     65,
+     75,
+     85,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   }
+  ]
+ },
+ "le": {
+  "base": 6,
+  "attacks": [
+   {
+    "name": "Evil Eye!",
+    "key": "EvilEye",
+    "anim": "glower",
+    "group": false,
+    "hp": [
+     10,
+     11,
+     13,
+     15,
+     16
+    ],
+    "acc": [
+     60,
+     75,
+     80,
+     85,
+     90
+    ],
+    "freq": [
+     20,
+     20,
+     20,
+     20,
+     20
+    ]
+   },
+   {
+    "name": "Jargon!",
+    "key": "Jargon",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     7,
+     9,
+     11,
+     13,
+     15
+    ],
+    "acc": [
+     60,
+     70,
+     75,
+     80,
+     90
+    ],
+    "freq": [
+     15,
+     15,
+     15,
+     15,
+     15
+    ]
+   },
+   {
+    "name": "Legalese!",
+    "key": "Legalese",
+    "anim": "speak",
+    "group": false,
+    "hp": [
+     11,
+     13,
+     16,
+     19,
+     21
+    ],
+    "acc": [
+     55,
+     65,
+     75,
+     85,
+     95
+    ],
+    "freq": [
+     35,
+     35,
+     35,
+     35,
+     35
+    ]
+   },
+   {
+    "name": "Pecking Order!",
+    "key": "PeckingOrder",
+    "anim": "throw-object",
+    "group": false,
+    "hp": [
+     12,
+     15,
+     17,
+     19,
+     22
+    ],
+    "acc": [
+     70,
+     75,
+     80,
+     85,
+     95
+    ],
+    "freq": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   }
+  ]
+ },
+ "bw": {
+  "base": 7,
+  "attacks": [
+   {
+    "name": "Power Trip!",
+    "key": "PowerTrip",
+    "anim": "magic1",
+    "group": true,
+    "hp": [
+     10,
+     11,
+     13,
+     15,
+     16
+    ],
+    "acc": [
+     75,
+     80,
+     85,
+     90,
+     95
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   },
+   {
+    "name": "Throw Book!",
+    "key": "ThrowBook",
+    "anim": "throw-object",
+    "group": false,
+    "hp": [
+     13,
+     15,
+     17,
+     19,
+     21
+    ],
+    "acc": [
+     80,
+     85,
+     85,
+     85,
+     90
+    ],
+    "freq": [
+     50,
+     50,
+     50,
+     50,
+     50
+    ]
+   }
+  ]
+ }
+}

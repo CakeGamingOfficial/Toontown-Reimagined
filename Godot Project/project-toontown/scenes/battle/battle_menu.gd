@@ -73,6 +73,8 @@ const _INK := Color(0.05, 0.14, 0.4)
 
 var _loadout: ToonLoadout
 var _waiting := false
+var _built := false
+var _tutorial := false
 var _menu: TextureRect
 var _prompt: TextureRect
 var _prompt_text: Label
@@ -95,14 +97,19 @@ var _fire: TextureButton
 var _pass: TextureButton
 
 
-func setup(loadout: ToonLoadout) -> void:
+func setup(loadout: ToonLoadout, tutorial := false) -> void:
 	_loadout = loadout
-	mouse_filter = MOUSE_FILTER_IGNORE
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_build()
-	var view := get_viewport()
-	if not view.size_changed.is_connected(_layout):
-		view.size_changed.connect(_layout)
+	_tutorial = tutorial
+	# Each street round calls this again. Building twice stacks a new menu
+	# card over the gag buttons, so the inventory looks empty.
+	if not _built:
+		_built = true
+		mouse_filter = MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_build()
+		var view := get_viewport()
+		if view != null and not view.size_changed.is_connected(_layout):
+			view.size_changed.connect(_layout)
 	_layout()
 
 
@@ -280,11 +287,14 @@ func _layout() -> void:
 	for command in [_run, _sos, _fire, _pass]:
 		var caption := command.get_child(0) as Label
 		ToonGui.style_label(caption, Color.WHITE, _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
-	# The tutorial line sits over the rows. Its card is the yellow dialog.
-	_place(_prompt, 0.045, -0.08, 0.66, 0.42)
-	_prompt_text.position = _prompt.position
-	_prompt_text.size = _prompt.size
-	ToonGui.style_title(_prompt_text, Color(0.05, 0.05, 0.08), _px_of(0.055))
+	# The toontorial line sits over the rows. Street battles leave it off.
+	_prompt.visible = _tutorial
+	_prompt_text.visible = _tutorial
+	if _tutorial:
+		_place(_prompt, 0.045, -0.08, 0.66, 0.42)
+		_prompt_text.position = _prompt.position
+		_prompt_text.size = _prompt.size
+		ToonGui.style_title(_prompt_text, Color(0.05, 0.05, 0.08), _px_of(0.055))
 
 
 func _paint_bar(track: int) -> void:

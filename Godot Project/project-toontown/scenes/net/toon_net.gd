@@ -747,6 +747,20 @@ func _keep_trolley(peer: int, game_id: int) -> void:
 	_trolley_for[peer] = game_id
 
 
+func _ask_board(district: int, slug: String, block: int, toon_name: String, hp: int, max_hp: int) -> void:
+	if is_authority():
+		_open_board(district, slug, block, peer_id(), toon_name, hp, max_hp)
+		return
+	if _role == "client":
+		_request_board.rpc_id(1, district, slug, block, toon_name, hp, max_hp)
+
+
+func _open_board(district: int, slug: String, block: int, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
+	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
+	if runs != null and runs.has_method("board"):
+		runs.call("board", district, slug, block, peer, toon_name, hp, max_hp)
+
+
 func _ask_fight(district: int, slug: String, cog_id: int, toon_name: String, hp: int, max_hp: int) -> void:
 	if is_authority():
 		_open_fight(district, slug, cog_id, peer_id(), toon_name, hp, max_hp)
@@ -761,6 +775,14 @@ func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> v
 		return
 	if _role == "client":
 		_choose_gag.rpc_id(1, fight_id, track, level, target, exp)
+
+
+func _finish_reward(fight_id: int) -> void:
+	if is_authority():
+		_close_reward(fight_id, peer_id())
+		return
+	if _role == "client":
+		_reward_done.rpc_id(1, fight_id)
 
 
 func _open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
@@ -842,7 +864,7 @@ static func keep_toon() -> void:
 	var av_id := ToonRoster.avatar_id()
 	if av_id <= 0:
 		return
-	var record: Dictionary = _BANK.capture()
+	var record: Dictionary = _BANK.merge_exp(av_id, _BANK.capture())
 	if net.is_authority():
 		_BANK.store(av_id, record)
 		net._avatars[net.peer_id()] = av_id
@@ -890,6 +912,13 @@ static func stored_exp(peer: int, track: int) -> int:
 	return int(experience[track])
 
 
+static func persist_zero_gags(av_id: int) -> void:
+	var net := live()
+	if net == null or not net.is_authority():
+		return
+	_BANK.zero_gags(av_id)
+
+
 static func persist_laff(av_id: int, hp: int, max_hp: int) -> void:
 	var net := live()
 	if net == null or not net.is_authority():
@@ -904,11 +933,32 @@ static func persist_gag(av_id: int, track: int, level: int) -> void:
 	_BANK.spend_gag(av_id, track, level)
 
 
+static func persist_exp(av_id: int, amounts: Array) -> void:
+	var net := live()
+	if net == null or not net.is_authority():
+		return
+	_BANK.set_exp(av_id, amounts)
+
+
+static func finish_reward(fight_id: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._finish_reward(fight_id)
+
+
 static func ask_fight(district: int, slug: String, cog_id: int, toon_name: String, hp: int, max_hp: int) -> void:
 	var net := live()
 	if net == null:
 		return
 	net._ask_fight(district, slug, cog_id, toon_name, hp, max_hp)
+
+
+static func ask_board(district: int, slug: String, block: int, toon_name: String, hp: int, max_hp: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_board(district, slug, block, toon_name, hp, max_hp)
 
 
 static func ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
@@ -1288,7 +1338,7 @@ func _keep_toon(record: Dictionary) -> void:
 	if av_id <= 0:
 		return
 	_avatars[sender] = av_id
-	_BANK.store(av_id, record)
+	_BANK.store(av_id, _BANK.merge_exp(av_id, record))
 
 
 @rpc("authority", "reliable")
@@ -1296,6 +1346,16 @@ func _claim_result(record: Dictionary) -> void:
 	if is_authority():
 		return
 	_BANK.apply(record)
+
+
+@rpc("any_peer", "reliable")
+func _request_board(district: int, slug: String, block: int, toon_name: String, hp: int, max_hp: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_open_board(district, slug, block, sender, toon_name, hp, max_hp)
 
 
 @rpc("any_peer", "reliable")
@@ -1313,6 +1373,19 @@ func _choose_gag(fight_id: int, track: int, level: int, target: int, exp: int) -
 	if not is_authority():
 		return
 	_choose_fight(fight_id, multiplayer.get_remote_sender_id(), track, level, target, exp)
+
+
+@rpc("any_peer", "reliable")
+func _reward_done(fight_id: int) -> void:
+	if not is_authority():
+		return
+	_close_reward(fight_id, multiplayer.get_remote_sender_id())
+
+
+func _close_reward(fight_id: int, peer: int) -> void:
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights != null and fights.has_method("reward_done"):
+		fights.call("reward_done", fight_id, peer)
 
 
 @rpc("any_peer", "reliable")

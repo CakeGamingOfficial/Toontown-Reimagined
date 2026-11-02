@@ -60,6 +60,11 @@ var _ok: TextureButton
 var _ok_caption: Label
 
 
+func stop() -> void:
+	_skip = true
+	visible = false
+
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build()

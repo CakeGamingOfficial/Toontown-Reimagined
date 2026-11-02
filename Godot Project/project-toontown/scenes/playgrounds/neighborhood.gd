@@ -142,12 +142,40 @@ func _ready_music() -> void:
 
 
 func _focus_sample(camera: Camera3D) -> Vector2:
-	var player := get_node_or_null("Player") as Node3D
+	var player := _toon_feet()
 	if player != null:
 		return Vector2(player.global_position.x, player.global_position.z)
 	if camera == null:
 		return Vector2(INF, INF)
 	return Vector2(camera.global_position.x, camera.global_position.z)
+
+
+func _toon_feet() -> Node3D:
+	var host := get_node_or_null("PlaygroundToon")
+	if host != null:
+		var body := host.get_node_or_null("Player") as Node3D
+		if body != null:
+			return body
+	return get_node_or_null("Player") as Node3D
+
+
+func zone_visible_at(at: Vector3) -> bool:
+	var shown: Variant = get_meta("street_shown", {})
+	if _zones.is_empty() or not (shown is Dictionary) or (shown as Dictionary).is_empty():
+		return true
+	var live: Dictionary = shown
+	var point := Vector2(at.x, at.z)
+	var inside := false
+	for zone_name in _zones:
+		var zone: Dictionary = _zones[zone_name]
+		var polygons: Array = zone["polygons"]
+		for polygon in polygons:
+			if not _contains(point, polygon):
+				continue
+			inside = true
+			if live.has(String(zone_name)):
+				return true
+	return not inside
 
 
 func _view_camera() -> Camera3D:

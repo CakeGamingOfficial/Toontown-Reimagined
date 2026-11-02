@@ -49,6 +49,14 @@ static var keep_last_hood := false
 # Set with teleport_in when the map threw a portal. Arrival then plays
 # getTeleportInTrack instead of the login disc.
 static var portal_in := false
+## Set when a street battle drops this toon to 0 laff. The next playground
+## shows DeathForceAcknowledge once, then the Sad walk until a treasure heals them.
+static var went_sad := false
+const _DEATH_ACK := "The Cogs took all your gags!\n\nYou are sad. You may not leave the playground until you are happy."
+const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _OK_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+const _OK_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+const _OK_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
 # "in" loads this toon's house. "out" returns to the yard in front of the door.
 static var door_trip := ""
 
@@ -162,10 +170,16 @@ func laff_missing() -> int:
 	return maxi(_loadout.max_hp - _loadout.hp, 0)
 
 
+func _is_sad() -> bool:
+	return _loadout != null and _loadout.hp < 1
+
+
 func heal(amount: int) -> void:
 	if _loadout == null or amount <= 0 or _loadout.hp >= _loadout.max_hp:
 		return
 	_loadout.set_hp(mini(_loadout.hp + amount, _loadout.max_hp), _loadout.max_hp)
+	if _player != null:
+		_player.set_sad(_is_sad())
 	# The laff meter follows this loadout live, and other players read it from
 	# the same object. The file is what the next launch loads.
 	_loadout.save()
@@ -176,6 +190,8 @@ func _ready() -> void:
 	var arriving := from_toontorial
 	var logging_in := teleport_in
 	var from_portal := portal_in
+	var sad_arrival := went_sad
+	went_sad = false
 	var from_door := door_trip
 	var from_shop := String(_SHOP.trip)
 	var from_hall := String(_HALL.trip)
@@ -215,6 +231,8 @@ func _ready() -> void:
 	_quiet_fly_camera()
 	_collect_tunnels(get_parent())
 	_spawn(arriving or logging_in)
+	if _player != null and _is_sad():
+		_player.set_sad(true)
 	_ready_hud()
 	_trolley = _TROLLEY.new()
 	_trolley.name = "Trolley"
@@ -229,6 +247,8 @@ func _ready() -> void:
 			await _settle_hq_exit()
 		_fade_in()
 		_DOORS.play_close(self)
+		if sad_arrival:
+			await _death_ack()
 		_locked = false
 		_place_camera()
 		return
@@ -241,6 +261,8 @@ func _ready() -> void:
 			_locked = true
 			await _tunnel_in(origin, float(trip["lateral"]))
 			_filming = false
+		if sad_arrival:
+			await _death_ack()
 		_locked = false
 		_place_camera()
 		return
@@ -257,6 +279,10 @@ func _ready() -> void:
 		else:
 			_fade_in()
 			await _pop_up()
+	if sad_arrival:
+		if _player != null:
+			_player.set_sad(true)
+		await _death_ack()
 	_locked = false
 	_place_camera()
 
@@ -279,7 +305,7 @@ func _process(delta: float) -> void:
 		return
 	if _map != null and _body != null:
 		_map.call("follow", _body.global_position, _heading)
-	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
+	if _locked or _filming or _portaling or _bank_open or _battle_hold or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
 	if _trolley != null:
 		_trolley.tick(delta)
@@ -295,7 +321,9 @@ func _process(delta: float) -> void:
 		return
 	MagicWords.maintain(get_parent())
 	var book_open := _book != null and _book.is_open()
-	if MagicWords.detached_camera() and not book_open and not _bank_open and not _locked:
+	if _battle_hold:
+		pass
+	elif MagicWords.detached_camera() and not book_open and not _bank_open and not _locked:
 		MagicWords.fly_camera(_camera, delta)
 	elif _trolley != null and _trolley.holds_camera():
 		_trolley.aim(_camera)
@@ -312,6 +340,8 @@ func _physics_process(delta: float) -> void:
 	if not _active or _locked:
 		return
 	_walk(delta)
+	if _is_sad():
+		return
 	_try_tunnel()
 	_try_house_door()
 	_try_gag_door()
@@ -1355,6 +1385,7 @@ func _enter_building() -> void:
 	await _walk_into_door(_into_door(_BLDG.enter_frame(building, door)))
 	if zone_id == 0:
 		_locked = false
+		_lift_blackout()
 		return
 	_BLDG.remember(zone_id, street_path)
 	_BLDG.trip = "in"
@@ -1485,6 +1516,14 @@ func _interior_door_goal(origin: Node3D) -> Vector3:
 	var point := _DOORS.interior_enter_point(origin)
 	point.y = _body.global_position.y
 	return point
+
+
+func _lift_blackout() -> void:
+	var fade := _hud().get_node_or_null("TunnelFade") as ColorRect
+	if fade == null:
+		return
+	var tween := create_tween()
+	tween.tween_property(fade, "color:a", 0.0, 0.25)
 
 
 func _fade_black() -> void:
@@ -1649,6 +1688,8 @@ func _pop_up() -> void:
 ## MapPage teleports throw the hole, then jump in. The scene changes when the
 ## track finishes, and the next place plays the jump back out.
 func teleport_to_hood(hood: int, remember := true) -> void:
+	if _is_sad():
+		return
 	if not await _play_teleport_out():
 		return
 	portal_in = true
@@ -1659,7 +1700,65 @@ func teleport_to_hood(hood: int, remember := true) -> void:
 	ToonLoading.change_to(_PLACES.scene_for(hood))
 
 
-## Place.__handleBookCloseExit plays TeleportOut, fades, then leaves the shard.
+## DeathForceAcknowledge. The laff meter sits on the left of the card at 0.
+func _death_ack() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	_hud().add_child(layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(root)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.4)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(dim)
+	var frame := TextureRect.new()
+	frame.texture = _DIALOG
+	frame.modulate = Color(1, 1, 0.75, 1)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(frame)
+	var message := Label.new()
+	message.text = _DEATH_ACK
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	message.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(message)
+	var button := TextureButton.new()
+	button.texture_normal = _OK_UP
+	button.texture_pressed = _OK_DOWN
+	button.texture_hover = _OK_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.button_sounds(button)
+	root.add_child(button)
+	var meter := LaffMeter.new()
+	meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := ToonRoster.selected_style()
+	if style == null:
+		style = ToonStyle.new()
+	meter.setup(style)
+	var maximum := 1 if _loadout == null else _loadout.max_hp
+	meter.set_hp(0, maximum)
+	root.add_child(meter)
+	var view := get_viewport().get_visible_rect().size
+	ToonGui.place(frame, view, 0.0, 0.05, 2.2, 1.25)
+	var px := maxi(int(round(0.055 * view.y * 0.5)), 1)
+	ToonGui.style_label(message, Color(0.08, 0.08, 0.08), px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(message, view, 0.12, 0.12, 1.45, 0.7)
+	ToonGui.place(button, view, 0.0, -0.38, 0.13, 0.13)
+	var monkey := style.species() == "p"
+	var meter_x := -0.46 if monkey else -0.48
+	var meter_px := view.y * (0.085 if monkey else 0.1)
+	meter.place(Vector2(view.x * 0.5 + meter_x * view.y * 0.5, view.y * 0.5 - (-0.035) * view.y * 0.5), meter_px)
+	await button.pressed
+	if is_instance_valid(layer):
+		layer.queue_free()
 ## Here the next screen is Pick a Toon.
 func quit_to_chooser() -> void:
 	if not await _play_teleport_out():
@@ -1937,7 +2036,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if _KEYS.held("jump") and _jump_lock <= 0.0:
+		if not _is_sad() and _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -1973,6 +2072,7 @@ func _walk(delta: float) -> void:
 		elif impact < -5.0:
 			_jump_lock = JUMP_LOCK
 	_face(_player, face_heading)
+	_player.set_sad(_is_sad())
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 	if _remotes != null:
 		_remotes.note(face_heading, speed, turning, _jumping or jumped, not _player.visible)
@@ -1997,7 +2097,7 @@ func _place_camera() -> void:
 
 
 func _steer_camera(event: InputEvent) -> void:
-	if _locked or _filming or _portaling or _bank_open or (_book != null and _book.is_open()):
+	if _locked or _filming or _portaling or _bank_open or _battle_hold or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
 		return
 	if event is InputEventMouseButton:

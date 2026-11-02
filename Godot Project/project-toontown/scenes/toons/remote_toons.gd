@@ -171,6 +171,12 @@ func _apply(channel: String) -> void:
 	actor.set_meta("gm", int(state.get("gm", 0)))
 	actor.set_meta("hp", int(state.get("hp", 15)))
 	actor.set_meta("max_hp", int(state.get("max_hp", 15)))
+	if bool(actor.get_meta("gone_sad", false)):
+		actor.visible = false
+		var hidden_tag: Control = puppet.get("tag")
+		if hidden_tag != null:
+			hidden_tag.visible = false
+		return
 	var dressed: Variant = state.get("style", {})
 	if dressed is Dictionary:
 		actor.set_meta("style", dressed)
@@ -237,6 +243,7 @@ func _move_puppets(delta: float) -> void:
 		var turn := angle_difference(deg_to_rad(facing(actor)), deg_to_rad(heading))
 		_face(actor, facing(actor) + rad_to_deg(turn) * blend)
 		var anim := String(puppet.get("anim", "neutral"))
+		actor.set_sad(anim == "sad-walk" or anim == "sad-neutral")
 		if anim == "run":
 			actor.set_locomotion(9.0, false, false, delta)
 		elif anim == "walk":
@@ -247,6 +254,10 @@ func _move_puppets(delta: float) -> void:
 			actor.set_locomotion(0.0, true, false, delta)
 		elif anim == "jump":
 			actor.set_locomotion(4.0, false, true, delta)
+		elif anim == "sad-walk":
+			actor.set_locomotion(4.0, false, false, delta)
+		elif anim == "sad-neutral":
+			actor.set_locomotion(0.0, false, false, delta)
 		else:
 			actor.set_locomotion(0.0, false, false, delta)
 
@@ -278,6 +289,10 @@ func _exit_tree() -> void:
 
 
 func _anim_name(speed: float, turning: bool, jumping: bool) -> String:
+	if _actor != null and _actor.is_sad():
+		if absf(speed) > 0.5 or turning:
+			return "sad-walk"
+		return "sad-neutral"
 	if jumping:
 		return "jump"
 	if speed >= 8.0:

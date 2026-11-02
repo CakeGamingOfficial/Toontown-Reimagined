@@ -196,18 +196,17 @@ func _nametag_blocked(actor: Node3D, point: Vector3) -> bool:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return false
+	# Off-screen names do not need a ray. The ray walks the block's triangle
+	# mesh, and doing that for every suit is what dropped the street.
+	if cam.is_position_behind(point) or not cam.is_position_in_frustum(point):
+		return true
+	var tick := Engine.get_process_frames()
+	var slot := int(actor.get_instance_id()) % 12
+	if tick % 12 != slot:
+		return bool(actor.get_meta("occ", false))
 	var height := float(actor.get("height"))
 	var head := actor.global_position + Vector3(0.0, height * 0.72, 0.0)
-	if cam.is_position_behind(point) and cam.is_position_behind(head):
-		return true
-	# A full ray against every building, every frame, is what dropped streets
-	# to a handful of frames. Recheck each suit a few times a second.
-	var tick := Engine.get_process_frames()
-	if tick % 4 != int(actor.get_instance_id()) % 4 and actor.has_meta("occ"):
-		return bool(actor.get_meta("occ"))
-	var origin := cam.global_position
-	var world := actor.get_world_3d()
-	var blocked := _sight_blocked(world, origin, head) or _sight_blocked(world, origin, point)
+	var blocked := _sight_blocked(actor.get_world_3d(), cam.global_position, head)
 	actor.set_meta("occ", blocked)
 	return blocked
 
@@ -221,7 +220,7 @@ func _sight_blocked(world: World3D, origin: Vector3, point: Vector3) -> bool:
 	var target := point
 	var from := origin
 	var steps := 0
-	while steps < 8:
+	while steps < 2:
 		steps += 1
 		var span := from.distance_to(target)
 		if span < 0.45:
