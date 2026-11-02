@@ -375,8 +375,14 @@ func _layout() -> void:
 		return
 	var view := get_viewport().get_visible_rect().size
 	_GUI.place(_panel, view, 0.0, 0.0, 1.5, 1.5)
-	_GUI.place(_open_button, view, 1.25, -0.63, 0.205, 0.205)
-	_GUI.place(_close_button, view, 1.25, -0.63, 0.205, 0.205)
+	# The rolled map sits just above the shticker book, right edges lined up.
+	var book := ShtickerBook.closed_rect(view)
+	var side := book.size.x * 0.205 / 0.305
+	var at := Vector2(book.end.x - side, book.position.y - side - 6.0)
+	_open_button.position = at
+	_open_button.size = Vector2(side, side)
+	_close_button.position = at
+	_close_button.size = Vector2(side, side)
 	var cog_at := _floats(_COG_AT, _zone)
 	if cog_at.size() >= 2:
 		_place_box(_cog, Vector2(cog_at[0], cog_at[1]), 0.3, 0.1)

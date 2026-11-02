@@ -280,6 +280,8 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 	var limit := ids.size() if ids.size() >= 3 else source_verts.size()
 	var copied := 0
 	var opaque := not (material is BaseMaterial3D) or (material as BaseMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED
+	# Fence pictures are masked, but the wall behind the picture is solid.
+	var wall := boundary_wall(mesh)
 	while cursor + 2 < limit:
 		var i0 := cursor
 		var i1 := cursor + 1
@@ -297,7 +299,7 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 		bucket.verts.append(p0)
 		bucket.verts.append(p1)
 		bucket.verts.append(p2)
-		if opaque and _keep_solid(p0, p1, p2):
+		if (opaque or wall) and _keep_solid(p0, p1, p2):
 			job.faces.append(p0)
 			job.faces.append(p1)
 			job.faces.append(p2)
@@ -315,6 +317,13 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 		copied += 1
 		cursor += 3
 	return copied
+
+
+## Flat-building walls, and the playground fence copied along a street edge.
+## The texture is a cutout, so the opaque pass used to leave the rectangle out.
+static func boundary_wall(mesh: MeshInstance3D) -> bool:
+	var low := String(mesh.name).to_lower()
+	return low.begins_with("wall_") or "fence" in low
 
 
 static func _keep_solid(a: Vector3, b: Vector3, c: Vector3) -> bool:

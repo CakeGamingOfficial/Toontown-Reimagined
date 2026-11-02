@@ -62,6 +62,7 @@ var _links: Array[PackedInt32Array] = []
 var _route: PackedInt32Array = PackedInt32Array()
 var _starts: Array[int] = []
 var _nametags: Node
+var _rider: CollisionObject3D
 var _count := 0
 var _zone := 0
 var _street_min := 1
@@ -85,6 +86,8 @@ var visuals := true
 var district_id := -1
 var _net_sig := ""
 var _net_actors: Dictionary = {}
+var _shader_done := false
+var _shader_hold: Node
 
 
 static func attach(host: Node3D) -> void:
@@ -147,14 +150,22 @@ func _process(delta: float) -> void:
 	if _nametags != null:
 		_nametags.set("camera", get_viewport().get_camera_3d())
 		_nametags.call("place")
+	# Clip indexes, the suit shader, and the queued suit models are ready
+	# before a cog is allowed to appear. That work used to land on the spawn frame.
+	if _warm_step():
+		return
 	if not ToonNet.is_authority():
+		if _warm_net():
+			return
 		_apply_net()
+		StreetCog.bake_one()
 		return
 	if not _queue.is_empty():
 		var job: Dictionary = _queue.pop_front()
 		_spawn_state(job)
 		_publish_net()
 		return
+	_warm_idle()
 	_upkeep -= delta
 	if _upkeep <= 0.0:
 		_upkeep = randf_range(10.0, 12.0)
@@ -194,9 +205,6 @@ func _nametag_blocked(actor: Node3D, point: Vector3) -> bool:
 	var tick := Engine.get_process_frames()
 	if tick % 4 != int(actor.get_instance_id()) % 4 and actor.has_meta("occ"):
 		return bool(actor.get_meta("occ"))
-	if cam.global_position.distance_squared_to(head) > 90.0 * 90.0:
-		actor.set_meta("occ", false)
-		return false
 	var origin := cam.global_position
 	var world := actor.get_world_3d()
 	var blocked := _sight_blocked(world, origin, head) or _sight_blocked(world, origin, point)
@@ -204,39 +212,56 @@ func _nametag_blocked(actor: Node3D, point: Vector3) -> bool:
 	return blocked
 
 
+## A block is one solid: the sidewalk and the walls share a body. Skipping
+## that body after a floor hit let the name show through the wall.
 func _sight_blocked(world: World3D, origin: Vector3, point: Vector3) -> bool:
 	if world == null:
 		return false
 	var space := world.direct_space_state
-	var skip: Array[RID] = []
-	var total := origin.distance_to(point)
-	if total < 0.05:
-		return false
-	var query := PhysicsRayQueryParameters3D.create(origin, point)
-	for _step in 10:
-		query.from = origin
-		query.to = point
+	var target := point
+	var from := origin
+	var steps := 0
+	while steps < 8:
+		steps += 1
+		var span := from.distance_to(target)
+		if span < 0.45:
+			return false
+		var query := PhysicsRayQueryParameters3D.create(from, target)
 		query.collide_with_areas = false
 		query.hit_back_faces = true
 		query.collision_mask = 1
-		query.exclude = skip
+		var rider := _rider_rid()
+		if rider.is_valid():
+			query.exclude = [rider]
 		var hit := space.intersect_ray(query)
 		if hit.is_empty():
 			return false
 		var normal: Vector3 = hit["normal"]
 		var hit_at: Vector3 = hit["position"]
-		if origin.distance_to(hit_at) < 0.05:
-			var near_rid: RID = hit["rid"]
-			skip.append(near_rid)
-			continue
-		if hit_at.distance_to(point) < 0.45:
+		if hit_at.distance_to(target) < 0.45:
 			return false
 		if normal.y > 0.55:
-			var rid: RID = hit["rid"]
-			skip.append(rid)
+			var dir := target - from
+			if dir.length() < 0.05:
+				return false
+			dir = dir.normalized()
+			var ahead := hit_at + dir * 0.3
+			if ahead.distance_to(target) >= span - 0.05:
+				return false
+			from = ahead
 			continue
 		return true
 	return false
+
+
+func _rider_rid() -> RID:
+	if _rider != null and is_instance_valid(_rider):
+		return _rider.get_rid()
+	var found := get_tree().root.find_child("Player", true, false) as CollisionObject3D
+	_rider = found
+	if _rider == null:
+		return RID()
+	return _rider.get_rid()
 
 func _load_street() -> bool:
 	if not FileAccess.file_exists(json_path):
@@ -754,10 +779,22 @@ func _record(cogs: Array) -> Dictionary:
 	}
 
 
+func capture_record() -> Dictionary:
+	var record := _record(roster())
+	record["district"] = district_id
+	record["slug"] = street_slug
+	return record
+
+
 func _seed() -> void:
 	var traffic := get_node_or_null("/root/StreetTraffic")
-	if traffic != null and traffic.has_method("hold"):
-		traffic.call("hold", district_id, street_slug, _record([]))
+	if traffic == null or not traffic.has_method("hold"):
+		return
+	if traffic.has_method("remember_state"):
+		traffic.call("remember_state")
+	if traffic.has_method("has_street") and bool(traffic.call("has_street", district_id, street_slug)):
+		return
+	traffic.call("hold", district_id, street_slug, _record([]))
 
 
 func _publish_net() -> void:
@@ -775,12 +812,115 @@ func _publish_net() -> void:
 	ToonNet.publish("suits:%d:%s" % [district_id, street_slug], {"rows": rows})
 
 
+func _warm_step() -> bool:
+	if StreetCog.index_next():
+		return true
+	if not _shader_done:
+		_warm_shader()
+		_shader_done = true
+		return true
+	if is_instance_valid(_shader_hold):
+		_shader_hold.queue_free()
+		_shader_hold = null
+	var queued := _pending_code(true)
+	if not queued.is_empty():
+		_warm_code(queued)
+		return true
+	return false
+
+
+func _warm_idle() -> void:
+	var extra := _pending_code(false)
+	if not extra.is_empty():
+		_warm_code(extra)
+		return
+	StreetCog.bake_one()
+
+
+func _warm_net() -> bool:
+	var snap := ToonNet.latest("suits:%d:%s" % [district_id, street_slug])
+	var raw: Variant = snap.get("rows", [])
+	if not (raw is Array):
+		return false
+	for item in raw as Array:
+		if not (item is Dictionary):
+			continue
+		var cog: Variant = (item as Dictionary).get("cog", {})
+		if cog is Dictionary and not _code_ready(str((cog as Dictionary).get("code", ""))):
+			_warm_code(cog)
+			return true
+	return false
+
+
+func _pending_code(queue_only: bool) -> Dictionary:
+	if queue_only:
+		for job in _queue:
+			var cog: Variant = job.get("cog", {})
+			if cog is Dictionary and not _code_ready(str((cog as Dictionary).get("code", ""))):
+				return cog
+		return {}
+	for item in _catalog:
+		if item is Dictionary and not _code_ready(str((item as Dictionary).get("code", ""))):
+			return item
+	return {}
+
+
+func _code_ready(code: String) -> bool:
+	if code.is_empty():
+		return true
+	var waiting: Array = _pool.get(code, [])
+	if not waiting.is_empty():
+		return true
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("has_actor"):
+		return bool(traffic.call("has_actor", code))
+	return false
+
+
+func _warm_code(cog: Dictionary) -> void:
+	var code := str(cog.get("code", ""))
+	if code.is_empty() or _code_ready(code):
+		return
+	var holder := get_node_or_null("CogPool")
+	if holder == null:
+		return
+	var suit := _COG.new() as Node3D
+	holder.add_child(suit)
+	suit.call("preload_suit", cog, _timing, _propeller)
+	var waiting: Array = _pool.get(code, [])
+	waiting.append(suit)
+	_pool[code] = waiting
+
+
+## The first on-screen suit used to compile cog_shade.gdshader. Draw it once up front.
+func _warm_shader() -> void:
+	var view := SubViewport.new()
+	view.name = "CogShaderWarm"
+	view.size = Vector2i(8, 8)
+	view.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var camera := Camera3D.new()
+	camera.current = true
+	view.add_child(camera)
+	var card := MeshInstance3D.new()
+	card.mesh = QuadMesh.new()
+	card.position = Vector3(0.0, 0.0, -2.0)
+	var material := ShaderMaterial.new()
+	material.shader = load("res://scenes/cogs/cog_shade.gdshader")
+	material.set_shader_parameter("use_albedo_texture", 0.0)
+	material.set_shader_parameter("albedo_color", Color.WHITE)
+	card.material_override = material
+	view.add_child(card)
+	add_child(view)
+	_shader_hold = view
+
+
 func _apply_net() -> void:
 	var snap := ToonNet.latest("suits:%d:%s" % [district_id, street_slug])
 	var raw: Variant = snap.get("rows", [])
 	if not (raw is Array):
 		return
 	var seen: Dictionary = {}
+	var spawned := false
 	for item in raw as Array:
 		if not (item is Dictionary):
 			continue
@@ -796,9 +936,12 @@ func _apply_net() -> void:
 			if (have as Node).has_method("follow_net"):
 				(have as Node).call("follow_net", row)
 			continue
+		if spawned:
+			continue
 		var suit := _spawn_state(row)
 		if suit != null:
 			_net_actors[net_id] = suit
+			spawned = true
 	var gone: Array = []
 	for net_id in _net_actors.keys():
 		if not seen.has(net_id):

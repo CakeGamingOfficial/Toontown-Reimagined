@@ -55,6 +55,29 @@ func _collide_mesh(mesh: MeshInstance3D) -> void:
 	if not mesh.visible or mesh.mesh == null or mesh.has_meta("street_batched"):
 		return
 	var material := mesh.get_active_material(0)
-	if material is BaseMaterial3D and material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+	var cutout := false
+	if material is BaseMaterial3D:
+		cutout = (material as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
+	# Party gates are masked cards. The tunnel, stairs, and signs still need to stop a toon.
+	if cutout and not _party_piece(mesh):
 		return
 	mesh.create_trimesh_collision()
+
+
+## partyGate_TT and the other playground gates. Hats, clocks, and pole balls are
+## flat cards. The walls, stairs, floor, and sign posts are the solid parts.
+func _party_piece(mesh: MeshInstance3D) -> bool:
+	var inside := false
+	var current: Node = mesh
+	while current != null:
+		var name := str(current.name)
+		var lower := name.to_lower()
+		if name == "clock_flat" or lower.contains("billboard") or lower.contains("shadow"):
+			return false
+		if name == "partyGate_grp" or name == "partyGateSignGroup" or name.begins_with("prop_party_gate"):
+			inside = true
+		current = current.get_parent()
+	if not inside:
+		return false
+	var leaf := str(mesh.name)
+	return not leaf.begins_with("hatFlat") and not leaf.begins_with("hatTop")

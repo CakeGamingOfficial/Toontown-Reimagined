@@ -23,6 +23,7 @@ ToonLoadingScreen="*res://scenes/gui/loading_screen.gd"
 StreetTraffic="*res://scenes/streets/street_traffic.gd"
 ToonNetwork="*res://scenes/net/toon_net.gd"
 ToonSocialBus="*res://scenes/net/toon_social.gd"
+DevConsole="*res://scenes/debug/dev_console.gd"
 DiscordPresence="*res://scenes/discord/discord_presence.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 

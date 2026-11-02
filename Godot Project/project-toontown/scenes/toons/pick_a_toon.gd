@@ -390,6 +390,7 @@ func _make_toon(index: int) -> void:
 
 
 func _play(index: int) -> void:
+	SpeedChat.begin_session()
 	ToonRoster.select_slot(index)
 	var tasks := ToonTasks.for_selected()
 	if not tasks.in_playground:

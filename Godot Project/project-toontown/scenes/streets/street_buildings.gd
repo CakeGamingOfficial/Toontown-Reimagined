@@ -33,6 +33,11 @@ const _MEDAL := {
 	"m": Color(0.749, 0.769, 0.749),
 }
 const _LIGHT_OFF := Color(0.5, 0.5, 0.5)
+const _LIGHT_ON := Color(1.0, 1.0, 1.0)
+## ElevatorUtils.getLeftClosePoint for a normal elevator. Open is the origin.
+const _DOOR_SLIDE := 3.5
+## The eyes face the sidewalk. A paper card pushed the wrong way sits inside the wall.
+const _SIGN_GAP := 0.15
 const _DROP_SFX := "res://assets/buildings/cog/audio/cogbldg_drop.ogg"
 const _LAND_SFX := "res://assets/buildings/cog/audio/cogbldg_land.ogg"
 const _SETTLE_SFX := "res://assets/buildings/cog/audio/cogbldg_settle.ogg"
@@ -276,11 +281,29 @@ func _elapsed(since: int) -> float:
 
 
 func _show_shop(landmark: Node) -> void:
-	landmark.visible = true
-	landmark.remove_meta("cog_building")
-	if landmark.has_meta("shop_scale"):
-		landmark.scale = landmark.get_meta("shop_scale")
-	_clear_dark(landmark)
+	_restore_piece(landmark)
+	_restore_list(landmark, "block_nodes")
+	_restore_list(landmark, "door_props")
+	if landmark.has_meta("cog_building"):
+		landmark.remove_meta("cog_building")
+
+
+func _restore_list(landmark: Node, key: String) -> void:
+	if not landmark.has_meta(key):
+		return
+	var rows: Array = landmark.get_meta(key)
+	for item in rows:
+		if item is Node and item != landmark:
+			_restore_piece(item)
+
+
+func _restore_piece(piece: Node) -> void:
+	if not is_instance_valid(piece):
+		return
+	piece.visible = true
+	if piece is Node3D and piece.has_meta("shop_scale"):
+		(piece as Node3D).scale = piece.get_meta("shop_scale")
+	_clear_dark(piece)
 
 
 func _remember_scale(landmark: Node) -> void:
@@ -291,12 +314,12 @@ func _remember_scale(landmark: Node) -> void:
 func _settle(landmark: Node3D, row: Dictionary) -> void:
 	var block := int(row.get("block", 0))
 	_remember_scale(landmark)
-	landmark.visible = false
-	landmark.scale = landmark.get_meta("shop_scale")
+	_remember_block(landmark)
 	landmark.set_meta("cog_building", true)
-	_clear_dark(landmark)
 	_shown[block] = landmark
 	var building := _ensure_actor(landmark, row)
+	_remember_props(landmark, building)
+	_hide_taken(landmark)
 	if building != null and building.has_meta("rest"):
 		building.global_transform = building.get_meta("rest")
 
@@ -315,10 +338,14 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	var holder := _holder()
 	building.name = "CogBuilding%d" % block
 	holder.add_child(building)
+	# The street landmark is already Y-up. The imported child still carries
+	# the glTF Z-up spin, and leaving both on lays the tower on its side.
 	building.global_transform = landmark.global_transform
+	_drop_import_spin(building)
 	building.set_meta("rest", building.global_transform)
 	building.set_meta("rest_scale", building.scale)
 	_dress(building, row)
+	_use_vertex_colors(building)
 	_actors[block] = building
 	return building
 
@@ -354,26 +381,22 @@ func _release_block(block: int) -> void:
 func _pose(landmark: Node3D, building: Node3D, elapsed: float) -> void:
 	var rest: Transform3D = building.get_meta("rest")
 	var rest_scale: Vector3 = building.get_meta("rest_scale")
-	var shop_scale: Vector3 = landmark.get_meta("shop_scale")
+	_remember_block(landmark)
+	_remember_props(landmark, building)
 	if elapsed < _DROP_TIME:
 		var along := elapsed / _DROP_TIME
 		building.global_transform = rest
 		building.global_position = rest.origin + Vector3(0.0, _INIT_HEIGHT * (1.0 - along), 0.0)
 		building.scale = rest_scale
+		# animToSuit waits until the tower is 20 feet up, then squishes every tb node.
 		var squish_at := (_INIT_HEIGHT - 20.0) / _INIT_HEIGHT * _DROP_TIME
 		if elapsed < squish_at:
-			landmark.scale = shop_scale
-			landmark.visible = true
-			_darken(landmark, lerpf(0.0, 0.75, elapsed / squish_at))
+			_squash_taken(landmark, 1.0, lerpf(0.0, 0.75, elapsed / squish_at))
 		else:
 			var crush := (elapsed - squish_at) / maxf(_DROP_TIME - squish_at, 0.001)
-			landmark.scale = Vector3(shop_scale.x, shop_scale.y * lerpf(1.0, 0.01, crush), shop_scale.z)
-			landmark.visible = true
-			_darken(landmark, 0.75)
+			_squash_taken(landmark, lerpf(1.0, 0.01, crush), 0.75)
 		return
-	landmark.visible = false
-	landmark.scale = shop_scale
-	_clear_dark(landmark)
+	_hide_taken(landmark)
 	building.global_transform = rest
 	var bounce := _bounce_scale(elapsed - _DROP_TIME)
 	building.scale = Vector3(rest_scale.x, rest_scale.y * bounce, rest_scale.z)
@@ -395,7 +418,9 @@ func _bounce_scale(elapsed: float) -> float:
 
 
 func _darken(landmark: Node, amount: float) -> void:
-	var mat: Material = landmark.get_meta("shade", null)
+	var mat: Material = null
+	if landmark.has_meta("shade"):
+		mat = landmark.get_meta("shade")
 	if not (mat is StandardMaterial3D):
 		if _shade == null:
 			return
@@ -461,11 +486,11 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 		var elevator := _ELEVATOR.instantiate() as Node3D
 		if elevator != null:
 			door.add_child(elevator)
-			elevator.position = Vector3.ZERO
-			elevator.rotation = Vector3.ZERO
-			var basis := door.global_transform.basis.orthonormalized()
-			elevator.global_transform = Transform3D(basis, door.global_position)
+			elevator.transform = Transform3D.IDENTITY
+			_drop_import_spin(elevator)
 			_floors(elevator, int(row.get("floors", 1)))
+			building.set_meta("elevator", elevator)
+			_show_story(elevator, int(row.get("story", -1)))
 			_medallion(elevator, track)
 	var origin := _find(building, "sign_origin")
 	if origin == null:
@@ -474,21 +499,69 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 	if sign == null:
 		return
 	origin.add_child(sign)
-	sign.position = Vector3(0.0, 0.0, 1.2)
-	sign.scale = Vector3(8.0, 8.0, 8.0)
+	_drop_import_spin(sign)
+	_sign_material(sign)
+	var caption := _caption(String(row.get("title", "")), track)
+	var metrics := _sign_metrics(caption)
+	var text_height := metrics.x
+	var z_scale := metrics.y
+	# setupSuitBuilding lifts the plaque by textHeight * 0.8 / zScale. The eyes
+	# face the card's local -Y, so that axis points out the door.
+	var lift := text_height * 0.8 / z_scale
+	_seat_sign(sign, origin, door, lift)
+	sign.scale = Vector3(8.0, 8.0, 8.0 * z_scale)
 	var label := Label3D.new()
-	label.text = _caption(String(row.get("title", "")), track)
+	label.text = caption
 	label.font = ToonGui.suit_font()
 	label.font_size = 48
-	label.pixel_size = 0.045
+	label.pixel_size = 0.02
 	label.modulate = Color(1, 1, 1)
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.width = 14.0
-	label.position = Vector3(0.0, -0.35, 0.85)
-	origin.add_child(label)
+	# Label3D width is pixels. 20px is narrower than one suit glyph, so the title stacked down the plaque.
+	var cell := label.font.get_string_size("00000000000000000", HORIZONTAL_ALIGNMENT_LEFT, -1, label.font_size)
+	label.width = maxf(cell.x, 17.0 * label.font_size)
+	label.position = Vector3(0.0, -0.08, -0.21 + text_height * 0.1 / z_scale)
+	_aim_title(sign, label, door)
+	label.scale = Vector3(0.1, 0.1, 0.1 / z_scale)
+	sign.add_child(label)
+
+
+func _drop_import_spin(root: Node3D) -> void:
+	for child in root.get_children():
+		if not (child is Node3D):
+			continue
+		var body := child as Node3D
+		var basis := body.basis
+		var z_up := basis.x.distance_to(Vector3(1, 0, 0)) < 0.02
+		z_up = z_up and basis.y.distance_to(Vector3(0, 0, -1)) < 0.02
+		z_up = z_up and basis.z.distance_to(Vector3(0, 1, 0)) < 0.02
+		if z_up:
+			body.basis = Basis.IDENTITY
+		return
+
+
+## TextNode.getHeight for a two-or-three line plaque, then (height + 2) / 3.
+func _sign_metrics(caption: String) -> Vector2:
+	var height := 0.0
+	for line in caption.split("\n"):
+		var remain := line
+		if remain.is_empty():
+			height += 1.0
+			continue
+		while not remain.is_empty():
+			height += 1.0
+			if remain.length() <= 17:
+				break
+			var window := remain.substr(0, 18)
+			var space := window.rfind(" ")
+			var cut := 17
+			if space > 0:
+				cut = space + 1
+			remain = remain.substr(cut)
+	return Vector2(height, (height + 2.0) / 3.0)
 
 
 func _caption(title: String, track: String) -> String:
@@ -501,24 +574,70 @@ func _caption(title: String, track: String) -> String:
 
 
 func _floors(elevator: Node, floors: int) -> void:
+	elevator.set_meta("floor_count", maxi(floors, 1))
+
+
+## DistributedElevatorExt.setFloor. story is the 0-based floor a group is on.
+## -1 is an empty elevator: every bulb stays at LIGHT_OFF and the doors stay open.
+func _show_story(elevator: Node, story: int) -> void:
+	var floors := int(elevator.get_meta("floor_count", 1))
 	var lights: Array[Node] = []
 	_collect_lights(elevator, lights)
 	for light in lights:
 		var digit := str(light.name).substr(str(light.name).length() - 1, 1)
 		if not digit.is_valid_int():
 			continue
-		var floor := int(digit)
-		if floor > floors:
+		var index := int(digit) - 1
+		if index < 0 or index >= floors:
 			light.visible = false
 			continue
-		if light is MeshInstance3D:
-			var mesh := light as MeshInstance3D
-			var mat := StandardMaterial3D.new()
+		light.visible = true
+		var color := _LIGHT_OFF
+		if story >= 0 and index == story:
+			color = _LIGHT_ON
+		_paint_bulb(light, color)
+	_set_doors(elevator, story >= 0)
+
+
+func set_story(block: int, story: int) -> void:
+	var have: Variant = _actors.get(block)
+	if not (have is Node) or not is_instance_valid(have):
+		return
+	if not (have as Node).has_meta("elevator"):
+		return
+	var elevator: Node = (have as Node).get_meta("elevator")
+	if is_instance_valid(elevator):
+		_show_story(elevator, story)
+
+
+func _paint_bulb(node: Node, color: Color) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var mat := mesh.material_override as StandardMaterial3D
+		if mat == null:
 			var source := mesh.get_active_material(0) as StandardMaterial3D
 			if source != null:
 				mat = source.duplicate() as StandardMaterial3D
-			mat.albedo_color = _LIGHT_OFF
+			else:
+				mat = StandardMaterial3D.new()
 			mesh.material_override = mat
+		mat.albedo_color = color
+	for child in node.get_children():
+		_paint_bulb(child, color)
+
+
+func _set_doors(elevator: Node, closed: bool) -> void:
+	var left := _find(elevator, "left-door")
+	if left == null:
+		left = _find(elevator, "left_door")
+	var right := _find(elevator, "right-door")
+	if right == null:
+		right = _find(elevator, "right_door")
+	var slide: float = _DOOR_SLIDE if closed else 0.0
+	if left != null:
+		left.position.x = slide
+	if right != null:
+		right.position.x = -slide
 
 
 func _collect_lights(node: Node, into: Array[Node]) -> void:
@@ -536,10 +655,11 @@ func _medallion(elevator: Node, track: String) -> void:
 	icon.name = "DeptIcon"
 	icon.texture = _icon(track)
 	icon.modulate = _MEDAL.get(track, Color.WHITE)
-	icon.pixel_size = 0.02
+	icon.pixel_size = 0.01
 	icon.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	icon.position = Vector3(0.0, 6.79, 6.8)
 	icon.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+	icon.scale = Vector3(3.0, 3.0, 3.0)
 	cab.add_child(icon)
 
 
@@ -553,6 +673,162 @@ func _icon(track: String) -> Texture2D:
 			return _SALES_ICON
 		_:
 			return _CORP_ICON
+
+
+## The shell around the elevator has vertex colors and no texture. Leaving
+## them off draws those faces solid white on every department.
+func _use_vertex_colors(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			for index in mesh.mesh.get_surface_count():
+				var arrays: Array = mesh.mesh.surface_get_arrays(index)
+				if arrays[Mesh.ARRAY_COLOR] == null:
+					continue
+				var mat := mesh.get_active_material(index) as StandardMaterial3D
+				if mat == null or mat.vertex_color_use_as_albedo or mat.albedo_texture != null:
+					continue
+				var copy := mat.duplicate() as StandardMaterial3D
+				copy.vertex_color_use_as_albedo = true
+				mesh.set_surface_override_material(index, copy)
+	for child in node.get_children():
+		_use_vertex_colors(child)
+
+
+func _sign_material(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			for index in mesh.mesh.get_surface_count():
+				var mat := mesh.get_active_material(index) as BaseMaterial3D
+				if mat == null:
+					continue
+				var copy := mat.duplicate() as BaseMaterial3D
+				copy.cull_mode = BaseMaterial3D.CULL_DISABLED
+				copy.render_priority = 2
+				mesh.set_surface_override_material(index, copy)
+	for child in node.get_children():
+		_sign_material(child)
+
+
+func _seat_sign(sign: Node3D, origin: Node3D, door: Node3D, lift: float) -> void:
+	var outward := Vector3.FORWARD
+	if door != null:
+		outward = door.global_basis.y
+	if outward.length_squared() < 0.01:
+		outward = Vector3.FORWARD
+	outward = outward.normalized()
+	# Local +Y points into the building so the eyes, which face local -Y, face the street.
+	var y_axis := -outward
+	var x_axis := Vector3.UP.cross(y_axis)
+	if x_axis.length_squared() < 0.001:
+		x_axis = Vector3.RIGHT
+	x_axis = x_axis.normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	var basis := Basis(x_axis, y_axis, z_axis).orthonormalized()
+	var place := origin.global_position + outward * _SIGN_GAP + Vector3.UP * lift
+	sign.global_transform = Transform3D(basis, place)
+
+
+func _aim_title(sign: Node3D, label: Label3D, door: Node3D) -> void:
+	# TextNode at HPR 0 reads across the plaque and up the wall, facing the sidewalk.
+	var outward := Vector3.FORWARD
+	if door != null:
+		outward = door.global_basis.y.normalized()
+	if outward.length_squared() < 0.01:
+		outward = Vector3.FORWARD
+	var right := Vector3.UP.cross(outward)
+	if right.length_squared() < 0.001:
+		right = Vector3.RIGHT
+	right = right.normalized()
+	var world_basis := Basis(right, Vector3.UP, outward).orthonormalized()
+	var sign_basis := sign.global_transform.basis.orthonormalized()
+	label.basis = sign_basis.inverse() * world_basis
+
+
+func _remember_block(landmark: Node3D) -> void:
+	if landmark.has_meta("block_nodes"):
+		return
+	var block := _block_of(str(landmark.name))
+	var nodes: Array[Node3D] = []
+	_collect_block(get_parent(), block, nodes)
+	landmark.set_meta("block_nodes", nodes)
+
+
+func _collect_block(node: Node, block: int, into: Array[Node3D]) -> void:
+	if node is Node3D and _block_root(node, block):
+		into.append(node as Node3D)
+	for child in node.get_children():
+		_collect_block(child, block, into)
+
+
+func _block_root(node: Node, block: int) -> bool:
+	var name := str(node.name)
+	if not name.begins_with("tb") or _block_of(name) != block:
+		return false
+	var parent := node.get_parent()
+	if parent != null and str(parent.name).begins_with("tb") and _block_of(str(parent.name)) == block:
+		return false
+	return true
+
+
+func _remember_props(landmark: Node3D, building: Node3D) -> void:
+	if landmark.has_meta("door_props") or building == null:
+		return
+	var door := _find(building, "door_origin")
+	var props: Array[Node3D] = []
+	if door != null:
+		_collect_props(get_parent(), door, props)
+	landmark.set_meta("door_props", props)
+
+
+func _collect_props(node: Node, door: Node3D, into: Array[Node3D]) -> void:
+	var low := str(node.name).to_lower()
+	if node is Node3D and low.begins_with("interactive_prop_"):
+		var prop := node as Node3D
+		var delta := prop.global_position - door.global_position
+		var outward := door.global_basis.y.normalized()
+		var right := Vector3.UP.cross(outward).normalized()
+		var ahead := delta.dot(outward)
+		var side := absf(delta.dot(right))
+		if side < 12.0 and ahead > -3.0 and ahead < 16.0 and absf(delta.y) < 8.0:
+			into.append(prop)
+	for child in node.get_children():
+		_collect_props(child, door, into)
+
+
+func _squash_taken(landmark: Node3D, crush: float, darken: float) -> void:
+	_squash_list(landmark, "block_nodes", crush, darken, false)
+	_squash_list(landmark, "door_props", crush, 0.0, false)
+
+
+func _hide_taken(landmark: Node3D) -> void:
+	_squash_list(landmark, "block_nodes", 1.0, 0.0, true)
+	_squash_list(landmark, "door_props", 1.0, 0.0, true)
+
+
+func _squash_list(landmark: Node3D, key: String, crush: float, darken: float, hide: bool) -> void:
+	if not landmark.has_meta(key):
+		return
+	var rows: Array = landmark.get_meta(key)
+	for item in rows:
+		if not (item is Node3D) or not is_instance_valid(item):
+			continue
+		var body := item as Node3D
+		if not body.has_meta("shop_scale"):
+			body.set_meta("shop_scale", body.scale)
+		var shop_scale: Vector3 = body.get_meta("shop_scale")
+		if hide:
+			body.visible = false
+			body.scale = shop_scale
+			_clear_dark(body)
+			continue
+		body.visible = true
+		body.scale = Vector3(shop_scale.x, shop_scale.y * crush, shop_scale.z)
+		if darken > 0.0:
+			_darken(body, darken)
+		else:
+			_clear_dark(body)
 
 
 func _find_landmarks(root: Node) -> Dictionary:

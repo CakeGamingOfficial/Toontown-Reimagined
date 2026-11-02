@@ -5,11 +5,11 @@ extends RefCounted
 
 const _PATH := "user://keybinds.cfg"
 
-const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book"]
+const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book", "position", "metrics"]
 const LABELS: PackedStringArray = [
-	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book",
+	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book", "Position", "Metrics",
 ]
-const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I]
+const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I, KEY_F1, KEY_F2]
 
 static var _keys: Dictionary = {}
 static var _ready := false
@@ -72,9 +72,15 @@ static func _ensure() -> void:
 	_ready = true
 	var config := ConfigFile.new()
 	config.load(_PATH)
+	# Position took F1. A saved Metrics bind that is still F1 moves to F2.
+	var had_position := config.has_section_key("keys", "position")
+	var metrics_saved := int(config.get_value("keys", "metrics", KEY_F1))
 	for index in ACTIONS.size():
 		var name := ACTIONS[index]
-		_keys[name] = int(config.get_value("keys", name, DEFAULTS[index]))
+		if name == "metrics" and not had_position and metrics_saved == KEY_F1:
+			_keys[name] = KEY_F2
+		else:
+			_keys[name] = int(config.get_value("keys", name, DEFAULTS[index]))
 
 
 static func _code(action: String) -> Key:

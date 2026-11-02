@@ -788,13 +788,17 @@ func _ready_loadout() -> void:
 	add_child(_briefing)
 	_briefing.setup(self, _panel, _meter, _loadout)
 	_tasks = ToonTasks.for_selected()
+	ToonNet.claim_toon()
 	if _tasks.has_laff_meter():
+		_meter.visible = true
 		_dock_meter()
+	var view_port := get_viewport()
+	if view_port != null and not view_port.size_changed.is_connected(_dock_meter):
+		view_port.size_changed.connect(_dock_meter)
 	_book = ShtickerBook.new()
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
-	ToonNet.claim_toon()
 	_speed = SpeedChat.new()
 	_speed.name = "SpeedChat"
 	_hud().add_child(_speed)
@@ -813,14 +817,12 @@ func tasks() -> ToonTasks:
 
 
 func _dock_meter() -> void:
-	if _meter == null:
+	if _meter == null or not _meter.visible:
 		return
 	var view := get_viewport().get_visible_rect().size
 	if view.y < 2.0:
 		return
-	var pixels := view.y * 0.15
-	_meter.visible = true
-	_meter.place(LaffMeter.corner(view, pixels), pixels)
+	_meter.dock(view)
 
 
 func shticker() -> ShtickerBook:

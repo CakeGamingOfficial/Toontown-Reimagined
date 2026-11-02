@@ -27,11 +27,31 @@ const _BTN := 0.15
 ## SpeedChat+ (white and blue) sits in the corner. SpeedChat (green) is beside it.
 const _CORNER_PAD := 12.0
 const _BUTTON_GAP := 8.0
+## The phrase list sits under the whole chat window, not against its bottom edge.
+const _MENU_GAP := 20.0
 const _REOPEN_PAD := 4.0
 const _BLUE := Color(0.4, 0.68, 1.0)
 const _SAY_LIMIT := 120
-const _HELP := "Welcome to SpeedChat++. Chat, whispers, and alerts all show here. The other tabs show just one kind."
-const _TAB_NAMES: PackedStringArray = ["Main", "Whispers", "Alerts", "NPC"]
+const _HELP := "Welcome to SpeedChat++. Main shows the channels left on in the gear menu. Each other tab is one channel."
+const _TAB_MAIN := 0
+const _TAB_SYSTEM := 1
+const _TAB_WHISPERS := 2
+const _TAB_NPC := 3
+const _TAB_GROUPS := 4
+const _TAB_GUILD := 5
+const _TAB_CONSOLE := 6
+const _TAB_NAMES: PackedStringArray = ["Main", "System", "Whispers", "NPC", "Groups", "Guild", "Console"]
+const _CHANNEL_ROWS: Array[Dictionary] = [
+	{"id": "player", "label": "Players", "on": true},
+	{"id": "cog", "label": "Cogs", "on": true},
+	{"id": "whisper", "label": "Whispers", "on": true},
+	{"id": "system", "label": "System Alerts/Notifications", "on": true},
+	{"id": "npc", "label": "NPCs", "on": true},
+	{"id": "group", "label": "Group", "on": true},
+	{"id": "guild", "label": "Guild", "on": true},
+	{"id": "console", "label": "Console (for developers)", "on": false},
+	{"id": "magic", "label": "Magic Words (for staff)", "on": true},
+]
 const _CREAM := Color(1.0, 0.97, 0.86, 0.98)
 const _ORANGE := Color(0.9, 0.48, 0.1, 1.0)
 const _INK := Color(0.22, 0.12, 0.06, 1.0)
@@ -58,9 +78,13 @@ var _pinned := false
 const _LOG_PATH := "user://chat_log.json"
 
 var _tab := 0
-var _history: PackedStringArray = PackedStringArray()
-var _whispers: PackedStringArray = PackedStringArray()
+var _entries: Array[Dictionary] = []
+var _channel_on := {}
 var _restored := false
+## A new play from the toon picker bumps this. Area changes keep the same number,
+## so the log survives a tunnel and starts empty the next time you load in.
+static var _generation := 0
+static var _loaded_generation := -1
 var _whisper_name := ""
 var _whisper_slot := -1
 var _whisper_av := 0
@@ -69,6 +93,10 @@ var _log: RichTextLabel
 var _entry: LineEdit
 var _phrase_slot: Control
 var _tabs: Array[Button] = []
+var _header: HBoxContainer
+var _gear: Button
+var _settings: PanelContainer
+var _settings_open := false
 
 
 func setup(tasks: ToonTasks) -> void:
@@ -107,12 +135,16 @@ func setup(tasks: ToonTasks) -> void:
 	_reopen_btn.visible = false
 	add_child(_reopen_btn)
 	_build_dock()
-	_apply_unlock()
 	_restore_log()
+	_build_settings()
+	_apply_unlock()
 	_pull_whispers()
 	var social := ToonSocial.live()
 	if social != null and not social.heard.is_connected(_hear):
 		social.heard.connect(_hear)
+	var dev := get_node_or_null("/root/DevConsole")
+	if dev != null and dev.has_signal("changed") and not dev.is_connected("changed", _on_console):
+		dev.connect("changed", _on_console)
 
 
 func is_open() -> bool:
@@ -211,8 +243,10 @@ func _apply_unlock() -> void:
 	_plus_ready = unlocked
 	_speed_btn.visible = unlocked
 	_chat_btn.visible = unlocked and not _plus_ready
-	if _plus_ready:
+	if _plus_ready and _pinned:
 		_show_dock()
+	elif _plus_ready:
+		_hide_dock()
 	elif _dock != null:
 		_dock.visible = false
 	_layout_buttons()
@@ -248,11 +282,7 @@ func _open_menu() -> void:
 	_panel = _column(_items)
 	add_child(_panel)
 	_panel.z_index = 40
-	if _dock != null and _dock.visible:
-		_panel.position = _dock.position + Vector2(_dock.size.x + 8.0, 0.0)
-	else:
-		_panel.position = _aspect_point(-1.02, 0.78)
-	_fit(_panel)
+	_place_phrase_menu()
 	menu_opened.emit()
 
 
@@ -433,13 +463,28 @@ func _named(raw: String) -> String:
 	return raw.replace("%s", who)
 
 
-func _fit(panel: Control) -> void:
+func _place_phrase_menu() -> void:
+	if _panel == null or not is_instance_valid(_panel):
+		return
+	if _dock != null and _dock.visible:
+		var below := _dock.position.y + _dock.size.y + _MENU_GAP
+		_panel.position = Vector2(_dock.position.x, below)
+		_fit(_panel, below)
+	else:
+		_panel.position = _aspect_point(-1.02, 0.78)
+		_fit(_panel)
+
+
+func _fit(panel: Control, floor_y: float = -1.0) -> void:
 	if panel == null:
 		return
 	panel.reset_size()
 	var view := get_viewport().get_visible_rect().size
+	var floor := 8.0 if floor_y < 0.0 else floor_y
 	if panel.global_position.y + panel.size.y > view.y - 12.0:
-		panel.global_position.y = maxf(8.0, view.y - 12.0 - panel.size.y)
+		panel.global_position.y = maxf(floor, view.y - 12.0 - panel.size.y)
+	if floor_y >= 0.0 and panel.global_position.y < floor_y:
+		panel.global_position.y = floor_y
 	if panel.global_position.x + panel.size.x > view.x - 8.0:
 		panel.global_position.x = maxf(8.0, view.x - 8.0 - panel.size.x)
 
@@ -582,6 +627,10 @@ func _input(event: InputEvent) -> void:
 		_entry.release_focus()
 		get_viewport().set_input_as_handled()
 		return
+	if _settings_open:
+		_set_settings_open(false)
+		get_viewport().set_input_as_handled()
+		return
 	if is_open():
 		_close_menu()
 		get_viewport().set_input_as_handled()
@@ -599,7 +648,7 @@ func _pointer_on_chat() -> bool:
 	var hovered := get_viewport().gui_get_hovered_control()
 	if hovered == null:
 		return false
-	if _chat_owns(hovered, _dock) or _chat_owns(hovered, _panel) or _chat_owns(hovered, _open_sub):
+	if _chat_owns(hovered, _dock) or _chat_owns(hovered, _settings) or _chat_owns(hovered, _panel) or _chat_owns(hovered, _open_sub):
 		return true
 	for sub in _subs:
 		if _chat_owns(hovered, sub):
@@ -679,32 +728,48 @@ func _build_dock() -> void:
 func _tab_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header = row
 	for index in _TAB_NAMES.size():
 		var tab := Button.new()
 		tab.text = _TAB_NAMES[index]
 		tab.focus_mode = Control.FOCUS_NONE
+		tab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		tab.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		tab.pressed.connect(_select_tab.bind(index))
-		_style_tab(tab, index == 0)
+		_style_tab(tab, index == _TAB_MAIN)
 		_tabs.append(tab)
 		row.add_child(tab)
 	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
 	_pin = Button.new()
 	_pin.text = "Pin"
 	_pin.focus_mode = Control.FOCUS_NONE
 	_pin.custom_minimum_size = Vector2(36, 22)
+	_pin.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_pin.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_pin.tooltip_text = "Keep SpeedChat open while you play"
 	_pin.pressed.connect(_toggle_pin)
 	_style_pin()
 	row.add_child(_pin)
+	_gear = Button.new()
+	_gear.icon = _gear_icon()
+	_gear.expand_icon = true
+	_gear.focus_mode = Control.FOCUS_NONE
+	_gear.custom_minimum_size = Vector2(22, 22)
+	_gear.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_gear.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_gear.tooltip_text = "SpeedChat++ settings"
+	_gear.pressed.connect(_toggle_settings)
+	_style_gear()
+	row.add_child(_gear)
 	var close := Button.new()
 	close.text = "x"
 	close.focus_mode = Control.FOCUS_NONE
 	close.custom_minimum_size = Vector2(22, 22)
+	close.size_flags_horizontal = Control.SIZE_SHRINK_END
 	close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	close.pressed.connect(_hide_dock)
 	_style_close(close)
@@ -725,6 +790,7 @@ func _show_dock() -> void:
 
 func _hide_dock() -> void:
 	_close_menu()
+	_set_settings_open(false)
 	if _dock != null:
 		_dock.visible = false
 	if _entry != null:
@@ -773,11 +839,21 @@ func _layout_dock() -> void:
 	if _dock == null:
 		return
 	var view := get_viewport().get_visible_rect().size
-	var width := clampf(view.x * 0.34, 360.0, 480.0)
+	var header_w := 520.0
+	if _header != null:
+		header_w = maxf(_header.get_combined_minimum_size().x, header_w)
+	var chrome := 16.0
+	var frame := _dock.get_theme_stylebox("panel")
+	if frame != null:
+		chrome = frame.get_minimum_size().x
+	# Wide enough for every tab, Pin, the gear, and Close, with no scroller.
+	var width := header_w + chrome + 4.0
 	var height := clampf(view.y * 0.32, 200.0, 300.0)
 	_dock.position = Vector2(12, 12)
 	_dock.size = Vector2(width, height)
 	_dock.custom_minimum_size = _dock.size
+	_place_phrase_menu()
+	_place_settings()
 
 
 func _select_tab(index: int) -> void:
@@ -835,22 +911,12 @@ func _send_typed(text: String) -> void:
 func _remember(spoken: String) -> void:
 	var color := _speaker_color().to_html(false)
 	var line := "[color=#7a5a3a]%s[/color] [color=#%s]%s[/color]: %s" % [_clock(), color, _bb(_speaker_name()), _bb(spoken)]
-	_history.append(line)
-	if _tab != 0:
-		_tab = 0
-		for tab_index in _tabs.size():
-			_style_tab(_tabs[tab_index], tab_index == 0)
-	_refresh_log()
+	_append("player", line, _TAB_MAIN)
 
 
 func _log_magic(reply: String) -> void:
 	var line := "[color=#7a5a3a]%s[/color] [color=#6a3d8a]Magic:[/color] %s" % [_clock(), _bb(reply)]
-	_history.append(line)
-	if _tab != 0:
-		_tab = 0
-		for tab_index in _tabs.size():
-			_style_tab(_tabs[tab_index], tab_index == 0)
-	_refresh_log()
+	_append("magic", line, _TAB_MAIN)
 
 
 func ready_to_type() -> bool:
@@ -903,12 +969,7 @@ func _hear(from_name: String, text: String, whisper: bool) -> void:
 		_log_whisper("%s whispers:" % from_name, text)
 		return
 	var line := "[color=#7a5a3a]%s[/color] [color=#3a5f9a]%s[/color]: %s" % [_clock(), _bb(from_name), _bb(text)]
-	_history.append(line)
-	if _tab != 0:
-		_tab = 0
-		for tab_index in _tabs.size():
-			_style_tab(_tabs[tab_index], tab_index == 0)
-	_refresh_log()
+	_append("player", line, _TAB_MAIN)
 
 
 func _pull_whispers() -> void:
@@ -924,12 +985,7 @@ func _pull_whispers() -> void:
 
 func _log_whisper(who: String, text: String) -> void:
 	var line := "[color=#7a5a3a]%s[/color] [color=#3a5f9a]%s[/color] %s" % [_clock(), _bb(who), _bb(text)]
-	_history.append(line)
-	_whispers.append(line)
-	_tab = 1
-	for tab_index in _tabs.size():
-		_style_tab(_tabs[tab_index], tab_index == 1)
-	_refresh_log()
+	_append("whisper", line, _TAB_WHISPERS)
 
 
 func _log_key() -> String:
@@ -939,12 +995,22 @@ func _log_key() -> String:
 	return str(index)
 
 
+## Pick a Toon calls this before Play. The next area starts with an empty log.
+static func begin_session() -> void:
+	_generation += 1
+
+
 func _restore_log() -> void:
 	var record := _stored_record()
-	_history = _lines_from(record.get("history", []))
-	_whispers = _lines_from(record.get("whispers", []))
-	_tab = clampi(int(record.get("tab", 0)), 0, _TAB_NAMES.size() - 1)
 	_pinned = bool(record.get("pinned", false))
+	_load_channels(record.get("channels", {}))
+	var fresh := _generation != _loaded_generation
+	_loaded_generation = _generation
+	_entries.clear()
+	_tab = _TAB_MAIN
+	if not fresh:
+		_entries = _entries_from(record.get("entries", []))
+		_tab = clampi(int(record.get("tab", _TAB_MAIN)), 0, _TAB_NAMES.size() - 1)
 	_restored = true
 	for tab_index in _tabs.size():
 		_style_tab(_tabs[tab_index], tab_index == _tab)
@@ -959,10 +1025,10 @@ func _keep_log() -> void:
 		return
 	var saved := _read_logs()
 	saved[_log_key()] = {
-		"history": _lines_of(_history),
-		"whispers": _lines_of(_whispers),
+		"entries": _entries_of(),
 		"tab": _tab,
 		"pinned": _pinned,
+		"channels": _channel_on.duplicate(),
 	}
 	_write_logs(saved)
 
@@ -993,47 +1059,59 @@ func _write_logs(saved: Dictionary) -> void:
 	file.store_string(JSON.stringify(saved))
 
 
-func _lines_of(lines: PackedStringArray) -> Array:
-	var copy: Array = []
-	for line in lines:
-		copy.append(line)
-	return copy
+func _on_console() -> void:
+	if _log == null:
+		return
+	if _tab == _TAB_CONSOLE or (_tab == _TAB_MAIN and _wants("console")):
+		_refresh_log()
 
 
-func _lines_from(value: Variant) -> PackedStringArray:
-	var lines := PackedStringArray()
-	if value is PackedStringArray:
-		return value
-	if value is Array:
-		for item in value:
-			lines.append(str(item))
-	return lines
+func _show_console() -> void:
+	if _log == null:
+		return
+	var dev := get_node_or_null("/root/DevConsole")
+	if dev == null or not dev.has_method("transcript"):
+		_log.text = "[color=#8a7058]Console is not running.[/color]"
+		return
+	_log.text = str(dev.call("transcript"))
 
 
 func _refresh_log() -> void:
 	_keep_log()
+	if _tab == _TAB_CONSOLE:
+		_show_console()
+		return
 	if _log == null:
 		return
-	if _tab == 1:
-		if _whispers.is_empty():
-			_log.text = "[color=#8a7058]No whispers yet.[/color]"
-			return
-		var whisper_body := ""
-		for line in _whispers:
-			if whisper_body != "":
-				whisper_body += "\n"
-			whisper_body += line
-		_log.text = whisper_body
+	var channel := _tab_channel(_tab)
+	var body := ""
+	if _tab == _TAB_MAIN:
+		body = "[color=#8a7058]%s[/color]" % _bb(_HELP)
+	var count := 0
+	for item in _entries:
+		var row: Dictionary = item
+		var kind := String(row.get("channel", ""))
+		if _tab == _TAB_MAIN:
+			if not _wants(kind):
+				continue
+		elif kind != channel:
+			continue
+		if body != "":
+			body += "\n"
+		body += String(row.get("text", ""))
+		count += 1
+	if _tab == _TAB_MAIN and _wants("console"):
+		var dev := get_node_or_null("/root/DevConsole")
+		if dev != null and dev.has_method("transcript"):
+			var extra := str(dev.call("transcript"))
+			if extra != "":
+				if body != "":
+					body += "\n"
+				body += extra
+				count += 1
+	if count == 0:
+		_log.text = "[color=#8a7058]%s[/color]" % _empty_line(_tab)
 		return
-	if _tab != 0:
-		var empty := "No alerts yet."
-		if _tab == 3:
-			empty = "No NPC chat yet."
-		_log.text = "[color=#8a7058]%s[/color]" % empty
-		return
-	var body := "[color=#8a7058]%s[/color]" % _bb(_HELP)
-	for line in _history:
-		body += "\n" + line
 	_log.text = body
 
 
@@ -1112,13 +1190,7 @@ func _style_send(button: Button) -> void:
 func _style_pin() -> void:
 	if _pin == null:
 		return
-	var box := StyleBoxFlat.new()
-	box.bg_color = _ORANGE if _pinned else _CREAM
-	box.border_color = _ORANGE
-	box.set_border_width_all(2)
-	box.set_corner_radius_all(8)
-	box.content_margin_left = 4
-	box.content_margin_right = 4
+	var box := _header_button(_pinned)
 	_pin.add_theme_stylebox_override("normal", box)
 	_pin.add_theme_stylebox_override("hover", box)
 	_pin.add_theme_stylebox_override("pressed", box)
@@ -1176,6 +1248,231 @@ func _cream_box(radius: int) -> StyleBoxFlat:
 	box.set_corner_radius_all(radius)
 	box.content_margin_left = 8
 	box.content_margin_right = 8
+	return box
+
+
+func _append(channel: String, text: String, tab: int) -> void:
+	_entries.append({"channel": channel, "text": text})
+	while _entries.size() > 200:
+		_entries.pop_front()
+	if tab >= 0 and _tab != tab:
+		_select_tab(tab)
+		return
+	_refresh_log()
+
+
+## Boarding groups, guilds, and system notices can drop a line in later.
+func post(channel: String, text: String) -> void:
+	var clean := text.replace("\n", " ").strip_edges()
+	if clean == "":
+		return
+	var line := "[color=#7a5a3a]%s[/color] %s" % [_clock(), _bb(clean)]
+	_append(channel, line, _tab_index(channel))
+
+
+func _tab_index(channel: String) -> int:
+	match channel:
+		"system":
+			return _TAB_SYSTEM
+		"whisper":
+			return _TAB_WHISPERS
+		"npc":
+			return _TAB_NPC
+		"group":
+			return _TAB_GROUPS
+		"guild":
+			return _TAB_GUILD
+		"player", "cog", "magic":
+			return _TAB_MAIN
+		_:
+			return -1
+
+
+func _tab_channel(tab: int) -> String:
+	match tab:
+		_TAB_SYSTEM:
+			return "system"
+		_TAB_WHISPERS:
+			return "whisper"
+		_TAB_NPC:
+			return "npc"
+		_TAB_GROUPS:
+			return "group"
+		_TAB_GUILD:
+			return "guild"
+		_:
+			return ""
+
+
+func _empty_line(tab: int) -> String:
+	match tab:
+		_TAB_SYSTEM:
+			return "No system alerts yet."
+		_TAB_WHISPERS:
+			return "No whispers yet."
+		_TAB_NPC:
+			return "No NPC chat yet."
+		_TAB_GROUPS:
+			return "No group chat yet."
+		_TAB_GUILD:
+			return "No guild chat yet."
+		_:
+			return "No chat yet."
+
+
+func _wants(channel: String) -> bool:
+	return bool(_channel_on.get(channel, true))
+
+
+func _load_channels(value: Variant) -> void:
+	var saved := {}
+	if value is Dictionary:
+		saved = value
+	_channel_on = {}
+	for row in _CHANNEL_ROWS:
+		var id := String(row.get("id", ""))
+		_channel_on[id] = bool(saved.get(id, row.get("on", true)))
+
+
+func _entries_of() -> Array:
+	var copy: Array = []
+	for item in _entries:
+		copy.append(item)
+	return copy
+
+
+func _entries_from(value: Variant) -> Array[Dictionary]:
+	var lines: Array[Dictionary] = []
+	if value is Array:
+		for item in value:
+			if item is Dictionary:
+				lines.append(item)
+	return lines
+
+
+func _toggle_settings() -> void:
+	_set_settings_open(not _settings_open)
+
+
+func _set_settings_open(open: bool) -> void:
+	_settings_open = open
+	if _settings != null:
+		_settings.visible = open
+	_style_gear()
+	if open:
+		_place_settings()
+
+
+func _build_settings() -> void:
+	_settings = PanelContainer.new()
+	_settings.name = "SpeedChatSettings"
+	_settings.visible = false
+	_settings.mouse_filter = Control.MOUSE_FILTER_STOP
+	_settings.z_index = 21
+	var frame := StyleBoxFlat.new()
+	frame.bg_color = _CREAM
+	frame.border_color = _ORANGE
+	frame.set_border_width_all(4)
+	frame.set_corner_radius_all(14)
+	frame.set_content_margin_all(10)
+	_settings.add_theme_stylebox_override("panel", frame)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 4)
+	_settings.add_child(column)
+	var title := Label.new()
+	title.text = "Main"
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(title, _INK, 18, Color(0, 0, 0, 0), 0)
+	column.add_child(title)
+	var hint := Label.new()
+	hint.text = "Channels shown in the Main tab."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(240, 0)
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(hint, Color(0.35, 0.24, 0.14), 13, Color(0, 0, 0, 0), 0)
+	column.add_child(hint)
+	for row in _CHANNEL_ROWS:
+		var id := String(row.get("id", ""))
+		var box := CheckBox.new()
+		box.text = String(row.get("label", id))
+		box.focus_mode = Control.FOCUS_NONE
+		box.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		box.add_theme_font_override("font", ToonGui.font())
+		box.add_theme_font_size_override("font_size", 14)
+		box.add_theme_color_override("font_color", _INK)
+		box.add_theme_color_override("font_hover_color", _INK)
+		box.add_theme_color_override("font_pressed_color", _INK)
+		box.set_pressed_no_signal(_wants(id))
+		box.toggled.connect(_set_channel.bind(id))
+		column.add_child(box)
+	add_child(_settings)
+
+
+func _set_channel(on: bool, id: String) -> void:
+	_channel_on[id] = on
+	_keep_log()
+	if _tab == _TAB_MAIN:
+		_refresh_log()
+
+
+func _place_settings() -> void:
+	if _settings == null or _dock == null or not _settings_open:
+		return
+	_settings.reset_size()
+	var view := get_viewport().get_visible_rect().size
+	var at := _dock.position + Vector2(_dock.size.x + 8.0, 0.0)
+	if at.x + _settings.size.x > view.x - 8.0:
+		at.x = maxf(8.0, view.x - 8.0 - _settings.size.x)
+	_settings.position = at
+
+
+func _gear_icon() -> Texture2D:
+	var size := 22
+	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	var center := Vector2(10.5, 10.5)
+	var ink := Color(0.22, 0.12, 0.06, 1)
+	for y in size:
+		for x in size:
+			var point := Vector2(float(x) + 0.5, float(y) + 0.5) - center
+			var distance := point.length()
+			var tooth := 0.62 + 0.38 * absf(sin(point.angle() * 4.0))
+			if distance <= 9.0 * tooth and distance >= 3.1:
+				image.set_pixel(x, y, ink)
+	return ImageTexture.create_from_image(image)
+
+
+func _style_gear() -> void:
+	if _gear == null:
+		return
+	var box := _header_button(_settings_open)
+	_gear.add_theme_stylebox_override("normal", box)
+	_gear.add_theme_stylebox_override("hover", box)
+	_gear.add_theme_stylebox_override("pressed", box)
+	_gear.add_theme_stylebox_override("focus", box)
+	_gear.add_theme_color_override("icon_normal_color", Color.WHITE if _settings_open else _INK)
+	_gear.add_theme_color_override("icon_hover_color", Color.WHITE if _settings_open else _INK)
+	_gear.add_theme_color_override("icon_pressed_color", Color.WHITE if _settings_open else _INK)
+
+
+func _header_button(pressed: bool) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.border_color = _ORANGE
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(8)
+	box.content_margin_left = 2
+	box.content_margin_right = 2
+	if pressed:
+		box.bg_color = _ORANGE.darkened(0.12)
+		box.content_margin_top = 3
+		box.content_margin_bottom = 0
+	else:
+		box.bg_color = _CREAM
+		box.shadow_color = Color(0, 0, 0, 0.28)
+		box.shadow_size = 2
+		box.shadow_offset = Vector2(0, 1)
+		box.content_margin_top = 1
+		box.content_margin_bottom = 2
 	return box
 
 

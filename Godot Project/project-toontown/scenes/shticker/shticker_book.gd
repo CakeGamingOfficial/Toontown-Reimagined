@@ -38,6 +38,8 @@ const _CANCEL_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
 const _CANCEL_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
 const _CANCEL_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
 const _PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
+## BookIcon_CLSD is 102 by 72. The original button is a square card, so the icon is stretched taller.
+const _BUTTON_SIZE := Vector2(102.0, 102.0)
 const _ROW := preload("res://assets/gui/tutorial/InventoryRow.png")
 const _TRASH_CLOSED := preload("res://assets/toons/gui/TrashCan_CLSD.png")
 const _TRASH_OPEN := preload("res://assets/toons/gui/TrashCan_OPEN.png")
@@ -331,10 +333,10 @@ func _build_button() -> void:
 	_button.texture_hover = _HOVER
 	_button.texture_pressed = _OPEN_ICON
 	_button.ignore_texture_size = true
-	_button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	# BookIcon_CLSD is 102 by 72. A shorter box stretches the cover.
-	_button.custom_minimum_size = Vector2(102, 72)
-	_button.size = Vector2(102, 72)
+	# BookIcon_CLSD is 102 by 72 on a square card, so the cover is stretched taller.
+	_button.stretch_mode = TextureButton.STRETCH_SCALE
+	_button.custom_minimum_size = _BUTTON_SIZE
+	_button.size = _BUTTON_SIZE
 	_button.visible = false
 	_button.focus_mode = Control.FOCUS_NONE
 	_button.pressed.connect(_on_button)
@@ -1592,9 +1594,12 @@ func _place_button() -> void:
 	_button.position = _button_home()
 
 
+static func closed_rect(view: Vector2) -> Rect2:
+	return Rect2(Vector2(view.x - _BUTTON_SIZE.x - 28.0, view.y - _BUTTON_SIZE.y - 22.0), _BUTTON_SIZE)
+
+
 func _button_home() -> Vector2:
-	var view := get_viewport_rect().size
-	return Vector2(view.x - _button.size.x - 28.0, view.y - _button.size.y - 22.0)
+	return closed_rect(get_viewport_rect().size).position
 
 
 func _play(player: AudioStreamPlayer) -> void:

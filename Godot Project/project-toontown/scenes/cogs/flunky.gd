@@ -47,6 +47,7 @@ func _ready() -> void:
 		return
 	var model := packed.instantiate()
 	add_child(model)
+	_paint_hands(model)
 	_load_walk()
 	_load_actions()
 	_idle_bank = _read_bank(_NEUTRAL)
@@ -317,6 +318,23 @@ func _restore() -> void:
 		var node := joint["node"] as Node3D
 		if is_instance_valid(node):
 			node.transform = joint["rest"]
+
+
+func _paint_hands(actor: Node) -> void:
+	# Same glove as a Bossbot Flunky: corpPolyColor, no hand texture.
+	for child in actor.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := child as MeshInstance3D
+		if str(mesh_node.name) != "hands" or mesh_node.mesh == null:
+			continue
+		for index in mesh_node.mesh.get_surface_count():
+			var source := mesh_node.mesh.surface_get_material(index) as BaseMaterial3D
+			if source == null:
+				continue
+			var mat := source.duplicate() as BaseMaterial3D
+			mat.albedo_texture = null
+			mat.albedo_color = Color(0.95, 0.75, 0.75)
+			mat.vertex_color_use_as_albedo = false
+			mesh_node.mesh.surface_set_material(index, mat)
 
 
 func _show_both_sides() -> void:

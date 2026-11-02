@@ -523,6 +523,7 @@ func save() -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify(root))
+	file.close()
 	ToonNet.keep_toon()
 
 
@@ -574,7 +575,10 @@ func _read_file() -> Dictionary:
 	var file := FileAccess.open(_PATH, FileAccess.READ)
 	if file == null:
 		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var text := file.get_as_text()
+	if text.is_empty():
+		return {}
+	var parsed: Variant = JSON.parse_string(text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	return parsed

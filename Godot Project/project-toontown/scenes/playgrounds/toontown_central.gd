@@ -27,6 +27,8 @@ var _scope_normals := PackedVector3Array()
 var _scope_fps := 24.0
 
 var _butterflies: Array[Dictionary] = []
+var _butterflies_grounded := false
+var _butterfly_plant_tries := 0
 
 var _time := 0.0
 
@@ -43,6 +45,7 @@ func _ready() -> void:
 	_ready_telescope()
 	_ready_butterflies()
 	preload("res://scenes/playgrounds/ttc_hedges.gd").apply(self)
+	preload("res://scenes/playgrounds/toon_hall_facade.gd").apply(self)
 	preload("res://scenes/playgrounds/playground_treasures.gd").attach(self, "tt")
 	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
@@ -78,6 +81,9 @@ func _process(delta: float) -> void:
 	_process_billboards(camera)
 	_process_fish()
 	_process_telescope()
+	if not _butterflies_grounded:
+		_butterfly_plant_tries += 1
+		_butterflies_grounded = _plant_butterflies() or _butterfly_plant_tries >= 8
 	_process_butterflies(delta)
 
 
@@ -327,6 +333,49 @@ func _lerp_scaled(from_pose: Transform3D, to_pose: Transform3D, along: float) ->
 		from_pose.basis.z.lerp(to_pose.basis.z, along)
 	)
 	return Transform3D(basis, from_pose.origin.lerp(to_pose.origin, along))
+
+
+func _plant_butterflies() -> bool:
+	var world := get_world_3d()
+	if world == null:
+		return false
+	var space := world.direct_space_state
+	var planted := 0
+	for actor in _butterflies:
+		var points: Array = actor["points"]
+		for index in points.size():
+			var point: Vector3 = points[index]
+			var grounded := _ground_at(space, point)
+			if grounded.y != point.y:
+				planted += 1
+			points[index] = grounded
+		var root := actor["root"] as Node3D
+		var here: int = int(actor["index"])
+		actor["from"] = points[here]
+		actor["to"] = points[int(actor["dest"])]
+		if String(actor["state"]) == "landed":
+			root.global_position = points[here]
+	return planted > 0
+
+
+func _ground_at(space: PhysicsDirectSpaceState3D, point: Vector3) -> Vector3:
+	# The stored height is the original terrain. Some of those spots sit above
+	# the mesh that is actually here, so a landing hovers. Take the first
+	# walkable face under the spot and skip hedges and walls.
+	var from := Vector3(point.x, point.y + 25.0, point.z)
+	var to := Vector3(point.x, point.y - 25.0, point.z)
+	for step in 6:
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.collision_mask = 1
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			return point
+		var normal: Vector3 = hit["normal"]
+		var position: Vector3 = hit["position"]
+		if normal.y > 0.55:
+			return Vector3(point.x, position.y + 0.02, point.z)
+		from = Vector3(point.x, position.y - 0.2, point.z)
+	return point
 
 
 func _ready_butterflies() -> void:

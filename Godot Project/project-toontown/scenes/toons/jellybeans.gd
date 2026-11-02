@@ -155,4 +155,5 @@ static func _write() -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify({"slots": slots}))
+	file.close()
 	ToonNet.keep_toon()

@@ -19,6 +19,10 @@ var _pending: Dictionary = {}
 var _actors: Dictionary = {}
 ## A street the local scene is showing. The data sim must not plan that one too.
 var _live: Dictionary = {}
+const _STATE_PATH := "user://street_state.json"
+var _remembered := false
+var _dirty := false
+var _save_wait := 2.0
 
 
 func _ready() -> void:
@@ -86,14 +90,17 @@ func take_actor(code: String) -> Node:
 func hold(district: int, slug: String, record: Dictionary) -> void:
 	if slug.is_empty():
 		return
+	remember_state()
 	var key := _key(district, slug)
 	record["district"] = district
 	record["slug"] = slug
 	_live.erase(key)
 	_streets[key] = record
+	_touch()
 
 
 func claim(district: int, slug: String) -> Dictionary:
+	remember_state()
 	var key := _key(district, slug)
 	_live[key] = true
 	if not _streets.has(key):
@@ -181,6 +188,7 @@ func inject_suit(district: int, slug: String, cog: Dictionary, slot: int) -> voi
 func ensure(district: int, slug: String) -> void:
 	if not ToonNet.is_authority():
 		return
+	remember_state()
 	var key := _key(district, slug)
 	if _live.has(key):
 		return
@@ -217,12 +225,15 @@ func keep_buildings(district: int, slug: String, rows: Array) -> void:
 	var key := _key(district, slug)
 	_blocks[key] = rows
 	ToonNet.publish("buildings:" + key, {"rows": rows})
+	if district != 0:
+		_touch()
 
 
 ## The street remembers its quota. Buildings are not taken until a cog arrives.
 func prepare_buildings(district: int, slug: String, data: Dictionary) -> void:
 	if not ToonNet.is_authority():
 		return
+	remember_state()
 	var key := _key(district, slug)
 	if not _plans.has(key):
 		var blocks: Array = data.get("blocks", [])
@@ -381,12 +392,28 @@ func ensure_buildings(district: int, slug: String) -> void:
 func _process(delta: float) -> void:
 	if not ToonNet.is_authority():
 		return
+	remember_state()
 	_tick_buildings(delta)
-	if _streets.is_empty():
+	if not _streets.is_empty():
+		for key in _streets.keys():
+			_advance(_streets[key] as Dictionary, delta)
+			_publish_street(String(key))
+		_dirty = true
+	elif _live_suits() != null:
+		_dirty = true
+	if not _dirty:
 		return
-	for key in _streets.keys():
-		_advance(_streets[key] as Dictionary, delta)
-		_publish_street(String(key))
+	_save_wait -= delta
+	if _save_wait > 0.0:
+		return
+	_write_state()
+	_dirty = false
+	_save_wait = 2.0
+
+
+func _exit_tree() -> void:
+	if _remembered and ToonNet.is_authority():
+		_write_state()
 
 
 func _tick_buildings(delta: float) -> void:
@@ -577,23 +604,22 @@ func _nearest_slot(points: Array, route: PackedInt32Array, near: Vector3) -> int
 func _point_at(points: Array, index: int) -> Vector3:
 	if index < 0 or index >= points.size():
 		return Vector3.ZERO
-	var value: Variant = points[index]
-	if value is Vector3:
-		return value
-	return Vector3.ZERO
+	return _as_vec(points[index])
 
 
 func _vec_at(cog: Dictionary, key: String, fallback: Vector3) -> Vector3:
-	var value: Variant = cog.get(key, fallback)
-	if value is Vector3:
-		return value
-	return fallback
+	if not cog.has(key):
+		return fallback
+	var value := _as_vec(cog[key])
+	if value == Vector3.ZERO and not (cog[key] is Vector3) and not (cog[key] is Array):
+		return fallback
+	return value
 
 
 func _step_fly(cog: Dictionary, delta: float, leaving: bool) -> bool:
 	var fly := float(cog.get("fly", 0.0)) + delta
 	cog["fly"] = fly
-	var ground: Vector3 = cog.get("ground", Vector3.ZERO)
+	var ground := _vec_at(cog, "ground", Vector3.ZERO)
 	var till := float(cog.get("till", 1.0))
 	if till < 0.2:
 		till = 0.2
@@ -901,6 +927,156 @@ func dismiss_cog(district: int, slug: String, cog_id: int) -> void:
 	record.erase("sig")
 	_streets[key] = record
 	_publish_street(key)
+
+
+func has_actor(code: String) -> bool:
+	var waiting: Array = _actors.get(code, [])
+	return not waiting.is_empty()
+
+
+func has_street(district: int, slug: String) -> bool:
+	remember_state()
+	return _streets.has(_key(district, slug))
+
+
+func remember_state() -> void:
+	if _remembered:
+		return
+	_remembered = true
+	if not ToonNet.is_authority():
+		return
+	_load_state()
+
+
+func _touch() -> void:
+	_dirty = true
+	_save_wait = 0.0
+
+
+func _live_suits() -> Node:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+	var suits := scene.get_node_or_null("StreetSuits")
+	if suits == null or not bool(suits.get("visuals")):
+		return null
+	return suits
+
+
+func _load_state() -> void:
+	if not FileAccess.file_exists(_STATE_PATH):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_STATE_PATH))
+	if not (parsed is Dictionary):
+		return
+	var root: Dictionary = parsed
+	var streets: Variant = root.get("streets", {})
+	if streets is Dictionary:
+		for key in (streets as Dictionary).keys():
+			var raw: Variant = (streets as Dictionary)[key]
+			if raw is Dictionary:
+				_streets[String(key)] = _unpack_street(raw)
+	var buildings: Variant = root.get("buildings", {})
+	if buildings is Dictionary:
+		for key in (buildings as Dictionary).keys():
+			var name := String(key)
+			if name.begins_with("0:"):
+				continue
+			var rows: Variant = (buildings as Dictionary)[key]
+			if rows is Array:
+				_blocks[name] = rows
+
+
+func _write_state() -> void:
+	if not _remembered or not ToonNet.is_authority():
+		return
+	var streets := {}
+	for key in _streets.keys():
+		streets[String(key)] = _pack(_streets[key])
+	var suits := _live_suits()
+	if suits != null and suits.has_method("capture_record"):
+		var live: Variant = suits.call("capture_record")
+		if live is Dictionary and not (live as Dictionary).is_empty():
+			var record: Dictionary = live
+			var district := int(record.get("district", suits.get("district_id")))
+			var slug := String(record.get("slug", suits.get("street_slug")))
+			var live_key := _key(district, slug)
+			# Leaving the street already parked this record. Don't replace it
+			# with the empty roster left behind after the suits were moved out.
+			if not slug.is_empty() and not streets.has(live_key):
+				streets[live_key] = _pack(record)
+	var buildings := {}
+	for key in _blocks.keys():
+		var name := String(key)
+		if name.begins_with("0:"):
+			continue
+		buildings[name] = _pack(_blocks[key])
+	if streets.is_empty() and buildings.is_empty():
+		return
+	var file := FileAccess.open(_STATE_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify({"streets": streets, "buildings": buildings}))
+	file.close()
+
+
+func _unpack_street(raw: Dictionary) -> Dictionary:
+	var record := raw.duplicate(true)
+	var points: Array = []
+	var raw_points: Variant = record.get("points", [])
+	if raw_points is Array:
+		for item in raw_points as Array:
+			points.append(_as_vec(item))
+	record["points"] = points
+	var route := PackedInt32Array()
+	var raw_route: Variant = record.get("route", [])
+	if raw_route is Array:
+		for item in raw_route as Array:
+			route.append(int(item))
+	record["route"] = route
+	var cogs: Variant = record.get("cogs", [])
+	if cogs is Array:
+		for item in cogs as Array:
+			if item is Dictionary:
+				_unpack_cog(item)
+	return record
+
+
+func _unpack_cog(cog: Dictionary) -> void:
+	for key in ["position", "goal", "ground", "door_goal"]:
+		if cog.has(key):
+			cog[key] = _as_vec(cog[key])
+
+
+func _as_vec(value: Variant) -> Vector3:
+	if value is Vector3:
+		return value
+	if value is Array and (value as Array).size() >= 3:
+		var nums: Array = value
+		return Vector3(float(nums[0]), float(nums[1]), float(nums[2]))
+	return Vector3.ZERO
+
+
+func _pack(value: Variant) -> Variant:
+	if value is Vector3:
+		var point := value as Vector3
+		return [point.x, point.y, point.z]
+	if value is PackedInt32Array:
+		var nums: Array = []
+		for number in value as PackedInt32Array:
+			nums.append(int(number))
+		return nums
+	if value is Dictionary:
+		var out := {}
+		for key in (value as Dictionary).keys():
+			out[str(key)] = _pack((value as Dictionary)[key])
+		return out
+	if value is Array:
+		var rows: Array = []
+		for item in value as Array:
+			rows.append(_pack(item))
+		return rows
+	return value
 
 
 func _sig(rows: Array) -> String:

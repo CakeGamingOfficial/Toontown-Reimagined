@@ -686,10 +686,11 @@ func _ensure_marker() -> void:
 func _show_meter() -> void:
 	if _meter == null:
 		return
-	var view := _hud.get_viewport().get_visible_rect().size
-	var pixels := view.y * 0.15
 	_meter.visible = true
-	_meter.place(LaffMeter.corner(view, pixels), pixels)
+	_meter.dock(_hud.get_viewport().get_visible_rect().size)
+	var view_port := _hud.get_viewport()
+	if view_port != null and not view_port.size_changed.is_connected(_show_meter):
+		view_port.size_changed.connect(_show_meter)
 	_meter.set_hp(_loadout.hp, _loadout.max_hp)
 
 

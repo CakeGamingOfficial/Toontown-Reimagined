@@ -33,6 +33,7 @@ func _ready() -> void:
 	# Measure doorways while the wall meshes still exist. Batching clears them.
 	preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
+	_raise_pond_hedge()
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	if preload("res://scenes/places/tunnel_links.gd").arriving() or preload("res://scenes/interiors/shop_door.gd").trip == "out":
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
@@ -433,3 +434,104 @@ func _show_both_sides(mesh_instance: MeshInstance3D) -> void:
 			var standard := (material as StandardMaterial3D).duplicate() as StandardMaterial3D
 			standard.cull_mode = BaseMaterial3D.CULL_DISABLED
 			mesh.surface_set_material(surface, standard)
+
+
+## The leafy hedge around Loopy Lane's pond is a 4-foot card. The original
+## collision wall on that same line is 15 feet tall, so a jump cannot clear it.
+const _POND_HEDGE_HEIGHT := 15.0
+
+
+func _raise_pond_hedge() -> void:
+	if not scene_file_path.ends_with("loopy_lane.tscn"):
+		return
+	var fence := find_child("TTpd_fence", true, false) as Node3D
+	if fence == null or fence.get_node_or_null("PondHedge") != null:
+		return
+	var mesh := _pond_hedge_mesh(fence)
+	if mesh == null or mesh.mesh == null:
+		return
+	var triangles := _pond_hedge_triangles(mesh)
+	if triangles.is_empty():
+		return
+	var base_y := INF
+	for item in triangles:
+		var tri: PackedVector3Array = item
+		base_y = minf(base_y, minf(tri[0].y, minf(tri[1].y, tri[2].y)))
+	var top_y := base_y + _POND_HEDGE_HEIGHT
+	var faces := PackedVector3Array()
+	for item in triangles:
+		var tri: PackedVector3Array = item
+		var cross := (tri[1] - tri[0]).cross(tri[2] - tri[0])
+		var span := cross.length()
+		if span < 0.08 or absf(cross.y) / span > 0.55:
+			continue
+		for index in 3:
+			var p0 := tri[index]
+			var p1 := tri[(index + 1) % 3]
+			var run := Vector2(p1.x - p0.x, p1.z - p0.z)
+			if run.length() < 0.35:
+				continue
+			var low0 := Vector3(p0.x, base_y, p0.z)
+			var low1 := Vector3(p1.x, base_y, p1.z)
+			var high0 := Vector3(p0.x, top_y, p0.z)
+			var high1 := Vector3(p1.x, top_y, p1.z)
+			faces.append(low0)
+			faces.append(low1)
+			faces.append(high1)
+			faces.append(low0)
+			faces.append(high1)
+			faces.append(high0)
+	if faces.is_empty():
+		return
+	var into := fence.global_transform.affine_inverse()
+	for index in faces.size():
+		faces[index] = into * faces[index]
+	var body := StaticBody3D.new()
+	body.name = "PondHedge"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	body.add_child(collision)
+	fence.add_child(body)
+
+
+func _pond_hedge_mesh(fence: Node) -> MeshInstance3D:
+	if fence is MeshInstance3D and (fence as MeshInstance3D).mesh != null:
+		return fence as MeshInstance3D
+	for child in fence.get_children():
+		var found := _pond_hedge_mesh(child)
+		if found != null:
+			return found
+	return null
+
+
+func _pond_hedge_triangles(mesh: MeshInstance3D) -> Array:
+	var triangles: Array = []
+	var to_world := mesh.global_transform
+	for surface in mesh.mesh.get_surface_count():
+		var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+		var verts := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		var ids := PackedInt32Array()
+		if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
+			ids = arrays[Mesh.ARRAY_INDEX]
+		var limit := ids.size() if ids.size() >= 3 else verts.size()
+		var cursor := 0
+		while cursor + 2 < limit:
+			var i0 := cursor
+			var i1 := cursor + 1
+			var i2 := cursor + 2
+			if ids.size() >= 3:
+				i0 = ids[cursor]
+				i1 = ids[cursor + 1]
+				i2 = ids[cursor + 2]
+			if i0 >= 0 and i1 >= 0 and i2 >= 0 and i0 < verts.size() and i1 < verts.size() and i2 < verts.size():
+				triangles.append(PackedVector3Array([
+					to_world * verts[i0],
+					to_world * verts[i1],
+					to_world * verts[i2],
+				]))
+			cursor += 3
+	return triangles

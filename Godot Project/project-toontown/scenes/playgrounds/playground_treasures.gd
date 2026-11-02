@@ -392,7 +392,7 @@ func _shadow() -> MeshInstance3D:
 func _play(stream: AudioStream, root: Node3D) -> void:
 	if stream == null or root == null:
 		return
-	var player := AudioStreamPlayer3D.new()
+	var player := ToonAudio.effect_3d()
 	player.stream = stream
 	player.max_distance = 80.0
 	player.unit_size = 12.0

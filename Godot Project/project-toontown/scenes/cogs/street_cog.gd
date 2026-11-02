@@ -19,9 +19,42 @@ const _DEPT_NAMES := {
 	"s": "Sellbot",
 }
 ## Parsed clip files are shared. Each cog only keeps its own mesh instance.
+## Frames are baked one at a time. Building every pose in setup() was the street hitch.
 static var _clip_files: Dictionary = {}
+static var _index_cursor := 0
+static var _bake_done := false
+const _INDEX_PATHS: PackedStringArray = [
+	"res://assets/cogs/anims/a/walk.walk",
+	"res://assets/cogs/anims/a/neutral.walk",
+	"res://assets/cogs/anims/a/landing.walk",
+	"res://assets/cogs/anims/b/walk.walk",
+	"res://assets/cogs/anims/b/neutral.walk",
+	"res://assets/cogs/anims/b/landing.walk",
+	"res://assets/cogs/anims/c/walk.walk",
+	"res://assets/cogs/anims/c/neutral.walk",
+	"res://assets/cogs/anims/c/landing.walk",
+	"res://assets/cogs/props/propeller.walk",
+]
 const _SHADE := preload("res://scenes/cogs/cog_shade.gdshader")
 const _TRAFFIC := preload("res://scenes/streets/street_traffic.gd")
+## Suit.generateSuit handColor. The glove geom is untextured; setSuitClothes only tints it.
+const _CORP_HAND := Color(0.95, 0.75, 0.75)
+const _LEGAL_HAND := Color(0.75, 0.75, 0.95)
+const _MONEY_HAND := Color(0.65, 0.95, 0.85)
+const _SALES_HAND := Color(0.95, 0.75, 0.95)
+const _HAND_COLOR := {
+	"f": _CORP_HAND, "p": _CORP_HAND, "ym": _CORP_HAND, "mm": _CORP_HAND,
+	"ds": _CORP_HAND, "hh": _CORP_HAND,
+	"cr": Color(0.85, 0.55, 0.55), "tbc": Color(0.75, 0.95, 0.75),
+	"bf": _LEGAL_HAND, "dt": _LEGAL_HAND, "ac": _LEGAL_HAND, "bs": _LEGAL_HAND, "bw": _LEGAL_HAND,
+	"b": Color(0.95, 0.95, 1.0), "sd": Color(0.5, 0.8, 0.75), "le": Color(0.25, 0.25, 0.5),
+	"sc": _MONEY_HAND, "tw": _MONEY_HAND, "bc": _MONEY_HAND, "nc": _MONEY_HAND,
+	"mb": _MONEY_HAND, "rb": _MONEY_HAND,
+	"pp": Color(1.0, 0.5, 0.6), "ls": Color(0.5, 0.85, 0.75),
+	"cc": Color(0.55, 0.65, 1.0),
+	"tm": _SALES_HAND, "nd": _SALES_HAND, "gh": _SALES_HAND, "ms": _SALES_HAND,
+	"tf": _SALES_HAND, "m": _SALES_HAND, "mh": _SALES_HAND,
+}
 
 signal departed
 
@@ -122,6 +155,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		_hide_gray_cuffs(actor)
 		_materials.clear()
 		_own_materials(actor)
+		_paint_hands(actor)
 		_quiet_shadows(actor)
 	_release_nametag()
 	_add_nametag()
@@ -152,6 +186,44 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		_pose_clip(_landing, 0, 0, 0.0)
 		return
 	_resume(resume)
+
+
+## One catalog suit, built before it is asked to appear. setup() then reuses the actor.
+func preload_suit(cog: Dictionary, timing: Dictionary, propeller: Dictionary) -> void:
+	cog_code = str(cog.get("code", ""))
+	body = str(cog.get("body", "c"))
+	visible = false
+	set_process(false)
+	var body_timing: Dictionary = timing.get(body, {})
+	_body_timing = body_timing
+	var walk_info: Dictionary = body_timing.get("walk", {})
+	var neutral_info: Dictionary = body_timing.get("neutral", {})
+	var landing_info: Dictionary = body_timing.get("landing", {})
+	if float(walk_info.get("fps", 0.0)) > 1.0:
+		_walk_fps = float(walk_info["fps"])
+	if float(neutral_info.get("fps", 0.0)) > 1.0:
+		_neutral_fps = float(neutral_info["fps"])
+	if int(landing_info.get("frames", 0)) > 1:
+		_landing_frames = int(landing_info["frames"])
+		_landing_fps = float(landing_info.get("fps", DEFAULT_FPS))
+	_prop_frames = int(propeller.get("frames", 0))
+	_prop_fps = float(propeller.get("fps", DEFAULT_FPS))
+	if _prop_fps < 1.0:
+		_prop_fps = DEFAULT_FPS
+	var packed := load("res://assets/cogs/suits/%s.glb" % cog_code) as PackedScene
+	if packed == null:
+		return
+	var actor := packed.instantiate()
+	actor.name = "Suit"
+	add_child(actor)
+	_hide_gray_cuffs(actor)
+	_materials.clear()
+	_own_materials(actor)
+	_paint_hands(actor)
+	_quiet_shadows(actor)
+	_walk = _read_bank("res://assets/cogs/anims/%s/walk.walk" % body)
+	_neutral = _read_bank("res://assets/cogs/anims/%s/neutral.walk" % body)
+	_landing = _read_bank("res://assets/cogs/anims/%s/landing.walk" % body)
 
 
 func capture() -> Dictionary:
@@ -683,7 +755,7 @@ func _play_propeller(inbound: bool) -> void:
 	if not FileAccess.file_exists(path):
 		return
 	if _sound == null:
-		_sound = AudioStreamPlayer3D.new()
+		_sound = ToonAudio.effect_3d()
 		_sound.name = "PropellerSound"
 		_sound.unit_size = 25.0
 		add_child(_sound)
@@ -784,6 +856,32 @@ func _shade_material(source: BaseMaterial3D) -> ShaderMaterial:
 	return material
 
 
+## The exported glove still carries hand.png. That picture is what draws the white
+## chips across the fingers. The original geom turns the texture off and tints the mesh.
+func _paint_hands(actor: Node) -> void:
+	var tint := _CORP_HAND
+	if _HAND_COLOR.has(cog_code):
+		tint = _HAND_COLOR[cog_code] as Color
+	_paint_hand_node(actor, tint)
+
+
+func _paint_hand_node(node: Node, tint: Color) -> void:
+	if node is MeshInstance3D and str(node.name) == "hands":
+		var mesh_node := node as MeshInstance3D
+		var count := 0
+		if mesh_node.mesh != null:
+			count = mesh_node.mesh.get_surface_count()
+		for index in count:
+			var material := mesh_node.get_surface_override_material(index) as ShaderMaterial
+			if material == null:
+				continue
+			material.set_shader_parameter("use_albedo_texture", 0.0)
+			material.set_shader_parameter("use_vertex_color", 0.0)
+			material.set_shader_parameter("albedo_color", tint)
+	for child in node.get_children():
+		_paint_hand_node(child, tint)
+
+
 func _quiet_shadows(node: Node) -> void:
 	if node is GeometryInstance3D:
 		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -839,7 +937,13 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 		var poses: Array = record.get("poses", [])
 		if frame < 0 or frame >= poses.size():
 			continue
-		var posed := poses[frame] as ArrayMesh
+		var posed: ArrayMesh = null
+		var slot: Variant = poses[frame]
+		if slot is ArrayMesh:
+			posed = slot as ArrayMesh
+		if posed == null:
+			var source: Dictionary = record.get("source", {})
+			posed = _ensure_pose(source, frame)
 		if posed == null:
 			continue
 		if instance.mesh != posed:
@@ -861,9 +965,9 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 		var frames: Array = record["frames"]
 		if frames.is_empty():
 			continue
-		var posed_frame: Transform3D = frames[frame % frames.size()]
+		var posed_frame := _joint_at(record, frame)
 		if fraction > 0.001:
-			var nxt: Transform3D = frames[following % frames.size()]
+			var nxt := _joint_at(record, following)
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
 			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, fraction)
 		var bind: Transform3D = record["bind"]
@@ -916,7 +1020,7 @@ func _attack_fps(key: String) -> float:
 	return _walk_fps
 
 
-func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
+static func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
 	var normals := PackedVector3Array()
 	normals.resize(positions.size())
 	var index := 0
@@ -935,7 +1039,7 @@ func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
 	return normals
 
 
-func _smooth_normals(positions: PackedVector3Array) -> PackedVector3Array:
+static func _smooth_normals(positions: PackedVector3Array) -> PackedVector3Array:
 	var flat := _face_normals(positions)
 	var normals := PackedVector3Array()
 	normals.resize(positions.size())
@@ -962,6 +1066,38 @@ func _smooth_normals(positions: PackedVector3Array) -> PackedVector3Array:
 	return normals
 
 
+static func index_next() -> bool:
+	if _index_cursor >= _INDEX_PATHS.size():
+		return false
+	var path := _INDEX_PATHS[_index_cursor]
+	_index_cursor += 1
+	if not _clip_files.has(path):
+		_clip_files[path] = _parse_clip(path)
+	return true
+
+
+## One missing pose across every clip already opened. The street calls this
+## between spawns so a landing never builds its whole clip on the frame it appears.
+static func bake_one() -> bool:
+	if _bake_done:
+		return false
+	for path in _clip_files.keys():
+		var parsed: Dictionary = _clip_files[path]
+		var nodes: Array = parsed.get("nodes", [])
+		for item in nodes:
+			if not (item is Dictionary):
+				continue
+			var node: Dictionary = item
+			var poses: Array = node.get("poses", [])
+			for frame in poses.size():
+				if poses[frame] is ArrayMesh:
+					continue
+				_ensure_pose(node, frame)
+				return true
+	_bake_done = true
+	return false
+
+
 func _read_bank(path: String, root: Node = null) -> Dictionary:
 	if not _clip_files.has(path):
 		_clip_files[path] = _parse_clip(path)
@@ -969,93 +1105,161 @@ func _read_bank(path: String, root: Node = null) -> Dictionary:
 	return _bind_clip(_clip_files[path], search)
 
 
-func _parse_clip(path: String) -> Dictionary:
+static func _parse_clip(path: String) -> Dictionary:
+	_bake_done = false
 	var nodes: Array = []
 	var joints: Array = []
+	var empty := {"nodes": nodes, "joints": joints, "frames": 0}
 	if not FileAccess.file_exists(path):
-		return {"nodes": nodes, "joints": joints, "frames": 0}
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {"nodes": nodes, "joints": joints, "frames": 0}
-	var magic := file.get_buffer(8)
-	if magic.slice(0, 6).get_string_from_ascii() != "TWALK3":
-		file.close()
-		return {"nodes": nodes, "joints": joints, "frames": 0}
-	var frame_count := file.get_32()
-	var node_count := file.get_32()
+		return empty
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() < 16 or bytes.slice(0, 6).get_string_from_ascii() != "TWALK3":
+		return empty
+	var at := 8
+	var frame_count := bytes.decode_u32(at)
+	at += 4
+	var node_count := bytes.decode_u32(at)
+	at += 4
 	for _node_index in node_count:
-		var name_len := file.get_16()
-		var node_name := file.get_buffer(name_len).get_string_from_utf8()
-		var surface_count := file.get_32()
+		var name_len := bytes.decode_u16(at)
+		at += 2
+		var node_name := bytes.slice(at, at + name_len).get_string_from_utf8()
+		at += name_len
+		var surface_count := bytes.decode_u32(at)
+		at += 4
 		var surfaces: Array = []
 		for _surface_index in surface_count:
-			var vertex_count := file.get_32()
-			var has_uv := file.get_8()
+			var vertex_count := bytes.decode_u32(at)
+			at += 4
+			var has_uv := bytes.decode_u8(at)
+			at += 1
 			var uvs := PackedVector2Array()
 			if has_uv != 0:
 				uvs.resize(vertex_count)
 				for index in vertex_count:
-					uvs[index] = Vector2(file.get_float(), file.get_float())
-			var frames: Array = []
-			for _frame_index in frame_count:
-				var positions := PackedVector3Array()
-				positions.resize(vertex_count)
-				for index in vertex_count:
-					positions[index] = Vector3(file.get_float(), file.get_float(), file.get_float())
-				frames.append(positions)
-			if frames.is_empty() or vertex_count < 1:
-				continue
-			surfaces.append({
-				"uv": uvs,
-				"frames": frames,
-			})
+					var u := bytes.decode_float(at)
+					at += 4
+					var v := bytes.decode_float(at)
+					at += 4
+					uvs[index] = Vector2(u, v)
+			var base := at
+			at += frame_count * vertex_count * 12
+			if vertex_count >= 1 and base + frame_count * vertex_count * 12 <= bytes.size():
+				surfaces.append({"uv": uvs, "verts": vertex_count, "base": base})
 		if surfaces.is_empty():
 			continue
 		var poses: Array = []
-		for frame_index in frame_count:
-			var posed := ArrayMesh.new()
-			for surface_item in surfaces:
-				var surface: Dictionary = surface_item
-				var rows := surface["frames"] as Array
-				if frame_index < 0 or frame_index >= rows.size():
-					continue
-				var positions := rows[frame_index] as PackedVector3Array
-				if positions.is_empty():
-					continue
-				var arrays: Array = []
-				arrays.resize(Mesh.ARRAY_MAX)
-				arrays[Mesh.ARRAY_VERTEX] = positions
-				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
-				var surface_uvs := surface["uv"] as PackedVector2Array
-				if surface_uvs.size() == positions.size():
-					arrays[Mesh.ARRAY_TEX_UV] = surface_uvs
-				posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-			if posed.get_surface_count() > 0:
-				poses.append(posed)
-		if not poses.is_empty():
-			nodes.append({"name": node_name, "poses": poses})
-	var joint_count := file.get_32()
+		poses.resize(frame_count)
+		nodes.append({
+			"name": node_name,
+			"surfaces": surfaces,
+			"poses": poses,
+			"bytes": bytes,
+		})
+	if at + 4 > bytes.size():
+		return {"nodes": nodes, "joints": joints, "frames": frame_count}
+	var joint_count := bytes.decode_u32(at)
+	at += 4
 	for _joint_index in joint_count:
-		var name_len := file.get_16()
-		var joint_name := file.get_buffer(name_len).get_string_from_utf8()
+		if at + 2 > bytes.size():
+			break
+		var name_len := bytes.decode_u16(at)
+		at += 2
+		if at + name_len + 64 > bytes.size():
+			break
+		var joint_name := bytes.slice(at, at + name_len).get_string_from_utf8()
+		at += name_len
 		var bind_cells := PackedFloat32Array()
 		bind_cells.resize(16)
 		for cell in 16:
-			bind_cells[cell] = file.get_float()
+			bind_cells[cell] = bytes.decode_float(at)
+			at += 4
+		var base := at
+		at += frame_count * 64
 		var frames: Array = []
-		for _frame_index in frame_count:
-			var cells := PackedFloat32Array()
-			cells.resize(16)
-			for cell in 16:
-				cells[cell] = file.get_float()
-			frames.append(_transform_from_panda(cells))
+		frames.resize(frame_count)
 		joints.append({
 			"name": joint_name,
 			"bind": _transform_from_panda(bind_cells),
+			"base": base,
+			"bytes": bytes,
 			"frames": frames,
 		})
-	file.close()
 	return {"nodes": nodes, "joints": joints, "frames": frame_count}
+
+
+static func _ensure_pose(node: Dictionary, frame: int) -> ArrayMesh:
+	var poses: Array = node.get("poses", [])
+	if frame < 0 or frame >= poses.size():
+		return null
+	var existing: Variant = poses[frame]
+	if existing is ArrayMesh:
+		return existing as ArrayMesh
+	var bytes: PackedByteArray = node.get("bytes", PackedByteArray())
+	var posed := ArrayMesh.new()
+	var surfaces: Array = node.get("surfaces", [])
+	for surface_item in surfaces:
+		if not (surface_item is Dictionary):
+			continue
+		var surface: Dictionary = surface_item
+		var verts := int(surface.get("verts", 0))
+		var base := int(surface.get("base", 0))
+		var positions := _read_positions(bytes, base, frame, verts)
+		if positions.is_empty():
+			continue
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
+		arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
+		var surface_uvs: PackedVector2Array = surface.get("uv", PackedVector2Array())
+		if surface_uvs.size() == positions.size():
+			arrays[Mesh.ARRAY_TEX_UV] = surface_uvs
+		posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	if posed.get_surface_count() == 0:
+		return null
+	poses[frame] = posed
+	return posed
+
+
+static func _read_positions(bytes: PackedByteArray, base: int, frame: int, verts: int) -> PackedVector3Array:
+	var positions := PackedVector3Array()
+	if verts < 1:
+		return positions
+	var at := base + frame * verts * 12
+	if at < 0 or at + verts * 12 > bytes.size():
+		return positions
+	positions.resize(verts)
+	for index in verts:
+		var x := bytes.decode_float(at)
+		at += 4
+		var y := bytes.decode_float(at)
+		at += 4
+		var z := bytes.decode_float(at)
+		at += 4
+		positions[index] = Vector3(x, y, z)
+	return positions
+
+
+static func _joint_at(record: Dictionary, frame: int) -> Transform3D:
+	var frames: Array = record.get("frames", [])
+	if frames.is_empty():
+		return Transform3D.IDENTITY
+	var index := posmod(frame, frames.size())
+	var have: Variant = frames[index]
+	if have is Transform3D:
+		return have
+	var bytes: PackedByteArray = record.get("bytes", PackedByteArray())
+	var at := int(record.get("base", 0)) + index * 64
+	if at < 0 or at + 64 > bytes.size():
+		return Transform3D.IDENTITY
+	var cells := PackedFloat32Array()
+	cells.resize(16)
+	for cell in 16:
+		cells[cell] = bytes.decode_float(at)
+		at += 4
+	var posed := _transform_from_panda(cells)
+	frames[index] = posed
+	return posed
 
 
 func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
@@ -1070,7 +1274,7 @@ func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
 		var poses: Array = node.get("poses", [])
 		if poses.is_empty():
 			continue
-		var first := poses[0] as ArrayMesh
+		var first := _ensure_pose(node, 0)
 		if first == null:
 			continue
 		var overrides: Array = []
@@ -1090,6 +1294,7 @@ func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
 		clips.append({
 			"instance": instance,
 			"poses": poses,
+			"source": node,
 			"overrides": overrides,
 		})
 	var shared_joints: Array = parsed.get("joints", [])
@@ -1098,16 +1303,19 @@ func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
 		var joint := _find(root, str(node["name"])) as Node3D
 		if joint == null:
 			continue
+		var joint_frames: Array = node.get("frames", [])
 		joints.append({
 			"node": joint,
 			"rest": joint.transform,
 			"bind": node["bind"],
-			"frames": node["frames"],
+			"frames": joint_frames,
+			"base": int(node.get("base", 0)),
+			"bytes": node.get("bytes", PackedByteArray()),
 		})
 	return {"clips": clips, "joints": joints, "frames": int(parsed.get("frames", 0)), "shown": -1}
 
 
-func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
+static func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 	var x := Vector3(cells[0], cells[1], cells[2])
 	var y := Vector3(cells[4], cells[5], cells[6])
 	var z := Vector3(cells[8], cells[9], cells[10])

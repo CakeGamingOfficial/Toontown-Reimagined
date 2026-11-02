@@ -122,6 +122,10 @@ var _label: Label
 var _tint := Color(1.0, 0.5, 0.4)
 
 
+static func zone_of(scene_path: String) -> int:
+	return _zone(scene_path)
+
+
 static func caption(scene_path: String) -> Dictionary:
 	if scene_path.ends_with("shop_interior.tscn"):
 		var shop_title := String(_SHOP_DOOR.title)

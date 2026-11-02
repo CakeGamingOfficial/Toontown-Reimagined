@@ -158,6 +158,14 @@ static func corner(view: Vector2, pixels: float) -> Vector2:
 	return Vector2(pixels * 0.5 + _SCREEN_MARGIN, view.y - pixels * 0.5 - _SCREEN_MARGIN)
 
 
+## LocalToon puts the meter on the bottom left. Dock again when the window changes.
+func dock(view: Vector2) -> void:
+	if view.y < 2.0:
+		return
+	var pixels := view.y * 0.15
+	place(corner(view, pixels), pixels)
+
+
 func place(center: Vector2, pixels: float) -> void:
 	_apply_size(pixels)
 	position = center - size * 0.5

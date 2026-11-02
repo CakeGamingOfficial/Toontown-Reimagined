@@ -80,6 +80,7 @@ var _heading := 0.0
 var _hood := 0
 var _home := Vector3(-90.7, 0.35, 60.0)
 var _home_heading := 102.575
+var _void_time := 0.0
 var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
@@ -1467,15 +1468,27 @@ func _snap_drop(drop: Vector3) -> Vector3:
 	var world := parent.get_world_3d()
 	if world == null:
 		return drop
+	# A roof above the authored height is not the floor. The central gazebo
+	# drop points stand on its platform, and a ray from overhead hits the roof first.
+	var ceiling := drop.y + 2.0
 	var from := drop + Vector3(0.0, 30.0, 0.0)
-	var query := PhysicsRayQueryParameters3D.create(from, drop + Vector3(0.0, -40.0, 0.0))
-	query.collide_with_areas = false
-	var hit := world.direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return drop
-	var landed: Vector3 = hit["position"]
-	landed.y += 0.05
-	return landed
+	var to := drop + Vector3(0.0, -40.0, 0.0)
+	var steps := 0
+	while steps < 6:
+		steps += 1
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.collide_with_areas = false
+		var hit := world.direct_space_state.intersect_ray(query)
+		if hit.is_empty():
+			return drop
+		var landed: Vector3 = hit["position"]
+		if landed.y <= ceiling:
+			landed.y += 0.05
+			return landed
+		from = landed + Vector3(0.0, -0.15, 0.0)
+		if from.y <= to.y:
+			return drop
+	return drop
 
 
 func _spawn(underground: bool) -> void:
@@ -1744,6 +1757,9 @@ func _fade_in() -> void:
 
 func _ready_hud() -> void:
 	_loadout = ToonLoadout.for_selected()
+	# Apply the district copy before either corner control is built. Doing it
+	# between them left the book showing a journal the claim had already erased.
+	ToonNet.claim_toon()
 	_meter = LaffMeter.new()
 	_meter.name = "LaffMeter"
 	var style := ToonRoster.selected_style()
@@ -1753,14 +1769,14 @@ func _ready_hud() -> void:
 		_meter.setup(ToonStyle.new())
 	_meter.follow(_loadout)
 	_hud().add_child(_meter)
-	var view := get_viewport().get_visible_rect().size
-	var pixels := view.y * 0.15
-	_meter.place(LaffMeter.corner(view, pixels), pixels)
+	_dock_laff()
+	var view_port := get_viewport()
+	if view_port != null and not view_port.size_changed.is_connected(_dock_laff):
+		view_port.size_changed.connect(_dock_laff)
 	_book = ShtickerBook.new()
 	_book.name = "ShtickerBook"
 	_hud().add_child(_book)
 	_book.setup(_tasks, _loadout)
-	ToonNet.claim_toon()
 	# The open book covers the street map. The map stays above the laff meter.
 	_book.z_index = 20
 	var street_zone := _BLDG.street_zone(_scene_path())
@@ -1858,7 +1874,16 @@ func _walk(delta: float) -> void:
 		_raise_onto_step()
 	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
-	if _body.position.y < _home.y - 8.0 and not MagicWords.noclip():
+	# The pond bed sits lower than a high spawn. Standing there, or jumping
+	# in the water, is not a fall out of the world. Only a real drop with no
+	# floor sends the toon home.
+	var fallen := _body.position.y < _home.y - 8.0 and not _body.is_on_floor() and not MagicWords.noclip()
+	if fallen:
+		_void_time += delta
+	else:
+		_void_time = 0.0
+	if _void_time > 0.85:
+		_void_time = 0.0
 		_body.velocity = Vector3.ZERO
 		_body.position = _home
 		_heading = _home_heading
@@ -2116,6 +2141,12 @@ func _forward(heading: float) -> Vector3:
 	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
 	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))
 	return upright * Vector3(0, 1, 0)
+
+
+func _dock_laff() -> void:
+	if _meter == null:
+		return
+	_meter.dock(get_viewport().get_visible_rect().size)
 
 
 func _hud() -> CanvasLayer:

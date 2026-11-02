@@ -105,6 +105,29 @@ static func networked() -> bool:
 	return net != null and net._role != "offline"
 
 
+## Round trip to the district, in milliseconds. -1 offline, -2 when this
+## process is the host and nobody else is connected yet.
+static func ping_ms() -> int:
+	var net := live()
+	if net == null or net.multiplayer.multiplayer_peer == null or net._role == "offline":
+		return -1
+	var link := net.multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if link == null:
+		return -1
+	if net.multiplayer.is_server():
+		var worst := -2
+		for id in net.multiplayer.get_peers():
+			var remote := link.get_peer(int(id))
+			if remote == null:
+				continue
+			worst = maxi(worst, int(remote.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)))
+		return worst
+	var server := link.get_peer(1)
+	if server == null:
+		return -1
+	return int(server.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+
+
 static func is_welcome() -> bool:
 	var net := live()
 	return net != null and net._welcome
@@ -1215,12 +1238,27 @@ func _clear_state(channel: String) -> void:
 	state_changed.emit(channel)
 
 
+## The toontorial writes the book and SpeedChat into the journal after the
+## first claim. A stored row from that first claim must not win over them.
+func _journal_ahead(incoming: Dictionary, kept: Dictionary) -> bool:
+	if bool(incoming.get("has_book", false)) and not bool(kept.get("has_book", false)):
+		return true
+	if bool(incoming.get("met_flippy", false)) and not bool(kept.get("met_flippy", false)):
+		return true
+	var incoming_done: Array = incoming.get("done", [])
+	var kept_done: Array = kept.get("done", [])
+	return incoming_done.size() > kept_done.size()
+
+
 func _accept_claim(peer: int, av_id: int, record: Dictionary) -> void:
 	if av_id <= 0:
 		return
 	_avatars[peer] = av_id
 	var kept := _BANK.recall(av_id)
-	if kept.is_empty():
+	# The first claim, at the start of the toontorial, stores a journal from
+	# before Harry and Flippy. A later claim has to keep the copy that actually
+	# has the book and SpeedChat, not replay that empty row over the file.
+	if kept.is_empty() or _journal_ahead(record, kept):
 		_BANK.store(av_id, record)
 		kept = _BANK.recall(av_id)
 	var local := false
