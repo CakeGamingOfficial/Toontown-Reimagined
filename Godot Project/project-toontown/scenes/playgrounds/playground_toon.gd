@@ -156,6 +156,17 @@ var _reversing := false
 var _active := false
 
 
+## DevConsole sets _reload_armed before it rebuilds the place. A street only
+## builds this toon for a tunnel or a shop door, so a reload has to notice
+## that flag or the free-fly camera is what comes back.
+static func reload_resume() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return false
+	var console := tree.root.get_node_or_null("DevConsole")
+	return console != null and bool(console.get("_reload_armed"))
+
+
 static func attach(host: Node) -> void:
 	if Engine.is_editor_hint():
 		return
@@ -200,6 +211,7 @@ func _ready() -> void:
 	var from_hq := String(_HQ.trip)
 	var from_bldg := String(_BLDG.trip)
 	var from_tunnel := _LINKS.arriving()
+	var restoring := reload_resume()
 	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel
 	from_toontorial = false
 	teleport_in = false
@@ -214,7 +226,7 @@ func _ready() -> void:
 	_hall_trip = from_hall
 	_hq_trip = from_hq
 	_bldg_trip = from_bldg
-	if not arriving and not logging_in and not incoming and not _tasks.in_playground:
+	if not restoring and not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
 	var trip: Dictionary = {}
@@ -270,7 +282,7 @@ func _ready() -> void:
 		return
 	if arriving:
 		_tasks.note_playground()
-	elif _tasks.in_playground:
+	elif _tasks.in_playground and not restoring:
 		if keep_last_hood:
 			keep_last_hood = false
 		else:

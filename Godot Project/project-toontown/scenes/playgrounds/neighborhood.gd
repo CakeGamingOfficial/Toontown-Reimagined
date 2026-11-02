@@ -41,6 +41,7 @@ func _ready() -> void:
 	_ready_music()
 	_ready_billboards()
 	preload("res://scenes/places/tunnel_links.gd").name_hq_exits(self)
+	preload("res://scenes/cog_hq/sellbot_signs.gd").place(self)
 	if preload("res://scenes/interiors/shop_door.gd").street_zone(scene_file_path) != 0:
 		preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
@@ -93,7 +94,8 @@ func _attach_returning_toon() -> void:
 	var places := preload("res://scenes/places/hood_places.gd")
 	var links := preload("res://scenes/places/tunnel_links.gd")
 	var returning := preload("res://scenes/interiors/shop_door.gd").trip == "out"
-	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving() and not returning:
+	var restoring := preload("res://scenes/playgrounds/playground_toon.gd").reload_resume()
+	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving() and not returning and not restoring:
 		return
 	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 
@@ -120,6 +122,12 @@ func _notification(what: int) -> void:
 func _prepare_cog_sky() -> void:
 	var cog_sky := get_node_or_null("CogSky") as Node3D
 	if cog_sky == null:
+		return
+	# LawbotHQ.load hides the shared backdrop. The plaza model has its own sky,
+	# and the shared one hangs above the sunken floor, so the courtyard looks
+	# up into the underside of it.
+	if scene_file_path.get_file().begins_with("lawbot"):
+		cog_sky.visible = false
 		return
 	# SellbotHQ.load scales the backdrop by 2. At 1, the hill ring sits inside
 	# the courtyard and travels with the camera.

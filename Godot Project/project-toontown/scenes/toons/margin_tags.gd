@@ -1,12 +1,16 @@
 extends Node
 
 ## Nametag2d plus the MarginManager cells from ToonBase.initNametagGlobals.
-## A name sits in a screen cell, with the phase_3 arrow spun toward the
-## avatar, when that avatar's card is off the screen. Toon buildings use
-## CCToonBuilding, cog buildings use CCSuitBuilding, and both drop off past
-## 40 units the way Nametag2d.considerVisible measures them.
+## The word sits on phase_3/models/props/panel, and the phase_3 arrow points
+## at the avatar, when that avatar's card is off the screen. Toon buildings
+## use CCToonBuilding, cog buildings use CCSuitBuilding, and both drop off
+## past 40 units the way Nametag2d.considerVisible measures them.
 
 const _DOORS := preload("res://scenes/interiors/shop_door.gd")
+## phase_3/models/props/arrow, the quad NametagGlobals.setArrowModel installs.
+const _ARROW_TEX := preload("res://assets/gui/nametag/arrow.png")
+## phase_3/models/props/panel, the card NametagGlobals.setNametagCard installs.
+const _NAME_PANEL := preload("res://assets/gui/nametag/name_panel.png")
 ## Hood id from the playground scene file. Kept here so this board does not
 ## pull the place table back into the toon that owns it.
 const _HOODS: Dictionary = {
@@ -32,6 +36,11 @@ const _SUIT_INK := Color(0.0, 0.0, 0.0, 1.0)
 const _SUIT_ARROW := Color(1.0, 0.4, 0.2, 1.0)
 const _TOON_BUILDING := Color(0.3, 0.6, 1.0, 1.0)
 const _SUIT_BUILDING := Color(0.55, 0.55, 0.55, 1.0)
+## getNameBg. Ready is white for a toon or NPC and gray for a cog.
+## Buildings are inactive (setActive(0)), and that card is the same gray.
+## Nametag2d clamps the card alpha to getMax2dAlpha, which is 0.6.
+const _CARD_WHITE := Color(1.0, 1.0, 1.0, 0.5)
+const _CARD_GRAY := Color(0.8, 0.8, 0.8, 0.5)
 ## addGridCell columns and rows. Left 0/1-3, bottom 0.5-4.5/0, right 5/2 and 5/1.
 const _CELLS: Array[Vector2] = [
 	Vector2(0.0, 1.0), Vector2(0.0, 2.0), Vector2(0.0, 3.0),
@@ -68,7 +77,6 @@ const _PLAYGROUND_TITLES: Dictionary = {
 }
 
 var _layer: CanvasLayer
-var _arrow_tex: Texture2D
 var _widgets: Array[Dictionary] = []
 var _playground: Array[Dictionary] = []
 var _playground_host: Node
@@ -78,7 +86,6 @@ var _sticky_at: Dictionary = {}
 
 func setup(layer: CanvasLayer) -> void:
 	_layer = layer
-	_arrow_tex = _make_arrow()
 	for _index in _CELLS.size():
 		_widgets.append(_make_widget())
 
@@ -133,11 +140,16 @@ func _offer_card(item: Dictionary, camera: Camera3D, view: Rect2, wish: Array[Di
 	var point := actor.global_position + Vector3.UP * lift
 	if not _needs_margin(camera, point, view):
 		return
-	var plain := String(item.get("plain", "")).get_slice("\n", 0)
+	# SuitBaseNameWithLevel is the name, the department, then the level.
+	# A toon or an NPC only shows the first line.
+	var plain := String(item.get("plain", ""))
+	if kind != "cog":
+		plain = plain.get_slice("\n", 0)
 	if plain.is_empty():
 		return
 	var ink := _TOON_INK
 	var arrow := _TOON_ARROW
+	var card := _CARD_WHITE
 	var face := ToonGui.font()
 	var wrap := _TOON_WRAP
 	if kind == "npc":
@@ -146,6 +158,7 @@ func _offer_card(item: Dictionary, camera: Camera3D, view: Rect2, wish: Array[Di
 	elif kind == "cog":
 		ink = _SUIT_INK
 		arrow = _SUIT_ARROW
+		card = _CARD_GRAY
 		face = ToonGui.suit_font()
 	var dist2 := camera.global_position.distance_squared_to(point)
 	wish.append({
@@ -153,6 +166,7 @@ func _offer_card(item: Dictionary, camera: Camera3D, view: Rect2, wish: Array[Di
 		"text": plain,
 		"ink": ink,
 		"arrow": arrow,
+		"card": card,
 		"font": face,
 		"wrap": wrap,
 		"screen": _aim_point(camera, point, view),
@@ -234,6 +248,7 @@ func _offer_building(wish: Array[Dictionary], camera: Camera3D, view: Rect2, key
 		"text": title,
 		"ink": ink,
 		"arrow": ink,
+		"card": _CARD_GRAY,
 		"font": ToonGui.sign_font(),
 		"wrap": _BUILDING_WRAP,
 		"screen": _aim_point(camera, point, view),
@@ -339,8 +354,10 @@ func _claim_cell(key: String, screen: Vector2, centers: Array[Vector2], used: Di
 func _show_widget(index: int, item: Dictionary, center: Vector2) -> void:
 	var widget: Dictionary = _widgets[index]
 	var root := widget["root"] as Control
+	var panel := widget["panel"] as PanelContainer
 	var label := widget["label"] as Label
 	var arrow := widget["arrow"] as TextureRect
+	var card := widget["card"] as StyleBoxTexture
 	var text := String(item["text"])
 	var font: Font = item["font"]
 	var wrap := float(item["wrap"])
@@ -350,16 +367,17 @@ func _show_widget(index: int, item: Dictionary, center: Vector2) -> void:
 		ToonGui.style_label(label, ink, _TEXT_PX, Color(0, 0, 0, 0), 0)
 		label.add_theme_font_override("font", font)
 		label.text = wrapped
-		label.reset_size()
 		widget["text"] = text
 		widget["font"] = font
 	else:
 		label.add_theme_color_override("font_color", ink)
+	card.modulate_color = item["card"]
 	arrow.modulate = item["arrow"]
-	var text_size := label.size
-	root.size = text_size + Vector2(0.0, 16.0)
-	root.position = center - Vector2(text_size.x * 0.5, text_size.y * 0.5)
-	arrow.position = Vector2(text_size.x * 0.5, text_size.y + 1.0) - arrow.size * 0.5
+	panel.reset_size()
+	var panel_size := panel.size
+	root.size = panel_size + Vector2(0.0, arrow.size.y * 0.5)
+	root.position = center - Vector2(panel_size.x * 0.5, panel_size.y * 0.5)
+	arrow.position = Vector2(panel_size.x * 0.5, panel_size.y) - arrow.size * 0.5
 	var aim: Vector2 = item["screen"] - (root.position + arrow.position + arrow.size * 0.5)
 	if aim.length_squared() > 1.0:
 		arrow.rotation = atan2(aim.y, aim.x)
@@ -370,16 +388,17 @@ func _wrap(font: Font, text: String, px: int, budget: float) -> String:
 	if font == null:
 		return text
 	var lines: PackedStringArray = []
-	var line := ""
-	for word in text.split(" ", false):
-		var trial := word if line.is_empty() else "%s %s" % [line, word]
-		if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > budget and not line.is_empty():
+	for source in text.split("\n", false):
+		var line := ""
+		for word in source.split(" ", false):
+			var trial := word if line.is_empty() else "%s %s" % [line, word]
+			if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > budget and not line.is_empty():
+				lines.append(line)
+				line = word
+			else:
+				line = trial
+		if not line.is_empty():
 			lines.append(line)
-			line = word
-		else:
-			line = trial
-	if not line.is_empty():
-		lines.append(line)
 	return "\n".join(lines)
 
 
@@ -393,28 +412,43 @@ func _make_widget() -> Dictionary:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.visible = false
 	root.z_index = 30
+	var card := _make_card()
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", card)
 	var label := Label.new()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	root.add_child(label)
+	panel.add_child(label)
+	root.add_child(panel)
 	var arrow := TextureRect.new()
 	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	arrow.texture = _arrow_tex
+	arrow.texture = _ARROW_TEX
+	arrow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	arrow.stretch_mode = TextureRect.STRETCH_SCALE
-	arrow.size = Vector2(16.0, 16.0)
+	# rotateArrow scales the 1-unit arrow quad by 0.5, which is about one em.
+	arrow.size = Vector2(_TEXT_PX, _TEXT_PX)
 	arrow.pivot_offset = arrow.size * 0.5
 	root.add_child(arrow)
 	if _layer != null:
 		_layer.add_child(root)
-	return {"root": root, "label": label, "arrow": arrow, "text": "", "font": null}
+	return {"root": root, "panel": panel, "label": label, "arrow": arrow, "card": card, "text": "", "font": null}
 
 
-func _make_arrow() -> Texture2D:
-	var image := Image.create(18, 18, false, Image.FORMAT_RGBA8)
-	image.fill(Color(0, 0, 0, 0))
-	for y in 18:
-		var reach := int(round((1.0 - absf(float(y) - 8.5) / 8.5) * 16.0))
-		for x in reach:
-			image.set_pixel(x, y, Color.WHITE)
-	return ImageTexture.create_from_image(image)
+## panel.bam framed by NametagGlobals.getNametagCardFrame, padded by getCardPad.
+func _make_card() -> StyleBoxTexture:
+	var card := StyleBoxTexture.new()
+	card.texture = _NAME_PANEL
+	var corner := 8
+	card.texture_margin_left = corner
+	card.texture_margin_right = corner
+	card.texture_margin_top = corner
+	card.texture_margin_bottom = corner
+	var pad := float(_TEXT_PX) * 0.1
+	card.content_margin_left = pad
+	card.content_margin_right = pad
+	card.content_margin_bottom = pad
+	card.content_margin_top = 0.0
+	card.modulate_color = _CARD_WHITE
+	return card
