@@ -6,6 +6,7 @@ extends Node3D
 ## A zones_path turns on the original visgroup stash for that street.
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
+const _BACKDROP := preload("res://scenes/sky/cog_backdrop.gdshader")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const MUSIC_VOLUME := 0.8
@@ -26,6 +27,7 @@ var _billboards: Array[Dictionary] = []
 func _ready() -> void:
 	TOONTOWN_SKY.ensure(self, sky_kind)
 	_ready_zones()
+	_prepare_cog_sky()
 	if Engine.is_editor_hint():
 		return
 	if estate_slot >= 0:
@@ -38,6 +40,7 @@ func _ready() -> void:
 		_DOORS.seal(self)
 	_ready_music()
 	_ready_billboards()
+	preload("res://scenes/places/tunnel_links.gd").name_hq_exits(self)
 	if preload("res://scenes/interiors/shop_door.gd").street_zone(scene_file_path) != 0:
 		preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
@@ -114,14 +117,58 @@ func _notification(what: int) -> void:
 			cog_sky.position = Vector3.ZERO
 
 
-func _follow_cog_sky(camera: Camera3D) -> void:
-	# The cog backdrop is parented to the camera in the original game, with
-	# its height and rotation locked. Here it keeps the camera's ground position.
+func _prepare_cog_sky() -> void:
 	var cog_sky := get_node_or_null("CogSky") as Node3D
-	if cog_sky == null or camera == null:
+	if cog_sky == null:
+		return
+	# SellbotHQ.load scales the backdrop by 2. At 1, the hill ring sits inside
+	# the courtyard and travels with the camera.
+	if scene_file_path.get_file().begins_with("sellbot"):
+		cog_sky.scale = Vector3.ONE * 2.0
+	_push_backdrop(cog_sky)
+
+
+func _push_backdrop(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		if mesh.mesh != null:
+			for surface in mesh.mesh.get_surface_count():
+				var source := mesh.get_active_material(surface)
+				mesh.set_surface_override_material(surface, _backdrop_material(source))
+	for child in node.get_children():
+		_push_backdrop(child)
+
+
+func _backdrop_material(source: Material) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = _BACKDROP
+	var tint := Color.WHITE
+	var cutoff := 0.0
+	var tex: Texture2D = null
+	if source is BaseMaterial3D:
+		var base := source as BaseMaterial3D
+		tex = base.albedo_texture
+		tint = base.albedo_color
+		if base.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
+			cutoff = base.alpha_scissor_threshold
+	mat.set_shader_parameter("albedo_tex", tex)
+	mat.set_shader_parameter("albedo_color", tint)
+	mat.set_shader_parameter("alpha_scissor", cutoff)
+	return mat
+
+
+func _follow_cog_sky(camera: Camera3D) -> void:
+	# Hood.startSky parents the backdrop to the camera, then CompassEffect
+	# keeps its height and rotation in the world. It slides on the ground
+	# plane only, and the shader keeps it behind the courtyard.
+	var cog_sky := get_node_or_null("CogSky") as Node3D
+	if cog_sky == null or camera == null or not cog_sky.visible:
 		return
 	var placed := cog_sky.global_position
 	placed.x = camera.global_position.x
+	placed.y = 0.0
 	placed.z = camera.global_position.z
 	cog_sky.global_position = placed
 

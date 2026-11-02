@@ -56,10 +56,31 @@ const _BRANCH: Dictionary = {
 	9200: "res://scenes/streets/pajama_place.tscn",
 	10000: "res://scenes/cog_hq/bossbot_lobby.tscn",
 	11000: "res://scenes/cog_hq/sellbot_courtyard.tscn",
+	11200: "res://scenes/cog_hq/sellbot_factory_exterior.tscn",
 	12000: "res://scenes/cog_hq/cashbot_trainyard.tscn",
 	13000: "res://scenes/cog_hq/lawbot_courtyard.tscn",
 	17000: "res://scenes/playgrounds/chip_n_dales_minigolf.tscn",
 }
+
+
+## SellbotCogHQLoader.loadPlaceGeom renames the raw model shafts. Tunnel1 is
+## the Daisy Gardens exit. Tunnel2 leads to the factory, and the factory
+## exterior's tunnel_group2 comes back to the courtyard.
+static func name_hq_exits(host: Node) -> void:
+	var file := host.scene_file_path.get_file()
+	if file == "sellbot_courtyard.tscn":
+		_rename_tunnel(host, "Tunnel1", "linktunnel_dg_5316_DNARoot", 11000)
+		_rename_tunnel(host, "Tunnel2", "linktunnel_sellhq_11200_DNARoot", 11000)
+	elif file == "sellbot_factory_exterior.tscn":
+		_rename_tunnel(host, "tunnel_group2", "linktunnel_sellhq_11000_DNARoot", 11200)
+
+
+static func _rename_tunnel(host: Node, node_name: String, link_name: String, from_zone: int) -> void:
+	var node := host.find_child(node_name, true, false)
+	if node == null:
+		return
+	node.name = link_name
+	node.set_meta("link_from_zone", from_zone)
 
 
 static func arriving() -> bool:

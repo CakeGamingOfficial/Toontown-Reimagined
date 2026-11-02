@@ -678,6 +678,17 @@ func _show_story(elevator: Node, story: int) -> void:
 	_set_doors(elevator, story >= 0)
 
 
+## Door the suit-building nametag hangs on. The landmark stands in until the car exists.
+func marker(block: int) -> Vector3:
+	var spot := elevator_spot(block)
+	if spot != Vector3.ZERO:
+		return spot
+	var have: Variant = _landmarks.get(block)
+	if have is Node3D and is_instance_valid(have):
+		return (have as Node3D).global_position + Vector3.UP * 4.0
+	return Vector3.ZERO
+
+
 func elevator_spot(block: int) -> Vector3:
 	var have: Variant = _actors.get(block)
 	if not (have is Node3D) or not is_instance_valid(have):
@@ -687,6 +698,19 @@ func elevator_spot(block: int) -> Vector3:
 	if door == null:
 		return building.global_position
 	return door.global_position
+
+
+## The suit elevator hung on this building's door. Null until the takeover has landed.
+func elevator_node(block: int) -> Node3D:
+	var have: Variant = _actors.get(block)
+	if not (have is Node) or not is_instance_valid(have):
+		return null
+	if not (have as Node).has_meta("elevator"):
+		return null
+	var elevator: Variant = (have as Node).get_meta("elevator")
+	if elevator is Node3D and is_instance_valid(elevator):
+		return elevator
+	return null
 
 
 func set_doors(block: int, closed: float) -> void:
