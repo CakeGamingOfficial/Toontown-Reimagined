@@ -101,6 +101,16 @@ static func outside_trigger(house: Node3D, origin: Node3D) -> Vector3:
 	return _in_front(house, origin, 1.0)
 
 
+## avatarEnterDoorTrack walks to (doorX, 2) on the door, into the building.
+static func enter_frame(house: Node3D, origin: Node3D) -> Dictionary:
+	return {"mouth": _doorway(house, origin), "outward": _outward(house, origin)}
+
+
+## Interior door_origin keeps the original axes. (doorX, 2) is through the door.
+static func interior_enter_point(origin: Node3D) -> Vector3:
+	return origin.to_global(Vector3(1.5, 2.0, 0.025))
+
+
 static func seal(root: Node) -> void:
 	if root == null:
 		return

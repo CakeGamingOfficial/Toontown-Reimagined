@@ -1025,8 +1025,10 @@ func _enter_shop() -> void:
 	if building != null:
 		door = _SHOP.find_exterior_door(building)
 	_SHOP.open(self, door)
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_SHOP.enter_frame(building, door))
+	await _walk_into_door(goal)
 	_SHOP.hood = _hood
 	_SHOP.trip = "in"
 	ToonLoading.change_to(_PLACES.gag_shop_scene())
@@ -1035,8 +1037,7 @@ func _enter_shop() -> void:
 func _leave_shop() -> void:
 	_locked = true
 	_SHOP.open(self, _SHOP.find_interior_door(get_parent()))
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
 	_SHOP.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_SHOP.hood))
 
@@ -1082,8 +1083,10 @@ func _enter_hall() -> void:
 	if building != null:
 		door = _HALL.find_exterior_door(building)
 	_HALL.open(self, door)
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_HALL.enter_frame(building, door))
+	await _walk_into_door(goal)
 	_HALL.trip = "in"
 	ToonLoading.change_to(_PLACES.toon_hall_scene())
 
@@ -1091,8 +1094,7 @@ func _enter_hall() -> void:
 func _leave_hall() -> void:
 	_locked = true
 	_HALL.open(self, _HALL.find_interior_door(get_parent()))
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
 	_HALL.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
 
@@ -1208,8 +1210,10 @@ func _enter_hq(index: int) -> void:
 	if building != null:
 		door = _HQ.find_exterior_door(building, index)
 	_HQ.open(self, door)
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_HQ.enter_frame(building, index))
+	await _walk_into_door(goal)
 	_HQ.return_scene = _scene_path()
 	_HQ.zone_id = _HQ.zone_for(_HQ.return_scene)
 	_HQ.door_index = index
@@ -1220,8 +1224,11 @@ func _enter_hq(index: int) -> void:
 func _leave_hq(index: int) -> void:
 	_locked = true
 	_HQ.open(self, _HQ.find_interior_door(get_parent(), index))
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	var goal := _body.global_position
+	if _HQ.find_interior_origin(get_parent(), index) != null:
+		goal = _HQ.interior_enter_point(get_parent(), index)
+		goal.y = _body.global_position.y
+	await _walk_into_door(goal)
 	_HQ.door_index = index
 	_HQ.trip = "out"
 	var back := _HQ.return_scene
@@ -1345,8 +1352,7 @@ func _enter_building() -> void:
 	var zone_id := _BLDG.interior_zone(building)
 	var street_path := _scene_path()
 	_BLDG.open(self, door)
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	await _walk_into_door(_into_door(_BLDG.enter_frame(building, door)))
 	if zone_id == 0:
 		_locked = false
 		return
@@ -1358,8 +1364,7 @@ func _enter_building() -> void:
 func _leave_building() -> void:
 	_locked = true
 	_DOORS.open(self, _DOORS.find_door(get_parent()))
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
 	_BLDG.trip = "out"
 	var back := _BLDG.street
 	if back.is_empty():
@@ -1395,8 +1400,12 @@ func _enter_house(slot: int) -> void:
 	if door == null and house != null:
 		door = _DOORS.find_anchor(house)
 	_DOORS.open(self, door)
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	var goal := _body.global_position
+	if house != null and door != null:
+		var anchor := _DOORS.find_anchor(house)
+		if anchor != null:
+			goal = _into_door(_DOORS.enter_frame(house, anchor))
+	await _walk_into_door(goal)
 	door_trip = "in"
 	ToonLoading.change_to(_PLACES.house_scene(slot))
 
@@ -1404,10 +1413,78 @@ func _enter_house(slot: int) -> void:
 func _leave_house(slot: int) -> void:
 	_locked = true
 	_DOORS.open(self, _DOORS.find_door(get_parent()))
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black()
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
 	door_trip = "out"
 	ToonLoading.change_to(_PLACES.estate_scene(slot))
+
+
+## DistributedDoor.avatarEnterDoorTrack. Walk loops for one second while the
+## toon eases through the doorway. The iris starts halfway through that step.
+func _walk_into_door(goal: Vector3) -> void:
+	if _player == null or _body == null:
+		await _fade_black()
+		return
+	var duration := 1.0
+	var start := _body.global_position
+	var flat := goal - start
+	flat.y = 0.0
+	if flat.length_squared() > 0.04:
+		_heading = rad_to_deg(atan2(-flat.x, -flat.z))
+		_face(_player, _heading)
+	_body.velocity = Vector3.ZERO
+	var clock := 0.0
+	var fade: Tween
+	while clock < duration:
+		var delta := minf(get_process_delta_time(), 0.05)
+		if delta <= 0.0:
+			delta = 0.016
+		clock += delta
+		var next := start.lerp(goal, _ease_in(clampf(clock / duration, 0.0, 1.0)))
+		next.y = start.y
+		_body.global_position = next
+		# setAnimState('walk') is the walk cycle, below the run cutoff.
+		_player.set_locomotion(4.0, false, false, delta)
+		if _remotes != null:
+			_remotes.note(_heading, 4.0, false, false, false)
+		if fade == null and clock >= duration * 0.5:
+			var cover := _blackout()
+			fade = create_tween()
+			fade.tween_property(cover, "color:a", 1.0, duration * 0.5)
+		await get_tree().process_frame
+	_player.set_locomotion(0.0, false, false, 0.0)
+	if _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
+	if fade != null and fade.is_valid():
+		await fade.finished
+	else:
+		await _fade_black()
+
+
+## doorX is 1.5 and the enter point sits two units through the doorway.
+func _into_door(frame: Dictionary) -> Vector3:
+	var mouth: Vector3 = frame.get("mouth", _body.global_position)
+	var outward: Vector3 = frame.get("outward", Vector3.ZERO)
+	outward.y = 0.0
+	if outward.length_squared() < 0.0001:
+		outward = Vector3(0.0, 0.0, 1.0)
+	else:
+		outward = outward.normalized()
+	var side := Vector3.UP.cross(outward)
+	if side.length_squared() < 0.0001:
+		side = Vector3.RIGHT
+	else:
+		side = side.normalized()
+	var point := mouth - outward * 2.0 + side * 1.5
+	point.y = _body.global_position.y
+	return point
+
+
+func _interior_door_goal(origin: Node3D) -> Vector3:
+	if origin == null or _body == null:
+		return _body.global_position if _body != null else Vector3.ZERO
+	var point := _DOORS.interior_enter_point(origin)
+	point.y = _body.global_position.y
+	return point
 
 
 func _fade_black() -> void:

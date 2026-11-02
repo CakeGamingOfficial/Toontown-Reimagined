@@ -147,6 +147,11 @@ static func outside_trigger(building: Node3D, door: Node3D) -> Vector3:
 	return _approach(building, door, 1.2)
 
 
+## avatarEnterDoorTrack walks to (doorX, 2) on the door, into the building.
+static func enter_frame(building: Node3D, door: Node3D) -> Dictionary:
+	return {"mouth": _doorway(door), "outward": _forward(building, door)}
+
+
 static func seal(door: Node3D) -> void:
 	if door == null:
 		return

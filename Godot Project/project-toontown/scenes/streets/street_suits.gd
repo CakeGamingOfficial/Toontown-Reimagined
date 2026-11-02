@@ -623,20 +623,29 @@ func _take_suit(cog: Dictionary) -> Node3D:
 	if traffic != null and traffic.has_method("take_actor"):
 		var reused: Variant = traffic.call("take_actor", code)
 		if reused is Node3D and is_instance_valid(reused):
-			var actor := reused as Node3D
-			add_child(actor)
-			return actor
+			_adopt(reused)
+			return reused
 	var waiting: Array = _pool.get(code, [])
 	if not waiting.is_empty():
 		var local: Variant = waiting.pop_back()
 		_pool[code] = waiting
 		if local is Node3D and is_instance_valid(local):
-			var actor := local as Node3D
-			add_child(actor)
-			return actor
+			_adopt(local)
+			return local
 	var suit := _COG.new() as Node3D
 	add_child(suit)
 	return suit
+
+
+## A warmed suit still belongs to CogPool. add_child refuses a node that
+## already has a parent, so the cog never reached the street and could not
+## be walked into.
+func _adopt(actor: Node) -> void:
+	if actor.get_parent() == self:
+		return
+	if actor.get_parent() != null:
+		actor.get_parent().remove_child(actor)
+	add_child(actor)
 
 
 func _keep(traffic: Node, suit: Node) -> void:

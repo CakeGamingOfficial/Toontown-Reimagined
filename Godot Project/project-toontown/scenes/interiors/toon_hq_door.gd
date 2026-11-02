@@ -113,6 +113,37 @@ static func outside_trigger(building: Node3D, index: int) -> Vector3:
 	return _approach(building, index, 1.6)
 
 
+## avatarEnterDoorTrack walks to (doorX, 2) on the door, into the building.
+static func enter_frame(building: Node3D, index: int) -> Dictionary:
+	var door := find_exterior_door(building, index)
+	var origin := _find_exact(building, "door_origin_%d" % index)
+	var mouth := _doorway(door, origin)
+	return {"mouth": mouth, "outward": _outward(building, origin, mouth)}
+
+
+## The interior door's +Y is not the original door depth. Walk out through it,
+## opposite the six-unit step inside_drop takes into the room.
+static func interior_enter_point(host: Node, index: int) -> Vector3:
+	var origin := find_interior_origin(host, index)
+	if origin == null:
+		return Vector3.ZERO
+	var other := find_interior_origin(host, 1 - index)
+	var into := Vector3(0.0, 0.0, 1.0)
+	if other != null:
+		into = origin.global_position - other.global_position
+		into.y = 0.0
+	if into.length_squared() < 0.0001:
+		into = Vector3(0.0, 0.0, 1.0)
+	else:
+		into = into.normalized()
+	var side := Vector3.UP.cross(into)
+	if side.length_squared() < 0.0001:
+		side = Vector3.RIGHT
+	else:
+		side = side.normalized()
+	return origin.global_position + into * 2.0 + side * 1.5
+
+
 static func outside_drop(building: Node3D, index: int) -> Dictionary:
 	var origin := _find_exact(building, "door_origin_%d" % index)
 	var point := _approach(building, index, 8.0)

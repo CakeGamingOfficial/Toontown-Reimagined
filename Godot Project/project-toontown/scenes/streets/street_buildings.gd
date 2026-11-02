@@ -173,23 +173,53 @@ func _ready() -> void:
 		_shade.albedo_color = Color(0, 0, 0, 0)
 	if district_id < 0:
 		district_id = ToonNet.district_id()
+	var net := ToonNet.live()
+	if net != null and not net.state_changed.is_connected(_on_net):
+		net.state_changed.connect(_on_net)
 	if not ToonNet.is_authority():
 		ToonNet.request_suits(district_id, street_slug)
-		return
-	var traffic := get_node_or_null("/root/StreetTraffic")
-	if traffic != null and traffic.has_method("prepare_buildings"):
-		traffic.call("prepare_buildings", district_id, street_slug, _data)
+	else:
+		var traffic := get_node_or_null("/root/StreetTraffic")
+		if traffic != null and traffic.has_method("prepare_buildings"):
+			traffic.call("prepare_buildings", district_id, street_slug, _data)
+	_pull()
+	if _active.is_empty():
+		set_process(false)
+
+
+func _on_net(channel: String) -> void:
+	if visuals and channel == "buildings:%d:%s" % [district_id, street_slug]:
+		set_process(true)
 
 
 func _process(_delta: float) -> void:
 	if not visuals:
+		set_process(false)
 		return
-	var rows := _rows()
-	var sig := JSON.stringify(rows)
-	if sig != _sig:
-		_sig = sig
-		_sync(rows)
+	_pull()
+	if _active.is_empty():
+		set_process(false)
+		return
 	_animate()
+
+
+func _pull() -> void:
+	var rows := _rows()
+	var sig := _signature(rows)
+	if sig == _sig:
+		return
+	_sig = sig
+	_sync(rows)
+
+
+func _signature(rows: Array) -> String:
+	var parts: PackedStringArray = []
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		parts.append("%s:%s:%s:%s:%s" % [row.get("block", 0), row.get("state", ""), row.get("since", 0), row.get("floors", 0), row.get("track", "")])
+	return "|".join(parts)
 
 
 func _load() -> bool:
@@ -346,6 +376,7 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	building.set_meta("rest_scale", building.scale)
 	_dress(building, row)
 	_use_vertex_colors(building)
+	_quiet(building)
 	_actors[block] = building
 	return building
 
@@ -436,9 +467,22 @@ func _clear_dark(landmark: Node) -> void:
 
 func _paint(node: Node, mat: Material) -> void:
 	if node is MeshInstance3D:
-		(node as MeshInstance3D).material_overlay = mat
+		var mesh := node as MeshInstance3D
+		if mesh.material_overlay != mat:
+			mesh.material_overlay = mat
 	for child in node.get_children():
 		_paint(child, mat)
+
+
+## The street already has its own shadows. A suit tower that casts them
+## redraws the block every frame.
+func _quiet(node: Node) -> void:
+	if node is GeometryInstance3D:
+		var geom := node as GeometryInstance3D
+		geom.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		geom.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	for child in node.get_children():
+		_quiet(child)
 
 
 func _hear(block: int, elapsed: float) -> void:
@@ -819,15 +863,18 @@ func _squash_list(landmark: Node3D, key: String, crush: float, darken: float, hi
 			body.set_meta("shop_scale", body.scale)
 		var shop_scale: Vector3 = body.get_meta("shop_scale")
 		if hide:
-			body.visible = false
-			body.scale = shop_scale
-			_clear_dark(body)
+			if body.visible or body.has_meta("shade"):
+				body.visible = false
+				body.scale = shop_scale
+				_clear_dark(body)
 			continue
+		var next := Vector3(shop_scale.x, shop_scale.y * crush, shop_scale.z)
 		body.visible = true
-		body.scale = Vector3(shop_scale.x, shop_scale.y * crush, shop_scale.z)
+		if body.scale != next:
+			body.scale = next
 		if darken > 0.0:
 			_darken(body, darken)
-		else:
+		elif body.has_meta("shade"):
 			_clear_dark(body)
 
 

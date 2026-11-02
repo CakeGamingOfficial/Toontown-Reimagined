@@ -202,6 +202,11 @@ static func _batch(zone: Node3D, root: Node) -> void:
 
 
 static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job, taken: Array[MeshInstance3D]) -> void:
+	# A shop stays one surface on its own node. Hiding that node is the
+	# takeover. Leaving every wall as its own object is what dropped the frame rate.
+	if node != zone and node is Node3D and _toon_shop(String(node.name)):
+		_flatten_landmark(node as Node3D)
+		return
 	if node != zone and _leave_alone(String(node.name)):
 		return
 	if node is MeshInstance3D and node != zone:
@@ -212,10 +217,37 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 		_collect(child, zone, into_zone, job, taken)
 
 
+static func _toon_shop(node_name: String) -> bool:
+	return node_name.to_lower().contains("toon_landmark")
+
+
+static func _landmark(node_name: String) -> bool:
+	var lowered := node_name.to_lower()
+	return lowered.contains("toon_landmark") or lowered.contains("animated_building")
+
+
+static func _flatten_landmark(landmark: Node3D) -> void:
+	if landmark.has_meta("landmark_flat"):
+		return
+	var job := Job.new()
+	var taken: Array[MeshInstance3D] = []
+	var into := landmark.global_transform.affine_inverse()
+	for child in landmark.get_children():
+		_collect(child, landmark, into, job, taken)
+	for key in job.buckets:
+		var mesh := _mesh_from(job.buckets[key] as Bucket)
+		if mesh == null:
+			continue
+		_instance(landmark, mesh)
+	for mesh in taken:
+		mesh.mesh = null
+		mesh.visible = false
+	landmark.set_meta("landmark_flat", true)
+
+
 static func _leave_alone(node_name: String) -> bool:
 	var lowered := node_name.to_lower()
-	# Landmark buildings stay whole so a cog takeover can hide that one block.
-	if lowered.contains("toon_landmark") or lowered.contains("animated_building"):
+	if _landmark(lowered):
 		return true
 	if lowered.contains("__billboard") or lowered.contains("drop_shadow") or lowered.contains("sky"):
 		return true
