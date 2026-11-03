@@ -72,6 +72,9 @@ MODELS = {
     "sales": "phase_4/models/modules/suit_landmark_sales.bam",
     "elevator": "phase_4/models/modules/elevator.bam",
     "suit_sign": "phase_5/models/modules/suit_sign.bam",
+    # DNAFlatBuilding.setup_suit_flat_building swaps each toon wall for one of these.
+    "suit_walls": "phase_5/models/modules/suit_walls.bam",
+    "suit_door": "phase_5/models/modules/suit_door.bam",
 }
 
 
@@ -147,6 +150,63 @@ def _blocks(relative: str) -> list[dict]:
     return found
 
 
+def _godot(x: float, y: float, z: float) -> list[float]:
+    # DNA is Z-up. The street is exported as (x, z, -y).
+    return [x, z, -y]
+
+
+def _side_doors(dna_relative: str, suits_relative: str) -> dict[int, list[dict]]:
+    """SIDE_DOOR_POINT plus the street point it opens onto.
+
+    createNewSuit starts a building suit on a side door. The suits file is
+    already shifted with the street mesh, so the door uses that same slide.
+    """
+    text = (ASSETS / dna_relative.replace("/", os.sep)).read_text(encoding="utf-8")
+    points: dict[int, dict] = {}
+    for match in re.finditer(
+        r"store_suit_point\s*\[\s*(\d+)\s*,\s*"
+        r"(STREET_POINT|FRONT_DOOR_POINT|SIDE_DOOR_POINT|COGHQ_IN_POINT|COGHQ_OUT_POINT)\s*,\s*"
+        r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)(?:\s*,\s*(\d+))?",
+        text,
+    ):
+        points[int(match.group(1))] = {
+            "kind": match.group(2),
+            "pos": _godot(float(match.group(3)), float(match.group(4)), float(match.group(5))),
+            "block": int(match.group(6) or 0),
+        }
+    neighbors: dict[int, set[int]] = {}
+    for match in re.finditer(r"suit_edge\s*\[\s*(\d+)\s+(\d+)\s*\]", text):
+        start, end = int(match.group(1)), int(match.group(2))
+        neighbors.setdefault(start, set()).add(end)
+        neighbors.setdefault(end, set()).add(start)
+    street_ids = sorted(index for index, point in points.items() if point["kind"] == "STREET_POINT")
+    delta = [0.0, 0.0, 0.0]
+    suits_path = ROOT / suits_relative
+    if street_ids and suits_path.exists():
+        suits = json.loads(suits_path.read_text(encoding="utf-8"))
+        suit_points = suits.get("points") or []
+        if suit_points:
+            origin = points[street_ids[0]]["pos"]
+            first = suit_points[0]
+            delta = [float(first[0]) - origin[0], float(first[1]) - origin[1], float(first[2]) - origin[2]]
+    by_block: dict[int, list[dict]] = {}
+    for index, point in points.items():
+        if point["kind"] != "SIDE_DOOR_POINT":
+            continue
+        exits = [
+            other for other in neighbors.get(index, ())
+            if points.get(other, {}).get("kind") == "STREET_POINT"
+        ]
+        if not exits:
+            continue
+        exit_pos = points[exits[0]]["pos"]
+        by_block.setdefault(int(point["block"]), []).append({
+            "pos": [round(value + slide, 3) for value, slide in zip(point["pos"], delta)],
+            "exit": [round(value + slide, 3) for value, slide in zip(exit_pos, delta)],
+        })
+    return by_block
+
+
 def _export_model(loader: Loader, name: str, relative: str) -> None:
     source = ASSETS / relative.replace("/", os.sep)
     loaded = loader.loadSync(Filename.from_os_specific(str(source)))
@@ -173,13 +233,19 @@ def main() -> int:
     for street in _street_rows():
         zone = int(street["zone"])
         bmin, bmax = HOOD.get(zone, (0, 0))
+        blocks = _blocks(str(street["dna"]))
+        doors = _side_doors(str(street["dna"]), str(street["out"]).replace("_buildings.json", "_suits.json"))
+        for block in blocks:
+            found = doors.get(int(block["block"]), [])
+            if found:
+                block["doors"] = found
         payload = {
             "zone": zone,
             "bmin": bmin,
             "bmax": bmax,
             "tracks": street["tracks"],
             "levels": street["levels"],
-            "blocks": _blocks(str(street["dna"])),
+            "blocks": blocks,
         }
         dest = ROOT / street["out"]
         dest.parent.mkdir(parents=True, exist_ok=True)

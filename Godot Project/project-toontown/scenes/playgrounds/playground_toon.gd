@@ -15,6 +15,7 @@ const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _HALL := preload("res://scenes/interiors/toon_hall_door.gd")
 const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
+const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
@@ -133,6 +134,8 @@ var _hall_trip := ""
 var _hq_trip := ""
 var _tunnels: Array[Dictionary] = []
 var _bldg_trip := ""
+var _factory_trip := ""
+var _factory_entrance := 0
 var _bldg_ready := false
 var _shot := false
 var _shot_origin: Node3D
@@ -212,8 +215,9 @@ func _ready() -> void:
 	var from_hq := String(_HQ.trip)
 	var from_bldg := String(_BLDG.trip)
 	var from_tunnel := _LINKS.arriving()
+	var from_factory := _FACTORY.trip
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -227,6 +231,9 @@ func _ready() -> void:
 	_hall_trip = from_hall
 	_hq_trip = from_hq
 	_bldg_trip = from_bldg
+	_factory_trip = from_factory
+	_factory_entrance = _FACTORY.entrance
+	_FACTORY.trip = ""
 	if not restoring and not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
@@ -566,6 +573,11 @@ func _arrival_spot() -> Dictionary:
 		ToonSocial.visit_on = false
 		return {"point": ToonSocial.visit_point, "heading": ToonSocial.visit_heading}
 	var scene_path := _scene_path()
+	if _factory_trip != "":
+		var ride: Dictionary = _FACTORY.arrival(get_parent(), _factory_entrance, _factory_trip == "in")
+		_factory_trip = ""
+		if not ride.is_empty():
+			return {"point": _snap_drop(ride["point"]), "heading": float(ride["heading"])}
 	if _shop_trip == "out":
 		return _shop_outside_drop()
 	if _hall_trip == "out":

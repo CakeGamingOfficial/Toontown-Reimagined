@@ -268,7 +268,21 @@ func _try_start() -> void:
 		return
 	var hp: Vector2i = toon.call("battle_hp")
 	_ask_wait = 1.2
-	ToonNet.ask_fight(_street_district(), _street_slug(), int(cog.get_meta("do_id", 0)), str(toon.call("battle_name")), hp.x, hp.y)
+	_touch_cog(cog, hp)
+
+
+func _touch_cog(cog: Node, hp: Vector2i) -> void:
+	var toon := _toon()
+	if toon == null:
+		return
+	var cog_id := int(cog.get_meta("do_id", 0))
+	var toon_name := str(toon.call("battle_name"))
+	if _street_slug() == "sellbot_factory" and cog is Node3D:
+		var body := cog as Node3D
+		var here := _point()
+		ToonNet.ask_factory(_street_district(), cog_id, body.global_position, _yaw(here, body.global_position), toon_name, hp.x, hp.y)
+		return
+	ToonNet.ask_fight(_street_district(), _street_slug(), cog_id, toon_name, hp.x, hp.y)
 
 
 func _try_join(fight: Dictionary, mine: bool) -> void:
@@ -284,6 +298,9 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 		return
 	var hp: Vector2i = toon.call("battle_hp")
 	_ask_wait = 1.2
+	if _street_slug() == "sellbot_factory":
+		ToonNet.ask_factory(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
+		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), _first_cog(fight), str(toon.call("battle_name")), hp.x, hp.y)
 
 
@@ -1178,6 +1195,8 @@ func _nearest_cog(reach: float) -> Node:
 			continue
 		var cog := child as Node3D
 		if cog == null:
+			continue
+		if _street_slug() == "sellbot_factory" and absf(cog.global_position.y - here.y) > 8.0:
 			continue
 		var dist := Vector2(cog.global_position.x - here.x, cog.global_position.z - here.z).length()
 		if dist <= best_dist:

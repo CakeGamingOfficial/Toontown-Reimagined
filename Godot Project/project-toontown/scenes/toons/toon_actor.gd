@@ -1,9 +1,11 @@
 class_name ToonActor
 extends Node3D
 
-## Legs, torso, and head from the original 1000-LOD models, posed in neutral
-## and assembled the way Toon.parentToonParts does: torso on joint_hips,
-## head on def_head. The parts are still Z-up, so this node stands them up.
+## Legs, torso, and head posed in neutral and assembled the way
+## Toon.parentToonParts does: torso on joint_hips, head on def_head.
+## Toon.setLODs keeps three copies. 1000 shows inside 20 feet, 500 until 80,
+## and 250 until 280. Farther than that, the body is not drawn.
+## The parts are still Z-up, so this node stands them up.
 
 const _PARTS := "res://assets/toons/parts/"
 const _HEADS := "res://assets/toons/heads/"
@@ -104,6 +106,16 @@ var _head_idle_frames := 0
 var _head_idle_time := 0.0
 var _head_idle_missing := false
 var _head_idle_started := false
+## Toon.setLODs defaults: lod1-in 20, lod2-in 80, lod3-in 280.
+const _LOD_500 := 20.0
+const _LOD_250 := 80.0
+const _LOD_OUT := 280.0
+## Measured in this node's local space, the same space as the scaled geom
+## the original LODNode sits under.
+var _shown := 1000
+var _lod_roots := {}
+var _far_clips := {}
+var _looks: Array[Node3D] = []
 const _LEFT_A := Vector3(0.06, 0.0, 0.14)
 const _LEFT_B := Vector3(-0.13, 0.0, 0.1)
 const _LEFT_C := Vector3(-0.05, 0.0, 0.0)
@@ -145,6 +157,10 @@ func show_style(style: ToonStyle) -> void:
 	_frame_count = 0
 	_idle_frames = 0
 	_look = null
+	_looks.clear()
+	_shown = 1000
+	_lod_roots.clear()
+	_far_clips.clear()
 	_pupils.clear()
 	_eyes.clear()
 	_lashes.clear()
@@ -170,27 +186,132 @@ func show_style(style: ToonStyle) -> void:
 	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
 	upright = upright.rotated(Vector3.UP, PI)
 	transform.basis = upright.scaled(Vector3.ONE * style.body_scale())
-	var legs := _instance(_PARTS + "legs_%s.glb" % style.legs)
-	if legs == null:
+	var body := _build_lod(1000)
+	if body == null:
 		return
-	add_child(legs)
-	var hips := _find(legs, "joint_hips")
-	var torso := _instance(_PARTS + "torso_%s.glb" % style.torso)
-	if torso and hips:
-		hips.add_child(torso)
-		var neck := _find(torso, "def_head")
-		var head := _instance(_HEADS + "%s.glb" % style.head)
-		if head and neck:
-			# Look-around turns this pivot. The head model keeps its own transform.
-			var look := Node3D.new()
-			look.name = "head_look"
-			neck.add_child(look)
-			look.add_child(head)
-			_look = look
-	_paint(self, style)
-	_unify_forehead(self)
+	add_child(body)
+	_lod_roots[1000] = body
+	_paint(body, style)
+	_unify_forehead(body)
 	_prepare_face()
-	_add_shadow()
+	_add_shadow(body)
+
+
+## One LOD, parented the same way as the 1000 body. Missing parts mean this
+## distance keeps the 1000 model.
+func _build_lod(lod: int) -> Node3D:
+	var leg_file := "legs_%s" % _style.legs
+	var torso_file := "torso_%s" % _style.torso
+	var head_file := _style.head
+	if lod != 1000:
+		leg_file = "%s_%d" % [leg_file, lod]
+		torso_file = "%s_%d" % [torso_file, lod]
+		head_file = "%s_%d" % [head_file, lod]
+	var legs := _instance(_PARTS + leg_file + ".glb")
+	if legs == null:
+		return null
+	var hips := _find(legs, "joint_hips")
+	var torso := _instance(_PARTS + torso_file + ".glb")
+	var neck: Node3D = _find(torso, "def_head") if torso else null
+	var head := _instance(_HEADS + head_file + ".glb")
+	if hips == null or torso == null or neck == null or head == null:
+		legs.free()
+		if torso:
+			torso.free()
+		if head:
+			head.free()
+		return null
+	var root := Node3D.new()
+	root.name = str(lod)
+	root.add_child(legs)
+	hips.add_child(torso)
+	var look := Node3D.new()
+	look.name = "head_look"
+	neck.add_child(look)
+	look.add_child(head)
+	if _look == null:
+		_look = look
+	elif _look:
+		look.basis = _look.basis
+	_looks.append(look)
+	return root
+
+
+func _wanted_lod() -> int:
+	# Make a Toon and the portrait force the 1000 model, the way useLOD(1000) does.
+	if not load_extra_clips or not is_inside_tree():
+		return 1000
+	var viewport := get_viewport()
+	if viewport == null:
+		return 1000
+	var camera := viewport.get_camera_3d()
+	if camera == null:
+		return 1000
+	var dist := (global_transform.affine_inverse() * camera.global_position).length()
+	if dist >= _LOD_OUT:
+		return 0
+	if dist >= _LOD_250:
+		return 250
+	if dist >= _LOD_500:
+		return 500
+	return 1000
+
+
+func _ensure_lod(lod: int) -> bool:
+	if _lod_roots.has(lod):
+		return _lod_roots[lod] is Node3D
+	if not is_inside_tree():
+		return false
+	var body := _build_lod(lod)
+	if body == null:
+		_lod_roots[lod] = null
+		return false
+	add_child(body)
+	body.visible = false
+	_paint(body, _style)
+	_unify_forehead(body)
+	_collect_face(body)
+	_add_shadow(body)
+	for suffix in ["walk", "idle", "run", "sad-neutral", "sad-walk", "jump", "rjump", "land", "rland"]:
+		var clips: Array = []
+		var joints: Array = []
+		var frames := _load_clip(suffix, clips, joints, body, lod)
+		_far_clips["%d:%s" % [lod, suffix]] = {"clips": clips, "joints": joints, "frames": frames}
+	if _style.species() == "d":
+		var ear_clips: Array = []
+		var ear_frames := _ingest(_read_walk(_ANIMS + "%s_%d.idle" % [_style.head, lod]), ear_clips, [], body)
+		_far_clips["%d:head-idle" % lod] = {"clips": ear_clips, "joints": [], "frames": ear_frames}
+	if _ghost_local:
+		_ghost_visuals(body, true)
+	_lod_roots[lod] = body
+	return true
+
+
+func _show_body(lod: int) -> void:
+	if lod == _shown:
+		return
+	_shown = lod
+	for key in _lod_roots.keys():
+		var node := _lod_roots[key] as Node3D
+		if node:
+			node.visible = int(key) == lod
+
+
+## The clip that should be drawn right now. An empty result means the body is
+## past 280 feet and nothing is posed.
+func _pose_target(suffix: String, clips: Array, joints: Array) -> Dictionary:
+	var want := _wanted_lod()
+	if want == 0:
+		_show_body(0)
+		return {}
+	if want != 1000 and _ensure_lod(want):
+		var bank: Dictionary = _far_clips.get("%d:%s" % [want, suffix], {})
+		var far_clips: Array = bank.get("clips", [])
+		if int(bank.get("frames", 0)) > 0 and not far_clips.is_empty():
+			_show_body(want)
+			return bank
+	_show_body(1000)
+	return {"clips": clips, "joints": joints}
 
 
 func species() -> String:
@@ -394,8 +515,9 @@ func play_gesture(suffix: String, rate: float, loop: bool) -> void:
 func _hold_head() -> void:
 	_look_enabled = false
 	_looking = false
-	if _look:
-		_look.rotation = Vector3.ZERO
+	for look in _looks:
+		if is_instance_valid(look):
+			look.rotation = Vector3.ZERO
 
 
 func clear_gesture() -> void:
@@ -406,16 +528,19 @@ func clear_gesture() -> void:
 ## enterSwim pitches the geom -89 degrees and loops swim. enterDive sinks that
 ## same body two units. The drop shadow stays off, the way both games hide it.
 func pose_swimming(sunk: bool) -> void:
-	var hips := _find(self, "joint_hips") as Node3D
-	if hips == null:
-		return
-	var body := hips
-	while body.get_parent() != self and body.get_parent() is Node3D:
-		body = body.get_parent() as Node3D
-	body.rotation_degrees.x = -89.0
-	body.position = Vector3(0.0, 0.0, -2.0 if sunk else 0.0)
-	var shadow := find_child("drop_shadow", true, false) as Node3D
-	if shadow:
+	for key in _lod_roots.keys():
+		var root := _lod_roots[key] as Node3D
+		if root == null:
+			continue
+		var hips := _find(root, "joint_hips") as Node3D
+		if hips == null:
+			continue
+		var body := hips
+		while body.get_parent() != root and body.get_parent() is Node3D:
+			body = body.get_parent() as Node3D
+		body.rotation_degrees.x = -89.0
+		body.position = Vector3(0.0, 0.0, -2.0 if sunk else 0.0)
+	for shadow in find_children("drop_shadow", "MeshInstance3D", true, false):
 		shadow.visible = false
 	play_gesture("swim", 1.0, true)
 	set_locomotion(0.0, false, false, 0.0)
@@ -539,7 +664,10 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	var blend: float = 0.0 if following == frame else time - float(frame)
 	_posing = true
 	_clip = suffix
-	_pose_clip(clips, bank["joints"], frame, following, blend)
+	var drawn := _pose_target(suffix, clips, bank["joints"])
+	if drawn.is_empty():
+		return
+	_pose_clip(drawn["clips"], drawn["joints"], frame, following, blend)
 
 
 func set_look_enabled(enabled: bool) -> void:
@@ -603,7 +731,10 @@ func _play_idle(delta: float) -> void:
 		_idle_time = 0.0
 	var frame := mini(int(_idle_time), _idle_frames - 1)
 	var following := (frame + 1) % _idle_frames
-	_pose_clip(_idle_clips, _idle_joints, frame, following, _idle_time - float(frame))
+	var drawn := _pose_target("idle", _idle_clips, _idle_joints)
+	if drawn.is_empty():
+		return
+	_pose_clip(drawn["clips"], drawn["joints"], frame, following, _idle_time - float(frame))
 
 
 func _play_cycle(clip_name: String, clips: Array, joints: Array, frame_count: int, direction: float, delta: float, loop: bool = true) -> void:
@@ -633,7 +764,10 @@ func _play_cycle(clip_name: String, clips: Array, joints: Array, frame_count: in
 	if loop or frame < frame_count - 1:
 		following = (frame + 1) % frame_count
 	var blend: float = 0.0 if following == frame else time - float(frame)
-	_pose_clip(clips, joints, frame, following, blend)
+	var drawn := _pose_target(clip_name, clips, joints)
+	if drawn.is_empty():
+		return
+	_pose_clip(drawn["clips"], drawn["joints"], frame, following, blend)
 
 
 func _load_walk() -> void:
@@ -646,17 +780,25 @@ func _load_idle() -> void:
 	_idle_loaded = _idle_frames > 0 and not _idle_clips.is_empty()
 
 
-func _load_clip(suffix: String, clips: Array, joints: Array) -> int:
+func _load_clip(suffix: String, clips: Array, joints: Array, host: Node = null, lod: int = 1000) -> int:
+	var scope: Node = self if host == null else host
 	var frame_count := 0
+	var leg := "legs_%s" % _style.legs
+	var torso := "torso_%s" % _style.torso
+	var head := _style.head
+	if lod != 1000:
+		leg = "%s_%d" % [leg, lod]
+		torso = "%s_%d" % [torso, lod]
+		head = "%s_%d" % [head, lod]
 	var files := [
-		_read_walk(_ANIMS + "legs_%s.%s" % [_style.legs, suffix]),
-		_read_walk(_ANIMS + "torso_%s.%s" % [_style.torso, suffix]),
-		_read_walk(_ANIMS + "%s.%s" % [_style.head, suffix]),
+		_read_walk(_ANIMS + leg + "." + suffix),
+		_read_walk(_ANIMS + torso + "." + suffix),
+		_read_walk(_ANIMS + head + "." + suffix),
 	]
 	for clip in files:
 		var surfaces_by_name: Dictionary = clip.get("surfaces", {})
 		for node_name in surfaces_by_name.keys():
-			var instance := _find(self, String(node_name)) as MeshInstance3D
+			var instance := _find(scope, String(node_name)) as MeshInstance3D
 			if instance == null or instance.mesh == null:
 				continue
 			var surfaces: Array = surfaces_by_name[node_name]
@@ -670,7 +812,7 @@ func _load_clip(suffix: String, clips: Array, joints: Array) -> int:
 			})
 		var joint_records: Dictionary = clip.get("joints", {})
 		for joint_name in joint_records.keys():
-			var joint := _find(self, String(joint_name)) as Node3D
+			var joint := _find(scope, String(joint_name)) as Node3D
 			var record: Dictionary = joint_records[joint_name]
 			var frames: Array = record["frames"]
 			if joint == null or frames.is_empty():
@@ -763,7 +905,7 @@ func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 
 
 func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: float) -> void:
-	var posed_head := false
+	var posed_head: MeshInstance3D = null
 	for clip in clips:
 		var instance := clip["instance"] as MeshInstance3D
 		if not is_instance_valid(instance):
@@ -795,7 +937,7 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions, true)
 			elif part.begins_with("head"):
 				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
-				posed_head = true
+				posed_head = instance
 			else:
 				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
 			var uvs: PackedVector2Array = surface["uv"]
@@ -810,7 +952,10 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 				posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
 		instance.mesh = posed
 	if posed_head:
-		_unify_forehead(self)
+		var host: Node = posed_head
+		while host.get_parent() != null and host.get_parent() != self:
+			host = host.get_parent()
+		_unify_forehead(host)
 	for joint in joints:
 		var node := joint["node"] as Node3D
 		if not is_instance_valid(node):
@@ -865,8 +1010,9 @@ func _instance(path: String) -> Node3D:
 
 ## phase_3 drop_shadow on joint_shadow. The card is 8 units, scaled to 0.4,
 ## black at half strength, and it lies flat in the Z-up leg space.
-func _add_shadow() -> void:
-	var joint := _find(self, "joint_shadow")
+func _add_shadow(root: Node = null) -> void:
+	var host: Node = self if root == null else root
+	var joint := _find(host, "joint_shadow")
 	if joint == null:
 		return
 	var mesh := QuadMesh.new()
@@ -1667,7 +1813,10 @@ func _tick_look(delta: float) -> void:
 	var head_blend := t * t * (3.0 - 2.0 * t)
 	_heading = lerpf(_heading_from, _heading_to, head_blend)
 	_pitch = lerpf(_pitch_from, _pitch_to, head_blend)
-	_look.basis = Basis(Vector3(0, 0, 1), _heading) * Basis(Vector3(1, 0, 0), _pitch)
+	var look_basis := Basis(Vector3(0, 0, 1), _heading) * Basis(Vector3(1, 0, 0), _pitch)
+	for look in _looks:
+		if is_instance_valid(look):
+			look.basis = look_basis
 	var weight := 0.0
 	if t < 0.2:
 		weight = _ease_out(t / 0.2)
@@ -1743,7 +1892,29 @@ func _place_pupils(left_offset: Vector3, right_offset: Vector3) -> void:
 		mover.position = rest + Vector3(offset.x, 0.0, offset.z)
 
 
+func _tick_far_ears(delta: float) -> void:
+	if _shown == 0:
+		return
+	var bank: Dictionary = _far_clips.get("%d:head-idle" % _shown, {})
+	var frames := int(bank.get("frames", 0))
+	var clips: Array = bank.get("clips", [])
+	if frames <= 0 or clips.is_empty():
+		return
+	if not _head_idle_started:
+		_head_idle_time = float(randi() % frames)
+		_head_idle_started = true
+	_head_idle_time = fposmod(_head_idle_time + delta * 24.0, float(frames))
+	if _head_idle_time >= float(frames):
+		_head_idle_time = 0.0
+	var frame := mini(int(_head_idle_time), frames - 1)
+	var following := (frame + 1) % frames
+	_pose_clip(clips, [], frame, following, _head_idle_time - float(frame))
+
+
 func _tick_dog_ears(delta: float) -> void:
+	if _shown != 1000:
+		_tick_far_ears(delta)
+		return
 	if _head_idle_missing:
 		return
 	if _head_idle_frames <= 0:
@@ -1764,11 +1935,12 @@ func _tick_dog_ears(delta: float) -> void:
 	_pose_clip(_head_idle_clips, [], frame, following, _head_idle_time - float(frame))
 
 
-func _ingest(clip: Dictionary, clips: Array, joints: Array) -> int:
+func _ingest(clip: Dictionary, clips: Array, joints: Array, host: Node = null) -> int:
+	var scope: Node = self if host == null else host
 	var frame_count := 0
 	var surfaces_by_name: Dictionary = clip.get("surfaces", {})
 	for node_name in surfaces_by_name.keys():
-		var instance := _find(self, String(node_name)) as MeshInstance3D
+		var instance := _find(scope, String(node_name)) as MeshInstance3D
 		if instance == null or instance.mesh == null:
 			continue
 		var surfaces: Array = surfaces_by_name[node_name]
@@ -1782,7 +1954,7 @@ func _ingest(clip: Dictionary, clips: Array, joints: Array) -> int:
 		})
 	var joint_records: Dictionary = clip.get("joints", {})
 	for joint_name in joint_records.keys():
-		var joint := _find(self, String(joint_name)) as Node3D
+		var joint := _find(scope, String(joint_name)) as Node3D
 		var record: Dictionary = joint_records[joint_name]
 		var frames: Array = record["frames"]
 		if joint == null or frames.is_empty():

@@ -163,6 +163,47 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 	return int(fight.get("id", 0))
 
 
+## A factory battle cell. The cogs are already chosen; they are not street suits.
+func open_group(district: int, slug: String, cogs: Array, peer: int, toon_name: String, hp: int, max_hp: int, origin: Vector3, yaw: float) -> void:
+	if not ToonNet.is_authority() or cogs.is_empty() or peer < 0:
+		return
+	var lead := 0
+	if cogs[0] is Dictionary:
+		lead = int((cogs[0] as Dictionary).get("id", 0))
+	var existing := _fight_with(district, slug, peer, lead)
+	if not existing.is_empty():
+		var existing_state := String(existing.get("state", ""))
+		if existing_state == "faceoff" or existing_state == "input":
+			_add_toon(existing, peer, toon_name, hp, max_hp)
+			if existing_state == "faceoff":
+				_place(existing)
+				_mark(existing)
+		return
+	var fight := {
+		"id": _next,
+		"district": district,
+		"slug": slug,
+		"state": "faceoff",
+		"left": FACEOFF_TAUNT_T,
+		"seq": 1,
+		"round": 1,
+		"toons": [],
+		"cogs": [],
+		"choices": [],
+		"beats": [],
+		"origin": [origin.x, origin.y, origin.z],
+		"yaw": yaw,
+	}
+	_next += 1
+	_fights.append(fight)
+	for cog in cogs:
+		if cog is Dictionary:
+			_add_cog(fight, cog)
+	_add_toon(fight, peer, toon_name, hp, max_hp)
+	_place(fight)
+	_begin_faceoff(fight)
+
+
 func state_of(fight_id: int) -> String:
 	var fight := _by_id(fight_id)
 	if fight.is_empty():
@@ -1114,6 +1155,9 @@ func _cog_info(row: Variant) -> Dictionary:
 		"code": String(body.get("code", "")),
 		"name": String(body.get("name", "Cog")),
 		"level": int(body.get("level", 1)),
+		"dept": String(body.get("dept", "c")),
+		"body": String(body.get("body", "c")),
+		"height": float(body.get("height", 4.0)),
 		"phase": int(source.get("phase", -1)),
 		"pos": _array_point(source.get("position", [])),
 	}

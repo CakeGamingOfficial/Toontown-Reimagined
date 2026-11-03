@@ -6,9 +6,8 @@ const _COG := preload("res://scenes/cogs/street_cog.gd")
 ## DistributedSuitPlannerAI for one street. The street wants the average of its
 ## min and max, then drifts inside that range. An upkeep every 10 seconds
 ## creates only (deficit + 3) / 4 suits, and the whole district stops at 50.
-## An established cog building reserves about 1.5 street suits. Those suits
-## leave by the side door and are not spawned yet, so the reservation only
-## keeps them inside the district cap. Clients wake a pooled actor from a
+## An established cog building keeps about 1.5 suits. Those suits walk out
+## the side door, then take a street path. Clients wake a pooled actor from a
 ## record. They do not pick DNA themselves.
 
 const DEPTS: PackedStringArray = ["c", "l", "m", "s"]
@@ -78,6 +77,7 @@ var _tracks: Array = []
 var _levels: Array = []
 var _max_type := 6
 var _catalog: Array = []
+var _doors: Dictionary = {}
 var _timing: Dictionary = {}
 var _propeller: Dictionary = {}
 var _living := 0
@@ -110,6 +110,7 @@ static func attach(host: Node3D) -> void:
 func _ready() -> void:
 	if not _load_street() or not _load_catalog():
 		return
+	_load_doors()
 	_build_route()
 	if _route.size() < 2:
 		return
@@ -559,8 +560,10 @@ func _park() -> void:
 
 
 func _authorize() -> void:
+	var have_buildings := _count_building_suits()
 	var building_target := int(float(established_suit_buildings()) * SUIT_BUILDING_NUM_SUITS)
-	var room := TOTAL_MAX_SUITS - building_target - _district_used()
+	var reserved := maxi(building_target - have_buildings, 0)
+	var room := TOTAL_MAX_SUITS - reserved - _district_used()
 	var deficit := _desired - (_living + _queue.size())
 	var burst := int((deficit + 3) / 4)
 	burst = mini(burst, room)
@@ -573,7 +576,7 @@ func _authorize() -> void:
 		if cog.is_empty():
 			if not plan.is_empty() and traffic != null:
 				traffic.call("release_takeover", district_id, street_slug, int(plan.get("block", 0)))
-			return
+			break
 		var net_id := ToonNet.next_id()
 		cog["do_id"] = net_id
 		var job := {
@@ -587,6 +590,129 @@ func _authorize() -> void:
 			job["take_stage"] = "lane"
 		_queue.append(job)
 		burst -= 1
+	_queue_building_suits()
+
+
+func _load_doors() -> void:
+	var path := json_path.replace("_suits.json", "_buildings.json")
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		return
+	var blocks: Array = (parsed as Dictionary).get("blocks", [])
+	for item in blocks:
+		if not (item is Dictionary):
+			continue
+		var block: Dictionary = item
+		var doors: Array = block.get("doors", [])
+		if not doors.is_empty():
+			_doors[int(block.get("block", 0))] = doors
+
+
+func _queue_building_suits() -> void:
+	var rows := _established_rows()
+	var target := int(float(rows.size()) * SUIT_BUILDING_NUM_SUITS)
+	var have := _count_building_suits()
+	var burst := int((target - have + 3) / 4)
+	burst = mini(burst, TOTAL_MAX_SUITS - _district_used())
+	while burst > 0:
+		var row := _pick_established(rows)
+		if row.is_empty():
+			return
+		var doors: Array = _doors.get(int(row.get("block", 0)), [])
+		if doors.is_empty():
+			return
+		var door: Dictionary = doors[randi() % doors.size()]
+		var cog := _pick_track(String(row.get("track", "c")))
+		if cog.is_empty():
+			return
+		var exit := _as_vec(door.get("exit", []))
+		var span := StreetCog.exit_span(_as_vec(door.get("pos", [])), exit)
+		var net_id := ToonNet.next_id()
+		cog["do_id"] = net_id
+		_queue.append({
+			"cog": cog,
+			"do_id": net_id,
+			"slot": _closest_slot(exit),
+			"phase": 0,
+			"fly": 0.0,
+			"from_building": true,
+			"building_suit": true,
+			"door": door.get("pos", []),
+			"exit": door.get("exit", []),
+			"position": span["start"],
+			"yaw": span["yaw"],
+		})
+		burst -= 1
+
+
+func _established_rows() -> Array:
+	var snap := ToonNet.latest("buildings:%d:%s" % [district_id, street_slug])
+	var rows: Variant = snap.get("rows", [])
+	var kept: Array = []
+	if not (rows is Array):
+		return kept
+	for item in rows as Array:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var state := String(row.get("state", "suit"))
+		if state == "becoming" or state == "clearing":
+			continue
+		kept.append(row)
+	return kept
+
+
+func _pick_established(rows: Array) -> Dictionary:
+	var open: Array = []
+	for item in rows:
+		if item is Dictionary and not _doors.get(int((item as Dictionary).get("block", 0)), []).is_empty():
+			open.append(item)
+	if open.is_empty():
+		return {}
+	return open[randi() % open.size()]
+
+
+func _count_building_suits() -> int:
+	var count := 0
+	for child in get_children():
+		if child.has_method("capture") and bool(child.get_meta("building_suit", false)):
+			count += 1
+	for job in _queue:
+		if bool(job.get("building_suit", false)):
+			count += 1
+	return count
+
+
+func _pick_track(track: String) -> Dictionary:
+	if _levels.is_empty() or _catalog.is_empty():
+		return {}
+	var level := int(_levels[randi() % _levels.size()])
+	var low := maxi(level - 4, 1)
+	var high := mini(level, _max_type)
+	if high < low:
+		high = low
+	var cog_type := randi_range(low, high)
+	var dept := DEPTS.find(track)
+	if dept < 0:
+		dept = 0
+	var index := dept * 8 + cog_type - 1
+	if index < 0 or index >= _catalog.size():
+		return {}
+	var source: Dictionary = _catalog[index]
+	var cog := source.duplicate() as Dictionary
+	cog["level"] = level
+	return cog
+
+
+func _as_vec(value: Variant) -> Vector3:
+	if value is Vector3:
+		return value
+	if value is Array and (value as Array).size() >= 3:
+		var row: Array = value
+		return Vector3(float(row[0]), float(row[1]), float(row[2]))
+	return Vector3.ZERO
 
 
 func finish_takeover(plan: Dictionary) -> void:

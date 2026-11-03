@@ -16,6 +16,7 @@ var _streets: Dictionary = {}
 var _blocks: Dictionary = {}
 var _plans: Dictionary = {}
 var _pending: Dictionary = {}
+var _doors: Dictionary = {}
 var _actors: Dictionary = {}
 ## A street the local scene is showing. The data sim must not plan that one too.
 var _live: Dictionary = {}
@@ -38,6 +39,9 @@ func _ready() -> void:
 	var fights: Node = load("res://scenes/battle/street_fights.gd").new()
 	fights.name = "StreetFights"
 	add_child(fights)
+	var factory: Node = load("res://scenes/cog_hq/factory_board.gd").new()
+	factory.name = "FactoryBoard"
+	add_child(factory)
 	var runs: Node = load("res://scenes/buildings/building_runs.gd").new()
 	runs.name = "BuildingRuns"
 	add_child(runs)
@@ -195,6 +199,11 @@ func inject_suit(district: int, slug: String, cog: Dictionary, slot: int) -> voi
 ## until a scene claims the record and draws it.
 func ensure(district: int, slug: String) -> void:
 	if not ToonNet.is_authority():
+		return
+	if slug == "sellbot_factory":
+		var board := get_node_or_null("FactoryBoard")
+		if board != null and board.has_method("ensure"):
+			board.call("ensure", district)
 		return
 	remember_state()
 	var key := _key(district, slug)
@@ -494,6 +503,11 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 	if phase == 1 and fights != null and fights.has_method("cog_paused") and bool(fights.call("cog_paused", int(cog.get("do_id", 0)))):
 		return true
 	if phase == 0:
+		if bool(cog.get("from_building", false)):
+			var walking := _step_exit(cog, delta)
+			if int(cog.get("phase", 0)) == 1 and not bool(cog.get("pathed", false)):
+				_assign_path(cog, points, route)
+			return walking
 		var staying := _step_fly(cog, delta, false)
 		if int(cog.get("phase", 0)) == 1 and not bool(cog.get("pathed", false)):
 			_assign_path(cog, points, route)
@@ -646,6 +660,124 @@ func _vec_at(cog: Dictionary, key: String, fallback: Vector3) -> Vector3:
 	return value
 
 
+func _established(district: int, slug: String) -> Array:
+	var kept: Array = []
+	for item in building_rows(district, slug):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var state := String(row.get("state", "suit"))
+		if state == "becoming" or state == "clearing":
+			continue
+		kept.append(row)
+	return kept
+
+
+func _door_for(slug: String, block: int) -> Dictionary:
+	var book: Dictionary = _door_book(slug)
+	var doors: Array = book.get(block, [])
+	if doors.is_empty():
+		return {}
+	var door: Variant = doors[randi() % doors.size()]
+	if door is Dictionary:
+		return door
+	return {}
+
+
+func _door_book(slug: String) -> Dictionary:
+	if _doors.has(slug):
+		return _doors[slug]
+	var book := {}
+	if StreetSuits.STREETS.has(slug):
+		var path := str(StreetSuits.STREETS[slug]).replace("_suits.json", "_buildings.json")
+		if FileAccess.file_exists(path):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if parsed is Dictionary:
+				for item in (parsed as Dictionary).get("blocks", []):
+					if item is Dictionary:
+						var block: Dictionary = item
+						var doors: Array = block.get("doors", [])
+						if not doors.is_empty():
+							book[int(block.get("block", 0))] = doors
+	_doors[slug] = book
+	return book
+
+
+func _queue_building_suits(record: Dictionary, points: Array, route: PackedInt32Array, cogs: Array) -> void:
+	var district := int(record.get("district", 1))
+	var slug := String(record.get("slug", ""))
+	var rows := _established(district, slug)
+	var target := int(float(rows.size()) * StreetSuits.SUIT_BUILDING_NUM_SUITS)
+	var have := 0
+	for item in cogs:
+		if item is Dictionary and bool((item as Dictionary).get("building_suit", false)):
+			have += 1
+	var burst := mini(int((target - have + 3) / 4), TOTAL_MAX_SUITS - suit_total(district))
+	while burst > 0:
+		if rows.is_empty():
+			return
+		var row: Dictionary = rows[randi() % rows.size()]
+		var door := _door_for(slug, int(row.get("block", 0)))
+		if door.is_empty():
+			return
+		var cog := _pick_track(record, String(row.get("track", "c")))
+		if cog.is_empty():
+			return
+		var exit := _as_vec(door.get("exit", []))
+		var span := StreetCog.exit_span(_as_vec(door.get("pos", [])), exit)
+		var slot := _nearest_slot(points, route, exit)
+		var job := _fresh(cog, points, route, cogs)
+		job["slot"] = slot
+		job["from_building"] = true
+		job["building_suit"] = true
+		job["door"] = door.get("pos", [])
+		job["exit"] = door.get("exit", [])
+		job["position"] = span["start"]
+		job["yaw"] = span["yaw"]
+		job["ground"] = span["end"]
+		job["goal"] = span["end"]
+		cogs.append(job)
+		burst -= 1
+
+
+func _pick_track(record: Dictionary, track: String) -> Dictionary:
+	var cog := _pick(record)
+	if cog.is_empty():
+		return {}
+	var level := int(cog.get("level", 1))
+	var catalog: Array = record.get("catalog", [])
+	var dept := StreetSuits.DEPTS.find(track)
+	if dept < 0:
+		dept = 0
+	var cog_type := int(cog.get("type", level))
+	var index := dept * 8 + cog_type - 1
+	if index < 0 or index >= catalog.size():
+		return cog
+	var source: Dictionary = catalog[index]
+	var swapped := source.duplicate() as Dictionary
+	swapped["level"] = level
+	return swapped
+
+
+func _step_exit(cog: Dictionary, delta: float) -> bool:
+	var fly := float(cog.get("fly", 0.0)) + delta
+	cog["fly"] = fly
+	var span := StreetCog.exit_span(_vec_at(cog, "door", Vector3.ZERO), _vec_at(cog, "exit", Vector3.ZERO))
+	var start: Vector3 = span["start"]
+	var outside: Vector3 = span["end"]
+	cog["position"] = start.lerp(outside, clampf(fly / StreetCog.FROM_BUILDING, 0.0, 1.0))
+	cog["yaw"] = span["yaw"]
+	cog["walk"] = float(cog.get("walk", 0.0)) + delta * 24.0
+	if fly < StreetCog.FROM_BUILDING:
+		return true
+	cog["from_building"] = false
+	cog["phase"] = 1
+	cog["fly"] = 0.0
+	cog["position"] = outside
+	cog["ground"] = outside
+	return true
+
+
 func _step_fly(cog: Dictionary, delta: float, leaving: bool) -> bool:
 	var fly := float(cog.get("fly", 0.0)) + delta
 	cog["fly"] = fly
@@ -685,7 +817,13 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 	var deficit := desired - cogs.size()
 	var district := int(record.get("district", 1))
 	var slug := String(record.get("slug", ""))
-	var burst := mini(int((deficit + 3) / 4), TOTAL_MAX_SUITS - suit_total(district))
+	var have_buildings := 0
+	for item in cogs:
+		if item is Dictionary and bool((item as Dictionary).get("building_suit", false)):
+			have_buildings += 1
+	var building_target := int(float(_established(district, slug).size()) * StreetSuits.SUIT_BUILDING_NUM_SUITS)
+	var reserved := maxi(building_target - have_buildings, 0)
+	var burst := mini(int((deficit + 3) / 4), TOTAL_MAX_SUITS - suit_total(district) - reserved)
 	while burst > 0:
 		var plan := claim_takeover(district, slug)
 		var cog := _pick(record) if plan.is_empty() else _pick_planned(record, plan)
@@ -699,6 +837,7 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 			job["take_stage"] = "lane"
 		cogs.append(job)
 		burst -= 1
+	_queue_building_suits(record, points, route, cogs)
 	record["cogs"] = cogs
 
 
@@ -898,6 +1037,11 @@ func _publish_street(key: String) -> void:
 ## The street the player is standing on keeps its suits on StreetSuits.
 ## Every other street in the district is the parked record.
 func cog_rows(district: int, slug: String) -> Array:
+	if slug == "sellbot_factory":
+		var board := get_node_or_null("FactoryBoard")
+		if board != null and board.has_method("rows"):
+			return board.call("rows", district)
+		return []
 	var scene := get_tree().current_scene
 	if scene != null:
 		var suits := scene.get_node_or_null("StreetSuits")
@@ -932,6 +1076,11 @@ func park_cog(district: int, slug: String, cog_id: int, point: Array) -> void:
 
 
 func dismiss_cog(district: int, slug: String, cog_id: int) -> void:
+	if slug == "sellbot_factory":
+		var board := get_node_or_null("FactoryBoard")
+		if board != null and board.has_method("dismiss"):
+			board.call("dismiss", district, cog_id)
+		return
 	var scene := get_tree().current_scene
 	if scene != null:
 		var suits := scene.get_node_or_null("StreetSuits")

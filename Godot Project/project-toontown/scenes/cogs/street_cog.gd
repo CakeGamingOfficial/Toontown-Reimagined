@@ -9,6 +9,9 @@ const WALK_SPEED := 4.8
 const MIN_PATH_POINTS := 40
 const MAX_PATH_POINTS := 300
 const FROM_SKY := 6.5
+## SuitTimings.fromSuitBuilding and DistributedSuit.STAND_OUTSIDE_DOOR.
+const FROM_BUILDING := 2.0
+const STAND_OUTSIDE := 2.5
 const SKY_HEIGHT := FROM_SKY * WALK_SPEED
 const GROUND_FRAME := 28
 const DEFAULT_FPS := 24.0
@@ -102,6 +105,10 @@ var _fight_time := 0.0
 var _take: Dictionary = {}
 var _take_stage := ""
 var _door_goal := Vector3.ZERO
+var _building_suit := false
+var _from_building := false
+var _door := Vector3.ZERO
+var _exit := Vector3.ZERO
 
 
 func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
@@ -170,6 +177,11 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		return
 	_prepare_landing()
 	_read_take(resume)
+	_building_suit = bool(resume.get("building_suit", false))
+	set_meta("building_suit", _building_suit)
+	if bool(resume.get("from_building", false)):
+		_begin_exit(resume)
+		return
 	if resume.is_empty() or int(resume.get("phase", 0)) == 0:
 		_phase = 0
 		_fly = float(resume.get("fly", 0.0)) if not resume.is_empty() else 0.0
@@ -247,7 +259,10 @@ func capture() -> Dictionary:
 		"till": _till_land,
 		"impact": _impact,
 		"pathed": _path_ready,
-		"from_building": false,
+		"from_building": _from_building and _phase == 0,
+		"building_suit": _building_suit,
+		"door": [_door.x, _door.y, _door.z],
+		"exit": [_exit.x, _exit.y, _exit.z],
 		"do_id": int(get_meta("do_id", 0)),
 		"takeover": _take,
 		"take_stage": _take_stage,
@@ -392,6 +407,57 @@ func _street_stay(count: int) -> int:
 	return points - 1
 
 
+func present(cog: Dictionary, timing: Dictionary) -> void:
+	# Factory suits stand and walk in place. The street route, and the drop
+	# out of the sky, belong to the street planner.
+	cog_code = str(cog["code"])
+	cog_name = str(cog["name"])
+	dept = str(cog["dept"])
+	body = str(cog["body"])
+	height = float(cog["height"])
+	cog_level = int(cog.get("level", 1))
+	name = cog_name
+	_source = cog
+	set_meta("factory", true)
+	set_process(true)
+	visible = true
+	var body_timing: Dictionary = timing.get(body, {})
+	_body_timing = body_timing
+	var walk_info: Dictionary = body_timing.get("walk", {})
+	var neutral_info: Dictionary = body_timing.get("neutral", {})
+	if float(walk_info.get("fps", 0.0)) > 1.0:
+		_walk_fps = float(walk_info["fps"])
+	if float(neutral_info.get("fps", 0.0)) > 1.0:
+		_neutral_fps = float(neutral_info["fps"])
+	var mesh_path := str(cog.get("model", "res://assets/cogs/suits/%s.glb" % cog_code))
+	var packed := load(mesh_path) as PackedScene
+	if packed == null:
+		packed = load("res://assets/cogs/suits/%s.glb" % cog_code) as PackedScene
+	if packed == null:
+		return
+	var actor := packed.instantiate()
+	actor.name = "Suit"
+	add_child(actor)
+	if cog.has("scale"):
+		scale = Vector3.ONE * float(cog["scale"])
+	_hide_gray_cuffs(actor)
+	_materials.clear()
+	_own_materials(actor)
+	_paint_hands(actor)
+	_quiet_shadows(actor)
+	var walk_file := str(cog.get("walk", "res://assets/cogs/anims/%s/walk.walk" % body))
+	var neutral_file := str(cog.get("neutral", "res://assets/cogs/anims/%s/neutral.walk" % body))
+	_walk = _read_bank(walk_file)
+	_neutral = _read_bank(neutral_file)
+	_release_nametag()
+	_add_nametag()
+	_idle(0.0)
+
+
+func set_walking(moving: bool) -> void:
+	set_meta("walking", moving)
+
+
 func _process(delta: float) -> void:
 	if bool(get_meta("in_fight", false)):
 		if _fight_key == "walk":
@@ -401,15 +467,74 @@ func _process(delta: float) -> void:
 		else:
 			_idle(delta)
 		return
+	if bool(get_meta("factory", false)):
+		if bool(get_meta("walking", false)):
+			_march(delta)
+		else:
+			_idle(delta)
+		return
 	if _points.is_empty():
 		return
 	_detail = _camera_detail()
 	if _phase == 0:
-		_fly_in(delta)
+		if _from_building:
+			_leave_building(delta)
+		else:
+			_fly_in(delta)
 	elif _phase == 1:
 		_roam(delta)
 	else:
 		_fly_out(delta)
+
+
+static func exit_span(door: Vector3, street: Vector3) -> Dictionary:
+	var delta := street - door
+	delta.y = 0.0
+	var length := delta.length()
+	if length < 0.05:
+		return {"start": door, "end": door, "yaw": 0.0}
+	var flat := delta / length
+	var outside := door + flat * STAND_OUTSIDE
+	var start := outside - flat * (WALK_SPEED * FROM_BUILDING)
+	start.y = door.y
+	outside.y = door.y
+	return {"start": start, "end": outside, "yaw": atan2(-flat.x, -flat.z)}
+
+
+func _begin_exit(resume: Dictionary) -> void:
+	_from_building = true
+	_building_suit = true
+	set_meta("building_suit", true)
+	_phase = 0
+	_fly = float(resume.get("fly", 0.0))
+	_door = _vec(resume, "door", Vector3.ZERO)
+	_exit = _vec(resume, "exit", _door)
+	var span := exit_span(_door, _exit)
+	var start: Vector3 = span["start"]
+	_ground = span["end"]
+	_goal = _ground
+	global_position = _vec(resume, "position", start)
+	rotation.y = float(resume.get("yaw", span["yaw"]))
+	_set_alpha(1.0)
+	_detach_propeller()
+	_pose_elapsed(_walk, 0.0, _walk_fps, true)
+
+
+func _leave_building(delta: float) -> void:
+	_fly += delta
+	var span := exit_span(_door, _exit)
+	var start: Vector3 = span["start"]
+	var outside: Vector3 = span["end"]
+	global_position = start.lerp(outside, clampf(_fly / FROM_BUILDING, 0.0, 1.0))
+	rotation.y = float(span["yaw"])
+	_march(delta)
+	if _fly < FROM_BUILDING:
+		return
+	_from_building = false
+	_phase = 1
+	_ground = outside
+	global_position = outside
+	_assign_path()
 
 
 func _fly_in(delta: float) -> void:
@@ -458,6 +583,8 @@ func lane_slot() -> int:
 
 
 func on_lane() -> bool:
+	if bool(get_meta("factory", false)):
+		return not bool(get_meta("in_fight", false))
 	return _phase == 1
 
 

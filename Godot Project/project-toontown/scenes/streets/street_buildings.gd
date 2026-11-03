@@ -12,6 +12,8 @@ const _MONEY := preload("res://assets/buildings/cog/money.glb")
 const _SALES := preload("res://assets/buildings/cog/sales.glb")
 const _ELEVATOR := preload("res://assets/buildings/cog/elevator.glb")
 const _SIGN := preload("res://assets/buildings/cog/suit_sign.glb")
+const _WALLS := preload("res://assets/buildings/cog/suit_walls.glb")
+const _SUIT_DOOR := preload("res://assets/buildings/cog/suit_door.glb")
 const _CORP_ICON := preload("res://assets/gui/cogs/CorpIcon.png")
 const _LEGAL_ICON := preload("res://assets/gui/cogs/LegalIcon.png")
 const _MONEY_ICON := preload("res://assets/gui/cogs/MoneyIcon.png")
@@ -395,8 +397,100 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	# One surface per texture. The elevator alone was a dozen separate draws,
 	# and every taken block on the street paid that cost.
 	preload("res://scenes/playgrounds/street_batch.gd").flatten_prop(building)
+	_suit_flats(landmark, building)
 	_actors[block] = building
 	return building
+
+
+## DNAFlatBuilding.setup_suit_flat_building. The suit wall of that story and
+## suit_door ride down with the tower. The toon flat hides when it lands.
+func _suit_flats(landmark: Node3D, tower: Node3D) -> void:
+	_remember_block(landmark)
+	if not landmark.has_meta("block_nodes"):
+		return
+	var walls := _WALLS.instantiate() as Node3D
+	var door_model := _SUIT_DOOR.instantiate() as Node3D
+	if walls == null or door_model == null:
+		if walls != null:
+			walls.free()
+		if door_model != null:
+			door_model.free()
+		return
+	var rows: Array = landmark.get_meta("block_nodes")
+	for item in rows:
+		if item is Node3D and item != landmark:
+			_cover_flat(item as Node3D, tower, walls, door_model)
+	walls.free()
+	door_model.free()
+
+
+func _cover_flat(flat: Node3D, tower: Node3D, walls: Node3D, door_model: Node3D) -> void:
+	var meshes: Array[MeshInstance3D] = []
+	_collect_meshes(flat, meshes)
+	var door_best: MeshInstance3D = null
+	var door_area := 0.0
+	for mesh in meshes:
+		var low := str(mesh.name).to_lower()
+		if low.begins_with("wall_"):
+			_cover_wall(mesh, tower, walls)
+		elif low.begins_with("door_"):
+			var size := mesh.get_aabb().size
+			var area := size.x * maxf(size.z, size.y)
+			if area > door_area:
+				door_area = area
+				door_best = mesh
+	if door_best != null:
+		_cover_door(door_best, tower, door_model)
+
+
+func _collect_meshes(node: Node, into: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D:
+		into.append(node as MeshInstance3D)
+	for child in node.get_children():
+		_collect_meshes(child, into)
+
+
+func _cover_wall(mesh: MeshInstance3D, tower: Node3D, walls: Node3D) -> void:
+	var aabb := mesh.get_aabb()
+	var width := aabb.size.x
+	var height := aabb.size.z if aabb.size.z >= aabb.size.y else aabb.size.y
+	if width < 2.0 or height < 2.0:
+		return
+	var story := clampi(int(round(height / 10.0)), 1, 5)
+	var side := "ul" if str(mesh.name).contains("_ul") else "ur"
+	var source := _find(walls, "wall_suit_build%d_%s" % [story, side])
+	if source == null:
+		return
+	var piece := source.duplicate() as Node3D
+	if piece == null:
+		return
+	mesh.add_child(piece)
+	piece.position = aabb.position
+	piece.scale = Vector3(width, 1.0, height)
+	var kept := piece.global_transform
+	tower.add_child(piece)
+	piece.global_transform = kept
+	_use_vertex_colors(piece)
+	_quiet(piece)
+
+
+func _cover_door(mesh: MeshInstance3D, tower: Node3D, door_model: Node3D) -> void:
+	var source := _find(door_model, "g1")
+	if source == null:
+		return
+	var piece := source.duplicate() as Node3D
+	if piece == null:
+		return
+	var aabb := mesh.get_aabb()
+	var height := aabb.size.z if aabb.size.z >= aabb.size.y else aabb.size.y
+	mesh.add_child(piece)
+	piece.position = Vector3(aabb.position.x + aabb.size.x * 0.5, aabb.position.y, aabb.position.z)
+	piece.scale = Vector3(aabb.size.x / 5.0, 1.0, height / 8.5)
+	var kept := piece.global_transform
+	tower.add_child(piece)
+	piece.global_transform = kept
+	_use_vertex_colors(piece)
+	_quiet(piece)
 
 
 func _holder() -> Node3D:

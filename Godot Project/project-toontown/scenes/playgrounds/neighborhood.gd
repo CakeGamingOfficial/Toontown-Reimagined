@@ -95,7 +95,10 @@ func _attach_returning_toon() -> void:
 	var links := preload("res://scenes/places/tunnel_links.gd")
 	var returning := preload("res://scenes/interiors/shop_door.gd").trip == "out"
 	var restoring := preload("res://scenes/playgrounds/playground_toon.gd").reload_resume()
-	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving() and not returning and not restoring:
+	var factory := preload("res://scenes/cog_hq/factory_elevator.gd")
+	factory.place(self)
+	preload("res://scenes/cog_hq/factory_cogs.gd").place(self)
+	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving() and not returning and not restoring and not factory.riding():
 		return
 	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 

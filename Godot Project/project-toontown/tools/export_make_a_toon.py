@@ -114,7 +114,7 @@ def hide_named(root: NodePath, pattern: str) -> None:
         found.getPath(index).hide()
 
 
-def prepare_head(root: NodePath, head: str) -> None:
+def prepare_head(root: NodePath, head: str, lod: str = "1000") -> None:
     species = head[0]
     long_muzzle = head[1] == "l"
     long_ears = head[2] == "l"
@@ -131,13 +131,14 @@ def prepare_head(root: NodePath, head: str) -> None:
     if eye_tex.read(panda_path("phase_3/maps/eyes.png")):
         for path in root.findAllMatches("**/eyes*"):
             path.setTexture(eye_tex, 1)
-    if species == "d":
+    # 250 dog heads already include the muzzle. 1000 and 500 load it beside the head.
+    if species == "d" and lod in ("1000", "500"):
         muzzle_file = {
             "dls": "phase_3/models/char/dogMM_Shorts-headMuzzles-1000.bam",
             "dss": "phase_3/models/char/dogMM_Skirt-headMuzzles-1000.bam",
             "dsl": "phase_3/models/char/dogSS_Shorts-headMuzzles-1000.bam",
             "dll": "phase_3/models/char/dogLL_Shorts-headMuzzles-1000.bam",
-        }[head]
+        }[head].replace("1000", lod)
         muzzle = load_model(muzzle_file)
         anchor = root.find("**/def_head")
         if muzzle is not None and not anchor.isEmpty():
@@ -145,7 +146,10 @@ def prepare_head(root: NodePath, head: str) -> None:
             _KEEP.append(muzzle)
             for token in ("surprise", "angry", "sad", "smile", "laugh"):
                 hide_named(muzzle, f"**/*{token}*")
-    lashes = load_model(f"phase_3/models/char/{_SPECIES_FILE[species]}-lashes.bam")
+    # ToonHead.setupEyelashes copies lashes onto the 1000 head only.
+    lashes = None
+    if lod == "1000":
+        lashes = load_model(f"phase_3/models/char/{_SPECIES_FILE[species]}-lashes.bam")
     if lashes is not None:
         piece = "open-long" if long_muzzle else "open-short"
         found = lashes.find(f"**/{piece}")
@@ -216,22 +220,23 @@ def export_part(name: str, model_relative: str, anim_relative: str | None) -> No
     write_gltf(root, OUT / "parts" / f"{name}.glb")
 
 
-def export_head(head: str) -> None:
+def export_head(head: str, lod: str = "1000") -> None:
     species = head[0]
     if head in _HEAD_FILE:
-        relative = _HEAD_FILE[head]
-        anim = relative.replace("_1000.bam", "_neutral.bam")
+        relative = _HEAD_FILE[head].replace("1000", lod)
+        anim = _HEAD_FILE[head].replace("_1000.bam", "_neutral.bam")
     else:
-        relative = f"phase_3/models/char/{_SPECIES_FILE[species]}-heads-1000.bam"
+        relative = f"phase_3/models/char/{_SPECIES_FILE[species]}-heads-{lod}.bam"
         anim = None
     root = load_model(relative)
     if root is None:
         return
-    prepare_head(root, head)
+    prepare_head(root, head, lod)
     if anim:
         pose_neutral(root, anim)
     bake_skinning(root)
-    write_gltf(root, OUT / "heads" / f"{head}.glb")
+    name = head if lod == "1000" else f"{head}_{lod}"
+    write_gltf(root, OUT / "heads" / f"{name}.glb")
 
 
 def export_room() -> None:
