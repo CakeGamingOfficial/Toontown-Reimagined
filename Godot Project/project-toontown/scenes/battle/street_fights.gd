@@ -12,6 +12,46 @@ const SUIT_SPEED := 4.8
 const MAX_TOONS := 4
 const MAX_COGS := 4
 const NEAR_COG := 15.0
+## BattleCalculatorAI. Track experience, earlier hits, and the lure's duration.
+const _EXP_BONUS: Array[int] = [0, 10, 20, 30, 40, 50, 60]
+const _PREV_BONUS: Array[int] = [0, 20, 40, 60]
+const _LURE_ROUNDS: Array[int] = [2, 2, 3, 3, 4, 4, 15]
+const _MAX_TOON_ACC := 95
+## SuitBattleGlobals.SuitAttributes def, indexed by the cog's relative level.
+const _SUIT_DEF := {
+	"ac": [15, 20, 25, 30, 35],
+	"b": [5, 10, 15, 20, 25],
+	"bc": [15, 20, 25, 30, 35],
+	"bf": [2, 5, 10, 12, 15],
+	"bs": [20, 25, 30, 35, 40],
+	"bw": [35, 40, 45, 50, 55],
+	"cc": [2, 5, 10, 12, 15],
+	"cr": [30, 35, 40, 45, 50],
+	"ds": [20, 25, 30, 35, 40],
+	"dt": [10, 15, 20, 25, 30],
+	"f": [2, 5, 10, 12, 15],
+	"gh": [15, 20, 25, 30, 35],
+	"hh": [25, 30, 35, 40, 45],
+	"le": [30, 35, 40, 45, 50],
+	"ls": [30, 35, 40, 45, 50],
+	"m": [30, 35, 40, 45, 50],
+	"mb": [25, 30, 35, 40, 45],
+	"mh": [35, 40, 45, 50, 55],
+	"mm": [15, 20, 25, 30, 35],
+	"ms": [20, 25, 30, 35, 40],
+	"nc": [20, 25, 30, 35, 40],
+	"nd": [10, 15, 20, 25, 30],
+	"p": [5, 10, 15, 20, 25],
+	"pp": [5, 10, 15, 20, 25],
+	"rb": [35, 40, 45, 50, 55],
+	"sc": [2, 5, 10, 12, 15],
+	"sd": [25, 30, 35, 40, 45],
+	"tbc": [35, 40, 45, 50, 55],
+	"tf": [25, 30, 35, 40, 45],
+	"tm": [5, 10, 15, 20, 25],
+	"tw": [10, 15, 20, 25, 30],
+	"ym": [10, 15, 20, 25, 30],
+}
 # BattleBase.suitPoints / toonPoints. X is across the line, Y is toward the cogs.
 const _SUIT_POINTS: Array = [
 	[Vector2(0.0, 5.0)],
@@ -475,6 +515,7 @@ func _resolve(fight: Dictionary) -> void:
 	for leaving in runners:
 		roster.erase(leaving)
 	_place(fight)
+	fight["hits"] = []
 	var order: Array[int] = [0, 1, 2, 3, 4, 5, 6]
 	for track in order:
 		for attack_index in picks.size():
@@ -489,11 +530,13 @@ func _resolve(fight: Dictionary) -> void:
 		var fighter: Dictionary = suits[fighter_index]
 		if int(fighter.get("hp", 0)) <= 0:
 			continue
+		# A cog that is still lured skips its attack. Sound, throw, and squirt
+		# already cleared the lure when they connected, so those cogs swing.
 		if bool(fighter.get("lured", false)):
-			beats.append({"text": "The %s is lured." % String(fighter.get("name", "cog")), "kind": "lured", "cog": int(fighter.get("id", 0))})
-			fighter["lured"] = false
 			continue
 		_suit_attack(fight, fighter, beats)
+	_age_lures(fight)
+	fight.erase("hits")
 	fight["beats"] = beats
 	fight["state"] = "movie"
 	fight["left"] = maxf(_time_beats(beats), 1.2)
@@ -513,15 +556,27 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		_heal(fight, toon, choice, gag, who, beats)
 		return
 	var targets := _cog_targets(fight, choice)
-	if targets.is_empty():
+	var living: Array = []
+	for cog in targets:
+		var body: Dictionary = cog
+		if int(body.get("hp", 0)) > 0:
+			living.append(body)
+	if living.is_empty():
 		return
 	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)))
-	var accuracy := ToonLoadout.gag_accuracy(track, level)
+	var group := ToonLoadout.affects_group(track, level)
+	var target_id := int(choice.get("target", -1))
+	# Trap does not roll. Every other gag rolls once for the whole attack.
+	var hit := true
+	var acc := 0
+	if track != 1:
+		var rolled: Dictionary = _toon_hit(fight, choice, living)
+		hit = bool(rolled["hit"])
+		acc = int(rolled["acc"])
+	_note_hit(fight, track, level, target_id, group, hit)
 	var landed := false
-	for cog in targets:
+	for cog in living:
 		var suit: Dictionary = cog
-		if int(suit.get("hp", 0)) <= 0:
-			continue
 		var cog_name := String(suit.get("name", "cog"))
 		if track == 1:
 			suit["trap"] = {"damage": damage, "gag": gag, "by": who, "owner": int(toon.get("id", 0)), "level": level}
@@ -529,37 +584,40 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			landed = true
 			continue
 		if track == 2:
-			if _lure(fight, toon, suit, gag, accuracy, beats, track, level):
+			if _lure(fight, toon, suit, gag, hit, acc, beats, track, level):
 				landed = true
 			continue
-		var lured := bool(suit.get("lured", false))
-		if track == 3 and lured:
-			beats.append(_beat("The %s is lured, so the %s missed." % [cog_name, gag], track, level, toon, suit, false, 0))
-			continue
-		if track == 6 and not lured:
+		if not hit:
 			beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
 			continue
-		if randi_range(0, 99) >= accuracy:
+		# Drop on a lured cog does nothing. Sound, throw, and squirt wake it up.
+		var dealt := damage
+		if track == 6 and bool(suit.get("lured", false)):
 			beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
 			continue
-		_hurt_cog(suit, damage)
-		var line := "%s used a %s on the %s for %d damage." % [who, gag, cog_name, damage]
+		_hurt_cog(suit, dealt)
+		if track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT:
+			_clear_lure(suit)
+		var line := "%s used a %s on the %s for %d damage." % [who, gag, cog_name, dealt]
 		if int(suit.get("hp", 0)) <= 0:
 			line += " The %s is defeated." % cog_name
-		beats.append(_beat(line, track, level, toon, suit, true, damage))
+		beats.append(_beat(line, track, level, toon, suit, true, dealt))
 		landed = true
 	if landed and track != 1:
 		_grant(fight, int(toon.get("id", 0)), track, level)
 
 
-func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, accuracy: int, beats: Array, track: int, level: int) -> bool:
+func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, hit: bool, acc: int, beats: Array, track: int, level: int) -> bool:
 	var who := String(toon.get("name", "A toon"))
 	var cog_name := String(suit.get("name", "cog"))
-	if bool(suit.get("lured", false)) or randi_range(0, 99) >= accuracy:
+	if not hit:
 		beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
 		return false
-	suit["lured"] = true
+	var already := bool(suit.get("lured", false))
+	_apply_lure_time(suit, level, acc)
 	beats.append(_beat("%s's %s lured the %s." % [who, gag, cog_name], track, level, toon, suit, true, 0))
+	if already:
+		return true
 	var trap: Variant = suit.get("trap", {})
 	if not (trap is Dictionary) or (trap as Dictionary).is_empty():
 		return true
@@ -579,7 +637,6 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 	var track := int(choice.get("track", 0))
 	var level := int(choice.get("level", 0))
 	var amount := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)))
-	var accuracy := ToonLoadout.gag_accuracy(track, level)
 	var targets: Array = []
 	if ToonLoadout.affects_group(track, level):
 		targets = fight["toons"]
@@ -588,12 +645,20 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		if picked.is_empty():
 			picked = toon
 		targets = [picked]
-	var landed := false
+	var patients: Array = []
 	for item in targets:
+		var body: Dictionary = item
+		if int(body.get("hp", 0)) > 0:
+			patients.append(body)
+	if patients.is_empty():
+		return
+	var rolled: Dictionary = _toon_hit(fight, choice, [])
+	var hit: bool = bool(rolled["hit"])
+	_note_hit(fight, track, level, int(choice.get("target", -1)), ToonLoadout.affects_group(track, level), hit)
+	var landed := false
+	for item in patients:
 		var patient: Dictionary = item
-		if int(patient.get("hp", 0)) <= 0:
-			continue
-		if randi_range(0, 99) >= accuracy:
+		if not hit:
 			beats.append(_beat("%s's %s missed." % [who, gag], track, level, toon, {}, false, 0, ""))
 			continue
 		var before := int(patient.get("hp", 0))
@@ -606,6 +671,161 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		landed = true
 	if landed:
 		_grant(fight, int(toon.get("id", 0)), track, level)
+
+
+## BattleCalculatorAI.__calcToonAtkHit. One roll covers every target of the gag.
+## The returned acc is the uncapped prop + experience + defense, which lure
+## uses as its wake-up chance.
+func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictionary:
+	var track := int(choice.get("track", -1))
+	var level := int(choice.get("level", 0))
+	var target := int(choice.get("target", -1))
+	var group := ToonLoadout.affects_group(track, level)
+	var defense := 0
+	var num_lured := 0
+	for item in living:
+		var suit: Dictionary = item
+		defense = mini(defense, -_suit_def(suit))
+		if bool(suit.get("lured", false)):
+			num_lured += 1
+	var prop := ToonLoadout.gag_accuracy(track, level)
+	var attack_acc := prop + _shared_exp(fight, choice, track) + defense
+	var noted := _hit_list(fight)
+	if not noted.is_empty():
+		var prev: Dictionary = noted[noted.size() - 1]
+		if int(prev.get("track", -2)) == track and _copies_previous(track, target, group, prev):
+			return {"hit": bool(prev.get("hit", false)), "acc": attack_acc}
+	var count := living.size()
+	var all_lured := count > 0 and num_lured == count
+	if track != 2 and track != ToonLoadout.TOON_UP:
+		if track != 6 and all_lured:
+			return {"hit": true, "acc": attack_acc}
+		if track == 6 and all_lured:
+			return {"hit": false, "acc": attack_acc}
+	var acc := attack_acc + _prev_bonus(noted, track, target, group)
+	if track != 2 and track != ToonLoadout.TOON_UP and track != 6 and count > 0 and not all_lured:
+		acc += int(100.0 * float(num_lured) / float(count))
+	if acc > _MAX_TOON_ACC:
+		acc = _MAX_TOON_ACC
+	return {"hit": randi_range(0, 99) < acc, "acc": attack_acc}
+
+
+func _copies_previous(track: int, target: int, group: bool, prev: Dictionary) -> bool:
+	if int(prev.get("target", -2)) == target:
+		return true
+	# A group lure copies the lure just before it. A single lure copies when
+	# that cog was already lured by the previous group lure.
+	if track != 2:
+		return false
+	if group:
+		return true
+	return bool(prev.get("group", false)) and bool(prev.get("hit", false))
+
+
+func _shared_exp(fight: Dictionary, choice: Dictionary, track: int) -> int:
+	var best := _exp_bonus(int(choice.get("exp", 0)), track)
+	var target := int(choice.get("target", -1))
+	var mine := int(choice.get("id", 0))
+	for item in fight.get("choices", []):
+		if not (item is Dictionary):
+			continue
+		var other: Dictionary = item
+		if int(other.get("id", 0)) == mine or int(other.get("track", -1)) != track:
+			continue
+		if int(other.get("target", -2)) != target:
+			continue
+		best = maxi(best, _exp_bonus(int(other.get("exp", 0)), track))
+	return best
+
+
+func _exp_bonus(exp: int, track: int) -> int:
+	var level := 0
+	for index in 7:
+		if exp >= ToonLoadout.skill_at(track, index):
+			level = index
+	var bonus := _EXP_BONUS[clampi(level, 0, _EXP_BONUS.size() - 1)]
+	if track == ToonLoadout.TOON_UP:
+		bonus = int(bonus / 2)
+	return bonus
+
+
+func _suit_def(suit: Dictionary) -> int:
+	var row: Variant = _SUIT_DEF.get(String(suit.get("code", "")), [])
+	if not (row is Array) or (row as Array).is_empty():
+		return 0
+	var values: Array = row
+	var index := _rel_level(suit)
+	return int(values[clampi(index, 0, values.size() - 1)])
+
+
+func _prev_bonus(noted: Array, track: int, target: int, group: bool) -> int:
+	var count := 0
+	for item in noted:
+		if not (item is Dictionary):
+			continue
+		var prev: Dictionary = item
+		if not bool(prev.get("hit", false)) or int(prev.get("track", -1)) == track:
+			continue
+		var prev_group := bool(prev.get("group", false))
+		if group or prev_group or int(prev.get("target", -2)) == target:
+			count += 1
+	return _PREV_BONUS[mini(count, _PREV_BONUS.size() - 1)]
+
+
+func _hit_list(fight: Dictionary) -> Array:
+	var raw: Variant = fight.get("hits", [])
+	if raw is Array:
+		return raw
+	return []
+
+
+func _note_hit(fight: Dictionary, track: int, level: int, target: int, group: bool, hit: bool) -> void:
+	var noted := _hit_list(fight)
+	noted.append({
+		"track": track,
+		"level": level,
+		"target": target,
+		"group": group,
+		"hit": hit,
+	})
+	fight["hits"] = noted
+
+
+func _apply_lure_time(suit: Dictionary, level: int, acc: int) -> void:
+	var rounds := _LURE_ROUNDS[clampi(level, 0, _LURE_ROUNDS.size() - 1)]
+	var wake := 100 - acc * 2
+	if bool(suit.get("lured", false)):
+		suit["lure_max"] = int(suit.get("lure_max", rounds)) + rounds
+		suit["lure_wake"] = mini(int(suit.get("lure_wake", wake)), wake)
+		return
+	suit["lured"] = true
+	suit["lure_round"] = -1
+	suit["lure_max"] = rounds
+	suit["lure_wake"] = wake
+
+
+func _clear_lure(suit: Dictionary) -> void:
+	suit["lured"] = false
+	suit.erase("lure_round")
+	suit.erase("lure_max")
+	suit.erase("lure_wake")
+
+
+## The round the lure lands does not wake the cog. Later rounds can, and the
+## chance is 100 minus twice the lure's accuracy.
+func _age_lures(fight: Dictionary) -> void:
+	for item in fight.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var suit: Dictionary = item
+		if int(suit.get("hp", 0)) <= 0 or not bool(suit.get("lured", false)):
+			continue
+		var round := int(suit.get("lure_round", -1)) + 1
+		suit["lure_round"] = round
+		if round >= int(suit.get("lure_max", 1)):
+			_clear_lure(suit)
+		elif round > 0 and randi_range(0, 99) < int(suit.get("lure_wake", 0)):
+			_clear_lure(suit)
 
 
 ## SuitBattleGlobals.getSuitAttack. The printed level is getActualLevel, so the
@@ -732,7 +952,6 @@ func _finish_movie(fight: Dictionary) -> void:
 			if traffic != null and traffic.has_method("dismiss_cog"):
 				traffic.call("dismiss_cog", int(fight.get("district", 0)), String(fight.get("slug", "")), int(cog.get("id", 0)))
 			continue
-		cog["lured"] = false
 		kept.append(cog)
 		if traffic != null and traffic.has_method("park_cog"):
 			traffic.call("park_cog", int(fight.get("district", 0)), String(fight.get("slug", "")), int(cog.get("id", 0)), cog.get("slot", []))

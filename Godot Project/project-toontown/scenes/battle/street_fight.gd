@@ -12,6 +12,7 @@ const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
 const BATTLE_VOLUME := 0.9
 const PLACE_VOLUME := 0.8
 const _LOSE := "res://assets/audio/battle/ENC_Lose.ogg"
+const _WIN := "res://assets/audio/sfx/ENC_Win.mp3"
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 ## Toon.getDiedInterval: lose, ENC_Lose at 2s, then a 1.5s shrink starting at 5.333.
@@ -48,6 +49,7 @@ var _reward_seq := -1
 var _reward_token := 0
 var _paid_key := ""
 var _dance := 0.0
+var _win: AudioStreamPlayer
 var _dying := false
 var _sad_started: Dictionary = {}
 var _face_key := ""
@@ -89,7 +91,9 @@ func _ready() -> void:
 	_hud.backed.connect(_on_back)
 	root.add_child(_hud)
 	_reward = RewardPanel.new()
+	_reward.z_index = 20
 	root.add_child(_reward)
+	_reward.mouse_filter = Control.MOUSE_FILTER_STOP
 	_gags = load("res://scenes/battle/gag_movie.gd").new()
 	_gags.name = "GagMovie"
 	add_child(_gags)
@@ -118,6 +122,7 @@ func _process(delta: float) -> void:
 				_apply_my_reward(item)
 	_release_idle(rows)
 	if not mine:
+		_stop_win()
 		_watch(rows, delta)
 		return
 	_fight = fight
@@ -127,6 +132,16 @@ func _process(delta: float) -> void:
 		_stop_music()
 	else:
 		_start_music()
+	if battle_state == "reward":
+		_hud.hide_all()
+		_banner.text = ""
+		if _asking and _menu != null:
+			_menu.cancel()
+			_asking = false
+		_start_win()
+		_play(fight, delta)
+		return
+	_stop_win()
 	if battle_state == "faceoff" or battle_state == "reserves":
 		_hud.hide_all()
 		_banner.text = "More Cogs are coming!" if battle_state == "reserves" else ""
@@ -369,13 +384,14 @@ func _show_targets(fight: Dictionary) -> void:
 	_hud.show_choose(toons, rows.size(), invalid, skip)
 
 
-## A lured cog cannot be lured or trapped again, and a trapped cog cannot take another trap.
+## A trap cannot be laid on a cog that is lured or already trapped. Lure can be used again.
 func _blocked_cog(cog: Dictionary, track: int) -> bool:
 	var lured := bool(cog.get("lured", false))
 	var trapped := cog.get("trap", {}) is Dictionary and not (cog.get("trap", {}) as Dictionary).is_empty()
-	if lured and (track == 1 or track == 2):
+	# A second lure extends the timer. A trap cannot be laid on a lured or trapped cog.
+	if track == 1 and (lured or trapped):
 		return true
-	return trapped and track == 1
+	return false
 
 
 func _on_target(slot: int) -> void:
@@ -444,7 +460,6 @@ func _play(fight: Dictionary, _delta: float) -> void:
 		if state == "input":
 			_remember(fight, false)
 	if state == "reward":
-		_banner.text = "You did it!" if _mine(fight) else ""
 		_banner.text = ""
 		if _reward_seq != seq:
 			_reward_seq = seq
@@ -464,6 +479,7 @@ func _play(fight: Dictionary, _delta: float) -> void:
 
 
 func _show_movie(fight: Dictionary, token: int) -> void:
+	_banner.text = ""
 	var beats: Array = fight.get("beats", [])
 	var index := 0
 	while index < beats.size():
@@ -480,7 +496,6 @@ func _show_movie(fight: Dictionary, token: int) -> void:
 				break
 			group.append(nxt)
 			cursor += 1
-		_banner.text = String(lead.get("text", ""))
 		var attacker := int(lead.get("toon", -1))
 		_idle_others(attacker)
 		if attacker != ToonNet.peer_id():
@@ -637,6 +652,29 @@ func _leave_sad() -> void:
 	_ARRIVAL.teleport_in = true
 	_ARRIVAL.portal_in = true
 	ToonLoading.change_to(_PLACES.scene_for(hood))
+
+
+func _start_win() -> void:
+	if _win != null:
+		return
+	var stream := load(_WIN) as AudioStreamMP3
+	if stream == null:
+		return
+	stream = stream.duplicate() as AudioStreamMP3
+	stream.loop = true
+	_win = ToonAudio.effect_player()
+	_win.name = "WinDance"
+	_win.stream = stream
+	add_child(_win)
+	_win.play()
+
+
+func _stop_win() -> void:
+	if _win == null:
+		return
+	_win.stop()
+	_win.queue_free()
+	_win = null
 
 
 func _play_lose() -> void:
@@ -879,6 +917,8 @@ func _clear_taunt(cog: Node, fight: Dictionary) -> void:
 
 
 func _show_hud(fight: Dictionary, delta: float) -> void:
+	if _pending.x >= 0 and int(fight.get("seq", -1)) != _ask_seq:
+		_pending = Vector2i(-1, -1)
 	var cards: Array = []
 	for item in fight.get("toons", []):
 		if not (item is Dictionary):
@@ -888,12 +928,16 @@ func _show_hud(fight: Dictionary, delta: float) -> void:
 		var hp := int(_shown.get("t:%d" % int(row.get("id", 0)), row.get("hp", 0)))
 		card["hp"] = hp
 		var choice := _choice_for(int(row.get("id", 0)))
+		var pending := int(row.get("id", 0)) == ToonNet.peer_id() and _pending.x >= 0 and choice.is_empty()
+		if pending:
+			choice = {"track": _pending.x, "level": _pending.y, "target": -1}
 		if String(fight.get("state", "")) != "join" and not choice.is_empty():
 			var track := int(choice.get("track", -1))
 			var level := int(choice.get("level", -1))
 			card["track"] = track
 			card["level"] = level
-			card["which"] = _which_marks(track, level, int(choice.get("target", -1)), int(row.get("id", 0)))
+			if not pending:
+				card["which"] = _which_marks(track, level, int(choice.get("target", -1)), int(row.get("id", 0)))
 		cards.append(card)
 	_hud.show_battle(cards, String(fight.get("state", "")), _seconds(fight, delta))
 
@@ -1086,6 +1130,7 @@ func _hold(active: bool) -> void:
 		_need_target = false
 		_hud.hide_all()
 		_reward_token += 1
+		_stop_win()
 		_reward.stop()
 		_menu.cancel()
 		_show_gen += 1
@@ -1296,6 +1341,19 @@ func _aim_camera(fight: Dictionary) -> void:
 		if movie != null and movie.has_aim():
 			movie.aim_camera(camera, basis)
 			return
+	if state == "reward":
+		# Movie.show_reward frames the dancing toon from the side, behind the line.
+		var actor := _actor_for(ToonNet.peer_id())
+		var look := origin + Vector3.UP * 3.0
+		if actor != null:
+			look = actor.global_position + Vector3.UP * 3.0
+		var side_sign := 1.0 if int(fight.get("id", 0)) % 2 == 0 else -1.0
+		var reward_pos := look - forward * 10.0 + right * side_sign * 5.0
+		camera.fov = 80.0
+		camera.global_position = reward_pos
+		if camera.global_position.distance_squared_to(look) > 0.25:
+			camera.look_at(look, Vector3.UP)
+		return
 	var fov := 80.0
 	var pos := origin - forward * 8.6 + Vector3.UP * 16.5
 	var look := origin

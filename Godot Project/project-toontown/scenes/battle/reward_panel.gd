@@ -85,9 +85,11 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 	_show_bars()
 	visible = true
 	_layout()
+	var showed := false
 	for track in ToonLoadout.TRACK_COUNT:
 		if int(_earned.get(track, 0)) <= 0:
 			continue
+		showed = true
 		await _tick(track)
 		if _skip:
 			break
@@ -99,6 +101,8 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 		])
 		if _skip:
 			break
+	if not showed and not _skip:
+		await _wait(2.5)
 	if not _skip and not quest_line.is_empty():
 		_show_quest(quest_line)
 		await _wait(2.0)

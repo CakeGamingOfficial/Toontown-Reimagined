@@ -10,6 +10,7 @@ signal chose(slot: int)
 signal backed
 
 const _STATUS := preload("res://assets/gui/battle/ToonBtl_Status_BG.png")
+const _BUTTON := preload("res://assets/gui/rules/InventoryButtonUp.png")
 const _PASS := preload("res://assets/gui/battle/tt_t_gui_bat_pass.png")
 const _WAIT := preload("res://assets/gui/battle/Waiting4Others.png")
 const _PICK := preload("res://assets/gui/battle/BtlPick_TAB.png")
@@ -35,6 +36,7 @@ var _health: Array[Label] = []
 var _marks: Array[Label] = []
 var _which: Array[Label] = []
 var _gags: Array[TextureRect] = []
+var _plates: Array[TextureRect] = []
 var _passes: Array[TextureRect] = []
 var _meters: Array[LaffMeter] = []
 var _meter_kind: Array[String] = []
@@ -146,7 +148,8 @@ func hide_choose() -> void:
 func _build_card(index: int) -> void:
 	var card := TextureRect.new()
 	card.texture = _STATUS
-	card.modulate = Color(0.5, 0.9, 0.5, 0.7)
+	# image_color tints the frame only. modulate would wash out the gag.
+	card.self_modulate = Color(0.5, 0.9, 0.5, 0.7)
 	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	card.stretch_mode = TextureRect.STRETCH_SCALE
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -164,10 +167,19 @@ func _build_card(index: int) -> void:
 	mark.text = "?"
 	mark.reparent(card)
 	_marks.append(mark)
+	var plate := TextureRect.new()
+	plate.texture = _BUTTON
+	plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	plate.stretch_mode = TextureRect.STRETCH_SCALE
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.z_index = 2
+	card.add_child(plate)
+	_plates.append(plate)
 	var gag := TextureRect.new()
 	gag.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	gag.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	gag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gag.z_index = 3
 	card.add_child(gag)
 	_gags.append(gag)
 	var passed := TextureRect.new()
@@ -186,7 +198,8 @@ func _layout() -> void:
 	var view := get_viewport().get_visible_rect().size
 	if view.y < 2.0:
 		return
-	var showing := _state == "input"
+	# The cards stay up through the movie so each toon's gag is still on the panel.
+	var showing := _state == "input" or _state == "movie"
 	var count := mini(_toons.size(), 4)
 	var spots := _ODD if count % 2 == 1 else _EVEN
 	var start := 0 if count >= 3 else 1
@@ -221,11 +234,16 @@ func _fill_card(index: int, toon: Dictionary, view: Vector2) -> void:
 	_place_on(card, _marks[index], 0.08, 0.012, 0.14, 0.08, unit)
 	ToonGui.style_label(_marks[index], _INK, _px(unit, 0.08), Color(0, 0, 0, 0), 0)
 	_passes[index].visible = track == -1
-	_place_on(card, _passes[index], 0.08, 0.04, 0.085, 0.085, unit)
-	_gags[index].visible = track >= 0
-	if track >= 0:
+	_passes[index].z_index = 3
+	_place_on(card, _passes[index], 0.1, 0.05, 0.1, 0.1, unit)
+	var chosen := track >= 0
+	_plates[index].visible = chosen
+	_gags[index].visible = chosen
+	if chosen:
 		_gags[index].texture = BattleMenu.icon_for(track, level)
-	_place_on(card, _gags[index], 0.08, 0.024, 0.09, 0.09, unit)
+	# TownBattleToonPanel.gagNode is (0.1, 0, 0.03), and the button sits at local z 0.02.
+	_place_on(card, _plates[index], 0.1, 0.05, 0.16, 0.16, unit)
+	_place_on(card, _gags[index], 0.1, 0.05, 0.11, 0.11, unit)
 	var marks := String(toon.get("which", ""))
 	_which[index].visible = marks != ""
 	_which[index].text = marks
