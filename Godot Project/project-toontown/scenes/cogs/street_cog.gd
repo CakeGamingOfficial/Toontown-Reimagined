@@ -1,7 +1,8 @@
 extends Node3D
 class_name StreetCog
 
-## A street suit. It flies in, walks the right-hand lane of the street, then flies out.
+## A street suit flies in, walks the right-hand lane, then flies out.
+## A building suit walks out of a cog door and later walks back into one.
 ## The lane is one loop: right sidewalk to the end, cross, then the other sidewalk back.
 ## Battles are not started from here.
 
@@ -37,8 +38,27 @@ const _INDEX_PATHS: PackedStringArray = [
 	"res://assets/cogs/anims/c/neutral.walk",
 	"res://assets/cogs/anims/c/landing.walk",
 	"res://assets/cogs/props/propeller.walk",
+	"res://assets/cogs/anims/robot_a/walk.walk",
+	"res://assets/cogs/anims/robot_a/neutral.walk",
+	"res://assets/cogs/anims/robot_a/landing.walk",
+	"res://assets/cogs/anims/robot_b/walk.walk",
+	"res://assets/cogs/anims/robot_b/neutral.walk",
+	"res://assets/cogs/anims/robot_b/landing.walk",
+	"res://assets/cogs/anims/robot_c/walk.walk",
+	"res://assets/cogs/anims/robot_c/neutral.walk",
+	"res://assets/cogs/anims/robot_c/landing.walk",
 ]
 const _SHADE := preload("res://scenes/cogs/cog_shade.gdshader")
+const _CORP_ICON := preload("res://assets/gui/cogs/CorpIcon.png")
+const _LEGAL_ICON := preload("res://assets/gui/cogs/LegalIcon.png")
+const _MONEY_ICON := preload("res://assets/gui/cogs/MoneyIcon.png")
+const _SALES_ICON := preload("res://assets/gui/cogs/SalesIcon.png")
+const _MEDALLION := {
+	"c": _CORP_ICON,
+	"l": _LEGAL_ICON,
+	"m": _MONEY_ICON,
+	"s": _SALES_ICON,
+}
 const _TRAFFIC := preload("res://scenes/streets/street_traffic.gd")
 ## Suit.generateSuit handColor. The glove geom is untextured; setSuitClothes only tints it.
 const _CORP_HAND := Color(0.95, 0.75, 0.75)
@@ -62,6 +82,7 @@ const _HAND_COLOR := {
 signal departed
 
 var cog_code := ""
+var _model_path := ""
 var cog_name := ""
 var cog_level := 1
 var dept := "c"
@@ -107,12 +128,17 @@ var _take_stage := ""
 var _door_goal := Vector3.ZERO
 var _building_suit := false
 var _from_building := false
+var _return_door := Vector3.ZERO
+var _return_exit := Vector3.ZERO
+var _return_block := -1
+var _enter_from := Vector3.ZERO
 var _door := Vector3.ZERO
 var _exit := Vector3.ZERO
 
 
 func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
-	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"])
+	var paths := _suit_paths(cog)
+	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"]) and _model_path == String(paths["model"])
 	cog_code = str(cog["code"])
 	cog_name = str(cog["name"])
 	dept = str(cog["dept"])
@@ -120,6 +146,11 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	height = float(cog["height"])
 	cog_level = int(cog.get("level", 1))
 	name = cog_name
+	_model_path = String(paths["model"])
+	if cog.has("scale"):
+		scale = Vector3.ONE * float(cog["scale"])
+	else:
+		scale = Vector3.ONE
 	_source = cog
 	_points = points
 	_route = route
@@ -152,24 +183,27 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		var previous := get_node_or_null("Suit")
 		if previous != null:
 			previous.free()
-		var packed := load("res://assets/cogs/suits/%s.glb" % cog_code) as PackedScene
+		var packed := load(String(paths["model"])) as PackedScene
 		if packed == null:
 			_give_up()
 			return
 		var actor := packed.instantiate()
 		actor.name = "Suit"
 		add_child(actor)
-		_hide_gray_cuffs(actor)
+		if not bool(cog.get("skeleton", false)):
+			_hide_gray_cuffs(actor)
 		_materials.clear()
 		_own_materials(actor)
 		_paint_hands(actor)
 		_quiet_shadows(actor)
+		if bool(cog.get("skeleton", false)):
+			_paint_medallion(actor)
 	_release_nametag()
 	_add_nametag()
 	if not same or _walk.is_empty():
-		_walk = _read_bank("res://assets/cogs/anims/%s/walk.walk" % body)
-		_neutral = _read_bank("res://assets/cogs/anims/%s/neutral.walk" % body)
-		_landing = _read_bank("res://assets/cogs/anims/%s/landing.walk" % body)
+		_walk = _read_bank(String(paths["walk"]))
+		_neutral = _read_bank(String(paths["neutral"]))
+		_landing = _read_bank(String(paths["landing"]))
 	if int(_landing.get("frames", 0)) > 1:
 		_landing_frames = int(_landing["frames"])
 	if _route.size() < 2:
@@ -179,6 +213,17 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	_read_take(resume)
 	_building_suit = bool(resume.get("building_suit", false))
 	set_meta("building_suit", _building_suit)
+	_return_door = _vec(resume, "return_door", Vector3.ZERO)
+	_return_exit = _vec(resume, "return_exit", Vector3.ZERO)
+	_return_block = int(resume.get("return_block", -1))
+	if int(resume.get("phase", -1)) == 3:
+		_phase = 3
+		_fly = float(resume.get("fly", 0.0))
+		_enter_from = _vec(resume, "enter_from", _vec(resume, "position", global_position))
+		global_position = _vec(resume, "position", _enter_from)
+		rotation.y = float(resume.get("yaw", 0.0))
+		_set_alpha(1.0)
+		return
 	if bool(resume.get("from_building", false)):
 		_begin_exit(resume)
 		return
@@ -263,6 +308,10 @@ func capture() -> Dictionary:
 		"building_suit": _building_suit,
 		"door": [_door.x, _door.y, _door.z],
 		"exit": [_exit.x, _exit.y, _exit.z],
+		"return_door": [_return_door.x, _return_door.y, _return_door.z],
+		"return_exit": [_return_exit.x, _return_exit.y, _return_exit.z],
+		"return_block": _return_block,
+		"enter_from": [_enter_from.x, _enter_from.y, _enter_from.z],
 		"do_id": int(get_meta("do_id", 0)),
 		"takeover": _take,
 		"take_stage": _take_stage,
@@ -293,6 +342,11 @@ func _resume(state: Dictionary) -> void:
 		_play_propeller(false)
 		var dur := float(maxi(_landing_frames, 1)) / _landing_fps
 		_pose_elapsed(_landing, dur - _fly, _landing_fps, false)
+		return
+	if _phase == 3:
+		_set_alpha(1.0)
+		_enter_from = _vec(state, "enter_from", global_position)
+		_return_door = _vec(state, "return_door", _return_door)
 		return
 	if _take_stage == "door":
 		_phase = 1
@@ -365,7 +419,10 @@ func _vec(state: Dictionary, key: String, fallback: Vector3) -> Vector3:
 func play_attack(key: String, elapsed: float) -> void:
 	# Attack clips are loaded on demand. Street roaming does not call this.
 	if not _attacks.has(key):
-		_attacks[key] = _read_bank("res://assets/cogs/anims/%s/%s.walk" % [body, key])
+		var folder := body
+		if bool(_source.get("skeleton", false)):
+			folder = "robot_%s" % body
+		_attacks[key] = _read_bank("res://assets/cogs/anims/%s/%s.walk" % [folder, key])
 	var bank: Dictionary = _attacks[key]
 	var frames := int(bank.get("frames", 0))
 	if frames <= 1:
@@ -485,6 +542,9 @@ func _process(delta: float) -> void:
 	if _points.is_empty():
 		return
 	_detail = _camera_detail()
+	if _phase == 3:
+		_enter_building(delta)
+		return
 	if _phase == 0:
 		if _from_building:
 			_leave_building(delta)
@@ -627,6 +687,8 @@ func _roam(delta: float) -> void:
 		if _edges_left <= 0:
 			if not _take.is_empty():
 				_begin_door()
+			elif _building_suit and _return_door.length_squared() > 1.0 and _door_still_cog():
+				_begin_enter()
 			else:
 				_begin_fly_out()
 			return
@@ -700,6 +762,58 @@ func _lane_blocked() -> bool:
 		if flat.dot(toward) / (dist * reach) >= 0.65:
 			return true
 	return false
+
+
+func _door_still_cog() -> bool:
+	if _return_block < 0:
+		return true
+	var suits := get_parent()
+	if suits == null:
+		return true
+	var street := suits.get_parent()
+	if street == null:
+		return true
+	var buildings := street.get_node_or_null("StreetBuildings")
+	if buildings == null or not buildings.has_method("block_taken"):
+		return true
+	return bool(buildings.call("block_taken", _return_block))
+
+
+func _begin_enter() -> void:
+	_phase = 3
+	_fly = 0.0
+	_enter_from = global_position
+	_path_ready = true
+
+
+func _enter_building(delta: float) -> void:
+	_fly += delta
+	var start := _enter_from
+	var door := _return_door
+	var flat := Vector2(start.x, start.z)
+	var target := Vector2(door.x, door.z)
+	var dist := flat.distance_to(target)
+	var dur := maxf(dist / WALK_SPEED, 0.35)
+	var along := clampf(_fly / dur, 0.0, 1.0)
+	global_position = start.lerp(door, along)
+	var toward := target - flat
+	if toward.length_squared() > 0.0001:
+		_face(toward.normalized())
+	_walk_time = fposmod(_walk_time + delta * _walk_fps, float(maxi(int(_walk.get("frames", 1)), 1)))
+	var frames := int(_walk.get("frames", 1))
+	if frames > 1:
+		var frame := int(_walk_time)
+		if frame >= frames:
+			frame = 0
+		var blend := _walk_time - float(frame)
+		_pose_clip(_walk, frame, (frame + 1) % frames, blend)
+	if _fly < dur:
+		return
+	departed.emit()
+	if bool(get_meta("pooled", false)):
+		set_meta("pooled", false)
+		return
+	queue_free()
 
 
 func _begin_fly_out() -> void:
@@ -801,6 +915,9 @@ func _assign_path() -> void:
 		var door_slot := _TRAFFIC.nearest_route(_points, _route, _TRAFFIC.read_pos(_take.get("pos", [])))
 		_edges_left = _TRAFFIC.door_steps(_slot, door_slot, _route.size())
 		_take_stage = "lane"
+	elif _building_suit and _return_exit.length_squared() > 1.0:
+		var back_slot := _TRAFFIC.nearest_route(_points, _route, _return_exit)
+		_edges_left = _TRAFFIC.door_steps(_slot, back_slot, _route.size())
 	_step_lane()
 
 
@@ -1046,6 +1163,43 @@ func _quiet_shadows(node: Node) -> void:
 		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_quiet_shadows(child)
+
+
+func _suit_paths(cog: Dictionary) -> Dictionary:
+	var code := str(cog.get("code", ""))
+	var suit_body := str(cog.get("body", "c"))
+	return {
+		"model": str(cog.get("model", "res://assets/cogs/suits/%s.glb" % code)),
+		"walk": str(cog.get("walk", "res://assets/cogs/anims/%s/walk.walk" % suit_body)),
+		"neutral": str(cog.get("neutral", "res://assets/cogs/anims/%s/neutral.walk" % suit_body)),
+		"landing": str(cog.get("landing", "res://assets/cogs/anims/%s/landing.walk" % suit_body)),
+	}
+
+
+## Suit.generateCorporateMedallion. The robot export wears a Sellbot badge.
+func _paint_medallion(actor: Node) -> void:
+	var icon := _find_named(actor, "Icon")
+	if icon == null or icon.mesh == null:
+		return
+	var texture: Texture2D = _MEDALLION.get(dept, _CORP_ICON)
+	var color := Cog.medallion_color(dept)
+	for index in icon.mesh.get_surface_count():
+		var material := icon.get_surface_override_material(index) as ShaderMaterial
+		if material == null:
+			continue
+		material.set_shader_parameter("albedo_texture", texture)
+		material.set_shader_parameter("use_albedo_texture", 1.0)
+		material.set_shader_parameter("albedo_color", color)
+
+
+func _find_named(node: Node, tail: String) -> MeshInstance3D:
+	if node is MeshInstance3D and str(node.name).ends_with(tail):
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _find_named(child, tail)
+		if found != null:
+			return found
+	return null
 
 
 func _hide_gray_cuffs(actor: Node) -> void:
@@ -1437,12 +1591,16 @@ static func _joint_at(record: Dictionary, frame: int) -> Transform3D:
 func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
 	var clips: Array = []
 	var joints: Array = []
+	# The robot egg names every bone card "node". Each clip entry is the next
+	# mesh of that name, in the same order the baker walked the model.
+	var taken: Array = []
 	var nodes: Array = parsed.get("nodes", [])
 	for item in nodes:
 		var node: Dictionary = item
-		var instance := _find(root, str(node["name"])) as MeshInstance3D
+		var instance := _find_mesh(root, str(node["name"]), taken)
 		if instance == null or instance.mesh == null:
 			continue
+		taken.append(instance)
 		var poses: Array = node.get("poses", [])
 		if poses.is_empty():
 			continue
@@ -1507,3 +1665,23 @@ func _find(node: Node, wanted: String) -> Node:
 		if found != null:
 			return found
 	return null
+
+
+func _find_mesh(node: Node, wanted: String, taken: Array) -> MeshInstance3D:
+	if node is MeshInstance3D and not taken.has(node) and _same_mesh(node.name, wanted):
+		return node
+	for child in node.get_children():
+		var found := _find_mesh(child, wanted, taken)
+		if found != null:
+			return found
+	return null
+
+
+## Godot renames a second "node" to "node2" on import. The clip still says "node".
+func _same_mesh(actual: String, wanted: String) -> bool:
+	if actual == wanted:
+		return true
+	if not actual.begins_with(wanted):
+		return false
+	var rest := actual.substr(wanted.length())
+	return rest.is_valid_int()

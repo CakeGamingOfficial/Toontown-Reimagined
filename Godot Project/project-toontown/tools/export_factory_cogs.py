@@ -165,11 +165,16 @@ def export_robots() -> None:
 
     loadPrcFileData("", "window-type none")
     loadPrcFileData("", "audio-library-name null")
-    asset_root = Filename.from_os_specific(str(USER_ASSETS))
+    # Suit.makeSkeleton plays generateAnimDict on the robot mesh. Those are
+    # the body clips, not a separate robot library.
+    asset_root_path = USER_ASSETS
+    if not (asset_root_path / "phase_5" / "models" / "char" / "cogA_robot-zero.bam").exists():
+        asset_root_path = suits.ASSETS
+    asset_root = Filename.from_os_specific(str(asset_root_path))
     toon_export.ASSETS = asset_root
-    suits.ASSETS = USER_ASSETS
+    suits.ASSETS = asset_root_path
     getModelPath().prependDirectory(asset_root)
-    for body, (model_file, neutral_file, walk_file) in ROBOTS.items():
+    for body, (model_file, neutral_file, _walk_file) in ROBOTS.items():
         model = toon_export.load_model(model_file)
         if model is None:
             print("missing", model_file, flush=True)
@@ -178,10 +183,9 @@ def export_robots() -> None:
         model.setTag("suit_body", body)
         saved, neutral = suits.pose_neutral(model, neutral_file)
         suits.BODIES_NEUTRAL[body] = neutral
-        _write_robot(exporter, model, body)
         clip_dir = ROOT / "assets" / "cogs" / "anims" / f"robot_{body}"
         clip_dir.mkdir(parents=True, exist_ok=True)
-        for key, relative in (("neutral", neutral_file), ("walk", walk_file)):
+        for key, relative in suits.clips_for(body):
             frames, rate = suits.bake_clip(model, saved, relative, clip_dir / f"{key}.walk")
             print(f"robot_{body} {key}: {frames} frames @ {rate}", flush=True)
 

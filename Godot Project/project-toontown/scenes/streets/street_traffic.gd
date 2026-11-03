@@ -139,9 +139,12 @@ func summon(district: int, slug: String, query: String, level: int, near: Vector
 	if not _streets.has(key):
 		return
 	var record: Dictionary = _streets[key]
-	var cog := StreetSuits.match_cog(record.get("catalog", []), query)
+	var parsed := StreetSuits.parse_summon(query)
+	var cog := StreetSuits.match_cog(record.get("catalog", []), String(parsed["name"]))
 	if cog.is_empty():
 		return
+	if bool(parsed["skeleton"]):
+		StreetSuits.dress_skeleton(cog)
 	var cog_type := int(cog.get("type", 1))
 	var rolled := cog_type
 	var levels: Array = record.get("levels", [])
@@ -514,6 +517,8 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 		return staying
 	if phase == 2:
 		return _step_fly(cog, delta, true)
+	if phase == 3:
+		return _step_enter(cog, delta)
 	var take: Dictionary = cog.get("takeover", {})
 	if not take.is_empty() and String(cog.get("take_stage", "lane")) == "door":
 		return _step_door(cog, take, delta, district, slug)
@@ -542,6 +547,12 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 				cog["take_stage"] = "door"
 				cog["position"] = goal
 				cog["door_goal"] = stand_outside(goal, read_pos(take.get("pos", [])))
+				return true
+			if bool(cog.get("building_suit", false)) and _vec_at(cog, "return_door", Vector3.ZERO).length_squared() > 1.0 and _block_still_suit(district, slug, int(cog.get("return_block", -1))):
+				cog["phase"] = 3
+				cog["fly"] = 0.0
+				cog["enter_from"] = goal
+				cog["position"] = goal
 				return true
 			cog["phase"] = 2
 			cog["fly"] = 0.0
@@ -673,6 +684,38 @@ func _established(district: int, slug: String) -> Array:
 	return kept
 
 
+func _return_door(district: int, slug: String, track: String, fallback: Dictionary) -> Dictionary:
+	var choices: Array = []
+	var book := _door_book(slug)
+	for item in _established(district, slug):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if String(row.get("track", "")) != track:
+			continue
+		var doors: Array = book.get(int(row.get("block", 0)), [])
+		for door in doors:
+			if door is Dictionary:
+				var copy: Dictionary = (door as Dictionary).duplicate()
+				copy["block"] = int(row.get("block", -1))
+				choices.append(copy)
+	if choices.is_empty():
+		return fallback
+	var picked: Variant = choices[randi() % choices.size()]
+	if picked is Dictionary:
+		return picked
+	return fallback
+
+
+func _block_still_suit(district: int, slug: String, block: int) -> bool:
+	if block < 0:
+		return true
+	for item in _established(district, slug):
+		if item is Dictionary and int((item as Dictionary).get("block", -1)) == block:
+			return true
+	return false
+
+
 func _door_for(slug: String, block: int) -> Dictionary:
 	var book: Dictionary = _door_book(slug)
 	var doors: Array = book.get(block, [])
@@ -720,6 +763,7 @@ func _queue_building_suits(record: Dictionary, points: Array, route: PackedInt32
 		var door := _door_for(slug, int(row.get("block", 0)))
 		if door.is_empty():
 			return
+		var dest := _return_door(district, slug, String(row.get("track", "c")), door)
 		var cog := _pick_track(record, String(row.get("track", "c")))
 		if cog.is_empty():
 			return
@@ -732,6 +776,9 @@ func _queue_building_suits(record: Dictionary, points: Array, route: PackedInt32
 		job["building_suit"] = true
 		job["door"] = door.get("pos", [])
 		job["exit"] = door.get("exit", [])
+		job["return_door"] = dest.get("pos", [])
+		job["return_exit"] = dest.get("exit", [])
+		job["return_block"] = int(dest.get("block", row.get("block", -1)))
 		job["position"] = span["start"]
 		job["yaw"] = span["yaw"]
 		job["ground"] = span["end"]
@@ -776,6 +823,25 @@ func _step_exit(cog: Dictionary, delta: float) -> bool:
 	cog["position"] = outside
 	cog["ground"] = outside
 	return true
+
+
+func _step_enter(cog: Dictionary, delta: float) -> bool:
+	var fly := float(cog.get("fly", 0.0)) + delta
+	cog["fly"] = fly
+	var start := _vec_at(cog, "enter_from", _vec_at(cog, "position", Vector3.ZERO))
+	var door := _vec_at(cog, "return_door", Vector3.ZERO)
+	var flat := Vector2(start.x, start.z)
+	var target := Vector2(door.x, door.z)
+	var dist := flat.distance_to(target)
+	var dur := maxf(dist / StreetCog.WALK_SPEED, 0.35)
+	var along := clampf(fly / dur, 0.0, 1.0)
+	cog["position"] = start.lerp(door, along)
+	var toward := target - flat
+	if toward.length_squared() > 0.0001:
+		var flat_toward := toward.normalized()
+		cog["yaw"] = atan2(-flat_toward.x, -flat_toward.y)
+	cog["walk"] = float(cog.get("walk", 0.0)) + delta * 24.0
+	return fly < dur
 
 
 func _step_fly(cog: Dictionary, delta: float, leaving: bool) -> bool:
@@ -888,6 +954,22 @@ func _assign_path(cog: Dictionary, points: Array, route: PackedInt32Array) -> vo
 			var door_flat := door_toward.normalized()
 			cog["yaw"] = atan2(-door_flat.x, -door_flat.y)
 		return
+	if bool(cog.get("building_suit", false)):
+		var dest := _vec_at(cog, "return_exit", Vector3.ZERO)
+		if dest.length_squared() > 1.0:
+			var back_ground := _point_at(points, route[slot])
+			var back_slot := nearest_route(points, route, dest)
+			var back_next := (slot + 1) % route.size()
+			var back_goal := _point_at(points, route[back_next])
+			cog["edges"] = door_steps(slot, back_slot, route.size())
+			cog["goal"] = back_goal
+			cog["ground"] = back_ground
+			cog["pathed"] = true
+			var back_toward := Vector2(back_goal.x - back_ground.x, back_goal.z - back_ground.z)
+			if back_toward.length_squared() > 0.0001:
+				var back_flat := back_toward.normalized()
+				cog["yaw"] = atan2(-back_flat.x, -back_flat.y)
+			return
 	var ground := _point_at(points, route[slot])
 	var ahead := randi_range(1, route.size() - 1)
 	var path_points := ahead + 1

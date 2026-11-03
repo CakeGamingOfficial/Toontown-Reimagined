@@ -205,6 +205,9 @@ static func _batch(zone: Node3D, root: Node) -> void:
 			_emit(zone, bucket, true)
 		else:
 			_store(zone, bucket, placed)
+	# A wall card's triangle is thin enough to walk through. The box stays on
+	# the wall node, so hiding the flat for a takeover does not drop it.
+	_thicken_walls(taken)
 	for mesh in taken:
 		mesh.mesh = null
 
@@ -220,6 +223,12 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 	if node != zone and node is Node3D and _animated_facade(String(node.name)):
 		_solid_facade(node as Node3D)
 		return
+	# A flat is one block of the shop. Takeover hides that node and shows the
+	# suit wall that was measured while these meshes still existed.
+	if node != zone and node is Node3D and _flat_root(node):
+		preload("res://scenes/streets/street_buildings.gd").capture_flat(node as Node3D)
+		_flatten_landmark(node as Node3D)
+		return
 	if node != zone and _leave_alone(String(node.name)):
 		return
 	if node is MeshInstance3D and node != zone:
@@ -232,6 +241,19 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 
 static func _toon_shop(node_name: String) -> bool:
 	return node_name.to_lower().contains("toon_landmark")
+
+
+## tb12_random_DNARoot, not the landmark and not the internal wrapper under it.
+static func _flat_root(node: Node) -> bool:
+	var node_name := String(node.name)
+	if not node_name.begins_with("tb") or _landmark(node_name):
+		return false
+	if not node_name.contains("DNARoot"):
+		return false
+	var parent := node.get_parent()
+	if parent != null and String(parent.name).begins_with("tb"):
+		return false
+	return true
 
 
 static func _animated_facade(node_name: String) -> bool:
@@ -335,6 +357,7 @@ static func _flatten_landmark(landmark: Node3D) -> void:
 		if mesh == null:
 			continue
 		_instance(landmark, mesh)
+	_thicken_walls(taken)
 	for mesh in taken:
 		# Keep the node visible. Door cards are children of the wall, and
 		# hiding the wall hides the door even though its own mesh is still there.
@@ -354,6 +377,7 @@ static func _solid_facade(building: Node3D) -> void:
 	var into := building.global_transform.affine_inverse()
 	for child in building.get_children():
 		_collect(child, building, into, job, taken)
+	_thicken_walls(taken)
 	_add_landmark_solid(building, job.faces)
 
 
@@ -493,6 +517,60 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 		copied += 1
 		cursor += 3
 	return copied
+
+
+## A flat wall is one quad. The concave triangle does not stop a toon, so the
+## quad gets a box on its thin side. Five stories is about 50 feet.
+static func _thicken_walls(taken: Array[MeshInstance3D]) -> void:
+	for mesh in taken:
+		if mesh == null or not is_instance_valid(mesh):
+			continue
+		if not String(mesh.name).to_lower().begins_with("wall_"):
+			continue
+		_thicken_wall(mesh)
+
+
+static func _thicken_wall(mesh: MeshInstance3D) -> void:
+	if mesh.mesh == null or mesh.get_node_or_null("WallSolid") != null:
+		return
+	var aabb := mesh.get_aabb()
+	var span := aabb.size
+	var axis := 0
+	var thin := span.x
+	if span.y < thin:
+		thin = span.y
+		axis = 1
+	if span.z < thin:
+		thin = span.z
+		axis = 2
+	var wide_a := span.y
+	var wide_b := span.z
+	if axis == 1:
+		wide_a = span.x
+		wide_b = span.z
+	elif axis == 2:
+		wide_a = span.x
+		wide_b = span.y
+	if thin > 0.25 or wide_a > 100.0 or wide_b > 100.0 or wide_a < 0.4 or wide_b < 0.4:
+		return
+	var size := span
+	if axis == 0:
+		size.x = 1.0
+	elif axis == 1:
+		size.y = 1.0
+	else:
+		size.z = 1.0
+	var body := StaticBody3D.new()
+	body.name = "WallSolid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := BoxShape3D.new()
+	shape.size = size
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	collision.position = aabb.get_center()
+	body.add_child(collision)
+	mesh.add_child(body)
 
 
 ## Flat-building walls, and the playground fence copied along a street edge.

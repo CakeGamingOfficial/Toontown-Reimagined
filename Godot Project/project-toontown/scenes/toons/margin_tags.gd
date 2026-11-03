@@ -131,7 +131,8 @@ func _offer_card(item: Dictionary, camera: Camera3D, view: Rect2, wish: Array[Di
 	if kind == "player" or kind == "":
 		return
 	var raw: Variant = item.get("actor")
-	if not (raw is Node3D) or not is_instance_valid(raw):
+	# `is` throws when the actor was already freed. Check that first.
+	if typeof(raw) != TYPE_OBJECT or not is_instance_valid(raw) or not (raw is Node3D):
 		return
 	var actor := raw as Node3D
 	if not actor.visible or not actor.is_visible_in_tree():

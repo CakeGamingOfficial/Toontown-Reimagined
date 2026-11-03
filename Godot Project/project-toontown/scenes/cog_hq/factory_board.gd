@@ -144,6 +144,7 @@ func _suit(by_code: Dictionary, level: int, skeleton: bool) -> Dictionary:
 	if not skeleton:
 		return suit
 	suit["name"] = "Skelecog"
+	suit["skeleton"] = true
 	var model := "res://assets/cogs/suits/robot_%s.glb" % body
 	var walk := "res://assets/cogs/anims/robot_%s/walk.walk" % body
 	var neutral := "res://assets/cogs/anims/robot_%s/neutral.walk" % body

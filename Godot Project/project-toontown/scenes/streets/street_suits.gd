@@ -7,7 +7,7 @@ const _COG := preload("res://scenes/cogs/street_cog.gd")
 ## min and max, then drifts inside that range. An upkeep every 10 seconds
 ## creates only (deficit + 3) / 4 suits, and the whole district stops at 50.
 ## An established cog building keeps about 1.5 suits. Those suits walk out
-## the side door, then take a street path. Clients wake a pooled actor from a
+## a side door and later walk back into one of the same department. Clients wake a pooled actor from a
 ## record. They do not pick DNA themselves.
 
 const DEPTS: PackedStringArray = ["c", "l", "m", "s"]
@@ -449,9 +449,12 @@ func established_suit_buildings() -> int:
 ## to the toon. A level of -1 lets the street roll one, then clamps it to
 ## the range that cog type can actually be.
 func summon_named(query: String, level: int, near: Vector3) -> String:
-	var cog := _find_named(query)
+	var parsed := parse_summon(query)
+	if String(parsed["name"]).is_empty():
+		return "Name a cog. Try ~suit flunky, ~suit pp 5, or ~suit cold caller skelecog."
+	var cog := _find_named(String(parsed["name"]))
 	if cog.is_empty():
-		return "Unknown cog \"%s\"." % query
+		return "Unknown cog \"%s\"." % String(parsed["name"])
 	if _route.size() < 2 or _points.is_empty():
 		return "This street has no cog spawn points."
 	var cog_type := int(cog.get("type", 1))
@@ -461,6 +464,8 @@ func summon_named(query: String, level: int, near: Vector3) -> String:
 	elif not _levels.is_empty():
 		rolled = int(_levels[randi() % _levels.size()])
 	cog["level"] = clampi(rolled, cog_type, cog_type + 4)
+	if bool(parsed["skeleton"]):
+		dress_skeleton(cog)
 	# A client does not create the suit. The district AI does, then everyone plays it.
 	if not ToonNet.is_authority():
 		ToonNet.ask_summon(district_id, street_slug, query, int(cog["level"]), near)
@@ -476,6 +481,127 @@ func summon_named(query: String, level: int, near: Vector3) -> String:
 		"phase": -1,
 	})
 	return "A Level %d %s is flying in." % [int(cog["level"]), String(cog["name"])]
+
+
+## ~suit flunky skelecog. createNewSuit's skelecog flag, then Suit.makeSkeleton.
+static func parse_summon(query: String) -> Dictionary:
+	var skeleton := false
+	var names := PackedStringArray()
+	for part in query.split(" ", false):
+		var key := part.to_lower()
+		if key == "skelecog" or key == "skele" or key == "skeleton" or key == "sk":
+			skeleton = true
+		else:
+			names.append(part)
+	return {"name": " ".join(names), "skeleton": skeleton}
+
+
+## Suit.makeSkeleton. The robot mesh already includes the 1.0173 scale. The
+## suit's own scale is applied when it appears. The displayed name is Skelecog.
+static func dress_skeleton(cog: Dictionary) -> void:
+	var suit_body := String(cog.get("body", "c"))
+	cog["name"] = "Skelecog"
+	cog["skeleton"] = true
+	cog["model"] = "res://assets/cogs/suits/robot_%s.glb" % suit_body
+	cog["walk"] = "res://assets/cogs/anims/robot_%s/walk.walk" % suit_body
+	cog["neutral"] = "res://assets/cogs/anims/robot_%s/neutral.walk" % suit_body
+	cog["landing"] = "res://assets/cogs/anims/robot_%s/landing.walk" % suit_body
+	cog["scale"] = float(cog.get("scale", 1.0))
+
+
+## ~spawnbuilding sellbot 1 takes the closest toon building and makes it that
+## many stories of that department. ~spawnbuilding flunky does the same as a
+## real takeover by that cog: the street rolls the level and the floor count.
+## A building that is already a cog building is skipped.
+func spawn_building(query: String, near: Vector3) -> String:
+	var buildings := get_parent().get_node_or_null("StreetBuildings")
+	if buildings == null or not buildings.has_method("nearest_block"):
+		return "Cog buildings can only be spawned on a street."
+	var args := query.split(" ", false)
+	var track := ""
+	var floors := 0
+	var cog: Dictionary = {}
+	if not args.is_empty():
+		track = String(buildings.call("track_named", String(args[0])))
+	if track != "":
+		if args.size() < 2 or not String(args[1]).is_valid_int():
+			return "Use ~spawnbuilding sellbot 1. The floor count is 1 through 5."
+		floors = int(args[1])
+		if floors < 1 or floors > 5:
+			return "Floor count must be from 1 to 5."
+	else:
+		cog = _find_named(query)
+		if cog.is_empty():
+			return "Invalid Cog specified."
+		track = String(cog.get("dept", "c"))
+	var shop: Dictionary = buildings.call("nearest_block", near, false)
+	if shop.is_empty():
+		if cog.is_empty():
+			return "Couldn't spawn a building."
+		return "Couldn't spawn building with Cog '%s'." % String(cog.get("name", query))
+	var difficulty := 0
+	if cog.is_empty():
+		difficulty = int(buildings.call("difficulty_for_floors", floors))
+	else:
+		var cog_type := int(cog.get("type", 1))
+		var level := cog_type
+		if not _levels.is_empty():
+			level = int(_levels[randi() % _levels.size()])
+		level = clampi(level, cog_type, cog_type + 4)
+		floors = int(buildings.call("floors_for", level))
+		difficulty = int(buildings.call("takeover_index", level))
+	var plan := {
+		"block": int(shop.get("block", 0)),
+		"track": track,
+		"difficulty": difficulty,
+		"floors": floors,
+		"title": String(shop.get("title", "")),
+	}
+	if not _apply_building("spawn", plan):
+		if cog.is_empty():
+			return "Couldn't spawn a building."
+		return "Couldn't spawn building with Cog '%s'." % String(cog.get("name", query))
+	if cog.is_empty():
+		return "Successfully spawned a %d-story %s building." % [floors, String(buildings.call("dept_name", track))]
+	return "Successfully spawned building with Cog '%s'!" % String(cog.get("name", query))
+
+
+## The closest cog building is taken back, unless toons are already inside it.
+func free_building(near: Vector3) -> String:
+	var buildings := get_parent().get_node_or_null("StreetBuildings")
+	if buildings == null or not buildings.has_method("nearest_block"):
+		return "Couldn't free building."
+	var shop: Dictionary = buildings.call("nearest_block", near, true)
+	if shop.is_empty():
+		return "Couldn't free building."
+	var block := int(shop.get("block", 0))
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic == null:
+		return "Couldn't free building."
+	var runs := traffic.get_node_or_null("BuildingRuns")
+	if runs != null and runs.has_method("occupied") and bool(runs.call("occupied", district_id, street_slug, block)):
+		return "Toons are currently taking back the building!"
+	if not _apply_building("free", {"block": block}):
+		return "Couldn't free building."
+	return "Successfully took back building!"
+
+
+func _apply_building(mode: String, plan: Dictionary) -> bool:
+	if not ToonNet.is_authority():
+		ToonNet.ask_building(district_id, street_slug, mode, plan)
+		return true
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic == null:
+		return false
+	if mode == "free":
+		if not traffic.has_method("retake_building"):
+			return false
+		traffic.call("retake_building", district_id, street_slug, int(plan.get("block", 0)))
+		return true
+	if not traffic.has_method("start_takeover"):
+		return false
+	traffic.call("start_takeover", district_id, street_slug, plan)
+	return true
 
 
 func _summon_parked(cog: Dictionary, near: Vector3) -> String:
@@ -624,6 +750,7 @@ func _queue_building_suits() -> void:
 		if doors.is_empty():
 			return
 		var door: Dictionary = doors[randi() % doors.size()]
+		var dest := _return_door(String(row.get("track", "c")), door)
 		var cog := _pick_track(String(row.get("track", "c")))
 		if cog.is_empty():
 			return
@@ -641,10 +768,35 @@ func _queue_building_suits() -> void:
 			"building_suit": true,
 			"door": door.get("pos", []),
 			"exit": door.get("exit", []),
+			"return_door": dest.get("pos", []),
+			"return_exit": dest.get("exit", []),
+			"return_block": int(dest.get("block", row.get("block", -1))),
 			"position": span["start"],
 			"yaw": span["yaw"],
 		})
 		burst -= 1
+
+
+func _return_door(track: String, fallback: Dictionary) -> Dictionary:
+	var choices: Array = []
+	for item in _established_rows():
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if String(row.get("track", "")) != track:
+			continue
+		var doors: Array = _doors.get(int(row.get("block", 0)), [])
+		for door in doors:
+			if door is Dictionary:
+				var copy: Dictionary = (door as Dictionary).duplicate()
+				copy["block"] = int(row.get("block", -1))
+				choices.append(copy)
+	if choices.is_empty():
+		return fallback
+	var picked: Variant = choices[randi() % choices.size()]
+	if picked is Dictionary:
+		return picked
+	return fallback
 
 
 func _established_rows() -> Array:

@@ -11,7 +11,7 @@ const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5\n~togglegm   ~setgm 1\n~districts   ~district host   ~district join 127.0.0.1"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~districts   ~district host   ~district join 127.0.0.1"
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
 const _WORDS: Dictionary = {
@@ -50,6 +50,11 @@ const _WORDS: Dictionary = {
 	"cog": "suit",
 	"spawn": "suit",
 	"summon": "suit",
+	"spawnbuilding": "spawnbuilding",
+	"spawnbldg": "spawnbuilding",
+	"building": "spawnbuilding",
+	"bldg": "spawnbuilding",
+	"freebldg": "freebldg",
 	"togglegm": "gm",
 	"setgm": "gm",
 	"icon": "gm",
@@ -231,7 +236,10 @@ static func invoke(scene: Node, text: String) -> String:
 	for index in range(1, parts.size()):
 		args.append(String(parts[index]))
 	if not _WORDS.has(word):
-		return _unknown(word)
+		var prefix := _unique_prefix(word)
+		if prefix == "":
+			return _unknown(word)
+		word = prefix
 	match String(_WORDS[word]):
 		"help":
 			return _HELP
@@ -270,6 +278,10 @@ static func invoke(scene: Node, text: String) -> String:
 			return _request_trolley(args)
 		"suit":
 			return _summon_suit(scene, args)
+		"spawnbuilding":
+			return _spawn_building(scene, args)
+		"freebldg":
+			return _free_building(scene)
 		"gm":
 			return _set_gm(word, args)
 		"districts":
@@ -570,14 +582,36 @@ static func _set_gm(word: String, args: PackedStringArray) -> String:
 	return "GM icon set to %d." % request
 
 
+static func _spawn_building(scene: Node, args: PackedStringArray) -> String:
+	var suits := scene.get_node_or_null("StreetSuits")
+	var buildings := scene.get_node_or_null("StreetBuildings")
+	var body := scene.get_node_or_null("Player") as Node3D
+	if suits == null or buildings == null or body == null or not suits.has_method("spawn_building"):
+		return "Cog buildings can only be spawned on a street."
+	if args.is_empty():
+		return "Use ~spawnbuilding sellbot 1, or ~spawnbuilding flunky."
+	return String(suits.call("spawn_building", " ".join(args), body.global_position))
+
+
+static func _free_building(scene: Node) -> String:
+	var suits := scene.get_node_or_null("StreetSuits")
+	var buildings := scene.get_node_or_null("StreetBuildings")
+	var body := scene.get_node_or_null("Player") as Node3D
+	if suits == null or buildings == null or body == null or not suits.has_method("free_building"):
+		return "Cog buildings can only be freed on a street."
+	return String(suits.call("free_building", body.global_position))
+
+
 static func _summon_suit(scene: Node, args: PackedStringArray) -> String:
 	if args.is_empty():
-		return "Name a cog. Try ~suit flunky, ~suit pp, or ~suit cold caller 5."
+		return "Name a cog. Try ~suit flunky, ~suit pp 5, or ~suit cold caller skelecog."
 	var level := -1
-	var name_args := args
-	if args.size() > 1 and args[args.size() - 1].is_valid_int():
-		level = int(args[args.size() - 1])
-		name_args = args.slice(0, args.size() - 1)
+	var name_args := PackedStringArray()
+	for arg in args:
+		if level < 0 and arg.is_valid_int():
+			level = int(arg)
+		else:
+			name_args.append(arg)
 	var query := " ".join(name_args)
 	var suits := scene.get_node_or_null("StreetSuits")
 	if suits == null or not suits.has_method("summon_named"):
@@ -592,6 +626,20 @@ static func _trolley_choices() -> String:
 	return "Try ~mg cannon, ring, maze, tug, catch, diving, slingshot, memory, vine, thief, or escape."
 
 
+static func _unique_prefix(word: String) -> String:
+	if word.length() < 2:
+		return ""
+	var found := ""
+	for alias in _WORDS.keys():
+		var name := String(alias)
+		if not name.begins_with(word):
+			continue
+		if found != "" and found != name:
+			return ""
+		found = name
+	return found
+
+
 static func _unknown(word: String) -> String:
 	var guess := ""
 	for alias in _WORDS.keys():
@@ -600,8 +648,8 @@ static func _unknown(word: String) -> String:
 			guess = name
 			break
 	if guess != "":
-		return "This Magic Word doesn't exist! Did you mean ~%s?" % guess
-	return "Uh-oh! This Magic Word doesn't exist! ~help lists them."
+		return "This Magic Word doesn't exist! I read ~%s. Did you mean ~%s?" % [word, guess]
+	return "Uh-oh! This Magic Word doesn't exist! I read ~%s. ~help lists them." % word
 
 
 static func _zone_key(raw: String) -> String:

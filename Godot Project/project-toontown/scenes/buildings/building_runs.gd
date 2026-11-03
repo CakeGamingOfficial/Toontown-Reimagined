@@ -435,6 +435,29 @@ func _building(district: int, slug: String, block: int) -> Dictionary:
 	return {}
 
 
+func occupied(district: int, slug: String, block: int) -> bool:
+	if _busy(_run_for(district, slug, block)):
+		return true
+	var snap := ToonNet.latest("runs:%d:%s" % [district, slug])
+	var raw: Variant = snap.get("rows", [])
+	if not (raw is Array):
+		return false
+	for item in raw:
+		if not (item is Dictionary):
+			continue
+		var run: Dictionary = item
+		if int(run.get("block", 0)) == block and _busy(run):
+			return true
+	return false
+
+
+func _busy(run: Dictionary) -> bool:
+	if run.is_empty():
+		return false
+	var state := String(run.get("state", ""))
+	return state != "" and state != "victory" and state != "failed" and state != "gone"
+
+
 func _run_for(district: int, slug: String, block: int) -> Dictionary:
 	for item in _runs:
 		var run: Dictionary = item

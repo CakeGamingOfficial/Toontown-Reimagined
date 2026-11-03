@@ -316,6 +316,12 @@ static func reserve_trolley(game_id: int) -> void:
 		net._reserve_trolley(game_id)
 
 
+static func ask_building(district: int, slug: String, mode: String, plan: Dictionary) -> void:
+	var net := live()
+	if net != null:
+		net._ask_building(district, slug, mode, plan)
+
+
 static func ask_summon(district: int, slug: String, query: String, level: int, near: Vector3) -> void:
 	var net := live()
 	if net != null:
@@ -875,6 +881,28 @@ func _choose_fight(fight_id: int, peer: int, track: int, level: int, target: int
 		fights.call("choose", fight_id, peer, track, level, target, exp)
 
 
+func _ask_building(district: int, slug: String, mode: String, plan: Dictionary) -> void:
+	if is_authority():
+		var traffic := get_node_or_null("/root/StreetTraffic")
+		if traffic == null:
+			return
+		var block := int(plan.get("block", 0))
+		if mode == "free":
+			var runs := traffic.get_node_or_null("BuildingRuns")
+			if runs != null and runs.has_method("occupied") and bool(runs.call("occupied", district, slug, block)):
+				return
+			if traffic.has_method("retake_building"):
+				traffic.call("retake_building", district, slug, block)
+			return
+		plan["floors"] = clampi(int(plan.get("floors", 1)), 1, 5)
+		plan["difficulty"] = clampi(int(plan.get("difficulty", 0)), 0, 8)
+		if traffic.has_method("start_takeover"):
+			traffic.call("start_takeover", district, slug, plan)
+		return
+	if _role == "client":
+		_request_building.rpc_id(1, district, slug, mode, plan)
+
+
 func _ask_summon(district: int, slug: String, query: String, level: int, near: Vector3) -> void:
 	if is_authority():
 		var traffic := get_node_or_null("/root/StreetTraffic")
@@ -1359,6 +1387,16 @@ func _submit_trolley(score: int, district: int) -> void:
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_finish_trolley(score, district)
+
+
+@rpc("any_peer", "reliable")
+func _request_building(district: int, slug: String, mode: String, plan: Dictionary) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_ask_building(district, slug, mode, plan)
 
 
 @rpc("any_peer", "reliable")

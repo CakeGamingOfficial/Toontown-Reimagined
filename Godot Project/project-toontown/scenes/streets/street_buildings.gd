@@ -47,6 +47,9 @@ const _DROP_TIME := 6.8
 const _TOTAL_TIME := 8.0
 const _INIT_HEIGHT := 125.0
 
+static var _wall_source: Node3D
+static var _door_source: Node3D
+
 var json_path := ""
 var street_slug := ""
 var visuals := true
@@ -240,6 +243,85 @@ func _load() -> bool:
 	return blocks is Array and not (blocks as Array).is_empty()
 
 
+static func track_named(raw: String) -> String:
+	match raw.to_lower():
+		"c", "boss", "bossbot", "corporate", "corp":
+			return "c"
+		"l", "law", "lawbot", "legal":
+			return "l"
+		"m", "cash", "cashbot", "money":
+			return "m"
+		"s", "sell", "sellbot", "sales":
+			return "s"
+		_:
+			return ""
+
+
+static func dept_name(track: String) -> String:
+	return String(_NAMES.get(track, "Bossbot"))
+
+
+## The lowest SuitBuildingInfo row that can be this many stories.
+static func difficulty_for_floors(floors: int) -> int:
+	var want := clampi(floors, 1, 5)
+	var index := want - 1
+	while index < _FLOORS.size():
+		var span := _FLOORS[index]
+		if want >= span.x and want <= span.y:
+			return index
+		index += 1
+	return _FLOORS.size() - 1
+
+
+## doBuildingTakeover passes the suit level itself as the SuitBuildingInfo index.
+static func floors_for(level: int) -> int:
+	var index := takeover_index(level)
+	var span := _FLOORS[index]
+	return randi_range(span.x, span.y)
+
+
+static func takeover_index(level: int) -> int:
+	return clampi(level, 0, _FLOORS.size() - 1)
+
+
+## The closest toon shop, or the closest building that is already a cog building.
+func nearest_block(near: Vector3, suit: bool) -> Dictionary:
+	var states := {}
+	for item in _rows():
+		if item is Dictionary:
+			var row: Dictionary = item
+			states[int(row.get("block", 0))] = String(row.get("state", "suit"))
+	var best := {}
+	var best_d := INF
+	for key in _landmarks.keys():
+		var number := int(key)
+		if states.has(number) != suit:
+			continue
+		var landmark: Node = _landmarks[key]
+		if landmark == null or not (landmark is Node3D) or not is_instance_valid(landmark):
+			continue
+		var dist := (landmark as Node3D).global_position.distance_squared_to(near)
+		if dist >= best_d:
+			continue
+		best_d = dist
+		best = {
+			"block": number,
+			"title": _title_of(number),
+			"state": String(states.get(number, "")),
+		}
+	return best
+
+
+func _title_of(block: int) -> String:
+	var blocks: Variant = _data.get("blocks", [])
+	if not (blocks is Array):
+		return ""
+	for item in blocks:
+		if item is Dictionary and int((item as Dictionary).get("block", 0)) == block:
+			return String((item as Dictionary).get("title", ""))
+	return ""
+
+
 func _rows() -> Array:
 	var snap := ToonNet.latest("buildings:%d:%s" % [district_id, street_slug])
 	var raw: Variant = snap.get("rows", [])
@@ -402,95 +484,197 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	return building
 
 
-## DNAFlatBuilding.setup_suit_flat_building. The suit wall of that story and
-## suit_door ride down with the tower. The toon flat hides when it lands.
+## DNAFlatBuilding.setup_suit_flat_building. Each toon wall becomes the suit
+## wall of that story, and a wall that had a joke door gets suit_door centered
+## on it. The pieces ride down with the tower. The toon flat hides when it lands.
 func _suit_flats(landmark: Node3D, tower: Node3D) -> void:
 	_remember_block(landmark)
 	if not landmark.has_meta("block_nodes"):
 		return
-	var walls := _WALLS.instantiate() as Node3D
-	var door_model := _SUIT_DOOR.instantiate() as Node3D
-	if walls == null or door_model == null:
-		if walls != null:
-			walls.free()
-		if door_model != null:
-			door_model.free()
+	_sources()
+	if _wall_source == null:
 		return
 	var rows: Array = landmark.get_meta("block_nodes")
 	for item in rows:
-		if item is Node3D and item != landmark:
-			_cover_flat(item as Node3D, tower, walls, door_model)
-	walls.free()
-	door_model.free()
+		if not (item is Node3D) or item == landmark or not (item as Node).has_meta("cog_walls"):
+			continue
+		var slots: Array = (item as Node).get_meta("cog_walls")
+		for slot in slots:
+			if slot is Dictionary:
+				_place_slot(tower, slot)
 
 
-func _cover_flat(flat: Node3D, tower: Node3D, walls: Node3D, door_model: Node3D) -> void:
-	var meshes: Array[MeshInstance3D] = []
-	_collect_meshes(flat, meshes)
-	var door_best: MeshInstance3D = null
-	var door_area := 0.0
-	for mesh in meshes:
-		var low := str(mesh.name).to_lower()
-		if low.begins_with("wall_"):
-			_cover_wall(mesh, tower, walls)
-		elif low.begins_with("door_"):
-			var size := mesh.get_aabb().size
-			var area := size.x * maxf(size.z, size.y)
-			if area > door_area:
-				door_area = area
-				door_best = mesh
-	if door_best != null:
-		_cover_door(door_best, tower, door_model)
+func _place_slot(tower: Node3D, slot: Dictionary) -> void:
+	var source := _find_static(_wall_source, String(slot.get("wall", "")))
+	if source == null:
+		return
+	var piece := source.duplicate() as Node3D
+	if piece == null:
+		return
+	tower.add_child(piece)
+	var xform: Transform3D = slot["xform"]
+	piece.global_transform = xform
+	_use_vertex_colors(piece)
+	_quiet(piece)
+	_front_piece(piece, 1)
+	_wall_solid(piece)
+	if not slot.has("door") or _door_source == null:
+		return
+	var door_source := _find_static(_door_source, "g1")
+	if door_source == null:
+		return
+	var door := door_source.duplicate() as Node3D
+	if door == null:
+		return
+	tower.add_child(door)
+	var door_xform: Transform3D = slot["door"]
+	door.global_transform = door_xform
+	_use_vertex_colors(door)
+	_quiet(door)
+	_black_door(door)
+	_front_piece(door, 3)
 
 
-func _collect_meshes(node: Node, into: Array[MeshInstance3D]) -> void:
+## The suit door's center card has no texture, so it imports gray. The opening
+## is a black interior.
+func _black_door(node: Node) -> void:
 	if node is MeshInstance3D:
-		into.append(node as MeshInstance3D)
+		var mesh := node as MeshInstance3D
+		var mat := mesh.get_active_material(0) as StandardMaterial3D
+		if mesh.mesh != null and str(mesh.name) == "node" and (mat == null or mat.albedo_texture == null):
+			var black := StandardMaterial3D.new()
+			black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			black.albedo_color = Color(0.0, 0.0, 0.0, 1.0)
+			black.cull_mode = BaseMaterial3D.CULL_DISABLED
+			black.vertex_color_use_as_albedo = false
+			for index in mesh.mesh.get_surface_count():
+				mesh.set_surface_override_material(index, black)
 	for child in node.get_children():
-		_collect_meshes(child, into)
+		_black_door(child)
 
 
-func _cover_wall(mesh: MeshInstance3D, tower: Node3D, walls: Node3D) -> void:
+## The suit wall is a flat card. A toon's body walks through the card, so the
+## card gets a box on its thin side.
+func _wall_solid(piece: Node3D) -> void:
+	var mesh := _wall_mesh(piece)
+	if mesh == null:
+		return
+	var aabb := mesh.get_aabb()
+	var size := aabb.size
+	var center := aabb.position + size * 0.5
+	var scale := mesh.global_basis.get_scale()
+	if size.y <= size.x and size.y <= size.z:
+		size.y = 1.0 / maxf(scale.y, 0.001)
+	elif size.x <= size.z:
+		size.x = 1.0 / maxf(scale.x, 0.001)
+	else:
+		size.z = 1.0 / maxf(scale.z, 0.001)
+	var body := StaticBody3D.new()
+	body.name = "WallSolid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	shape.position = center
+	body.add_child(shape)
+	mesh.add_child(body)
+
+
+func _wall_mesh(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _wall_mesh(child)
+		if found != null:
+			return found
+	return null
+
+
+## Called while the flat's wall meshes still exist, before the street batch
+## folds them into the flat. The stored transforms are the suit pieces.
+static func capture_flat(flat: Node3D) -> void:
+	if flat == null or flat.has_meta("cog_walls"):
+		return
+	_sources()
+	var slots: Array = []
+	_scan_walls(flat, slots)
+	flat.set_meta("cog_walls", slots)
+
+
+static func _sources() -> void:
+	if _wall_source == null:
+		_wall_source = _WALLS.instantiate() as Node3D
+	if _door_source == null:
+		_door_source = _SUIT_DOOR.instantiate() as Node3D
+
+
+static func _scan_walls(node: Node, slots: Array) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var low := str(mesh.name).to_lower()
+		# Fence flats (wall_fence_wood, wall_woodflower_fence, wall_stone_fence)
+		# are half-height walls. A takeover hides the flat, so they take the
+		# same suit wall as any other wall of that story.
+		if low.begins_with("wall_") and mesh.mesh != null:
+			var slot := _wall_slot(mesh)
+			if not slot.is_empty():
+				slots.append(slot)
+	for child in node.get_children():
+		_scan_walls(child, slots)
+
+
+static func _wall_slot(mesh: MeshInstance3D) -> Dictionary:
 	var aabb := mesh.get_aabb()
 	var width := aabb.size.x
-	var height := aabb.size.z if aabb.size.z >= aabb.size.y else aabb.size.y
+	var height := aabb.size.z
+	if aabb.size.y > height:
+		height = aabb.size.y
 	if width < 2.0 or height < 2.0:
-		return
+		return {}
 	var story := clampi(int(round(height / 10.0)), 1, 5)
-	var side := "ul" if str(mesh.name).contains("_ul") else "ur"
-	var source := _find(walls, "wall_suit_build%d_%s" % [story, side])
-	if source == null:
-		return
-	var piece := source.duplicate() as Node3D
-	if piece == null:
-		return
-	mesh.add_child(piece)
-	piece.position = aabb.position
-	piece.scale = Vector3(width, 1.0, height)
-	var kept := piece.global_transform
-	tower.add_child(piece)
-	piece.global_transform = kept
-	_use_vertex_colors(piece)
-	_quiet(piece)
+	var side := "ur"
+	var low := str(mesh.name).to_lower()
+	if "_ul" in low or "_dl" in low:
+		side = "ul"
+	# The wall and the suit piece are both still Panda Z-up in mesh space.
+	# The street node's transform stands them up. Both models are flat on Y=0,
+	# so the door has to sit in front of the wall or the depth fight opens a
+	# slot of sky. Toon joke doors are authored at about y=-0.06.
+	var lip := 0.6
+	var wall_at := aabb.position + Vector3(-lip, -0.04, 0.0)
+	var world := mesh.global_transform * Transform3D(Basis.IDENTITY.scaled(Vector3(width + lip * 2.0, 1.0, height)), wall_at)
+	var slot := {
+		"wall": "wall_suit_build%d_%s" % [story, side],
+		"xform": world,
+	}
+	if _has_door(mesh):
+		var origin := Vector3(aabb.position.x + width * 0.5, aabb.position.y - 0.16, aabb.position.z)
+		slot["door"] = mesh.global_transform * Transform3D(Basis.IDENTITY, origin)
+	return slot
 
 
-func _cover_door(mesh: MeshInstance3D, tower: Node3D, door_model: Node3D) -> void:
-	var source := _find(door_model, "g1")
-	if source == null:
-		return
-	var piece := source.duplicate() as Node3D
-	if piece == null:
-		return
-	var aabb := mesh.get_aabb()
-	var height := aabb.size.z if aabb.size.z >= aabb.size.y else aabb.size.y
-	mesh.add_child(piece)
-	piece.position = Vector3(aabb.position.x + aabb.size.x * 0.5, aabb.position.y, aabb.position.z)
-	piece.scale = Vector3(aabb.size.x / 5.0, 1.0, height / 8.5)
-	var kept := piece.global_transform
-	tower.add_child(piece)
-	piece.global_transform = kept
-	_use_vertex_colors(piece)
-	_quiet(piece)
+static func _has_door(node: Node) -> bool:
+	for child in node.get_children():
+		var low := str(child.name).to_lower()
+		if low.begins_with("door_single") or low.begins_with("door_garage"):
+			return true
+		if _has_door(child):
+			return true
+	return false
+
+
+static func _find_static(root: Node, needle: String) -> Node3D:
+	if root == null or needle.is_empty():
+		return null
+	if str(root.name).contains(needle) and root is Node3D:
+		return root as Node3D
+	for child in root.get_children():
+		var found := _find_static(child, needle)
+		if found != null:
+			return found
+	return null
 
 
 func _holder() -> Node3D:
@@ -509,6 +693,11 @@ func _drop_actor(block: int) -> void:
 	_heard.erase(block)
 	if have is Node and is_instance_valid(have):
 		(have as Node).queue_free()
+
+
+func block_taken(block: int) -> bool:
+	var landmark: Node = _landmarks.get(block)
+	return landmark != null and is_instance_valid(landmark) and landmark.has_meta("cog_building")
 
 
 func _release_block(block: int) -> void:
@@ -602,11 +791,18 @@ func _cull_towers() -> void:
 		var actor := building as Node3D
 		if actor.visible != show:
 			actor.visible = show
-		var solid := actor.get_node_or_null("LandmarkSolid") as CollisionObject3D
-		if solid != null:
+		_tower_collision(actor, show)
+
+
+func _tower_collision(node: Node, show: bool) -> void:
+	if node is CollisionObject3D:
+		var body := node as CollisionObject3D
+		if body.name == "LandmarkSolid" or body.name == "WallSolid":
 			var layer: int = 1 if show else 0
-			if solid.collision_layer != layer:
-				solid.collision_layer = layer
+			if body.collision_layer != layer:
+				body.collision_layer = layer
+	for child in node.get_children():
+		_tower_collision(child, show)
 
 
 func _zone_shown(landmark: Node) -> bool:
@@ -617,6 +813,22 @@ func _zone_shown(landmark: Node) -> bool:
 			return (current as Node3D).is_visible_in_tree()
 		current = current.get_parent()
 	return true
+
+
+func _front_piece(node: Node, priority: int) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			for index in mesh.mesh.get_surface_count():
+				var mat := mesh.get_active_material(index) as BaseMaterial3D
+				if mat == null:
+					continue
+				var copy := mat.duplicate() as BaseMaterial3D
+				copy.cull_mode = BaseMaterial3D.CULL_DISABLED
+				copy.render_priority = priority
+				mesh.set_surface_override_material(index, copy)
+	for child in node.get_children():
+		_front_piece(child, priority)
 
 
 func _quiet(node: Node) -> void:
@@ -1072,8 +1284,9 @@ func _squash_list(landmark: Node3D, key: String, crush: float, darken: float, hi
 				body.visible = false
 				body.scale = shop_scale
 				_clear_dark(body)
+			# The suit wall stands on this flat's footprint, so the solid stays.
 			var solid := body.get_node_or_null("LandmarkSolid") as CollisionObject3D
-			if solid != null:
+			if solid != null and not body.has_meta("cog_walls"):
 				solid.collision_layer = 0
 			continue
 		var next := Vector3(shop_scale.x, shop_scale.y * crush, shop_scale.z)
