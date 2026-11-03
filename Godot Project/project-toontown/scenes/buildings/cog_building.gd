@@ -68,6 +68,7 @@ var _exit_to := Vector3.ZERO
 var _exit_heading := 0.0
 var _riders: Dictionary = {}
 var _remote_exits: Dictionary = {}
+var _timing: Dictionary = {}
 
 
 func _ready() -> void:
@@ -358,10 +359,22 @@ func _sync_cogs(run: Dictionary) -> void:
 		actor.name = "FloorCog%d" % int(id)
 		_suits.add_child(actor)
 		var spot := _vec(cog.get("pos", cog.get("from", [])))
-		var points: Array[Vector3] = [spot]
-		actor.setup(cog, points, PackedInt32Array([0]), 0, {}, {})
+		# setup() is the street drop. A floor has no path, so that call removes
+		# the suit. present() leaves it standing where the floor placed it.
+		actor.present(cog, _suit_timing())
 		actor.set_meta("do_id", int(id))
 		actor.hold_fight(true, spot, 0.0)
+
+
+func _suit_timing() -> Dictionary:
+	if not _timing.is_empty():
+		return _timing
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
+	if parsed is Dictionary:
+		var timing: Variant = (parsed as Dictionary).get("timing", {})
+		if timing is Dictionary:
+			_timing = timing
+	return _timing
 
 
 func _clear_cogs() -> void:
@@ -786,7 +799,10 @@ func _build_clock() -> void:
 	_clock.outline_size = 0
 	_clock.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# TextNode keeps the baseline on (0, 2, 7.5). Bottom alignment parks the
+	# descent there instead, so the digits rise into the top of the frame.
 	_clock.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_clock.offset = Vector2(0.0, -_clock.font.get_descent(_clock.font_size))
 	_clock.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_clock.visible = false
 	root.add_child(_clock)

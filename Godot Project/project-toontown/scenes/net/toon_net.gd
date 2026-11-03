@@ -828,6 +828,19 @@ func _ask_factory(district: int, cog_id: int, where: Vector3, yaw: float, toon_n
 		_request_factory.rpc_id(1, district, cog_id, where.x, where.y, where.z, yaw, toon_name, hp, max_hp)
 
 
+func _ask_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+	if _role == "client":
+		_request_factory_switch.rpc_id(1, kind, ent_id, on)
+		return
+	_factory_switch.rpc(kind, ent_id, on)
+
+
+func _apply_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+	var doors := get_tree().root.find_child("FactoryDoors", true, false)
+	if doors != null and doors.has_method("apply_switch"):
+		doors.call("apply_switch", kind, ent_id, on)
+
+
 func _open_factory(district: int, cog_id: int, where: Vector3, yaw: float, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
 	var board := get_node_or_null("/root/StreetTraffic/FactoryBoard")
 	if board != null and board.has_method("engage"):
@@ -1024,6 +1037,13 @@ static func ask_factory(district: int, cog_id: int, where: Vector3, yaw: float, 
 	if net == null:
 		return
 	net._ask_factory(district, cog_id, where, yaw, toon_name, hp, max_hp)
+
+
+static func ask_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+	var net := live()
+	if net == null or not networked():
+		return
+	net._ask_factory_switch(kind, ent_id, on)
 
 
 static func ask_board(district: int, slug: String, block: int, toon_name: String, hp: int, max_hp: int) -> void:
@@ -1465,6 +1485,18 @@ func _request_factory(district: int, cog_id: int, x: float, y: float, z: float, 
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_open_factory(district, cog_id, Vector3(x, y, z), yaw, sender, toon_name, hp, max_hp)
+
+
+@rpc("any_peer", "reliable")
+func _request_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+	if not is_authority():
+		return
+	_factory_switch.rpc(kind, ent_id, on)
+
+
+@rpc("authority", "reliable")
+func _factory_switch(kind: int, ent_id: int, on: bool) -> void:
+	_apply_factory_switch(kind, ent_id, on)
 
 
 @rpc("any_peer", "reliable")

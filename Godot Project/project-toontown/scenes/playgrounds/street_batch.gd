@@ -243,6 +243,57 @@ static func _landmark(node_name: String) -> bool:
 	return lowered.contains("toon_landmark") or lowered.contains("animated_building")
 
 
+## A factory zone is one surface per texture and one solid. Leaving every
+## pipe and door as its own object is what drops the frame rate, and a hidden
+## MeshInstance is still walked by the renderer.
+static func flatten_room(zone: Node3D) -> void:
+	if zone == null or zone.has_meta("room_flat"):
+		return
+	var job := Job.new()
+	var taken: Array[MeshInstance3D] = []
+	_collect_room(zone, zone, zone.global_transform.affine_inverse(), job, taken)
+	if not job.faces.is_empty():
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(job.faces)
+		var body := StaticBody3D.new()
+		body.name = "ZoneSolid"
+		body.collision_layer = 0
+		body.collision_mask = 0
+		var collision := CollisionShape3D.new()
+		collision.shape = shape
+		body.add_child(collision)
+		zone.add_child(body)
+	for key in job.buckets:
+		_emit(zone, job.buckets[key] as Bucket, true)
+	for mesh in taken:
+		mesh.mesh = null
+	zone.set_meta("room_flat", true)
+
+
+static func _collect_room(node: Node, zone: Node3D, into_zone: Transform3D, job: Job, taken: Array[MeshInstance3D]) -> void:
+	if node != zone and _skip_room_piece(node):
+		return
+	if node is MeshInstance3D and node != zone:
+		var mesh := node as MeshInstance3D
+		if mesh.visible and _take(mesh, into_zone, job, true):
+			taken.append(mesh)
+	for child in node.get_children():
+		_collect_room(child, zone, into_zone, job, taken)
+
+
+static func _skip_room_piece(node: Node) -> bool:
+	var node_name := String(node.name)
+	# The elevator, the handshake doors, and the floor buttons stay separate
+	# so they can still move. A combined room cannot slide a door.
+	if node_name.begins_with("Factory"):
+		return true
+	if node_name.begins_with("door-") or node_name.begins_with("button-"):
+		return true
+	if node_name == "ZoneSolid" or node_name.begins_with("ZoneBatch"):
+		return true
+	return false
+
+
 static func flatten_prop(root: Node3D) -> void:
 	if root == null:
 		return
@@ -345,7 +396,7 @@ static func _leave_alone(node_name: String) -> bool:
 	return lowered == "leftdoor" or lowered == "rightdoor" or lowered.begins_with("doorframehole") or lowered == "door_flat" or lowered.ends_with("_flat") or lowered == "def_left_door" or lowered == "def_right_door"
 
 
-static func _take(mesh: MeshInstance3D, into_zone: Transform3D, job: Job) -> bool:
+static func _take(mesh: MeshInstance3D, into_zone: Transform3D, job: Job, all_faces: bool = false) -> bool:
 	if mesh.mesh == null or mesh.mesh.get_surface_count() == 0:
 		return false
 	for surface in mesh.mesh.get_surface_count():
@@ -365,11 +416,11 @@ static func _take(mesh: MeshInstance3D, into_zone: Transform3D, job: Job) -> boo
 		return false
 	var copied := 0
 	for surface in mesh.mesh.get_surface_count():
-		copied += _take_surface(mesh, surface, to_local, job)
+		copied += _take_surface(mesh, surface, to_local, job, all_faces)
 	return copied > 0
 
 
-static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, job: Job) -> int:
+static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, job: Job, all_faces: bool = false) -> int:
 	var material := mesh.get_active_material(surface)
 	if _hidden_card(material):
 		return 0
@@ -420,7 +471,11 @@ static func _take_surface(mesh: MeshInstance3D, surface: int, to_local: Transfor
 		bucket.verts.append(p0)
 		bucket.verts.append(p1)
 		bucket.verts.append(p2)
-		if (opaque or wall) and _keep_solid(p0, p1, p2):
+		if opaque and all_faces:
+			job.faces.append(p0)
+			job.faces.append(p1)
+			job.faces.append(p2)
+		elif (opaque or wall) and _keep_solid(p0, p1, p2):
 			job.faces.append(p0)
 			job.faces.append(p1)
 			job.faces.append(p2)

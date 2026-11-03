@@ -46,6 +46,7 @@ func _ready() -> void:
 	_ready_butterflies()
 	preload("res://scenes/playgrounds/ttc_hedges.gd").apply(self)
 	preload("res://scenes/playgrounds/toon_hall_facade.gd").apply(self)
+	preload("res://scenes/playgrounds/fishing_spots.gd").place(self)
 	preload("res://scenes/playgrounds/playground_treasures.gd").attach(self, "tt")
 	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 

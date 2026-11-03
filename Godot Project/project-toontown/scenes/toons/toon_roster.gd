@@ -7,6 +7,7 @@ extends RefCounted
 const SLOT_COUNT := 6
 const _PATH := "user://toons.json"
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _FISH := preload("res://scenes/fishing/fish_tank.gd")
 
 static var pending_slot := 0
 static var _slots: Array = []
@@ -36,6 +37,7 @@ static func set_slot(index: int, style: ToonStyle) -> void:
 	ToonTasks.reset_slot(index)
 	ToonLoadout.reset_slot(index)
 	_BEANS.reset_slot(index)
+	_FISH.reset_slot(index)
 
 
 static func clear_slot(index: int) -> void:
@@ -49,6 +51,7 @@ static func clear_slot(index: int) -> void:
 	ToonTasks.reset_slot(index)
 	ToonLoadout.reset_slot(index)
 	_BEANS.reset_slot(index)
+	_FISH.reset_slot(index)
 
 
 static func selected_style() -> ToonStyle:

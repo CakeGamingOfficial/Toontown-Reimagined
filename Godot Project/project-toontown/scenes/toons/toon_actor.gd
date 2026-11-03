@@ -589,7 +589,7 @@ func _ensure_clips() -> void:
 	if not load_extra_clips:
 			return
 	# Extra clips have to load with the walk, while the joints are still at rest.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []

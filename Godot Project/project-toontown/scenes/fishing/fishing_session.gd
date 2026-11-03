@@ -1,0 +1,826 @@
+extends Node
+
+## DistributedFishingSpot for the local toon. Walk onto a shore spot, hold Cast,
+## and drag down. The bob flies until it reaches the pond, then a moving target
+## within 2.5 pulls the line. The saved rod picks the pole, the bait, and the catch.
+
+signal finished
+
+const _TANK := preload("res://scenes/fishing/fish_tank.gd")
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _ROLL := preload("res://scenes/fishing/fish_roll.gd")
+const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _CLOSE_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _CLOSE_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _CLOSE_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
+const _HIT := 2.5
+const _POLES: PackedStringArray = [
+	"res://assets/props/fishing_pole.glb",
+	"res://assets/props/fishing_pole_bamboo.glb",
+	"res://assets/props/fishing_pole_wood.glb",
+	"res://assets/props/fishing_pole_steel.glb",
+	"res://assets/props/fishing_pole_gold.glb",
+]
+const _HOW_FIRST := "Click and drag down from the Cast button. The farther down you drag, the stronger your cast will be. Adjust your angle to hit the fish targets.\n\nTry it now!"
+const _HOW_FAILED := "Click and drag down from the Cast button. The farther down you drag, the stronger your cast will be. Adjust your angle to hit the fish targets.\n\nTry it again now!"
+const _BROKE := "You do not have any more jellybeans for bait! Ride the trolley or sell fish to the Pet Shop Clerks to earn more jellybeans."
+const _FULL := "Your fish bucket is full. Go sell your fish to the Pet Shop Clerk and come back."
+const _MISSED := "You didn't catch anything!"
+const _BOOT := "An old boot"
+
+var _rod := 0
+var _actor: ToonActor
+var _camera: Camera3D
+var _spot: Node3D
+var _from := Vector3.ZERO
+var _from_heading := 0.0
+var _stand := Vector3.ZERO
+var _base_heading := 0.0
+var _aim_heading := 0.0
+var _water := 0.0
+var _surface := 0.0
+var _zone := 0
+var _started := false
+var _done := false
+var _state := ""
+var _time := 0.0
+var _poled := false
+var _pole_time := 0.0
+var _power := 0.0
+var _angle := 0.0
+var _press := Vector2.ZERO
+var _flight := 0.0
+var _bite := 0.0
+var _check := 1.0
+var _bob_at := Vector3.ZERO
+var _timer_left := 45.0
+var _gui_up := false
+var _modal_leave := false
+var _posing := false
+var _long_dur := 0.0
+var _cast_from := 0.0
+var _cast_clock := 0.0
+var _queue: PackedStringArray = PackedStringArray()
+var _queue_at := 0
+var _cam_from := Vector3.ZERO
+var _cam_at := Vector3.ZERO
+var _cam_look := Vector3.ZERO
+var _pole: Node3D
+var _bob: Node3D
+var _ripples: MeshInstance3D
+var _line: MeshInstance3D
+var _line_mesh: CylinderMesh
+var _layer: CanvasLayer
+var _cast_button: Button
+var _exit_button: Button
+var _jar: Label
+var _bucket: Label
+var _clock: Label
+var _arrow: ColorRect
+var _modal: Control
+var _modal_label: Label
+var _modal_button: Button
+var _reward: Control
+var _reward_label: Label
+var _red: StyleBoxFlat
+var _green: StyleBoxFlat
+
+
+func open(actor: ToonActor, camera: Camera3D, spot: Node3D, feet: Vector3, heading: float) -> void:
+	_actor = actor
+	_camera = camera
+	_spot = spot
+	_from = feet
+	_from_heading = heading
+	_stand = spot.global_position
+	_base_heading = float(spot.get_meta("heading"))
+	_aim_heading = _base_heading
+	_water = float(spot.get_meta("water"))
+	_zone = int(spot.get_meta("zone"))
+	if is_inside_tree():
+		_begin()
+
+
+func _ready() -> void:
+	_build()
+	if _actor != null:
+		_begin()
+
+
+func _begin() -> void:
+	if _started or _actor == null or _spot == null:
+		return
+	_started = true
+	_rod = _TANK.rod()
+	_surface = _surface_y()
+	_long_dur = _actor.action_length("castlong") / 4.0
+	_state = "approach"
+	_time = 0.0
+	if _camera != null:
+		_cam_from = _camera.global_position
+		var forward := _forward(_base_heading)
+		_cam_at = _stand - forward * 12.0 + Vector3(0.0, 15.0, 0.0)
+		_cam_look = _cam_at + forward * 10.0 + Vector3(0.0, -7.81, 0.0)
+	_play("run", true)
+
+
+func _process(delta: float) -> void:
+	if _done or _actor == null or not is_instance_valid(_actor):
+		return
+	_time += delta
+	if _gui_up:
+		_timer_left = maxf(_timer_left - delta, 0.0)
+		_clock.text = str(int(ceili(_timer_left)))
+	if _state == "approach":
+		_approach(delta)
+	elif _state == "aim":
+		_drag()
+	elif _state == "cast":
+		_cast_wind(delta)
+	elif _state == "flight":
+		_fly(delta)
+	elif _state == "bite":
+		_bobbing(delta)
+	elif _state == "reward":
+		_reel()
+	elif _state == "leave":
+		_leaving(delta)
+	if _posing:
+		return
+	_actor.set_locomotion(0.0, false, false, delta)
+
+
+func _approach(delta: float) -> void:
+	var walk := clampf(_time / 1.0, 0.0, 1.0)
+	_stand_at(_from.lerp(_stand, walk))
+	var heading := rad_to_deg(lerp_angle(deg_to_rad(_from_heading), deg_to_rad(_base_heading), walk))
+	_aim(heading)
+	var glide := clampf(_time / 1.5, 0.0, 1.0)
+	_glide_camera(glide * glide * (3.0 - 2.0 * glide))
+	if _time >= 1.0 and not _poled:
+		_poled = true
+		_pole_time = 0.0
+		_attach_pole()
+		_play("pole", false)
+	if not _poled:
+		return
+	_pole_time += delta
+	if _pole != null:
+		_pole.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(_pole_time / 0.5, 0.0, 1.0))
+	if _actor.action_length("pole") <= 0.0 or _actor.gesture_finished():
+		_state = "wait"
+		_play("pole-neutral", true)
+		_show_gui()
+
+
+func _drag() -> void:
+	var mouse := _mouse()
+	var delta_x := mouse.x - _press.x
+	var delta_y := mouse.y - _press.y
+	if delta_y >= 0.0:
+		if _power <= 0.0:
+			_angle = 0.0
+			_arrow.visible = false
+		return
+	var dist := sqrt(delta_x * delta_x + delta_y * delta_y)
+	var pulled := dist / 0.5
+	_power = clampf(absf(pulled), 0.0, 1.0)
+	_angle = rad_to_deg(atan(delta_x / delta_y))
+	if _power < 0.25:
+		_angle = _angle * pow(_power * 4.0, 3.0)
+	var clamped := absf(_angle) > 50.0
+	_angle = clampf(_angle, -50.0, 50.0)
+	_aim_heading = _base_heading + _angle
+	_aim(_aim_heading)
+	_arrow.visible = true
+	_layout_arrow()
+	if clamped:
+		_arrow.color = Color(1, 0, 0, 1)
+	else:
+		_arrow.color = Color(1.0, 1.0 - pow(_power, 3.0), 0.1, 0.7)
+	if _long_dur > 0.0:
+		_posing = true
+		_actor.pose_action("castlong", (0.2 + _power * 0.7) * 4.0)
+
+
+func _cast_wind(delta: float) -> void:
+	_cast_clock += delta
+	var wait := 1.2 - _cast_from
+	if _long_dur > 0.0:
+		_posing = true
+		_actor.pose_action("castlong", minf(_cast_from + _cast_clock, _long_dur) * 4.0)
+	if _cast_clock < wait:
+		return
+	_posing = false
+	_actor.end_action("castlong")
+	_actor.end_action("cast")
+	_play("cast", false)
+	_flight = 0.0
+	_state = "flight"
+	_show_bob()
+
+
+func _fly(delta: float) -> void:
+	_flight += delta
+	var speed := _power * 25.0
+	var pitch := deg_to_rad(_power * 30.0)
+	var along := speed * cos(pitch) * _flight
+	var rise := speed * sin(pitch) * _flight - 16.1 * _flight * _flight
+	var pos := _stand + _forward(_aim_heading) * (3.0 + along) + Vector3(0.0, 8.5 + rise, 0.0)
+	_bob.global_position = pos
+	_draw_line()
+	if pos.y <= _surface:
+		_bob_at = Vector3(pos.x, _surface, pos.z)
+		_bob.global_position = _bob_at
+		_bite = 0.0
+		_check = 1.0
+		_state = "bite"
+		_splash(_bob_at)
+		_show_ripples(true)
+		_play("fish-neutral", true)
+
+
+func _bobbing(delta: float) -> void:
+	_bite += delta
+	_bob_at.y = _surface + sin(_bite * 1.8) * 0.08
+	_bob.global_position = _bob_at
+	if _ripples != null:
+		_ripples.global_position = Vector3(_bob_at.x, _surface + 0.025, _bob_at.z)
+		var pulse := 0.4 + sin(_bite * 3.0) * 0.05
+		_ripples.scale = Vector3(pulse, 1.0, pulse)
+	_draw_line()
+	_check -= delta
+	if _check > 0.0:
+		return
+	_check = 0.5
+	if _over_target():
+		_catch()
+
+
+func _reel() -> void:
+	_draw_line()
+	if _queue_at >= _queue.size():
+		return
+	if not _actor.gesture_finished():
+		return
+	_queue_at += 1
+	if _queue_at == 1:
+		_hide_bob()
+	if _queue_at >= _queue.size():
+		_play("pole-neutral", true)
+		return
+	_play(_queue[_queue_at], false)
+
+
+func _leaving(delta: float) -> void:
+	if _pole != null:
+		var shrink := clampf(_time / 0.5, 0.0, 1.0)
+		_pole.scale = Vector3.ONE * lerpf(1.0, 0.01, shrink)
+	if _actor.action_length("fish-end") <= 0.0 or _actor.gesture_finished():
+		_finish()
+
+
+func _input(event: InputEvent) -> void:
+	if _done or _cast_button == null:
+		return
+	if not (event is InputEventMouseButton):
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse.button_index != MOUSE_BUTTON_LEFT and mouse.button_index != MOUSE_BUTTON_RIGHT:
+		return
+	if mouse.pressed:
+		if (_state == "wait" or _state == "reward") and _cast_button.get_global_rect().has_point(mouse.position):
+			_reward.visible = false
+			_press_cast()
+			get_viewport().set_input_as_handled()
+	elif _state == "aim":
+		_release_cast()
+		get_viewport().set_input_as_handled()
+
+
+func _press_cast() -> void:
+	if _modal.visible or _reward.visible:
+		_reward.visible = false
+	if _TANK.count() >= _TANK.max_count():
+		_show_modal(_FULL, true)
+		return
+	if _BEANS.pouch() < _ROLL.cast_cost(_rod):
+		_show_modal(_BROKE, true)
+		return
+	_state = "aim"
+	_power = 0.0
+	_angle = 0.0
+	_press = _mouse()
+	_cast_button.text = ""
+	_cast_button.add_theme_stylebox_override("normal", _green)
+	_play("pole-neutral", true)
+
+
+func _release_cast() -> void:
+	_posing = false
+	_actor.end_action("castlong")
+	_cast_button.text = "Cast"
+	_cast_button.add_theme_stylebox_override("normal", _red)
+	_arrow.visible = false
+	if _power <= 0.0 and _TANK.collected() == 0:
+		_state = "wait"
+		_show_modal(_HOW_FAILED, false)
+		_play("pole-neutral", true)
+		return
+	if not _BEANS.take_beans(_ROLL.cast_cost(_rod), false):
+		_state = "wait"
+		_show_modal(_BROKE, true)
+		_play("pole-neutral", true)
+		return
+	_jar.text = str(_BEANS.pouch())
+	_refresh_jar()
+	_timer_left = 45.0
+	_cast_from = 0.7 + (1.0 - _power) * 0.3
+	_cast_clock = 0.0
+	_aim_heading = _base_heading + _angle
+	_aim(_aim_heading)
+	_state = "cast"
+
+
+func _catch() -> void:
+	var caught: Dictionary = _ROLL.roll(_zone, _rod)
+	var code := int(caught["code"])
+	var text := _MISSED
+	if code == 2:
+		var genus := int(caught["genus"])
+		var species := int(caught["species"])
+		var weight := int(caught["weight"])
+		var kind := _TANK.catch_code(genus, species, weight)
+		if _TANK.add_fish(genus, species, weight):
+			text = "You caught:\n%s\n%s\n%s" % [
+				_TANK.species_name(genus, species),
+				_TANK.weight_line(weight),
+				_TANK.value_line(_TANK.bean_value(genus, species, weight)),
+			]
+			if kind == 9:
+				text += "\nNew Species!"
+			elif kind == 10:
+				text += "\nNew Record!"
+		else:
+			text = _FULL
+	elif code == 3:
+		var beans := int(caught["beans"])
+		_BEANS.add_beans(beans)
+		_jar.text = str(_BEANS.pouch())
+		_refresh_jar()
+		text = "You caught:\n%d jellybeans" % beans
+	elif code == 4:
+		text = "You caught:\n" + _BOOT
+	_bucket.text = "%d/%d" % [_TANK.count(), _TANK.max_count()]
+	_reward_label.text = text
+	_reward.visible = true
+	_state = "reward"
+	_queue = PackedStringArray(["reel", "reel-neutral", "fish-again"])
+	_queue_at = 0
+	_play("reel", false)
+
+
+func _show_gui() -> void:
+	_gui_up = true
+	_timer_left = 45.0
+	_layer.visible = true
+	_jar.text = str(_BEANS.pouch())
+	_bucket.text = "%d/%d" % [_TANK.count(), _TANK.max_count()]
+	_layout()
+	if _TANK.collected() == 0 and _TANK.count() == 0:
+		_show_modal(_HOW_FIRST, false)
+
+
+func _show_modal(message: String, leave: bool) -> void:
+	_modal_leave = leave
+	_modal_label.text = message
+	_modal_button.text = "Exit" if leave else "OK"
+	_modal.visible = true
+	_state = "modal"
+
+
+func _close_modal() -> void:
+	_modal.visible = false
+	if _modal_leave:
+		_begin_leave()
+		return
+	_state = "wait"
+	_play("pole-neutral", true)
+
+
+func _close_reward() -> void:
+	_reward.visible = false
+	if _state == "reward":
+		_state = "wait"
+		_play("pole-neutral", true)
+
+
+func _begin_leave() -> void:
+	_reward.visible = false
+	_modal.visible = false
+	_layer.visible = false
+	_gui_up = false
+	_hide_bob()
+	_posing = false
+	_time = 0.0
+	_state = "leave"
+	_play("fish-end", false)
+
+
+func _finish() -> void:
+	if _done:
+		return
+	_done = true
+	if _actor != null and is_instance_valid(_actor):
+		_actor.end_action("cast")
+		_actor.end_action("castlong")
+		_actor.clear_gesture()
+	if _pole != null and is_instance_valid(_pole):
+		_pole.queue_free()
+	if _bob != null and is_instance_valid(_bob):
+		_bob.queue_free()
+	if _line != null and is_instance_valid(_line):
+		_line.queue_free()
+	if _ripples != null and is_instance_valid(_ripples):
+		_ripples.queue_free()
+	finished.emit()
+	queue_free()
+
+
+func _exit_pressed() -> void:
+	_begin_leave()
+
+
+func _attach_pole() -> void:
+	_pole = Node3D.new()
+	_pole.name = "FishingPole"
+	var packed := load(_POLES[_rod]) as PackedScene
+	if packed == null:
+		packed = load(_POLES[0]) as PackedScene
+	if packed != null:
+		_pole.add_child(packed.instantiate())
+	else:
+		var stick := MeshInstance3D.new()
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = 0.03
+		mesh.bottom_radius = 0.05
+		mesh.height = 3.2
+		stick.mesh = mesh
+		stick.position = Vector3(0.0, 1.6, 0.0)
+		_pole.add_child(stick)
+	var hand := _actor.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		_actor.add_child(_pole)
+	else:
+		hand.add_child(_pole)
+	_pole.scale = Vector3.ONE * 0.01
+
+
+func _show_bob() -> void:
+	if _bob == null:
+		_bob = Node3D.new()
+		_bob.name = "FishingBob"
+		var packed := load("res://assets/props/fishing_bob.glb") as PackedScene
+		if packed != null:
+			var model := packed.instantiate()
+			_bob.add_child(model)
+			_bob.scale = Vector3.ONE * 1.5
+		else:
+			var mesh_node := MeshInstance3D.new()
+			var sphere := SphereMesh.new()
+			sphere.radius = 0.16
+			sphere.height = 0.32
+			mesh_node.mesh = sphere
+			_bob.add_child(mesh_node)
+		_world().add_child(_bob)
+		_line = MeshInstance3D.new()
+		_line_mesh = CylinderMesh.new()
+		_line_mesh.top_radius = 0.015
+		_line_mesh.bottom_radius = 0.015
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = Color(1, 1, 1, 0.4)
+		_line.material_override = material
+		_line.mesh = _line_mesh
+		_world().add_child(_line)
+		_ripples = MeshInstance3D.new()
+		var card := QuadMesh.new()
+		card.orientation = PlaneMesh.FACE_Y
+		card.size = Vector2(2.2, 2.2)
+		_ripples.mesh = card
+		var ring := StandardMaterial3D.new()
+		ring.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ring.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring.albedo_color = Color(0.7, 0.85, 1.0, 0.45)
+		ring.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_ripples.material_override = ring
+		_world().add_child(_ripples)
+	_bob.visible = true
+	_line.visible = true
+
+
+func _hide_bob() -> void:
+	if _bob != null:
+		_bob.visible = false
+	if _line != null:
+		_line.visible = false
+	_show_ripples(false)
+
+
+func _show_ripples(show: bool) -> void:
+	if _ripples != null:
+		_ripples.visible = show
+
+
+func _draw_line() -> void:
+	if _line == null or _bob == null or not _bob.visible:
+		return
+	var start := _line_from()
+	var stop := _bob.global_position
+	var delta := stop - start
+	var length := delta.length()
+	if length < 0.05:
+		_line.visible = false
+		return
+	_line.visible = true
+	_line_mesh.height = length
+	var axis := delta / length
+	var side := axis.cross(Vector3.UP)
+	if side.length() < 0.001:
+		side = Vector3.RIGHT
+	side = side.normalized()
+	var normal := side.cross(axis).normalized()
+	_line.global_transform = Transform3D(Basis(side, axis, normal), (start + stop) * 0.5)
+
+
+func _line_from() -> Vector3:
+	if _pole != null:
+		var tip := _pole.find_child("*attach*", true, false) as Node3D
+		if tip != null:
+			return tip.global_position
+	var hand := _actor.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand != null:
+		return hand.global_position
+	return _stand + Vector3(0.0, 2.5, 0.0)
+
+
+func _splash(at: Vector3) -> void:
+	var paths: PackedStringArray = PackedStringArray([
+		"res://assets/audio/sfx/TT_splash1.ogg",
+		"res://assets/audio/sfx/TT_splash2.ogg",
+	])
+	var stream := load(paths[randi() % paths.size()]) as AudioStream
+	if stream == null:
+		return
+	var player := AudioStreamPlayer3D.new()
+	player.stream = stream
+	player.volume_db = linear_to_db(0.8)
+	player.position = at
+	_world().add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
+
+
+func _over_target() -> bool:
+	var here: Node = _spot
+	while here != null:
+		var spots := here.find_child("FishingSpots", true, false) as Node
+		if spots != null:
+			for child in spots.get_children():
+				var target := child as Node3D
+				if target != null and target.global_position.distance_to(_bob_at) < _HIT:
+					return true
+			return false
+		here = here.get_parent()
+	return false
+
+
+func _surface_y() -> float:
+	var here: Node = _spot
+	while here != null:
+		var spots := here.find_child("FishingSpots", true, false) as Node
+		if spots != null:
+			for child in spots.get_children():
+				var target := child as Node3D
+				if target != null:
+					return target.global_position.y
+		here = here.get_parent()
+	return _water
+
+
+func _world() -> Node:
+	return _spot.get_parent()
+
+
+func _play(suffix: String, loop: bool) -> void:
+	_posing = false
+	if _actor.action_length(suffix) <= 0.0 and suffix != "run":
+		_actor.clear_gesture()
+		return
+	_actor.play_gesture(suffix, 1.0, loop)
+
+
+func _aim(heading: float) -> void:
+	var host := get_parent()
+	if host != null and host.has_method("aim_fishing"):
+		host.call("aim_fishing", heading)
+
+
+func _stand_at(at: Vector3) -> void:
+	var host := get_parent()
+	if host != null and host.has_method("stand_fishing"):
+		host.call("stand_fishing", at)
+
+
+func _refresh_jar() -> void:
+	var host := get_parent()
+	if host != null and host.has_method("refresh_fishing_jar"):
+		host.call("refresh_fishing_jar")
+
+
+func _glide_camera(weight: float) -> void:
+	if _camera == null:
+		return
+	_camera.global_position = _cam_from.lerp(_cam_at, weight)
+	_camera.look_at(_cam_look, Vector3.UP)
+
+
+func _forward(heading: float) -> Vector3:
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))
+	return upright * Vector3(0, 1, 0)
+
+
+func _mouse() -> Vector2:
+	var view := get_viewport().get_visible_rect().size
+	var point := get_viewport().get_mouse_position()
+	return Vector2(point.x / view.x * 2.0 - 1.0, 1.0 - point.y / view.y * 2.0)
+
+
+func _build() -> void:
+	_layer = CanvasLayer.new()
+	_layer.name = "FishingGui"
+	_layer.visible = false
+	add_child(_layer)
+	var root := Control.new()
+	root.name = "CastGui"
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(root)
+	_red = _fill(Color(1, 0, 0))
+	_green = _fill(Color(0, 1, 0))
+	var hover := _fill(Color(1, 1, 0))
+	_cast_button = Button.new()
+	_cast_button.name = "Cast"
+	_cast_button.text = "Cast"
+	_cast_button.focus_mode = Control.FOCUS_NONE
+	_cast_button.add_theme_stylebox_override("normal", _red)
+	_cast_button.add_theme_stylebox_override("hover", hover)
+	_cast_button.add_theme_stylebox_override("pressed", _green)
+	_style_button(_cast_button, 28)
+	root.add_child(_cast_button)
+	_exit_button = Button.new()
+	_exit_button.name = "Exit"
+	_exit_button.text = "Exit"
+	_exit_button.focus_mode = Control.FOCUS_NONE
+	_exit_button.add_theme_stylebox_override("normal", _fill(Color(0.15, 0.45, 0.85)))
+	_exit_button.add_theme_stylebox_override("hover", hover)
+	_exit_button.add_theme_stylebox_override("pressed", _fill(Color(0.05, 0.25, 0.55)))
+	_style_button(_exit_button, 22)
+	_exit_button.pressed.connect(_exit_pressed)
+	root.add_child(_exit_button)
+	_jar = Label.new()
+	_jar.name = "Jar"
+	_jar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ToonGui.style_sign(_jar, Color(0.95, 0.95, 0), 36, Color(0, 0, 0), 4)
+	root.add_child(_jar)
+	_bucket = Label.new()
+	_bucket.name = "Bucket"
+	_bucket.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ToonGui.style_label(_bucket, Color(0.95, 0.95, 0), 22, Color(0, 0, 0), 4)
+	root.add_child(_bucket)
+	_clock = Label.new()
+	_clock.name = "Timer"
+	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ToonGui.style_sign(_clock, Color(1, 1, 1), 48, Color(0, 0, 0), 6)
+	root.add_child(_clock)
+	_arrow = ColorRect.new()
+	_arrow.name = "Arrow"
+	_arrow.color = Color(1, 1, 0.1, 0.7)
+	_arrow.visible = false
+	_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_arrow)
+	_modal = _panel(root, "HowTo")
+	_modal_label = _modal.get_node("Text") as Label
+	_modal_button = Button.new()
+	_modal_button.name = "OK"
+	_modal_button.text = "OK"
+	_modal_button.focus_mode = Control.FOCUS_NONE
+	_modal_button.add_theme_stylebox_override("normal", _fill(Color(0.2, 0.55, 0.95)))
+	_modal_button.add_theme_stylebox_override("hover", _fill(Color(1, 1, 0)))
+	_modal_button.add_theme_stylebox_override("pressed", _fill(Color(0.1, 0.35, 0.7)))
+	_style_button(_modal_button, 22)
+	_modal_button.pressed.connect(_close_modal)
+	_modal.add_child(_modal_button)
+	_reward = _panel(root, "Catch")
+	_reward_label = _reward.get_node("Text") as Label
+	var close := _image_button(_reward, "Close", _CLOSE_UP, _CLOSE_DOWN, _CLOSE_HOVER)
+	close.pressed.connect(_close_reward)
+	var view := get_viewport()
+	if not view.size_changed.is_connected(_layout):
+		view.size_changed.connect(_layout)
+
+
+func _panel(parent: Control, panel_name: String) -> Control:
+	var panel := Control.new()
+	panel.name = panel_name
+	panel.visible = false
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	parent.add_child(panel)
+	var frame := TextureRect.new()
+	frame.name = "Dialog"
+	frame.texture = _DIALOG
+	frame.modulate = Color(1, 1, 0.75, 1)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(frame)
+	var text := Label.new()
+	text.name = "Text"
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ToonGui.style_label(text, Color(0, 0, 0), 22, Color(0, 0, 0, 0), 0)
+	panel.add_child(text)
+	return panel
+
+
+func _image_button(parent: Control, button_name: String, up: Texture2D, down: Texture2D, hover: Texture2D) -> TextureButton:
+	var button := TextureButton.new()
+	button.name = button_name
+	button.texture_normal = up
+	button.texture_pressed = down
+	button.texture_hover = hover
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	parent.add_child(button)
+	return button
+
+
+func _fill(color: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = color
+	box.set_corner_radius_all(10)
+	box.content_margin_top = 6
+	box.content_margin_bottom = 6
+	return box
+
+
+func _style_button(button: Button, size: int) -> void:
+	button.add_theme_font_override("font", ToonGui.font())
+	button.add_theme_font_size_override("font_size", size)
+	button.add_theme_color_override("font_color", Color(1, 1, 1))
+	button.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	button.add_theme_color_override("font_pressed_color", Color(1, 1, 1))
+	button.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	button.add_theme_constant_override("outline_size", 4)
+
+
+func _layout() -> void:
+	if _cast_button == null:
+		return
+	var view := get_viewport().get_visible_rect().size
+	ToonGui.place(_cast_button, view, 0.0, -0.62, 0.52, 0.2)
+	ToonGui.place(_exit_button, view, 1.15, -0.86, 0.34, 0.16)
+	ToonGui.place(_jar, view, -1.05, -0.86, 0.4, 0.16)
+	ToonGui.place(_bucket, view, 0.55, -0.86, 0.4, 0.16)
+	ToonGui.place(_clock, view, 1.2, 0.82, 0.36, 0.22)
+	_layout_panel(_modal, view, 1.7, 1.15)
+	_layout_panel(_reward, view, 1.35, 0.85)
+	_layout_arrow()
+
+
+func _layout_panel(panel: Control, view: Vector2, width: float, height: float) -> void:
+	ToonGui.place(panel, view, 0.0, 0.15, width, height)
+	var frame := panel.get_node("Dialog") as Control
+	frame.position = Vector2.ZERO
+	frame.size = panel.size
+	var text := panel.get_node("Text") as Control
+	text.position = Vector2(panel.size.x * 0.08, panel.size.y * 0.08)
+	text.size = Vector2(panel.size.x * 0.84, panel.size.y * 0.62)
+	var button := panel.get_child(panel.get_child_count() - 1) as Control
+	var side := panel.size.y * 0.22
+	button.size = Vector2(side, side)
+	button.position = Vector2(panel.size.x * 0.5 + side * 0.2, panel.size.y - side * 1.15)
+
+
+func _layout_arrow() -> void:
+	if _arrow == null or _cast_button == null:
+		return
+	var height := 24.0 + _power * 150.0
+	_arrow.size = Vector2(16.0, height)
+	_arrow.pivot_offset = Vector2(8.0, height)
+	var anchor := _cast_button.position + Vector2(_cast_button.size.x * 0.5, -8.0)
+	_arrow.position = anchor - _arrow.pivot_offset
+	_arrow.rotation = deg_to_rad(-_angle)

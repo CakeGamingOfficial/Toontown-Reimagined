@@ -19,6 +19,9 @@ const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _FISH := preload("res://scenes/fishing/fish_tank.gd")
+const _SELL := preload("res://scenes/fishing/fish_sell_gui.gd")
+const _CAST := preload("res://scenes/fishing/fishing_session.gd")
 const _MARGINS := preload("res://scenes/toons/margin_tags.gd")
 const _TROLLEY := preload("res://scenes/trolley/trolley.gd")
 const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
@@ -108,7 +111,11 @@ var _hall_ready := false
 var _hq_ready := false
 var _bank_ready := false
 var _bank_open := false
+var _fish_open := false
+var _casting := false
+var _cast_ready := false
 var _clerk_ready := false
+var _fish_ready := false
 var _clerk_mouth: Node3D
 var _clerk_line: PanelContainer
 var _clerk_label: Label
@@ -252,7 +259,7 @@ func _ready() -> void:
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
 	_collect_tunnels(get_parent())
-	_spawn(arriving or logging_in)
+	_spawn(arriving or logging_in or from_factory == "in")
 	if _player != null and _is_sad():
 		_player.set_sad(true)
 	_ready_hud()
@@ -261,6 +268,15 @@ func _ready() -> void:
 	add_child(_trolley)
 	if not _trolley.setup(self):
 		_trolley = null
+	# setFactoryInteriorZone. The exterior doors close, then enterTeleportIn
+	# plays on the factory floor. The toon does not ride the interior car.
+	if from_factory == "in":
+		await _portal_in()
+		if sad_arrival:
+			await _death_ack()
+		_locked = false
+		_place_camera()
+		return
 	if from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "":
 		_tasks.note_hood(_hood)
 		if from_hall == "out":
@@ -345,6 +361,8 @@ func _process(delta: float) -> void:
 	var book_open := _book != null and _book.is_open()
 	if _battle_hold:
 		pass
+	elif _fish_open or _casting:
+		pass
 	elif MagicWords.detached_camera() and not book_open and not _bank_open and not _locked:
 		MagicWords.fly_camera(_camera, delta)
 	elif _trolley != null and _trolley.holds_camera():
@@ -372,11 +390,13 @@ func _physics_process(delta: float) -> void:
 	_try_bank()
 	_try_building_door()
 	_try_clerk()
+	_try_fisherman()
+	_try_fishing()
 	_try_trolley()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not _active:
+	if not _active or _casting:
 		return
 	_steer_camera(event)
 	if _filming or _locked:
@@ -788,9 +808,210 @@ func _bank_gui_closed() -> void:
 
 ## DistributedNPCToonBase puts a CollisionTube one unit in front of the clerk,
 ## radius 3.25, from the floor to above their head. The toon's own sphere is
-## 1.4, so the counter in front of them is inside the trigger.
+## 1.4, so the counter in front of them is inside the trigger. A fisherman's
+## tube uses getCollSphereRadius, which is 1.
 const _CLERK_FORWARD := 1.0
 const _CLERK_REACH := 3.25 + 1.4
+const _FISHER_REACH := 1.0 + 1.4
+const _NO_FISH := "Come back here to sell fish to the Pet Shop for jellybeans."
+const _THANKS_FISH := "Thanks! The Pet Shop will love these. Bye!"
+const _TROPHY_FISH := "Wow! You collected %d of %d fish. That deserves a trophy and a Laff boost!"
+const _FISH_SLOW := "Need more time to think?"
+
+
+## DistributedFishingSpot sphere is 1.5 at the outer end of the pier. The pier
+## plate itself extends 6.4 feet back from that point, and this toon's capsule
+## is thinner than the original tube, so the 2.5 test never reached a toon
+## standing on the plate. Cover the whole plate.
+const _SHORE_REACH := 6.5
+
+
+func aim_fishing(heading: float) -> void:
+	_heading = heading
+	if _player != null:
+		_face(_player, heading)
+
+
+func stand_fishing(at: Vector3) -> void:
+	if _body == null:
+		return
+	_body.velocity = Vector3.ZERO
+	_body.global_position = at
+
+
+func refresh_fishing_jar() -> void:
+	if _book != null:
+		_book.refresh_jar()
+
+
+func _try_fishing() -> void:
+	if _casting or _body == null or _player == null:
+		return
+	var spot := _nearest_shore()
+	if spot == null:
+		_cast_ready = true
+		return
+	if not _cast_ready or _is_sad():
+		return
+	if _book != null and _book.is_open():
+		_cast_ready = false
+		return
+	_cast_ready = false
+	_casting = true
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	var session := _CAST.new()
+	session.open(_player, _camera, spot, _body.global_position, _heading)
+	add_child(session)
+	await session.finished
+	if not is_inside_tree():
+		return
+	_casting = false
+	_locked = false
+	if _book != null:
+		_book.refresh_jar()
+
+
+func _nearest_shore() -> Node3D:
+	var host := get_parent()
+	if host == null or _body == null:
+		return null
+	var best: Node3D = null
+	var best_gap := _SHORE_REACH
+	for node in host.find_children("FishingShore", "Node3D", true, false):
+		var spot := node as Node3D
+		if spot == null or not spot.is_visible_in_tree():
+			continue
+		var offset := spot.global_position - _body.global_position
+		var gap := Vector2(offset.x, offset.z).length()
+		if gap <= best_gap:
+			best_gap = gap
+			best = spot
+	return best
+
+
+func _try_fisherman() -> void:
+	if _body == null:
+		_fish_ready = true
+		return
+	var fisher := _nearest_fisherman()
+	if fisher == null:
+		_fish_ready = true
+		return
+	if _book != null and _book.is_open():
+		_fish_ready = false
+		return
+	if not _fish_ready:
+		return
+	_fish_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_talk_fisherman(fisher)
+
+
+func _nearest_fisherman() -> Node3D:
+	var host := get_parent()
+	if host == null:
+		return null
+	var best: Node3D = null
+	var best_gap := _FISHER_REACH
+	for node in host.find_children("Fishermen", "StaticBody3D", true, false):
+		var body := node as Node3D
+		if body == null or not body.is_visible_in_tree():
+			continue
+		var actor := _clerk_actor(body)
+		var center := body.global_position + _clerk_forward(actor) * _CLERK_FORWARD
+		var offset := center - _body.global_position
+		var gap := Vector2(offset.x, offset.z).length()
+		if gap <= best_gap:
+			best_gap = gap
+			best = body
+	return best
+
+
+func _talk_fisherman(fisher: Node3D) -> void:
+	var actor := _clerk_actor(fisher)
+	var toward := actor.global_position - _body.global_position
+	toward.y = 0.0
+	if toward.length_squared() > 0.0001:
+		_heading = _heading_toward(toward)
+		_face(_player, _heading)
+	if _FISH.value() <= 0:
+		_say_clerk(actor, _NO_FISH, 4.5)
+		await get_tree().create_timer(4.5).timeout
+		if not is_inside_tree():
+			return
+		_say_clerk(null, "", 0.0)
+		_locked = false
+		return
+	_fish_open = true
+	await _frame_fisherman(actor)
+	if not is_inside_tree():
+		return
+	var panel := _SELL.new()
+	panel.name = "FishSell"
+	panel.set("toon_name", _player.name if _player != null else "Toon")
+	_hud().add_child(panel)
+	var reason := "cancel"
+	if panel.has_signal("finished"):
+		reason = await panel.finished
+	if not is_inside_tree():
+		return
+	var line := _NO_FISH
+	var hold := 4.5
+	if reason == "sold":
+		var result: Dictionary = _FISH.sell()
+		if _book != null:
+			_book.refresh_jar()
+		var trophies := int(result.get("trophies", 0))
+		if trophies > 0 and _loadout != null:
+			_loadout.set_hp(_loadout.hp + trophies, _loadout.max_hp + trophies)
+			_loadout.save()
+			line = _TROPHY_FISH % [int(result.get("collected", 0)), int(result.get("total", 70))]
+			hold = 5.5
+		else:
+			line = _THANKS_FISH
+			hold = 3.5
+	elif reason == "timeout":
+		line = _FISH_SLOW
+		hold = 2.4
+	_fish_open = false
+	_say_clerk(actor, line, hold)
+	await get_tree().create_timer(hold).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	_locked = false
+
+
+func _frame_fisherman(actor: Node3D) -> void:
+	if _camera == null or actor == null:
+		await get_tree().create_timer(1.0).timeout
+		return
+	var forward := _clerk_forward(actor)
+	var right := Vector3.UP.cross(forward)
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	right = right.normalized()
+	var height := 3.0
+	if actor is ToonActor:
+		height = (actor as ToonActor).clamped_height()
+	var at := actor.global_position - right * 5.0 + forward * 9.0 + Vector3(0.0, height - 0.5, 0.0)
+	var look := actor.global_position + Vector3(0.0, height * 0.85, 0.0)
+	var from := _camera.global_position
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_method(_glide_fish_camera.bind(from, at, look), 0.0, 1.0, 1.0)
+	await tween.finished
+
+
+func _glide_fish_camera(weight: float, from: Vector3, at: Vector3, look: Vector3) -> void:
+	if _camera == null:
+		return
+	_camera.global_position = from.lerp(at, weight)
+	_camera.look_at(look, Vector3.UP)
 
 
 func _try_clerk() -> void:

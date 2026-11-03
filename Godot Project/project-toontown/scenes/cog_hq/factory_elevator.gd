@@ -2,7 +2,7 @@ extends Node
 
 ## DistributedFactoryElevatorExt. The front and side cars sit on the factory
 ## exterior. Boarding runs the normal elevator countdown, then the doors close
-## and the toon comes out at that entrance. The same car at the entrance rides
+## and the toon teleports in at that entrance. The same car at the entrance rides
 ## back to the exterior.
 
 const _MODEL := preload("res://assets/buildings/cog/elevator.glb")
@@ -21,6 +21,8 @@ const _COUNTDOWN := 15.0
 const _CLOSE_TIME := 2.0
 const _BOARD := 1.0
 const _BOARD_RUN := 0.75
+## Elevator.enterBoarding. Factory elevators leave reverseBoardingCamera off.
+const _BOARD_CAM := 1.5
 const _EXIT := 1.0
 const _SLIDE := 3.5
 const _SCALE := 1.05
@@ -48,6 +50,9 @@ var _hop: TextureButton
 var _clock: Label3D
 var _music: AudioStreamPlayer
 var _cue := ""
+var _cam_from := Vector3.ZERO
+var _look_from := Vector3.FORWARD
+var _cam_blend := -1.0
 
 
 static func riding() -> bool:
@@ -68,17 +73,18 @@ static func place(host: Node) -> void:
 	host.add_child(node)
 
 
-## EntrancePoint.placeToon for one toon, or the jump-out spot in front of the car.
+## setFactoryInteriorZone uses how = teleportIn. The landing is the floor in
+## front of the entrance car. The seat is inside the elevator.
 static func arrival(host: Node, which: int, into_factory: bool) -> Dictionary:
 	if into_factory:
-		var zone := _find(host, "ZONE%02d" % (3 if which == 0 else 16))
-		if zone == null:
+		var car := _find(host, "FactoryExitFront" if which == 0 else "FactoryExitSide")
+		if car == null:
 			return {}
-		var ahead := zone.global_transform.basis.y
-		ahead.y = 0.0
+		var out := -car.global_transform.basis.y
+		out.y = 0.0
 		return {
-			"point": zone.global_transform * Vector3(0.0, -5.0, 0.0),
-			"heading": _heading(ahead),
+			"point": car.global_transform * _JUMP,
+			"heading": _heading(out),
 		}
 	var car := _find(host, "FactoryFront" if which == 0 else "FactorySide")
 	if car == null:
@@ -210,6 +216,7 @@ func _begin_board(car: Node3D) -> void:
 	_cue = ""
 	_from = toon.call("battle_point")
 	toon.call("hold_for_battle", true)
+	_remember_cam()
 	_slide(0.0)
 
 
@@ -336,26 +343,33 @@ func _animate(speed: float) -> void:
 		actor.call("set_locomotion", speed, false, false, get_process_delta_time())
 
 
+## Elevator.enterBoarding. Parent the shot to the car and ease to (0, -16, 5.5)
+## over 1.5 seconds. Heading 0 looks along local +Y, into the open doors.
 func _aim() -> void:
-	var host := get_parent()
-	var toon := _toon()
-	if host == null or toon == null:
+	if _car == null:
 		return
-	var camera := host.get_node_or_null("ToonCamera") as Camera3D
-	var actor: Variant = toon.call("battle_actor")
-	if camera == null or not (actor is Node3D):
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
 		return
-	var body := actor as Node3D
-	var forward := body.global_transform.basis.y
-	forward.y = 0.0
-	if forward.length_squared() < 0.001:
+	var dest: Vector3 = _car.global_transform * Vector3(0.0, -16.0, 5.5)
+	var look: Vector3 = _car.global_transform * Vector3(0.0, 0.0, 5.5)
+	_cam_blend = minf(_cam_blend + get_process_delta_time() / _BOARD_CAM, 1.0)
+	var blend := clampf(_cam_blend, 0.0, 1.0)
+	camera.global_position = _cam_from.lerp(dest, blend)
+	var focus := _look_from.lerp(look, blend)
+	if camera.global_position.distance_squared_to(focus) > 0.04:
+		camera.look_at(focus, Vector3.UP)
+
+
+func _remember_cam() -> void:
+	_cam_blend = 0.0
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		_cam_from = Vector3.ZERO
+		_look_from = Vector3.FORWARD
 		return
-	forward = forward.normalized()
-	var feet: Vector3 = toon.call("battle_point")
-	var target := feet + Vector3(0.0, 3.0, 0.0)
-	camera.global_position = target - forward * 12.0 + Vector3(0.0, 2.0, 0.0)
-	if camera.global_position.distance_squared_to(target) > 0.04:
-		camera.look_at(target, Vector3.UP)
+	_cam_from = camera.global_position
+	_look_from = _cam_from - camera.global_basis.z * 12.0
 
 
 func _toon() -> Node:
@@ -423,7 +437,10 @@ func _build_clock() -> void:
 	_clock.outline_size = 0
 	_clock.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# TextNode keeps the baseline on (0, 2, 7.5). Bottom alignment parks the
+	# descent there instead, so the digits rise into the top of the frame.
 	_clock.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_clock.offset = Vector2(0.0, -_clock.font.get_descent(_clock.font_size))
 	_clock.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_clock.visible = false
 	add_child(_clock)

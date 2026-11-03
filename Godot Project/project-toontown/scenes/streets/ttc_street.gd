@@ -37,6 +37,7 @@ func _ready() -> void:
 	_raise_pond_hedge()
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
+	preload("res://scenes/playgrounds/fishing_spots.gd").place(self)
 	if preload("res://scenes/places/tunnel_links.gd").arriving() or preload("res://scenes/interiors/shop_door.gd").trip == "out" or preload("res://scenes/playgrounds/playground_toon.gd").reload_resume():
 		preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
 	preload("res://scenes/streets/street_buildings.gd").attach(self)

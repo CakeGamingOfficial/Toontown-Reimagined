@@ -47,6 +47,11 @@ func build_street(flat: bool) -> void:
 	_BATCH.sweep_empty(self)
 
 
+func _factory_interior() -> bool:
+	var host := get_parent()
+	return host != null and host.scene_file_path.get_file() == "sellbot_factory.tscn"
+
+
 func _on_street() -> bool:
 	var host := get_parent()
 	if host == null:
@@ -55,6 +60,10 @@ func _on_street() -> bool:
 
 
 func _add_collision(node: Node) -> void:
+	# The factory combines each zone into one solid. A trimesh on every pipe
+	# is the frame-rate drop, so those bodies are never created.
+	if _factory_interior():
+		return
 	if "sky" in node.name.to_lower():
 		return
 	if node is MeshInstance3D:

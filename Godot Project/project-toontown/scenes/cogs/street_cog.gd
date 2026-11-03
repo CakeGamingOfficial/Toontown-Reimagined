@@ -468,6 +468,15 @@ func _process(delta: float) -> void:
 			_idle(delta)
 		return
 	if bool(get_meta("factory", false)):
+		# Same pose budget as a street suit. A cog in a stashed room, or one
+		# you are not looking at, keeps its place without a new mesh.
+		_detail = _camera_detail()
+		if _detail == 0:
+			if bool(get_meta("walking", false)):
+				_walk_time = fposmod(_walk_time + delta * _walk_fps, float(maxi(int(_walk.get("frames", 1)), 1)))
+			else:
+				_idle_time = fposmod(_idle_time + delta * _neutral_fps, float(maxi(int(_neutral.get("frames", 1)), 1)))
+			return
 		if bool(get_meta("walking", false)):
 			_march(delta)
 		else:

@@ -76,6 +76,10 @@ func _process(delta: float) -> void:
 		if _material:
 			_material.set_shader_parameter("cloud_scroll", _scroll)
 	_apply_sky()
+	# A cog backdrop has no imported cloud cards. Scanning the factory for
+	# them every frame walks every room that is still in the tree.
+	if kind == "cog":
+		return
 	if _hidden.is_empty() or not is_instance_valid(_hidden[0]):
 		_hidden.clear()
 		_collect_imported(get_parent())

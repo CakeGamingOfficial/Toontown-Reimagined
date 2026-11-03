@@ -46,8 +46,10 @@ func _ready() -> void:
 		preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
+	preload("res://scenes/playgrounds/fishing_spots.gd").place(self)
 	_ready_playground_treasures()
 	_attach_returning_toon()
+	preload("res://scenes/cog_hq/factory_rooms.gd").place(self)
 	preload("res://scenes/streets/street_buildings.gd").attach(self)
 	preload("res://scenes/streets/street_suits.gd").attach(self)
 	preload("res://scenes/battle/street_fight.gd").attach(self)
@@ -218,6 +220,9 @@ func _toon_feet() -> Node3D:
 
 
 func zone_visible_at(at: Vector3) -> bool:
+	var rooms := get_node_or_null("FactoryRooms")
+	if rooms != null:
+		return bool(rooms.call("visible_at", at))
 	var shown: Variant = get_meta("street_shown", {})
 	if _zones.is_empty() or not (shown is Dictionary) or (shown as Dictionary).is_empty():
 		return true
