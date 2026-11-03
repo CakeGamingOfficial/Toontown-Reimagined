@@ -308,8 +308,7 @@ func _build_world_bubble() -> void:
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(column)
 	_world_label = Label.new()
-	_world_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_world_label.custom_minimum_size = Vector2(280, 0)
+	_world_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_world_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(_world_label, _BLACK, 22, Color(0, 0, 0, 0), 0)
 	column.add_child(_world_label)
@@ -321,7 +320,7 @@ func _build_world_bubble() -> void:
 
 func _show_world(text: String, color: Color, confirm: bool) -> void:
 	_hide_book()
-	_world_label.text = text
+	ToonGui.show_speech(_world_label, text, 22)
 	_world_label.add_theme_color_override("font_color", color)
 	_world_arrow.visible = confirm
 	_world.visible = true

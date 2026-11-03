@@ -605,11 +605,10 @@ func _say(at: Vector3, text: String, seconds: float, aim: bool = true, tick_idle
 	box.content_margin_bottom = 8
 	panel.add_theme_stylebox_override("panel", box)
 	var label := Label.new()
-	label.text = text
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(220, 0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), 20, Color(0, 0, 0, 0), 0)
 	label.add_theme_font_override("font", ToonGui.suit_font())
+	ToonGui.show_speech(label, text, 20)
 	panel.add_child(label)
 	_hud.add_child(panel)
 	panel.reset_size()

@@ -43,7 +43,7 @@ static func play(species: String, text: String) -> void:
 	var path := _clip(species, text)
 	if path.is_empty():
 		return
-	_play(_voice, "ToonSpeech", path)
+	_play(_speaker("ToonSpeech"), "ToonSpeech", path)
 
 
 ## Suit.playDialogueForString. Cogs do not pop the toon balloon. Short lines
@@ -52,7 +52,23 @@ static func play(species: String, text: String) -> void:
 static func cog(text: String) -> void:
 	if text.is_empty():
 		return
-	_play(_cog, "CogSpeech", _cog_clip(text))
+	_play(_speaker("CogSpeech"), "CogSpeech", _cog_clip(text))
+
+
+## A zone change frees the player that was parented to the old scene. The
+## static still points at it, and a typed argument rejects that freed player
+## before the function body can notice.
+static func _speaker(player_name: String) -> AudioStreamPlayer:
+	var raw: Variant = _cog
+	if player_name == "ToonSpeech":
+		raw = _voice
+	if typeof(raw) == TYPE_OBJECT and is_instance_valid(raw):
+		return raw as AudioStreamPlayer
+	if player_name == "ToonSpeech":
+		_voice = null
+	else:
+		_cog = null
+	return null
 
 
 static func _clip(species: String, text: String) -> String:
@@ -102,12 +118,11 @@ static func _play(player: AudioStreamPlayer, player_name: String, path: String) 
 		player = ToonAudio.effect_player()
 		player.name = player_name
 		var tree := Engine.get_main_loop() as SceneTree
-		if tree == null:
+		if tree == null or tree.root == null:
 			return
-		var parent: Node = tree.current_scene if tree.current_scene != null else tree.root
-		if parent == null:
-			return
-		parent.add_child(player)
+		# Keep it on the root. Parenting to the current street frees it on the
+		# next tunnel, and the next line then passes that freed player in.
+		tree.root.add_child(player)
 		if player_name == "CogSpeech":
 			_cog = player
 		else:

@@ -198,7 +198,7 @@ func _gesture(suffix: String, rate: float, loop: bool) -> void:
 func _line(text: String, color: Color, poster: String) -> void:
 	_show_poster(poster)
 	ToonSpeech.speak(_tom(), text)
-	_label.text = text
+	ToonGui.show_speech(_label, text, 26)
 	_label.add_theme_color_override("font_color", color)
 	_bubble_on = true
 	_advance = false
@@ -907,8 +907,7 @@ func _build_bubble() -> void:
 	box.content_margin_bottom = 12
 	_bubble.add_theme_stylebox_override("panel", box)
 	_label = Label.new()
-	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_label.custom_minimum_size = Vector2(420, 0)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(_label, _BLACK, 26, Color(0, 0, 0, 0), 0)
 	_bubble.add_child(_label)

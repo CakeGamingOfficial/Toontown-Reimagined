@@ -84,6 +84,13 @@ static func remember(zone_id: int, street_path: String) -> void:
 
 
 static func named_doors() -> Array:
+	var live: Array[Dictionary] = []
+	for entry in _entries:
+		var raw: Variant = entry.get("building")
+		if typeof(raw) != TYPE_OBJECT or not is_instance_valid(raw):
+			continue
+		live.append(entry)
+	_entries = live
 	return _entries
 
 
@@ -100,6 +107,8 @@ static func prepare(host: Node) -> void:
 			"door": door,
 			"point": outside_trigger(building, door),
 		})
+	# Every street that measures shop doors also gets the knock-knock doors.
+	preload("res://scenes/streets/joke_doors.gd").attach(host)
 
 
 static func find_for_zone(zone_id: int) -> Node3D:

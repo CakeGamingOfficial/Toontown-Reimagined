@@ -18,6 +18,8 @@ var _widgets: Array[Control] = []
 var _address: LineEdit
 var _port_edit: LineEdit
 var _waiting := false
+var _wait_for_lan := false
+var _host_port := 0
 
 
 func _ready() -> void:
@@ -48,6 +50,8 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_joined)
 	multiplayer.connection_failed.connect(_failed)
 	resized.connect(_layout)
+	set_process(false)
+	ToonGui.warm_clicks()
 	_show_menu()
 
 
@@ -88,12 +92,26 @@ func _start_host() -> void:
 
 
 func _show_hosting(port: int) -> void:
+	_host_port = port
 	_title.text = "SERVER OPEN"
-	_body.text = "Other players choose Connect and type one of these addresses, with port %d.\n\n%s\n\nOn this same computer, the address is 127.0.0.1.\nFrom the internet, forward UDP port %d to this computer." % [port, _addresses(), port]
+	_body.text = _hosting_copy(port)
 	_clear_widgets()
 	_keep(_pill("Play", _enter))
 	_keep(_pill("Stop Hosting", _stop_host))
 	_layout()
+
+
+func _hosting_copy(port: int) -> String:
+	return "Other players choose Connect and type one of these addresses, with port %d.\n\n%s\n\nOn this same computer, the address is 127.0.0.1.\nFrom the internet, forward UDP port %d to this computer." % [port, _addresses(), port]
+
+
+func _process(_delta: float) -> void:
+	if not _wait_for_lan or not ToonNet.lan_ready():
+		return
+	_wait_for_lan = false
+	set_process(false)
+	if _title != null and _title.text == "SERVER OPEN":
+		_body.text = _hosting_copy(_host_port)
 
 
 func _ask_connect() -> void:
@@ -151,7 +169,18 @@ func _play_alone() -> void:
 
 func _enter() -> void:
 	_waiting = false
-	queue_free()
+	# queue_free during this click marks the dialog for deletion, and Godot
+	# then offers the same press to the toon slot behind the button. That
+	# starts Make a Toon or Play and hitches on the scene load. Leave the
+	# dialog up until the click has finished.
+	_guard_slots()
+	call_deferred("queue_free")
+
+
+func _guard_slots() -> void:
+	var host := get_parent()
+	if host != null and host.has_method("_swallow_click"):
+		host.call("_swallow_click")
 
 
 func _joined() -> void:
@@ -179,14 +208,13 @@ func _read_port() -> int:
 
 
 func _addresses() -> String:
-	var lines: PackedStringArray = []
-	for raw in IP.get_local_addresses():
-		var address := String(raw)
-		if address.contains(":") or address.begins_with("127.") or address.begins_with("169.254.") or address == "0.0.0.0":
-			continue
-		if lines.has(address):
-			continue
-		lines.append(address)
+	# GetAdaptersAddresses stalls the game for seconds on some machines when
+	# a VPN adapter is present. The lookup runs in the background from startup.
+	if not ToonNet.lan_ready():
+		_wait_for_lan = true
+		set_process(true)
+		return "Looking up this computer's addresses..."
+	var lines := ToonNet.lan_lines()
 	if lines.is_empty():
 		return "No local address was found. Try 127.0.0.1 on this computer."
 	return "\n".join(lines)
@@ -238,9 +266,16 @@ func _keep(control: Control) -> void:
 
 
 func _clear_widgets() -> void:
+	# Same click-through as closing the dialog. A freed Host or Connect
+	# button would otherwise activate the slot underneath it.
+	_guard_slots()
 	for widget in _widgets:
 		if is_instance_valid(widget):
-			widget.queue_free()
+			widget.hide()
+			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if widget is BaseButton:
+				widget.disabled = true
+			widget.call_deferred("queue_free")
 	_widgets.clear()
 	_address = null
 	_port_edit = null

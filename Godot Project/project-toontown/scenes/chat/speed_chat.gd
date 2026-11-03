@@ -1270,6 +1270,26 @@ func post(channel: String, text: String) -> void:
 	_append(channel, line, _tab_index(channel))
 
 
+## A line the local toon spoke, in the same shape as a typed chat line.
+## The log stays on whatever tab is open. The Player channel still receives it.
+func log_player_line(text: String) -> void:
+	var clean := text.replace("\n", " ").strip_edges()
+	if clean == "":
+		return
+	var color := _speaker_color().to_html(false)
+	var line := "[color=#7a5a3a]%s[/color] [color=#%s]%s[/color]: %s" % [_clock(), color, _bb(_speaker_name()), _bb(clean)]
+	_append("player", line, -1)
+
+
+## NPC speech, including joke doors. Channel "npc" is the NPCs filter and the NPC tab.
+func log_npc_line(speaker: String, text: String, ink: Color = Color(0.25, 0.28, 0.75)) -> void:
+	var clean := text.replace("\n", " ").strip_edges()
+	if clean == "" or speaker == "":
+		return
+	var line := "[color=#7a5a3a]%s[/color] [color=#%s]%s[/color]: %s" % [_clock(), ink.to_html(false), _bb(speaker), _bb(clean)]
+	_append("npc", line, -1)
+
+
 func _tab_index(channel: String) -> int:
 	match channel:
 		"system":

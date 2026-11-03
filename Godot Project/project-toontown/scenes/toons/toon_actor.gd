@@ -1038,8 +1038,11 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 		return
 	var color := Color.WHITE
 	var texture: Texture2D = null
+	var glove := 0.0
+	var face_sign := 1.0
 	if part == "hands":
 		color = ToonStyle.fur_color(style.glove_color)
+		glove = 1.0
 	elif part == "arms" or part == "neck":
 		color = ToonStyle.fur_color(style.arm_color)
 	elif part == "legs" or part == "feet":
@@ -1060,6 +1063,8 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 		color = Color.BLACK if style.species() == "d" else ToonStyle.fur_color(style.head_color)
 	elif part.begins_with("head"):
 		color = ToonStyle.fur_color(style.head_color)
+		# Smoothed skull normals point backward. The body does not.
+		face_sign = -1.0
 	elif part == "torso-top":
 		color = ToonStyle.clothes_color(style.top_color)
 		texture = _SHIRT[clampi(style.top_tex, 0, _SHIRT.size() - 1)]
@@ -1078,7 +1083,7 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 	var shell := 0.0
 	if part == "torso-top" or part == "sleeves" or part.begins_with("torso-bot"):
 		shell = 0.06
-	mesh.material_override = _body_material(texture, color, shell)
+	mesh.material_override = _body_material(texture, color, shell, 0.0, glove, face_sign)
 
 
 func _bottom_texture(style: ToonStyle) -> Texture2D:
@@ -1228,12 +1233,14 @@ func _lit_surface(mesh: MeshInstance3D, shell: float, gloss: float) -> void:
 	mesh.material_override = _body_material(texture, color, shell, gloss)
 
 
-func _body_material(texture: Texture2D, color: Color, shell: float, gloss: float = 0.0) -> ShaderMaterial:
+func _body_material(texture: Texture2D, color: Color, shell: float, gloss: float = 0.0, glove: float = 0.0, face_sign: float = 1.0) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = _BODY_GHOST if _ghost_local else _BODY_SHADER
 	material.set_shader_parameter("albedo_color", color)
 	material.set_shader_parameter("shell", shell)
 	material.set_shader_parameter("gloss", gloss)
+	material.set_shader_parameter("glove", glove)
+	material.set_shader_parameter("face_sign", face_sign)
 	material.set_shader_parameter("use_albedo_texture", 1.0 if texture else 0.0)
 	if texture:
 		material.set_shader_parameter("albedo_texture", texture)

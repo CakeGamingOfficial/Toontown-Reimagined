@@ -77,8 +77,66 @@ static func style_label(label: Label, color: Color, px: int, outline: Color, out
 	label.add_theme_constant_override("outline_size", maxi(outline_px, 0))
 
 
+## NametagGroup chat wordwrap. TextNode breaks a line after this many font
+## heights, and a shorter line stays on one row so the balloon hugs the words.
+const CHAT_WORDWRAP := 10.0
+
+
+static func wrap_words(font: Font, text: String, px: int, budget: float) -> String:
+	if font == null or text.is_empty():
+		return text
+	var size := maxi(px, 1)
+	var lines: PackedStringArray = []
+	for source in text.split("\n", false):
+		var line := ""
+		for word in source.split(" ", false):
+			var trial := word if line.is_empty() else "%s %s" % [line, word]
+			if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > budget and not line.is_empty():
+				lines.append(line)
+				line = word
+			else:
+				line = trial
+		if not line.is_empty():
+			lines.append(line)
+	return "\n".join(lines)
+
+
+static func wrap_speech(font: Font, text: String, px: int) -> String:
+	var face := font if font != null else font()
+	var size := maxi(px, 1)
+	return wrap_words(face, text, size, float(size) * CHAT_WORDWRAP)
+
+
+## Pre-wrap, then turn autowrap off. A Label that wraps inside a balloon
+## sized to its own minimum collapses to a few pixels and stacks one word
+## under the next.
+static func show_speech(label: Label, text: String, px: int) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.custom_minimum_size = Vector2.ZERO
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.text = wrap_speech(label.get_theme_font("font"), text, px)
+
+
 const CLICK_SFX := "res://assets/toons/audio/GUI_create_toon_fwd.mp3"
 const ROLLOVER_SFX := "res://assets/toons/audio/GUI_rollover.mp3"
+
+static var _streams: Dictionary = {}
+
+
+## Load the click and rollover once, so the first button on Pick a Toon
+## does not decode them on the click itself.
+static func warm_clicks() -> void:
+	_stream(CLICK_SFX)
+	_stream(ROLLOVER_SFX)
+
+
+static func _stream(path: String) -> AudioStream:
+	if _streams.has(path):
+		return _streams[path]
+	var stream := load(path) as AudioStream
+	if stream != null:
+		_streams[path] = stream
+	return stream
 
 
 ## DirectGui's default click and rollover, used by every Make a Toon and Pick a Toon button.
@@ -109,7 +167,7 @@ static func play_sfx(host: Node, path: String) -> void:
 	if parent == null:
 		return
 	var player := ToonAudio.effect_player()
-	player.stream = load(path)
+	player.stream = _stream(path)
 	player.finished.connect(player.queue_free)
 	parent.add_child(player)
 	player.play()

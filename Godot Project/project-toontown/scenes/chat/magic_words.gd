@@ -158,6 +158,7 @@ const _ZONE_NAMES: Dictionary = {
 }
 
 static var _run := false
+static var _run_loaded := false
 static var _oobe := false
 static var _immortal := false
 static var _ghost := false
@@ -180,7 +181,25 @@ static func looks_like(text: String) -> bool:
 
 
 static func run_scale() -> float:
+	_ensure_run()
 	return _RUN_SCALE if _run else 1.0
+
+
+static func _ensure_run() -> void:
+	if _run_loaded:
+		return
+	_run_loaded = true
+	var config := ConfigFile.new()
+	if config.load("user://magic.cfg") != OK:
+		return
+	_run = bool(config.get_value("words", "run", false))
+
+
+static func _save_run() -> void:
+	var config := ConfigFile.new()
+	config.load("user://magic.cfg")
+	config.set_value("words", "run", _run)
+	config.save("user://magic.cfg")
 
 
 static func detached_camera() -> bool:
@@ -223,7 +242,9 @@ static func invoke(scene: Node, text: String) -> String:
 		"maxhp":
 			return _set_hp(scene, args, true)
 		"run":
+			_ensure_run()
 			_run = not _run
+			_save_run()
 			return "Run mode is on." if _run else "Run mode is off."
 		"oobe":
 			return _toggle_oobe(scene)

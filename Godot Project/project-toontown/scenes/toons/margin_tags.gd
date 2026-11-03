@@ -161,9 +161,14 @@ func _offer_card(item: Dictionary, camera: Camera3D, view: Rect2, wish: Array[Di
 		card = _CARD_GRAY
 		face = ToonGui.suit_font()
 	var dist2 := camera.global_position.distance_squared_to(point)
+	var chat := ""
+	var spoken := String(actor.get_meta("chat_line", ""))
+	if spoken != "" and Time.get_ticks_msec() < int(actor.get_meta("chat_until", 0)):
+		chat = spoken
 	wish.append({
 		"key": "who:%d" % actor.get_instance_id(),
 		"text": plain,
+		"chat": chat,
 		"ink": ink,
 		"arrow": arrow,
 		"card": card,
@@ -210,9 +215,10 @@ func _gather_buildings(host: Node, camera: Camera3D, view: Rect2, wish: Array[Di
 		if not (entry is Dictionary):
 			continue
 		var row: Dictionary = entry
-		var building: Node3D = row.get("building")
-		if building == null or not is_instance_valid(building):
+		var raw: Variant = row.get("building")
+		if typeof(raw) != TYPE_OBJECT or not is_instance_valid(raw):
 			continue
+		var building := raw as Node3D
 		if building.has_meta("cog_building") or building.has_meta("suit_approaching"):
 			continue
 		var block := _DOORS.block_of(str(building.name))
@@ -221,16 +227,17 @@ func _gather_buildings(host: Node, camera: Camera3D, view: Rect2, wish: Array[Di
 		var title := String(_DOORS.record(_DOORS.interior_zone(building)).get("title", "")).strip_edges()
 		if title.is_empty():
 			continue
-		var door: Node3D = row.get("door")
+		var door_raw: Variant = row.get("door")
 		var point := building.global_position
-		if door != null and is_instance_valid(door):
-			point = door.global_position
+		if typeof(door_raw) == TYPE_OBJECT and is_instance_valid(door_raw):
+			point = (door_raw as Node3D).global_position
 		_offer_building(wish, camera, view, "shop:%d" % building.get_instance_id(), title, point, false)
 	_cache_playground(host)
 	for spot in _playground:
-		var node: Node3D = spot.get("node")
-		if node == null or not is_instance_valid(node):
+		var node_raw: Variant = spot.get("node")
+		if typeof(node_raw) != TYPE_OBJECT or not is_instance_valid(node_raw):
 			continue
+		var node := node_raw as Node3D
 		_offer_building(wish, camera, view, String(spot["key"]), String(spot["title"]), node.global_position + Vector3.UP * 4.0, false)
 
 
@@ -378,6 +385,7 @@ func _show_widget(index: int, item: Dictionary, center: Vector2) -> void:
 	root.size = panel_size + Vector2(0.0, arrow.size.y * 0.5)
 	root.position = center - Vector2(panel_size.x * 0.5, panel_size.y * 0.5)
 	arrow.position = Vector2(panel_size.x * 0.5, panel_size.y) - arrow.size * 0.5
+	_place_margin_chat(widget, item, panel_size)
 	var aim: Vector2 = item["screen"] - (root.position + arrow.position + arrow.size * 0.5)
 	if aim.length_squared() > 1.0:
 		arrow.rotation = atan2(aim.y, aim.x)
@@ -385,21 +393,52 @@ func _show_widget(index: int, item: Dictionary, center: Vector2) -> void:
 
 
 func _wrap(font: Font, text: String, px: int, budget: float) -> String:
-	if font == null:
-		return text
-	var lines: PackedStringArray = []
-	for source in text.split("\n", false):
-		var line := ""
-		for word in source.split(" ", false):
-			var trial := word if line.is_empty() else "%s %s" % [line, word]
-			if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > budget and not line.is_empty():
-				lines.append(line)
-				line = word
-			else:
-				line = trial
-		if not line.is_empty():
-			lines.append(line)
-	return "\n".join(lines)
+	return ToonGui.wrap_words(font, text, px, budget)
+
+
+## Nametag2d draws the chat balloon on the margin card when the speaker is
+## off the screen. The same wordwrap the 3D balloon uses.
+func _place_margin_chat(widget: Dictionary, item: Dictionary, panel_size: Vector2) -> void:
+	var chat := String(item.get("chat", ""))
+	var held: Variant = widget.get("bubble")
+	var bubble: PanelContainer = null
+	if typeof(held) == TYPE_OBJECT and is_instance_valid(held):
+		bubble = held as PanelContainer
+	if chat == "":
+		if bubble != null:
+			bubble.visible = false
+		return
+	var root := widget["root"] as Control
+	if bubble == null:
+		bubble = PanelContainer.new()
+		bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bubble.z_index = 2
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(1, 1, 1, 0.98)
+		box.border_color = Color(0.05, 0.05, 0.05)
+		box.set_border_width_all(3)
+		box.set_corner_radius_all(12)
+		box.content_margin_left = 8
+		box.content_margin_right = 8
+		box.content_margin_top = 4
+		box.content_margin_bottom = 4
+		bubble.add_theme_stylebox_override("panel", box)
+		var words := Label.new()
+		words.name = "Words"
+		words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bubble.add_child(words)
+		root.add_child(bubble)
+		widget["bubble"] = bubble
+	var written := bubble.get_node_or_null("Words") as Label
+	if written != null:
+		var raw_font: Variant = item.get("font")
+		if raw_font is Font:
+			written.add_theme_font_override("font", raw_font)
+		ToonGui.show_speech(written, chat, _TEXT_PX)
+	bubble.visible = true
+	bubble.reset_size()
+	bubble.position = Vector2((panel_size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
 
 
 func _hide_all() -> void:

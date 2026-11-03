@@ -20,6 +20,8 @@ const _TITLE_COLORS: Array[Color] = [
 	Color(0, 0.98, 0.5),
 ]
 const _TITLE_SCALES: Array[float] = [0.18, 0.18, 0.18, 0.16, 0.15]
+## NameShop MAX_NAME_WIDTH. Both preview boxes wrap after this many font sizes.
+const _NAME_WRAP := 8.0
 const _SFX_BACK := "res://assets/toons/audio/GUI_create_toon_back.mp3"
 const _SFX_ENTER: Array[String] = [
 	"",
@@ -86,6 +88,11 @@ var _submitted_name := ""
 var _name_edit: LineEdit
 var _name_view: Label
 var _name_caret: ColorRect
+var _smoke: Node3D
+var _smoke_frames: Array[MeshInstance3D] = []
+var _smoke_mat: StandardMaterial3D
+var _smoke_tween: Tween
+var _smoke_frames_tween: Tween
 var _titles: PackedStringArray = PackedStringArray()
 var _firsts: PackedStringArray = PackedStringArray()
 var _prefixes: PackedStringArray = PackedStringArray()
@@ -156,6 +163,7 @@ func _build_view() -> void:
 	_room = (load("res://assets/toons/room.glb") as PackedScene).instantiate() as Node3D
 	_viewport.add_child(_room)
 	_unshade(_room)
+	_build_smoke()
 	_claim_spotlight()
 	# Leftover export cards: an untextured gray quad, and the camera helper
 	# that was sitting in front of the clothing rack.
@@ -450,11 +458,13 @@ func _build_type_name() -> void:
 	_name_edit = LineEdit.new()
 	_name_edit.text = ""
 	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_name_edit.max_length = 24
+	# DirectEntry numLines is 2 and width is NSmaxNameWidth. The field stops
+	# accepting letters once that second line is full, which is longer than 24.
+	_name_edit.max_length = 0
 	_name_edit.custom_minimum_size = Vector2.ZERO
 	_name_edit.focus_mode = Control.FOCUS_ALL
-	# The field keeps the keystrokes. The label draws them, so a long name can
-	# break onto a second centered line the way the pick-a-name preview does.
+	# The field keeps the keystrokes. The label draws them, wrapped the way
+	# PGEntry wraps: spaces first, then the middle of a word, two lines max.
 	_name_edit.modulate = Color(1, 1, 1, 0)
 	var blank := StyleBoxEmpty.new()
 	_name_edit.add_theme_stylebox_override("normal", blank)
@@ -468,6 +478,7 @@ func _build_type_name() -> void:
 	_name_view = Label.new()
 	_name_view.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_view.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_name_view.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_name_view.mouse_filter = Control.MOUSE_FILTER_STOP
 	_name_view.add_theme_constant_override("line_spacing", 0)
 	_name_view.gui_input.connect(_on_name_click)
@@ -494,7 +505,9 @@ func _build_pick_name() -> void:
 	var panel := _begin_panel(-0.42, -0.0301, 1.70, 1.587)
 	_name_panel = panel
 	_place_art(panel, preload("res://assets/toons/gui/tt_t_gui_mat_namePanel.png"))
-	var result := _panel_text(panel, _picked_name(), 0.514, 0.217, 0.34, 0.10, Color(0.08, 0.08, 0.1), 0.036)
+	# NameShop nameResult: text_wordwrap is NSmaxNameWidth, centered, two lines
+	# when the name is wider than 8 font sizes.
+	var result := _panel_name_preview(panel, _picked_name(), 0.514, 0.217, 0.34, 0.10, Color(0.08, 0.08, 0.1))
 	result.name = "PickedName"
 	var blue := Color(0.0, 0.25, 0.5)
 	_panel_check(panel, 0.094, 0.336, _title_on, func() -> void: _set_title("toggle", not _title_on))
@@ -579,6 +592,32 @@ func _panel_text(host: Control, text: String, cx: float, cy: float, w: float, h:
 		ToonGui.style_label(label, color, maxi(int(host.size.y * font_ratio), 1), Color(0, 0, 0, 0), 0)
 	)
 	return label
+
+
+## Pick-A-Name result. TextNode wordwrap is 8 font sizes, centered, and a word
+## that is wider than that breaks in the middle the way TextNode does.
+func _panel_name_preview(host: Control, text: String, cx: float, cy: float, w: float, h: float, color: Color) -> Label:
+	var label := Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = true
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_constant_override("line_spacing", 0)
+	label.set_meta("name_text", text)
+	_pin(host, label, cx, cy, w, h)
+	label.resized.connect(_restyle_name_preview.bind(label, color))
+	return label
+
+
+func _restyle_name_preview(label: Label, color: Color) -> void:
+	if label == null or not is_instance_valid(label):
+		return
+	var px := _field_font_px(label.size.x)
+	if px <= 0:
+		return
+	ToonGui.style_label(label, color, px, Color(0, 0, 0, 0), 0)
+	label.text = _wrap_name(String(label.get_meta("name_text")), px)
 
 
 func _panel_socket(host: Control, caption: String, cx: float, cy: float, w: float, h: float, action: Callable) -> void:
@@ -1119,6 +1158,7 @@ func _transition_to(target: int) -> void:
 	_play_sfx(_SFX_ENTER[target])
 	# The original drop starts the crash as the walls leave, not when they land.
 	_play_crash()
+	_play_smoke()
 	var leaving_walls := _piece(_ROOM_WALLS[_shop])
 	var leaving_props := _piece(_ROOM_PROPS[_shop])
 	var arriving_walls := _piece(_ROOM_WALLS[target])
@@ -1196,6 +1236,117 @@ func _play_crash() -> void:
 	_play_sfx(_SFX_CRASH[randi() % _SFX_CRASH.size()])
 
 
+## tt_m_ara_mat_smoke. Six floor cards, played backwards at 12 fps, scaled to
+## 0.75 on the up axis. The puff shows 0.25s into the drop and fades over 0.5s.
+func _build_smoke() -> void:
+	var image := Image.new()
+	if image.load("res://assets/toons/mat_smoke_palette.png") != OK:
+		return
+	var description: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/toons/mat_smoke.json"))
+	if not (description is Dictionary):
+		return
+	var frames: Array = (description as Dictionary).get("frames", [])
+	_smoke = Node3D.new()
+	_smoke.name = "MatSmoke"
+	_room.add_child(_smoke)
+	# The room root stays identity. Each room mesh turns Panda (x, y, z) into
+	# Godot (x, z, -y). The smoke cards are still in that Panda space, so they
+	# need the same turn or they stand on edge and slice through the walls.
+	_smoke.basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	# setScale(1, 1, 0.75) squashes Panda Z, which this basis maps to world up.
+	_smoke.scale = Vector3(1.0, 1.0, 0.75)
+	_smoke.visible = false
+	_smoke_mat = StandardMaterial3D.new()
+	_smoke_mat.albedo_texture = ImageTexture.create_from_image(image)
+	_smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_smoke_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_smoke_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_smoke_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	_smoke_mat.albedo_color = Color(1, 1, 1, 0.5)
+	for frame in frames:
+		var row: Dictionary = frame
+		var inst := MeshInstance3D.new()
+		inst.name = String(row.get("name", "smoke"))
+		inst.mesh = _smoke_mesh(row.get("verts", []))
+		inst.material_override = _smoke_mat
+		inst.visible = false
+		_smoke.add_child(inst)
+		_smoke_frames.append(inst)
+
+
+func _smoke_mesh(source: Variant) -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	var rows: Array = source
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	var cursor := 0
+	while cursor + 3 < rows.size():
+		var base := verts.size()
+		for offset in 4:
+			var point: Array = rows[cursor + offset]
+			verts.append(Vector3(float(point[0]), float(point[1]), float(point[2])))
+			uvs.append(Vector2(float(point[3]), float(point[4])))
+		indices.append_array(PackedInt32Array([base, base + 1, base + 2, base + 1, base + 2, base + 3]))
+		cursor += 4
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+func _play_smoke() -> void:
+	if _smoke == null or _smoke_frames.is_empty() or _smoke_mat == null:
+		return
+	_stop_smoke_tweens()
+	for frame in _smoke_frames:
+		frame.visible = false
+	_smoke.visible = false
+	_smoke_mat.albedo_color = Color(1, 1, 1, 0.5)
+	# MakeAToon waits a quarter second, then shows the puff as the walls land.
+	_smoke_tween = create_tween()
+	_smoke_tween.tween_interval(0.25)
+	_smoke_tween.tween_callback(_run_smoke)
+
+
+func _stop_smoke_tweens() -> void:
+	if _smoke_tween != null and _smoke_tween.is_valid():
+		_smoke_tween.kill()
+	if _smoke_frames_tween != null and _smoke_frames_tween.is_valid():
+		_smoke_frames_tween.kill()
+
+
+func _run_smoke() -> void:
+	if _smoke == null or _smoke_frames.is_empty():
+		return
+	_smoke.visible = true
+	_show_smoke_frame(0)
+	_smoke_tween = create_tween()
+	_smoke_tween.tween_method(_fade_smoke, 0.5, 0.0, 0.5)
+	_smoke_tween.tween_callback(func() -> void:
+		if _smoke != null:
+			_smoke.visible = false
+	)
+	_smoke_frames_tween = create_tween()
+	for index in range(1, _smoke_frames.size()):
+		_smoke_frames_tween.tween_interval(1.0 / 12.0)
+		_smoke_frames_tween.tween_callback(_show_smoke_frame.bind(index))
+
+
+func _fade_smoke(alpha: float) -> void:
+	if _smoke_mat != null:
+		_smoke_mat.albedo_color = Color(1, 1, 1, alpha)
+
+
+func _show_smoke_frame(index: int) -> void:
+	for frame_index in _smoke_frames.size():
+		_smoke_frames[frame_index].visible = frame_index == index
+
+
 func _play_sfx(path: String) -> void:
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
@@ -1257,32 +1408,105 @@ func _fade_in() -> void:
 	tween.finished.connect(fade.queue_free)
 
 
-func _name_font_px() -> int:
-	# The pick-a-name preview is 0.036 of the taller card. Match that size on
-	# this shorter card.
+func _field_font_px(width: float) -> int:
+	# NSmaxNameWidth is 8 font sizes, and that width is the white field.
+	if width < 8.0:
+		return 0
+	return maxi(int(width / _NAME_WRAP), 1)
+
+
+func _entry_budget() -> Vector2:
 	if _name_view == null or not is_instance_valid(_name_view):
-		return 16
-	var panel := _name_view.get_parent() as Control
-	var panel_h := panel.size.y if panel != null else _name_view.size.y
-	return maxi(int(panel_h * 0.036 * 1.587 / 1.307), 1)
+		return Vector2.ZERO
+	var px := _field_font_px(_name_view.size.x)
+	if px <= 0:
+		return Vector2.ZERO
+	return Vector2(float(px) * _NAME_WRAP, float(px))
 
 
-func _split_typed(text: String, width: float, px: int) -> PackedStringArray:
+func _wrap_entry(text: String, budget: float, px: int, max_lines: int) -> PackedStringArray:
+	var lines := PackedStringArray()
+	if text.is_empty() or px <= 0 or budget < 1.0:
+		lines.append(text)
+		return lines
 	var font := ToonGui.font()
-	if text.is_empty() or width < 4.0 or font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x <= width:
-		return PackedStringArray([text])
-	var split_at := -1
-	for index in text.length():
-		if text[index] != " ":
+	var line := ""
+	var index := 0
+	while index < text.length():
+		var trial := line + text[index]
+		var too_wide := font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > budget
+		if too_wide and not line.is_empty():
+			var space := line.rfind(" ", line.length() - 1)
+			if space > 0:
+				lines.append(line.substr(0, space))
+				index -= line.length() - space - 1
+			else:
+				lines.append(line)
+			line = ""
+			if lines.size() >= max_lines:
+				break
 			continue
-		if font.get_string_size(text.substr(0, index), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x <= width:
-			split_at = index
-	if split_at > 0:
-		return PackedStringArray([text.substr(0, split_at), text.substr(split_at + 1)])
-	var cut := text.length()
-	while cut > 1 and font.get_string_size(text.substr(0, cut), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > width:
-		cut -= 1
-	return PackedStringArray([text.substr(0, cut), text.substr(cut)])
+		line = trial
+		index += 1
+	if lines.size() < max_lines:
+		lines.append(line)
+	return lines
+
+
+func _wrap_name(text: String, px: int) -> String:
+	var budget := float(px) * _NAME_WRAP
+	var wrapped := ToonGui.wrap_words(ToonGui.font(), text, px, budget)
+	var font := ToonGui.font()
+	var lines: PackedStringArray = []
+	for source in wrapped.split("\n", false):
+		if font.get_string_size(source, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x <= budget:
+			lines.append(source)
+			continue
+		var chunk := ""
+		for index in source.length():
+			var trial := chunk + source[index]
+			if not chunk.is_empty() and font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > budget:
+				lines.append(chunk)
+				chunk = source[index]
+			else:
+				chunk = trial
+		if not chunk.is_empty():
+			lines.append(chunk)
+	return "\n".join(lines)
+
+
+func _entry_fits(text: String, budget: float, px: int) -> bool:
+	var lines := _wrap_entry(text, budget, px, 2)
+	if lines.size() > 2:
+		return false
+	var shown := 0
+	for line_index in lines.size():
+		shown += lines[line_index].length()
+		if line_index + 1 < lines.size() and shown < text.length() and text[shown] == " ":
+			shown += 1
+	return shown >= text.length()
+
+
+func _limit_name(text: String, budget: float, px: int) -> String:
+	var kept := ""
+	for index in text.length():
+		var trial := kept + text[index]
+		if not _entry_fits(trial, budget, px):
+			break
+		kept = trial
+	return kept
+
+
+func _caret_spot(text: String, lines: PackedStringArray, caret: int) -> Vector2i:
+	var consumed := 0
+	for line_index in lines.size():
+		var shown := lines[line_index]
+		var boundary := consumed + shown.length()
+		var broke_on_space := text.length() > boundary and text[boundary] == " "
+		if caret <= boundary or line_index == lines.size() - 1:
+			return Vector2i(line_index, caret - consumed)
+		consumed = boundary + (1 if broke_on_space else 0)
+	return Vector2i(0, caret)
 
 
 func _refresh_typed_name() -> void:
@@ -1290,9 +1514,12 @@ func _refresh_typed_name() -> void:
 		return
 	if not is_instance_valid(_name_view) or not is_instance_valid(_name_edit):
 		return
-	var px := _name_font_px()
+	var budget := _entry_budget()
+	var px := int(budget.y)
+	if px <= 0:
+		return
 	ToonGui.style_label(_name_view, Color(0.08, 0.08, 0.1), px, Color(0, 0, 0, 0), 0)
-	var lines := _split_typed(_name_edit.text, _name_view.size.x * 0.94, px)
+	var lines := _wrap_entry(_name_edit.text, budget.x, px, 2)
 	_name_view.text = "\n".join(lines)
 	_place_name_caret()
 
@@ -1302,31 +1529,24 @@ func _place_name_caret() -> void:
 		return
 	if not is_instance_valid(_name_caret) or not is_instance_valid(_name_view) or not is_instance_valid(_name_edit):
 		return
-	var px := _name_font_px()
+	var budget := _entry_budget()
+	var px := int(budget.y)
+	if px <= 0:
+		return
 	var font := ToonGui.font()
 	var text := _name_edit.text
-	var lines := _split_typed(text, _name_view.size.x * 0.94, px)
+	var lines := _wrap_entry(text, budget.x, px, 2)
 	var caret := clampi(_name_edit.caret_column, 0, text.length())
-	var line := 0
-	var column := caret
-	if lines.size() > 1:
-		var first := lines[0]
-		var broke_on_space := text.length() > first.length() and text[first.length()] == " "
-		var boundary := first.length()
-		if caret <= boundary:
-			column = caret
-		else:
-			line = 1
-			column = caret - boundary - (1 if broke_on_space else 0)
-	var shown := lines[line] if line < lines.size() else ""
-	column = clampi(column, 0, shown.length())
+	var spot := _caret_spot(text, lines, caret)
+	var shown := lines[spot.x] if spot.x < lines.size() else ""
+	var column := clampi(spot.y, 0, shown.length())
 	var line_w := font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
 	var before_w := font.get_string_size(shown.substr(0, column), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
 	var line_h := font.get_height(px)
 	var block_h := line_h * lines.size()
 	var top := _name_view.position.y + (_name_view.size.y - block_h) * 0.5
 	var left := _name_view.position.x + (_name_view.size.x - line_w) * 0.5
-	_name_caret.position = Vector2(left + before_w, top + line_h * line)
+	_name_caret.position = Vector2(left + before_w, top + line_h * spot.x)
 	_name_caret.size = Vector2(maxi(2, int(px * 0.06)), line_h * 0.82)
 
 
@@ -1350,15 +1570,20 @@ func _on_name_click(event: InputEvent) -> void:
 	if not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
 		return
 	_name_edit.grab_focus()
-	var px := _name_font_px()
+	var budget := _entry_budget()
+	var px := int(budget.y)
+	if px <= 0:
+		return
 	var font := ToonGui.font()
 	var text := _name_edit.text
-	var lines := _split_typed(text, _name_view.size.x * 0.94, px)
+	var lines := _wrap_entry(text, budget.x, px, 2)
 	var line_h := font.get_height(px)
 	var block_h := line_h * lines.size()
 	var top := (_name_view.size.y - block_h) * 0.5
-	var line := 0 if lines.size() < 2 or click.position.y < top + line_h else 1
-	var shown := lines[line]
+	var line := 0
+	if lines.size() > 1 and click.position.y >= top + line_h:
+		line = 1
+	var shown := lines[line] if line < lines.size() else ""
 	var line_w := font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
 	var left := (_name_view.size.x - line_w) * 0.5
 	var column := shown.length()
@@ -1367,9 +1592,12 @@ func _on_name_click(event: InputEvent) -> void:
 		if click.position.x < left + width - font.get_string_size(shown.substr(index, 1), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x * 0.5:
 			column = index
 			break
-	var first := lines[0]
-	var broke_on_space := lines.size() > 1 and text.length() > first.length() and text[first.length()] == " "
-	_name_edit.caret_column = column if line == 0 else first.length() + column + (1 if broke_on_space else 0)
+	var consumed := 0
+	for earlier in line:
+		consumed += lines[earlier].length()
+		if text.length() > consumed and text[consumed] == " ":
+			consumed += 1
+	_name_edit.caret_column = consumed + column
 	_place_name_caret()
 
 
@@ -1377,9 +1605,13 @@ func _on_typed_name(value: String) -> void:
 	if _style == null:
 		return
 	var cleaned := _clean_name(value)
+	var budget := _entry_budget()
+	if budget.y > 0.0:
+		cleaned = _limit_name(cleaned, budget.x, int(budget.y))
 	if _name_edit and cleaned != _name_edit.text:
+		var column := mini(_name_edit.caret_column, cleaned.length())
 		_name_edit.text = cleaned
-		_name_edit.caret_column = cleaned.length()
+		_name_edit.caret_column = column
 	var parts := cleaned.split(" ", false)
 	if parts.is_empty():
 		_style.first_name = ""
@@ -1399,7 +1631,7 @@ func _clean_name(value: String) -> String:
 		var letter := value[index]
 		if (letter >= "A" and letter <= "Z") or (letter >= "a" and letter <= "z") or letter == " " or letter == "'" or letter == "-" or letter == ".":
 			cleaned += letter
-	return cleaned.substr(0, 24)
+	return cleaned
 
 
 func _load_name_lists() -> void:
@@ -1442,7 +1674,7 @@ func _picked_name() -> String:
 		return last
 	if last.is_empty():
 		return given
-	return given + "\n" + last
+	return given + " " + last
 func _apply_picked() -> void:
 	_submitted_name = ""
 	if _style == null:

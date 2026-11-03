@@ -227,6 +227,11 @@ func preload_suit(cog: Dictionary, timing: Dictionary, propeller: Dictionary) ->
 
 
 func capture() -> Dictionary:
+	var pos := Vector3.ZERO
+	var yaw := 0.0
+	if is_inside_tree():
+		pos = global_position
+		yaw = rotation.y
 	return {
 		"cog": _source,
 		"slot": _slot,
@@ -237,8 +242,8 @@ func capture() -> Dictionary:
 		"idle": _idle_time,
 		"goal": _goal,
 		"ground": _ground,
-		"position": global_position,
-		"yaw": rotation.y,
+		"position": pos,
+		"yaw": yaw,
 		"till": _till_land,
 		"impact": _impact,
 		"pathed": _path_ready,

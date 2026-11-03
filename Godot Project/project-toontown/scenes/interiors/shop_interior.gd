@@ -25,10 +25,28 @@ var _billboards: Array[Dictionary] = []
 
 
 func _ready() -> void:
+	_light_room()
 	_build_room()
 	_place_keepers()
 	_play_music()
 	_TOON.attach(self)
+
+
+## The street sun does not come indoors. Ambient color alone leaves the
+## toon shader and the room nearly black, which is the dark shop after a
+## door walk-in.
+func _light_room() -> void:
+	var world := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if world != null and world.environment != null:
+		world.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		world.environment.ambient_light_color = Color(1.0, 1.0, 1.0)
+		world.environment.ambient_light_energy = 1.05
+	var sun := DirectionalLight3D.new()
+	sun.name = "ShopLight"
+	sun.rotation_degrees = Vector3(-48.0, 32.0, 0.0)
+	sun.light_energy = 0.9
+	sun.shadow_enabled = false
+	add_child(sun)
 
 
 func _process(_delta: float) -> void:

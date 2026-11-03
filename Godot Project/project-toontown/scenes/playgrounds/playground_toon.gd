@@ -145,6 +145,7 @@ var _map: Control
 var _meter: LaffMeter
 var _line: PanelContainer
 var _line_label: Label
+var _line_text := ""
 var _line_left := 0.0
 var _cam_yaw := 0.0
 var _cam_pitch := 0.0
@@ -409,7 +410,7 @@ func show_notice(message: String) -> void:
 	say_line(message)
 
 
-func say_line(text: String) -> void:
+func say_line(text: String, seconds: float = -1.0) -> void:
 	if _line == null:
 		_line = PanelContainer.new()
 		_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -425,15 +426,29 @@ func say_line(text: String) -> void:
 		box.content_margin_bottom = 6
 		_line.add_theme_stylebox_override("panel", box)
 		_line_label = Label.new()
-		_line_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_line_label.custom_minimum_size = Vector2(40, 0)
+		_line_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ToonGui.style_label(_line_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
 		_line.add_child(_line_label)
 		_hud().add_child(_line)
-	_line_label.text = text
-	_line_left = maxf(2.8, float(text.length()) * 0.045)
+	ToonGui.show_speech(_line_label, text, 22)
+	_line_text = text
+	if seconds < 0.0:
+		_line_left = maxf(2.8, float(text.length()) * 0.045)
+	else:
+		_line_left = seconds
 	_line.visible = _book == null or not _book.is_open()
 	ToonSpeech.speak(_player, text)
+
+
+## Drop a line this toon just said. A different line, such as SpeedChat, stays up.
+func quiet_line(expected: String = "") -> void:
+	if _line_label == null or _line == null:
+		return
+	if expected != "" and _line_text != expected:
+		return
+	_line_text = ""
+	_line_left = 0.0
+	_line.visible = false
 
 
 func _quiet_fly_camera() -> void:
@@ -889,12 +904,11 @@ func _say_clerk(actor: Node3D, text: String, seconds: float) -> void:
 		box.content_margin_bottom = 6
 		_clerk_line.add_theme_stylebox_override("panel", box)
 		_clerk_label = Label.new()
-		_clerk_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_clerk_label.custom_minimum_size = Vector2(40, 0)
+		_clerk_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ToonGui.style_label(_clerk_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
 		_clerk_line.add_child(_clerk_label)
 		_hud().add_child(_clerk_line)
-	_clerk_label.text = text
+	ToonGui.show_speech(_clerk_label, text, 22)
 	_clerk_line.visible = true
 	ToonSpeech.speak(actor, text)
 

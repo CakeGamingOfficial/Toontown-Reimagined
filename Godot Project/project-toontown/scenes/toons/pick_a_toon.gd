@@ -32,6 +32,9 @@ const THEME_VOLUME := 0.9
 var _confirm: Control
 var _confirm_slot := -1
 var _leaving := false
+## The welcome dialog is closing on this click. Ignore slot presses for that
+## frame and the next, so the same press cannot start Make a Toon or Play.
+var _swallow_frame := -1
 static var arrive_from_black := false
 
 
@@ -371,8 +374,16 @@ func _fade_in() -> void:
 	tween.finished.connect(fade.queue_free)
 
 
+func _swallow_click() -> void:
+	_swallow_frame = Engine.get_process_frames()
+
+
+func _click_swallowed() -> bool:
+	return _swallow_frame >= 0 and Engine.get_process_frames() <= _swallow_frame + 1
+
+
 func _make_toon(index: int) -> void:
-	if _leaving:
+	if _leaving or _click_swallowed():
 		return
 	_leaving = true
 	ToonRoster.pending_slot = index
@@ -390,6 +401,8 @@ func _make_toon(index: int) -> void:
 
 
 func _play(index: int) -> void:
+	if _click_swallowed():
+		return
 	SpeedChat.begin_session()
 	ToonRoster.select_slot(index)
 	var tasks := ToonTasks.for_selected()
@@ -402,6 +415,8 @@ func _play(index: int) -> void:
 
 
 func _ask_delete(index: int) -> void:
+	if _click_swallowed():
+		return
 	_close_confirm()
 	var toon := ToonRoster.get_slot(index)
 	if toon == null:

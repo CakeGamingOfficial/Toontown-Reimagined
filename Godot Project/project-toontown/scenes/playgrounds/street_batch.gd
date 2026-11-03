@@ -309,12 +309,21 @@ static func _solid_facade(building: Node3D) -> void:
 static func _add_landmark_solid(landmark: Node3D, faces: PackedVector3Array) -> void:
 	if faces.is_empty() or landmark.get_node_or_null("LandmarkSolid") != null:
 		return
+	# A suit slot is narrower than the mesh. A concave shape ignores that
+	# non-uniform scale, so the wall would stay full width and miss the model.
+	var scale := landmark.scale
+	var baked := PackedVector3Array()
+	baked.resize(faces.size())
+	for index in faces.size():
+		var point := faces[index]
+		baked[index] = Vector3(point.x * scale.x, point.y * scale.y, point.z * scale.z)
 	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(faces)
+	shape.set_faces(baked)
 	var body := StaticBody3D.new()
 	body.name = "LandmarkSolid"
 	body.collision_layer = 1
 	body.collision_mask = 0
+	body.scale = Vector3(1.0 / scale.x, 1.0 / scale.y, 1.0 / scale.z)
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	body.add_child(collision)

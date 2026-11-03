@@ -261,7 +261,16 @@ func _place_chat(item: Dictionary, label: Control, actor: Node3D) -> void:
 	var bubble := _chat_panel(item)
 	var words := bubble.get_node_or_null("Words") as Label
 	if words != null:
-		words.text = line
+		var px := 18
+		var face := ToonGui.font()
+		var name_label := label.get_child(0) as Label
+		if name_label != null:
+			px = maxi(name_label.get_theme_font_size("font_size"), 12)
+			var named := name_label.get_theme_font("font")
+			if named != null:
+				face = named
+		words.add_theme_font_override("font", face)
+		ToonGui.show_speech(words, line, px)
 	bubble.visible = label.visible
 	bubble.reset_size()
 	bubble.position = label.position + Vector2((label.size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
@@ -286,9 +295,8 @@ func _chat_panel(item: Dictionary) -> PanelContainer:
 	bubble.add_theme_stylebox_override("panel", box)
 	var words := Label.new()
 	words.name = "Words"
-	words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	words.custom_minimum_size = Vector2(40, 0)
 	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ToonGui.style_label(words, Color(0.05, 0.05, 0.08), 18, Color(0, 0, 0, 0), 0)
 	bubble.add_child(words)
 	bubble.visible = false

@@ -56,6 +56,9 @@ var _shutdown_started := false
 var _stop_file := ""
 var _stop_wait := 0.0
 var _notice: Node
+static var _lan_lines: PackedStringArray = PackedStringArray()
+static var _lan_ready := false
+static var _lan_started := false
 
 
 func _ready() -> void:
@@ -81,6 +84,8 @@ func _ready() -> void:
 	link.server_disconnected.connect(_on_dropped)
 	if _wants_dedicated():
 		_become_dedicated()
+	else:
+		_warm_lan()
 
 
 static func live() -> ToonNet:
@@ -395,6 +400,40 @@ func _process(delta: float) -> void:
 
 
 func _address_block() -> String:
+	var lines := _gather_lan()
+	if lines.is_empty():
+		return "No LAN address was found. Clients on this machine can use 127.0.0.1."
+	return "Clients connect to:\n" + "\n".join(lines)
+
+
+## GetAdaptersAddresses can stall for seconds when a VPN adapter is present.
+## The game window gathers addresses on a worker so Host never waits on it.
+func _warm_lan() -> void:
+	if _lan_started:
+		return
+	_lan_started = true
+	WorkerThreadPool.add_task(_read_lan)
+
+
+func _read_lan() -> void:
+	var lines := _gather_lan()
+	_store_lan.call_deferred(lines)
+
+
+func _store_lan(lines: PackedStringArray) -> void:
+	_lan_lines = lines
+	_lan_ready = true
+
+
+static func lan_ready() -> bool:
+	return _lan_ready
+
+
+static func lan_lines() -> PackedStringArray:
+	return _lan_lines
+
+
+static func _gather_lan() -> PackedStringArray:
 	var lines: PackedStringArray = []
 	for raw in IP.get_local_addresses():
 		var address := String(raw)
@@ -403,9 +442,7 @@ func _address_block() -> String:
 		if lines.has(address):
 			continue
 		lines.append(address)
-	if lines.is_empty():
-		return "No LAN address was found. Clients on this machine can use 127.0.0.1."
-	return "Clients connect to:\n" + "\n".join(lines)
+	return lines
 
 
 func _load_config() -> void:

@@ -37,7 +37,6 @@ const _LIGHT_ON := Color(1.0, 1.0, 1.0)
 ## ElevatorUtils.getLeftClosePoint for a normal elevator. Open is the origin.
 const _DOOR_SLIDE := 3.5
 ## The eyes face the sidewalk. A paper card pushed the wrong way sits inside the wall.
-const _SIGN_GAP := 0.15
 const _DROP_SFX := "res://assets/buildings/cog/audio/cogbldg_drop.ogg"
 const _LAND_SFX := "res://assets/buildings/cog/audio/cogbldg_land.ogg"
 const _SETTLE_SFX := "res://assets/buildings/cog/audio/cogbldg_settle.ogg"
@@ -377,10 +376,17 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	var holder := _holder()
 	building.name = "CogBuilding%d" % block
 	holder.add_child(building)
-	# The street landmark is already Y-up. The imported child still carries
-	# the glTF Z-up spin, and leaving both on lays the tower on its side.
-	building.global_transform = landmark.global_transform
+	# setupSuitBuilding copies the sb slot, whose width is the lot (about
+	# 0.54 to 0.83). The tb landmark is scale 1, which stretches the tower.
+	# The imported child still carries the glTF Z-up spin, and leaving both
+	# on lays the tower on its side.
+	building.global_transform = _suit_slot(landmark).global_transform
 	_drop_import_spin(building)
+	if String(landmark.name).to_lower().contains("animated_building"):
+		# DistributedAnimBuilding.adjustSbNodepathScale. The anim slot is scale 1.
+		var squeezed := building.scale
+		squeezed.x = 0.543667
+		building.scale = squeezed
 	building.set_meta("rest", building.global_transform)
 	building.set_meta("rest_scale", building.scale)
 	_dress(building, row)
@@ -575,6 +581,10 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 			door.add_child(elevator)
 			elevator.transform = Transform3D.IDENTITY
 			_drop_import_spin(elevator)
+			# normalizeElevator keeps the car at world scale 1. The lot scale
+			# squeezes the tower, not the doors.
+			var spun := elevator.global_basis.orthonormalized()
+			elevator.global_transform = Transform3D(spun, elevator.global_position)
 			_floors(elevator, int(row.get("floors", 1)))
 			building.set_meta("elevator", elevator)
 			_show_story(elevator, int(row.get("story", -1)))
@@ -592,10 +602,12 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 	var metrics := _sign_metrics(caption)
 	var text_height := metrics.x
 	var z_scale := metrics.y
-	# setupSuitBuilding lifts the plaque by textHeight * 0.8 / zScale. The eyes
-	# face the card's local -Y, so that axis points out the door.
+	# setupSuitBuilding: pos (0, 0, textHeight * 0.8 / zScale), scale (8, 8, 8 * zScale).
+	# Local +Y points into the tower. A step the other way keeps the plaque off
+	# the front card. Panda draws it there with a decal; without one the wall wins.
 	var lift := text_height * 0.8 / z_scale
-	_seat_sign(sign, origin, door, lift)
+	sign.transform = Transform3D.IDENTITY
+	sign.position = Vector3(0.0, -0.35, lift)
 	sign.scale = Vector3(8.0, 8.0, 8.0 * z_scale)
 	var label := Label3D.new()
 	label.text = caption
@@ -603,6 +615,7 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 	label.font_size = 48
 	label.pixel_size = 0.02
 	label.modulate = Color(1, 1, 1)
+	label.outline_modulate = Color(0, 0, 0, 0)
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -610,9 +623,12 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 	# Label3D width is pixels. 20px is narrower than one suit glyph, so the title stacked down the plaque.
 	var cell := label.font.get_string_size("00000000000000000", HORIZONTAL_ALIGNMENT_LEFT, -1, label.font_size)
 	label.width = maxf(cell.x, 17.0 * label.font_size)
-	label.position = Vector3(0.0, -0.08, -0.21 + text_height * 0.1 / z_scale)
-	_aim_title(sign, label, door)
-	label.scale = Vector3(0.1, 0.1, 0.1 / z_scale)
+	label.position = Vector3(0.0, -0.04, -0.21 + text_height * 0.1 / z_scale)
+	_aim_title(sign, label, origin)
+	# The lot squeezes the plaque on X and the sign grows on Z, so a square
+	# glyph scale comes out tall and narrow. Widen the line so it fills the frame.
+	var glyph := 0.082
+	label.scale = Vector3(glyph * 1.45, glyph / z_scale, glyph)
 	sign.add_child(label)
 
 
@@ -855,37 +871,32 @@ func _sign_material(node: Node) -> void:
 		_sign_material(child)
 
 
-func _seat_sign(sign: Node3D, origin: Node3D, door: Node3D, lift: float) -> void:
-	var outward := Vector3.FORWARD
-	if door != null:
-		outward = door.global_basis.y
-	if outward.length_squared() < 0.01:
-		outward = Vector3.FORWARD
-	outward = outward.normalized()
-	# Local +Y points into the building so the eyes, which face local -Y, face the street.
-	var y_axis := -outward
-	var x_axis := Vector3.UP.cross(y_axis)
-	if x_axis.length_squared() < 0.001:
-		x_axis = Vector3.RIGHT
-	x_axis = x_axis.normalized()
-	var z_axis := x_axis.cross(y_axis).normalized()
-	var basis := Basis(x_axis, y_axis, z_axis).orthonormalized()
-	var place := origin.global_position + outward * _SIGN_GAP + Vector3.UP * lift
-	sign.global_transform = Transform3D(basis, place)
+## The sb node is the suit slot. tb is the toon shop and is left at scale 1.
+func _suit_slot(landmark: Node3D) -> Node3D:
+	var prefix := "sb%d_" % _block_of(str(landmark.name))
+	var found := _find_prefix(get_parent(), prefix)
+	if found == null:
+		return landmark
+	return found
 
 
-func _aim_title(sign: Node3D, label: Label3D, door: Node3D) -> void:
-	# TextNode at HPR 0 reads across the plaque and up the wall, facing the sidewalk.
-	var outward := Vector3.FORWARD
-	if door != null:
-		outward = door.global_basis.y.normalized()
-	if outward.length_squared() < 0.01:
-		outward = Vector3.FORWARD
-	var right := Vector3.UP.cross(outward)
-	if right.length_squared() < 0.001:
-		right = Vector3.RIGHT
-	right = right.normalized()
-	var world_basis := Basis(right, Vector3.UP, outward).orthonormalized()
+func _find_prefix(node: Node, prefix: String) -> Node3D:
+	if node is Node3D and String(node.name).begins_with(prefix):
+		return node as Node3D
+	for child in node.get_children():
+		var found := _find_prefix(child, prefix)
+		if found != null:
+			return found
+	return null
+
+
+func _aim_title(sign: Node3D, label: Label3D, origin: Node3D) -> void:
+	# Label3D faces its -Z. The plaque's local -Y is the sidewalk, local Z is up.
+	# The slot's basis turns those axes over, so the title is rotated to match the eyes.
+	var right := -origin.global_basis.x.normalized()
+	var up := -origin.global_basis.z.normalized()
+	var into := origin.global_basis.y.normalized()
+	var world_basis := Basis(right, up, into).orthonormalized()
 	var sign_basis := sign.global_transform.basis.orthonormalized()
 	label.basis = sign_basis.inverse() * world_basis
 

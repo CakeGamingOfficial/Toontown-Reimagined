@@ -158,11 +158,11 @@ func _build_card(index: int) -> void:
 	_meters.append(meter)
 	_meter_kind.append("")
 	var health := _label(HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER)
-	card.add_child(health)
+	health.reparent(card)
 	_health.append(health)
 	var mark := _label(HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 	mark.text = "?"
-	card.add_child(mark)
+	mark.reparent(card)
 	_marks.append(mark)
 	var gag := TextureRect.new()
 	gag.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -178,7 +178,7 @@ func _build_card(index: int) -> void:
 	card.add_child(passed)
 	_passes.append(passed)
 	var which := _label(HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
-	card.add_child(which)
+	which.reparent(card)
 	_which.append(which)
 
 

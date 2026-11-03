@@ -247,8 +247,7 @@ func _build_bubble() -> void:
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(column)
 	var label := Label.new()
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(340, 0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), 22, Color(0, 0, 0, 0), 0)
 	column.add_child(label)
 	var hint := Label.new()
@@ -264,7 +263,7 @@ func _build_bubble() -> void:
 func _show_line(text: String, speaker: Node3D) -> void:
 	_speaker = speaker
 	var label := _bubble.get_child(0).get_child(0) as Label
-	label.text = text
+	ToonGui.show_speech(label, text, 22)
 	_bubble.visible = true
 	_waiting = true
 	ToonSpeech.speak(speaker, text)

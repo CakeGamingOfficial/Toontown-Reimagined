@@ -73,7 +73,12 @@ func keep_actor(code: String, suit: Node) -> void:
 	_actors[code] = waiting
 	var holder := get_node_or_null("CogPool")
 	if holder != null and suit.get_parent() != holder:
-		suit.reparent(holder)
+		if suit.is_inside_tree():
+			suit.reparent(holder)
+		else:
+			if suit.get_parent() != null:
+				suit.get_parent().remove_child(suit)
+			holder.add_child(suit)
 
 
 func take_actor(code: String) -> Node:

@@ -849,12 +849,11 @@ func say_line(text: String) -> void:
 		box.content_margin_bottom = 6
 		_line.add_theme_stylebox_override("panel", box)
 		_line_label = Label.new()
-		_line_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_line_label.custom_minimum_size = Vector2(40, 0)
+		_line_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ToonGui.style_label(_line_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
 		_line.add_child(_line_label)
 		_hud().add_child(_line)
-	_line_label.text = text
+	ToonGui.show_speech(_line_label, text, 22)
 	_line_left = maxf(2.8, float(text.length()) * 0.045)
 	_line.visible = _book == null or not _book.is_open()
 	_place_line()
@@ -1283,10 +1282,9 @@ func _build_bubble() -> void:
 	box.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", box)
 	var label := Label.new()
-	label.text = WELCOME
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(280, 0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), 22, Color(0, 0, 0, 0), 0)
+	ToonGui.show_speech(label, WELCOME, 22)
 	panel.add_child(label)
 	panel.visible = false
 	_hud().add_child(panel)

@@ -146,13 +146,12 @@ func _show(text: String, color: Color) -> void:
 		box.content_margin_bottom = 16
 		_bubble.add_theme_stylebox_override("panel", box)
 		_label = Label.new()
-		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_label.custom_minimum_size = Vector2(240, 0)
+		_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ToonGui.style_label(_label, color, 22, Color(0, 0, 0, 0), 0)
 		_bubble.add_child(_label)
 		_hud().add_child(_bubble)
 		ToonGui.attach_next_arrow(_bubble)
-	_label.text = text
+	ToonGui.show_speech(_label, text, 22)
 	_label.add_theme_color_override("font_color", color)
 	_bubble.visible = true
 	ToonSpeech.speak(_flippy, text)
