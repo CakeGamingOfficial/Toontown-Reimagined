@@ -81,7 +81,9 @@ static func _prepare() -> void:
 	if _shadow_mesh != null:
 		return
 	_shadow_mesh = QuadMesh.new()
-	_shadow_mesh.orientation = PlaneMesh.FACE_Y
+	# The pond keeps Panda's Z-up axes. FACE_Z lays the card on the water,
+	# the same way the toon shadow lies flat on joint_shadow.
+	_shadow_mesh.orientation = PlaneMesh.FACE_Z
 	_shadow_mesh.size = Vector2(_SHADOW_SIZE, _SHADOW_SIZE)
 	_shadow_material = StandardMaterial3D.new()
 	_shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -89,6 +91,9 @@ static func _prepare() -> void:
 	_shadow_material.albedo_color = Color(1, 1, 1, 0.75)
 	_shadow_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_shadow_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	# The pond surface is a transparent card in this same pass. Sorting by
+	# distance paints the circle on top of the water, so draw the shadow first.
+	_shadow_material.render_priority = -1
 	_shadow_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	var shadow := load(_SHADOW) as Texture2D
 	if shadow != null:
@@ -122,7 +127,7 @@ class FishSpot extends Node3D:
 		shadow.name = "drop_shadow"
 		shadow.mesh = shadow_mesh
 		shadow.material_override = shadow_material
-		shadow.position = Vector3(0.0, -0.1, 0.0)
+		shadow.position = Vector3(0.0, 0.0, -0.1)
 		shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(shadow)
 		var bubbles := CPUParticles3D.new()
@@ -135,19 +140,19 @@ class FishSpot extends Node3D:
 		bubbles.preprocess = 2.0
 		bubbles.local_coords = true
 		bubbles.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-		bubbles.emission_ring_axis = Vector3.UP
+		bubbles.emission_ring_axis = Vector3(0.0, 0.0, 1.0)
 		bubbles.emission_ring_height = 0.02
 		bubbles.emission_ring_radius = 0.5
 		bubbles.emission_ring_inner_radius = 0.0
-		bubbles.direction = Vector3.UP
+		bubbles.direction = Vector3(0.0, 0.0, 1.0)
 		bubbles.spread = 28.0
 		bubbles.initial_velocity_min = 0.075
 		bubbles.initial_velocity_max = 0.125
-		bubbles.gravity = Vector3(0.0, 1.0, 0.0)
+		bubbles.gravity = Vector3(0.0, 0.0, 1.0)
 		bubbles.scale_amount_min = 0.2
 		bubbles.scale_amount_max = 0.2
 		bubbles.scale_amount_curve = scale_curve
-		bubbles.visibility_aabb = AABB(Vector3(-1.5, -0.5, -1.5), Vector3(3.0, 4.0, 3.0))
+		bubbles.visibility_aabb = AABB(Vector3(-1.5, -1.5, -0.5), Vector3(3.0, 3.0, 4.0))
 		bubbles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(bubbles)
 		global_position = _destination()

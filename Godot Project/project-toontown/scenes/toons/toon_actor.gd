@@ -905,57 +905,40 @@ func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 
 
 func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: float) -> void:
+	# These clips are 24 discrete frames. Building a new mesh and smoothing its
+	# normals on every tick, for the toon and again for a street fisherman,
+	# then uploading that mesh, is what pegs a street.
 	var posed_head: MeshInstance3D = null
+	var built := false
 	for clip in clips:
 		var instance := clip["instance"] as MeshInstance3D
 		if not is_instance_valid(instance):
 			continue
-		var original := clip["original"] as Mesh
-		var surfaces: Array = clip["surfaces"]
-		var posed := ArrayMesh.new()
-		for surface_index in surfaces.size():
-			var surface: Dictionary = surfaces[surface_index]
-			var frames: Array = surface["frames"]
-			if frames.is_empty():
+		var cache: Dictionary = clip.get("posed_meshes", {})
+		var posed: ArrayMesh = cache.get(frame) as ArrayMesh
+		if posed == null:
+			posed = _mesh_for_frame(clip, frame)
+			if posed == null:
 				continue
-			var count := frames.size()
-			var used := frame % count
-			var next_frame := following % count
-			var positions: PackedVector3Array = frames[used]
-			if blend > 0.001:
-				var nxt: PackedVector3Array = frames[next_frame]
-				var mixed := PackedVector3Array()
-				mixed.resize(positions.size())
-				for index in positions.size():
-					mixed[index] = positions[index].lerp(nxt[index], blend)
-				positions = mixed
-			var arrays: Array = []
-			arrays.resize(Mesh.ARRAY_MAX)
-			arrays[Mesh.ARRAY_VERTEX] = positions
-			var part := String(instance.name)
-			if part.begins_with("ears"):
-				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions, true)
-			elif part.begins_with("head"):
-				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
-				posed_head = instance
-			else:
-				arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
-			var uvs: PackedVector2Array = surface["uv"]
-			if uvs.size() == positions.size():
-				arrays[Mesh.ARRAY_TEX_UV] = uvs
-			if surface_index < original.get_surface_count():
-				var colors := _corner_colors(original, surface_index, positions.size())
-				if colors.size() == positions.size():
-					arrays[Mesh.ARRAY_COLOR] = colors
-			posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-			if surface_index < original.get_surface_count():
-				posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
-		instance.mesh = posed
-	if posed_head:
+			cache[frame] = posed
+			clip["posed_meshes"] = cache
+			built = true
+		if instance.mesh != posed:
+			instance.mesh = posed
+		if String(instance.name).begins_with("head"):
+			posed_head = instance
+	if built and posed_head != null:
 		var host: Node = posed_head
 		while host.get_parent() != null and host.get_parent() != self:
 			host = host.get_parent()
 		_unify_forehead(host)
+		for clip in clips:
+			var instance := clip["instance"] as MeshInstance3D
+			if not is_instance_valid(instance) or not (instance.mesh is ArrayMesh):
+				continue
+			var cache: Dictionary = clip.get("posed_meshes", {})
+			cache[frame] = instance.mesh
+			clip["posed_meshes"] = cache
 	for joint in joints:
 		var node := joint["node"] as Node3D
 		if not is_instance_valid(node):
@@ -965,6 +948,42 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 			continue
 		var count := frames.size()
 		node.transform = _joint_pose(joint, frame % count, following % count, blend)
+
+
+func _mesh_for_frame(clip: Dictionary, frame: int) -> ArrayMesh:
+	var instance := clip["instance"] as MeshInstance3D
+	var original := clip["original"] as Mesh
+	if not is_instance_valid(instance) or original == null:
+		return null
+	var surfaces: Array = clip["surfaces"]
+	var posed := ArrayMesh.new()
+	var part := String(instance.name)
+	for surface_index in surfaces.size():
+		var surface: Dictionary = surfaces[surface_index]
+		var frames: Array = surface["frames"]
+		if frames.is_empty():
+			continue
+		var positions: PackedVector3Array = frames[frame % frames.size()]
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
+		if part.begins_with("ears"):
+			arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions, true)
+		else:
+			arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
+		var uvs: PackedVector2Array = surface["uv"]
+		if uvs.size() == positions.size():
+			arrays[Mesh.ARRAY_TEX_UV] = uvs
+		if surface_index < original.get_surface_count():
+			var colors := _corner_colors(original, surface_index, positions.size())
+			if colors.size() == positions.size():
+				arrays[Mesh.ARRAY_COLOR] = colors
+		posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		if surface_index < original.get_surface_count():
+			posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
+	if posed.get_surface_count() == 0:
+		return null
+	return posed
 
 
 func _joint_pose(joint: Dictionary, frame: int, following: int, blend: float) -> Transform3D:

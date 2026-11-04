@@ -10,6 +10,20 @@ const _TANK := preload("res://scenes/fishing/fish_tank.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _ROLL := preload("res://scenes/fishing/fish_roll.gd")
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _BOARDS := preload("res://assets/gui/fishing/boards.png")
+const _JAR_ART := preload("res://assets/gui/fishing/jar.png")
+const _BUCKET_ART := preload("res://assets/gui/fishing/bucket.png")
+const _PLAQUE := preload("res://assets/gui/fishing/display_jar.png")
+const _CAST_ART := preload("res://assets/gui/fishing/castButton.png")
+const _TIP_ART := preload("res://assets/gui/fishing/arrowTip.png")
+const _TAIL_ART := preload("res://assets/gui/fishing/arrowTail.png")
+const _EXIT_UP := preload("res://assets/gui/fishing/exit_buttonUp.png")
+const _EXIT_DOWN := preload("res://assets/gui/fishing/exit_buttonDown.png")
+const _EXIT_HOVER := preload("res://assets/gui/fishing/exit_buttonRollover.png")
+const _RIPPLE_ART := preload("res://assets/props/fishing_ripples.png")
+const _RIPPLE_COLS := 6
+const _RIPPLE_ROWS := 4
+const _RIPPLE_FRAMES := 24
 const _CLOSE_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
 const _CLOSE_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
 const _CLOSE_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
@@ -68,22 +82,25 @@ var _cam_look := Vector3.ZERO
 var _pole: Node3D
 var _bob: Node3D
 var _ripples: MeshInstance3D
+var _ripple_time := -1.0
 var _line: MeshInstance3D
 var _line_mesh: CylinderMesh
 var _layer: CanvasLayer
-var _cast_button: Button
-var _exit_button: Button
+var _cast_button: TextureButton
+var _cast_caption: Label
+var _exit_button: TextureButton
+var _exit_caption: Label
 var _jar: Label
 var _bucket: Label
 var _clock: Label
-var _arrow: ColorRect
+var _arrow: Control
+var _arrow_tip: TextureRect
+var _arrow_tail: TextureRect
 var _modal: Control
 var _modal_label: Label
 var _modal_button: Button
 var _reward: Control
 var _reward_label: Label
-var _red: StyleBoxFlat
-var _green: StyleBoxFlat
 
 
 func open(actor: ToonActor, camera: Camera3D, spot: Node3D, feet: Vector3, heading: float) -> void:
@@ -131,6 +148,7 @@ func _process(delta: float) -> void:
 	if _gui_up:
 		_timer_left = maxf(_timer_left - delta, 0.0)
 		_clock.text = str(int(ceili(_timer_left)))
+	_tick_ripples(delta)
 	if _state == "approach":
 		_approach(delta)
 	elif _state == "aim":
@@ -195,9 +213,9 @@ func _drag() -> void:
 	_arrow.visible = true
 	_layout_arrow()
 	if clamped:
-		_arrow.color = Color(1, 0, 0, 1)
+		_arrow.modulate = Color(1, 0, 0, 1)
 	else:
-		_arrow.color = Color(1.0, 1.0 - pow(_power, 3.0), 0.1, 0.7)
+		_arrow.modulate = Color(1.0, 1.0 - pow(_power, 3.0), 0.1, 0.7)
 	if _long_dur > 0.0:
 		_posing = true
 		_actor.pose_action("castlong", (0.2 + _power * 0.7) * 4.0)
@@ -236,7 +254,7 @@ func _fly(delta: float) -> void:
 		_check = 1.0
 		_state = "bite"
 		_splash(_bob_at)
-		_show_ripples(true)
+		_play_ripples(_bob_at)
 		_play("fish-neutral", true)
 
 
@@ -244,10 +262,6 @@ func _bobbing(delta: float) -> void:
 	_bite += delta
 	_bob_at.y = _surface + sin(_bite * 1.8) * 0.08
 	_bob.global_position = _bob_at
-	if _ripples != null:
-		_ripples.global_position = Vector3(_bob_at.x, _surface + 0.025, _bob_at.z)
-		var pulse := 0.4 + sin(_bite * 3.0) * 0.05
-		_ripples.scale = Vector3(pulse, 1.0, pulse)
 	_draw_line()
 	_check -= delta
 	if _check > 0.0:
@@ -289,7 +303,9 @@ func _input(event: InputEvent) -> void:
 	if mouse.button_index != MOUSE_BUTTON_LEFT and mouse.button_index != MOUSE_BUTTON_RIGHT:
 		return
 	if mouse.pressed:
-		if (_state == "wait" or _state == "reward") and _cast_button.get_global_rect().has_point(mouse.position):
+		# waiting, the throw, the bob in the water, and the catch dialog can all start another cast.
+		var casting := _state == "wait" or _state == "cast" or _state == "flight" or _state == "bite" or _state == "reward"
+		if casting and _cast_button.get_global_rect().has_point(mouse.position):
 			_reward.visible = false
 			_press_cast()
 			get_viewport().set_input_as_handled()
@@ -301,6 +317,8 @@ func _input(event: InputEvent) -> void:
 func _press_cast() -> void:
 	if _modal.visible or _reward.visible:
 		_reward.visible = false
+	# A second press pulls the line in and starts the aim over.
+	_hide_bob()
 	if _TANK.count() >= _TANK.max_count():
 		_show_modal(_FULL, true)
 		return
@@ -311,16 +329,17 @@ func _press_cast() -> void:
 	_power = 0.0
 	_angle = 0.0
 	_press = _mouse()
-	_cast_button.text = ""
-	_cast_button.add_theme_stylebox_override("normal", _green)
+	_cast_caption.text = ""
+	_cast_button.modulate = Color(0, 1, 0)
 	_play("pole-neutral", true)
 
 
 func _release_cast() -> void:
 	_posing = false
 	_actor.end_action("castlong")
-	_cast_button.text = "Cast"
-	_cast_button.add_theme_stylebox_override("normal", _red)
+	_cast_caption.text = "Cast"
+	var over := _cast_button.get_global_rect().has_point(get_viewport().get_mouse_position())
+	_cast_button.modulate = Color(1, 1, 0) if over else Color(1, 0, 0)
 	_arrow.visible = false
 	if _power <= 0.0 and _TANK.collected() == 0:
 		_state = "wait"
@@ -506,15 +525,23 @@ func _show_bob() -> void:
 		_world().add_child(_line)
 		_ripples = MeshInstance3D.new()
 		var card := QuadMesh.new()
-		card.orientation = PlaneMesh.FACE_Y
-		card.size = Vector2(2.2, 2.2)
+		# The shore lives in the pond's Z-up space. A Y-facing card stands
+		# up behind the bob, so the ring lies flat the way the model does.
+		card.orientation = PlaneMesh.FACE_Z
+		card.size = Vector2(4.0, 4.0)
 		_ripples.mesh = card
 		var ring := StandardMaterial3D.new()
 		ring.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		ring.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		ring.albedo_color = Color(0.7, 0.85, 1.0, 0.45)
+		ring.albedo_texture = _RIPPLE_ART
+		ring.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 		ring.cull_mode = BaseMaterial3D.CULL_DISABLED
+		ring.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		ring.render_priority = 1
+		ring.uv1_scale = Vector3(1.0 / _RIPPLE_COLS, 1.0 / _RIPPLE_ROWS, 1.0)
 		_ripples.material_override = ring
+		_ripples.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_ripples.visible = false
 		_world().add_child(_ripples)
 	_bob.visible = true
 	_line.visible = true
@@ -529,8 +556,40 @@ func _hide_bob() -> void:
 
 
 func _show_ripples(show: bool) -> void:
+	if not show:
+		_ripple_time = -1.0
 	if _ripples != null:
 		_ripples.visible = show
+
+
+func _play_ripples(at: Vector3) -> void:
+	if _ripples == null:
+		return
+	_ripples.global_position = Vector3(at.x, _surface + 0.025, at.z)
+	_ripples.scale = Vector3.ONE
+	_ripple_time = 0.0
+	_ripples.visible = true
+	var material := _ripples.material_override as StandardMaterial3D
+	if material != null:
+		material.uv1_offset = Vector3.ZERO
+
+
+func _tick_ripples(delta: float) -> void:
+	if _ripples == null or _ripple_time < 0.0:
+		return
+	_ripple_time += delta
+	var frame := int(_ripple_time * 24.0)
+	if frame >= _RIPPLE_FRAMES:
+		_show_ripples(false)
+		return
+	var material := _ripples.material_override as StandardMaterial3D
+	if material == null:
+		return
+	material.uv1_offset = Vector3(
+		float(frame % _RIPPLE_COLS) / float(_RIPPLE_COLS),
+		float(frame / _RIPPLE_COLS) / float(_RIPPLE_ROWS),
+		0.0
+	)
 
 
 func _draw_line() -> void:
@@ -668,49 +727,81 @@ func _build() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(root)
-	_red = _fill(Color(1, 0, 0))
-	_green = _fill(Color(0, 1, 0))
-	var hover := _fill(Color(1, 1, 0))
-	_cast_button = Button.new()
-	_cast_button.name = "Cast"
-	_cast_button.text = "Cast"
-	_cast_button.focus_mode = Control.FOCUS_NONE
-	_cast_button.add_theme_stylebox_override("normal", _red)
-	_cast_button.add_theme_stylebox_override("hover", hover)
-	_cast_button.add_theme_stylebox_override("pressed", _green)
-	_style_button(_cast_button, 28)
-	root.add_child(_cast_button)
-	_exit_button = Button.new()
-	_exit_button.name = "Exit"
-	_exit_button.text = "Exit"
-	_exit_button.focus_mode = Control.FOCUS_NONE
-	_exit_button.add_theme_stylebox_override("normal", _fill(Color(0.15, 0.45, 0.85)))
-	_exit_button.add_theme_stylebox_override("hover", hover)
-	_exit_button.add_theme_stylebox_override("pressed", _fill(Color(0.05, 0.25, 0.55)))
-	_style_button(_exit_button, 22)
-	_exit_button.pressed.connect(_exit_pressed)
-	root.add_child(_exit_button)
+	# phase_4 fishingGui, drawn in the same order as the model: the plank,
+	# the jar and bucket, their number frames, then the cast and exit buttons.
+	_card(root, "Boards", _BOARDS)
+	_card(root, "JarArt", _JAR_ART)
+	_card(root, "BucketArt", _BUCKET_ART)
+	_card(root, "JarFrame", _PLAQUE)
+	_card(root, "BucketFrame", _PLAQUE)
 	_jar = Label.new()
 	_jar.name = "Jar"
 	_jar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ToonGui.style_sign(_jar, Color(0.95, 0.95, 0), 36, Color(0, 0, 0), 4)
+	_jar.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_jar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_sign(_jar, Color(0.95, 0.95, 0), 36, Color(0, 0, 0), 0)
 	root.add_child(_jar)
 	_bucket = Label.new()
 	_bucket.name = "Bucket"
 	_bucket.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_bucket.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_bucket.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(_bucket, Color(0.95, 0.95, 0), 22, Color(0, 0, 0), 4)
 	root.add_child(_bucket)
+	_cast_button = TextureButton.new()
+	_cast_button.name = "Cast"
+	_cast_button.texture_normal = _CAST_ART
+	_cast_button.texture_hover = _CAST_ART
+	_cast_button.texture_pressed = _CAST_ART
+	_cast_button.ignore_texture_size = true
+	_cast_button.stretch_mode = TextureButton.STRETCH_SCALE
+	_cast_button.focus_mode = Control.FOCUS_NONE
+	_cast_button.modulate = Color(1, 0, 0)
+	_cast_button.mouse_entered.connect(_cast_hover.bind(true))
+	_cast_button.mouse_exited.connect(_cast_hover.bind(false))
+	root.add_child(_cast_button)
+	_cast_caption = Label.new()
+	_cast_caption.name = "CastText"
+	_cast_caption.text = "Cast"
+	_cast_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_cast_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_cast_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(_cast_caption, Color(1, 1, 1), 28, Color(0, 0, 0), 4)
+	root.add_child(_cast_caption)
+	_exit_button = TextureButton.new()
+	_exit_button.name = "Exit"
+	_exit_button.texture_normal = _EXIT_UP
+	_exit_button.texture_hover = _EXIT_HOVER
+	_exit_button.texture_pressed = _EXIT_DOWN
+	_exit_button.ignore_texture_size = true
+	_exit_button.stretch_mode = TextureButton.STRETCH_SCALE
+	_exit_button.focus_mode = Control.FOCUS_NONE
+	_exit_button.pressed.connect(_exit_pressed)
+	_exit_button.mouse_entered.connect(func() -> void: _exit_caption.visible = true)
+	_exit_button.mouse_exited.connect(func() -> void: _exit_caption.visible = false)
+	root.add_child(_exit_button)
+	_exit_caption = Label.new()
+	_exit_caption.name = "ExitText"
+	_exit_caption.text = "Exit"
+	_exit_caption.visible = false
+	_exit_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_exit_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_exit_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(_exit_caption, Color(1, 1, 1), 22, Color(0, 0, 0), 4)
+	root.add_child(_exit_caption)
 	_clock = Label.new()
 	_clock.name = "Timer"
 	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ToonGui.style_sign(_clock, Color(1, 1, 1), 48, Color(0, 0, 0), 6)
 	root.add_child(_clock)
-	_arrow = ColorRect.new()
+	_arrow = Control.new()
 	_arrow.name = "Arrow"
-	_arrow.color = Color(1, 1, 0.1, 0.7)
 	_arrow.visible = false
 	_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_arrow.modulate = Color(0.9, 0.9, 0.1, 0.7)
 	root.add_child(_arrow)
+	_arrow_tip = _card(_arrow, "Tip", _TIP_ART)
+	_arrow_tail = _card(_arrow, "Tail", _TAIL_ART)
 	_modal = _panel(root, "HowTo")
 	_modal_label = _modal.get_node("Text") as Label
 	_modal_button = Button.new()
@@ -791,11 +882,27 @@ func _layout() -> void:
 	if _cast_button == null:
 		return
 	var view := get_viewport().get_visible_rect().size
-	ToonGui.place(_cast_button, view, 0.0, -0.62, 0.52, 0.2)
-	ToonGui.place(_exit_button, view, 1.15, -0.86, 0.34, 0.16)
-	ToonGui.place(_jar, view, -1.05, -0.86, 0.4, 0.16)
-	ToonGui.place(_bucket, view, 0.55, -0.86, 0.4, 0.16)
+	var root := _cast_button.get_parent()
+	# fishingGui.bam bounds, multiplied by the castGui scale of 0.67.
+	ToonGui.place(root.get_node("Boards"), view, 0.0, -0.8693, 2.68, 0.3209)
+	ToonGui.place(root.get_node("JarArt"), view, -0.7457, -0.8090, 0.3444, 0.3759)
+	ToonGui.place(root.get_node("BucketArt"), view, 0.7688, -0.7876, 0.4161, 0.4670)
+	ToonGui.place(root.get_node("JarFrame"), view, -0.7450, -0.8254, 0.2935, 0.1769)
+	ToonGui.place(root.get_node("BucketFrame"), view, 0.7688, -0.8790, 0.2459, 0.1715)
+	ToonGui.place(_jar, view, -0.7450, -0.8254, 0.2935, 0.1769)
+	ToonGui.place(_bucket, view, 0.7688, -0.8790, 0.2459, 0.1715)
+	# DirectButton scale (0.036, 1, 0.048) on the 4x3 cast card, then the
+	# gui scale of 0.67. "Cast" sits under the circle, text_pos (0, -4).
+	ToonGui.place(_cast_button, view, 0.0, -0.4688, 0.0965, 0.0965)
+	ToonGui.place(_cast_caption, view, 0.0, -0.558, 0.22, 0.1)
+	ToonGui.place(_exit_button, view, 1.1725, -0.8911, 0.1662, 0.1508)
+	ToonGui.place(_exit_caption, view, 1.1725, -0.9515, 0.24, 0.09)
 	ToonGui.place(_clock, view, 1.2, 0.82, 0.36, 0.22)
+	var unit := view.y * 0.5
+	_jar.add_theme_font_size_override("font_size", maxi(int(round(0.1072 * unit)), 1))
+	_bucket.add_theme_font_size_override("font_size", maxi(int(round(0.0603 * unit)), 1))
+	_cast_caption.add_theme_font_size_override("font_size", maxi(int(round(0.0724 * unit)), 1))
+	_exit_caption.add_theme_font_size_override("font_size", maxi(int(round(0.067 * unit)), 1))
 	_layout_panel(_modal, view, 1.7, 1.15)
 	_layout_panel(_reward, view, 1.35, 0.85)
 	_layout_arrow()
@@ -816,11 +923,45 @@ func _layout_panel(panel: Control, view: Vector2, width: float, height: float) -
 
 
 func _layout_arrow() -> void:
-	if _arrow == null or _cast_button == null:
+	if _arrow == null or _arrow_tip == null:
 		return
-	var height := 24.0 + _power * 150.0
-	_arrow.size = Vector2(16.0, height)
-	_arrow.pivot_offset = Vector2(8.0, height)
-	var anchor := _cast_button.position + Vector2(_cast_button.size.x * 0.5, -8.0)
-	_arrow.position = anchor - _arrow.pivot_offset
+	var view := get_viewport().get_visible_rect().size
+	var unit := view.y * 0.5
+	# The arrow node sits at z=-0.695 in the gui, then the gui scale of 0.67.
+	# Roll is around that point, so the control's origin is the pivot.
+	var origin := Vector2(view.x * 0.5, view.y * 0.5 + 0.46565 * unit)
+	_arrow.position = origin
+	_arrow.pivot_offset = Vector2.ZERO
 	_arrow.rotation = deg_to_rad(-_angle)
+	_place_card(_arrow_tip, unit, 0.0, -0.0389, 0.2278, 0.0764)
+	var reach := maxf(_power, 0.0)
+	_arrow_tail.visible = reach > 0.0
+	if reach <= 0.0:
+		return
+	# arrowTail scale (0.075, 0.075, power * 0.2) on a card about 4 by 3.
+	var tail_z := (-0.111 - 0.2974 * reach) * 0.67
+	_place_card(_arrow_tail, unit, 0.0054, tail_z, 0.201, 0.402 * reach)
+
+
+func _place_card(card: Control, unit: float, x: float, z: float, width: float, height: float) -> void:
+	var box := Vector2(width, height) * unit
+	card.size = box
+	card.position = Vector2(x * unit, -z * unit) - box * 0.5
+
+
+func _card(parent: Node, card_name: String, texture: Texture2D) -> TextureRect:
+	var card := TextureRect.new()
+	card.name = card_name
+	card.texture = texture
+	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	card.stretch_mode = TextureRect.STRETCH_SCALE
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(card)
+	return card
+
+
+func _cast_hover(inside: bool) -> void:
+	if _state == "aim":
+		_cast_button.modulate = Color(0, 1, 0)
+		return
+	_cast_button.modulate = Color(1, 1, 0) if inside else Color(1, 0, 0)

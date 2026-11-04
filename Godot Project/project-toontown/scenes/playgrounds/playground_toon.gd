@@ -114,6 +114,7 @@ var _bank_open := false
 var _fish_open := false
 var _casting := false
 var _cast_ready := false
+var _shore: Node3D
 var _clerk_ready := false
 var _fish_ready := false
 var _clerk_mouth: Node3D
@@ -819,10 +820,10 @@ const _TROPHY_FISH := "Wow! You collected %d of %d fish. That deserves a trophy 
 const _FISH_SLOW := "Need more time to think?"
 
 
-## DistributedFishingSpot sphere is 1.5 at the outer end of the pier. The pier
-## plate itself extends 6.4 feet back from that point, and this toon's capsule
-## is thinner than the original tube, so the 2.5 test never reached a toon
-## standing on the plate. Cover the whole plate.
+## DistributedFishingSpot sphere is 1.5 at the outer end of the pier. A toon
+## standing on the planks is still on that dock, so the plate counts too.
+## Spots with no plate keep the old point test.
+const _DOCK_MARGIN := 1.5
 const _SHORE_REACH := 6.5
 
 
@@ -848,8 +849,12 @@ func _try_fishing() -> void:
 	if _casting or _body == null or _player == null:
 		return
 	var spot := _nearest_shore()
-	if spot == null:
+	# Each dock is its own sphere. Walking off one and onto the next starts
+	# a cast, the same as a new enterFishingSpotSphere.
+	if spot != _shore:
+		_shore = spot
 		_cast_ready = true
+	if spot == null:
 		return
 	if not _cast_ready or _is_sad():
 		return
@@ -877,17 +882,31 @@ func _nearest_shore() -> Node3D:
 	if host == null or _body == null:
 		return null
 	var best: Node3D = null
-	var best_gap := _SHORE_REACH
+	var best_gap := INF
 	for node in host.find_children("FishingShore", "Node3D", true, false):
 		var spot := node as Node3D
 		if spot == null or not spot.is_visible_in_tree():
 			continue
-		var offset := spot.global_position - _body.global_position
-		var gap := Vector2(offset.x, offset.z).length()
-		if gap <= best_gap:
+		var margin := _DOCK_MARGIN if spot.has_meta("deck_min") else _SHORE_REACH
+		var gap := _shore_gap(spot)
+		if gap <= margin and gap < best_gap:
 			best_gap = gap
 			best = spot
 	return best
+
+
+func _shore_gap(spot: Node3D) -> float:
+	if not spot.has_meta("deck_min"):
+		var offset := spot.global_position - _body.global_position
+		return Vector2(offset.x, offset.z).length()
+	var local: Vector3 = spot.global_transform.affine_inverse() * _body.global_position
+	var deck_min: Vector2 = spot.get_meta("deck_min")
+	var deck_max: Vector2 = spot.get_meta("deck_max")
+	var clamped := Vector2(
+		clampf(local.x, deck_min.x, deck_max.x),
+		clampf(local.y, deck_min.y, deck_max.y)
+	)
+	return Vector2(local.x, local.y).distance_to(clamped)
 
 
 func _try_fisherman() -> void:

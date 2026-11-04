@@ -39,7 +39,6 @@ const PROFILES := {
 var kind := "tt"
 var _material: ShaderMaterial
 var _hidden: Array[Node3D] = []
-var _scroll := 0.0
 var _original_environment: Environment
 
 
@@ -69,12 +68,9 @@ func _ready() -> void:
 	_hide_imported()
 
 
-func _process(delta: float) -> void:
-	# cloud1 gains a quarter degree per second. The second layer uses 0.8 of that.
-	if kind == "tt":
-		_scroll += delta * 0.25
-		if _material:
-			_material.set_shader_parameter("cloud_scroll", _scroll)
+func _process(_delta: float) -> void:
+	# The cloud scroll is TIME in the sky shader. Writing the uniform every
+	# frame, with a realtime radiance map, rebuilt that cubemap on the CPU.
 	_apply_sky()
 	# A cog backdrop has no imported cloud cards. Scanning the factory for
 	# them every frame walks every room that is still in the tree.
@@ -105,7 +101,7 @@ func _apply_sky() -> void:
 	var environment := current.duplicate() if current else Environment.new()
 	var sky := Sky.new()
 	sky.sky_material = _material
-	sky.process_mode = Sky.PROCESS_MODE_REALTIME
+	sky.process_mode = Sky.PROCESS_MODE_QUALITY
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
@@ -124,7 +120,6 @@ func _make_material() -> ShaderMaterial:
 		material.shader = shader
 		material.set_shader_parameter("gradient_tex", GRADIENT)
 		material.set_shader_parameter("cloud_tex", CLOUDS)
-		material.set_shader_parameter("cloud_scroll", _scroll)
 		return material
 	var profile: Dictionary = PROFILES[kind]
 	shader.code = FileAccess.get_file_as_string(HOOD_SHADER_PATH)

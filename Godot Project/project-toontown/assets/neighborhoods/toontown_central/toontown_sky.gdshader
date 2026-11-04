@@ -2,7 +2,6 @@ shader_type sky;
 
 uniform sampler2D gradient_tex : source_color, repeat_disable, filter_linear;
 uniform sampler2D cloud_tex : source_color, repeat_enable, filter_linear;
-uniform float cloud_scroll = 0.0;
 
 // Lod 0 on purpose. The longitude wraps once around the sky, and a mipmap
 // sample at that wrap turns into the vertical seam.
@@ -35,7 +34,9 @@ void sky() {
 	float horiz = length(dir.xz);
 	if (horiz > 0.7) {
 		float around = atan(dir.z, dir.x) / TAU;
-		float turns = cloud_scroll / 360.0;
+		// A quarter degree per second. TIME keeps the scroll off the material,
+		// so the radiance map is not rebuilt on every street frame.
+		float turns = TIME * 0.25 / 360.0;
 		float down = clamp(1.0 - height, 0.04, 0.96);
 		// 3 and 2 copies around the sky, down from 4 and 3.
 		vec4 first = cloud_tile(around * 3.0 + turns, down);

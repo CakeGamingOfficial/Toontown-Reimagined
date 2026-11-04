@@ -10,6 +10,7 @@ const _BATCH := preload("res://scenes/playgrounds/street_batch.gd")
 const _SOLIDS := "res://assets/neighborhoods/toontown_central/playground_solids.json"
 const _WALL_THICK := 1.0
 const _WALL_SPAN := 30.0
+const _PIER_FLOOR := 0.2
 
 var _built := false
 var _lawbot := false
@@ -83,6 +84,11 @@ func _collide_mesh(mesh: MeshInstance3D) -> void:
 	# that the toon walks through it. A box along that quad is the solid.
 	if not _on_street() and _flat_wall(mesh):
 		_thicken_wall(mesh)
+		return
+	# Fishing piers over the pond are open slats. The trimesh drops the toon
+	# through the deck, so the walkway gets the original floor polygon instead.
+	if _pier_board(mesh):
+		_solid_pier(mesh)
 		return
 	var material := mesh.get_active_material(0)
 	var cutout := false
@@ -265,6 +271,51 @@ func _thicken_wall(mesh: MeshInstance3D) -> void:
 	body.collision_mask = 0
 	var shape := BoxShape3D.new()
 	shape.size = size
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	collision.position = (low + high) * 0.5
+	body.add_child(collision)
+	mesh.add_child(body)
+
+
+func _pier_board(mesh: MeshInstance3D) -> bool:
+	if String(mesh.name) != "board":
+		return false
+	var current: Node = mesh.get_parent()
+	while current != null:
+		if String(current.name).begins_with("fishing_spot"):
+			return true
+		current = current.get_parent()
+	return false
+
+
+## piers_tt floor_collision is one polygon on the walkway. The model is Z-up,
+## so that surface is local Z max. The bank slopes down under the planks. A
+## box filled down through that slope is a wall, and only the dock by Toon
+## HQ still reaches its fishing spot.
+func _solid_pier(mesh: MeshInstance3D) -> void:
+	if mesh.mesh == null or mesh.get_node_or_null("PierSolid") != null:
+		return
+	var low := Vector3(INF, INF, INF)
+	var high := Vector3(-INF, -INF, -INF)
+	var count := 0
+	for surface in mesh.mesh.get_surface_count():
+		var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+		var verts: Variant = arrays[Mesh.ARRAY_VERTEX]
+		var points: PackedVector3Array = verts
+		for point in points:
+			low = low.min(point)
+			high = high.max(point)
+			count += 1
+	if count == 0:
+		return
+	low.z = high.z - _PIER_FLOOR
+	var body := StaticBody3D.new()
+	body.name = "PierSolid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := BoxShape3D.new()
+	shape.size = high - low
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	collision.position = (low + high) * 0.5
