@@ -228,12 +228,14 @@ func _fill_card(index: int, toon: Dictionary, view: Vector2) -> void:
 	_dress_meter(index, int(toon.get("id", 0)), hp, maximum, unit)
 	var track := int(toon.get("track", -1))
 	var level := int(toon.get("level", -1))
-	var undecided := track < -1 or not toon.has("track")
-	_marks[index].visible = undecided or track == -2
+	# A missing choice is not a pass. Pass is track -1 only after this toon picked it.
+	var chosen_pass := toon.has("track") and track == -1
+	var undecided := not toon.has("track") or track < -1
+	_marks[index].visible = not chosen_pass and (undecided or track == -2)
 	_marks[index].text = "Run" if track == -2 else "?"
 	_place_on(card, _marks[index], 0.08, 0.012, 0.14, 0.08, unit)
 	ToonGui.style_label(_marks[index], _INK, _px(unit, 0.08), Color(0, 0, 0, 0), 0)
-	_passes[index].visible = track == -1
+	_passes[index].visible = chosen_pass
 	_passes[index].z_index = 3
 	_place_on(card, _passes[index], 0.1, 0.05, 0.1, 0.1, unit)
 	var chosen := track >= 0

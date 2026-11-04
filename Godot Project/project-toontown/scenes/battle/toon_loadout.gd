@@ -379,12 +379,21 @@ static func gag_accuracy(track: int, level: int) -> int:
 	return percent
 
 
+## The inventory names a gag from its own AvPropAccuracy, not the track's
+## one word. 50 and 60 were both "Low", so a $1 bill and a $5 bill read the same.
+static func accuracy_label(track: int, level: int) -> String:
+	if track == 1:
+		return "Perfect"
+	var percent := gag_accuracy(track, level)
+	return "%s (%d%%)" % [accuracy_word(percent), percent]
+
+
 static func accuracy_word(percent: int) -> String:
-	if percent >= 95:
+	if percent >= 90:
 		return "High"
 	if percent >= 70:
 		return "Medium"
-	if percent >= 50:
+	if percent >= 60:
 		return "Low"
 	return "Very Low"
 

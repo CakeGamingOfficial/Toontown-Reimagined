@@ -1,9 +1,9 @@
 extends RefCounted
 
 ## The original street stashes every visgroup except the blocks listed for the
-## floor under the avatar. Those blocks are drawn as one surface per texture.
-## The other views stay as mesh data, not as objects in the scene. Swinging
-## doors, closed door pictures, and signs stay on their block so they hide with it.
+## floor under the avatar. Those blocks, including the shops, are drawn as one
+## surface per texture. A takeover pulls that shop back out so it can still
+## squish. Swinging doors, closed door pictures, and signs stay on their block.
 
 class Bucket extends RefCounted:
 	var material: Material
@@ -31,21 +31,71 @@ static func apply_flat(root: Node3D) -> void:
 	_batch(root, root)
 
 
+static var _pending: Node3D
+
+
 static func prepare(host: Node, zone_nodes: Dictionary, zones: Dictionary) -> void:
 	var geom := _geometry(host)
-	if geom == null or geom.has_meta("street_views") or zone_nodes.is_empty():
+	if geom == null or zone_nodes.is_empty():
 		return
-	var views := {}
-	for zone_name in zone_nodes:
-		var shown := _shown_nodes(zone_nodes, zones, String(zone_name))
-		var meshes := _build_meshes(shown)
-		if not meshes.is_empty():
-			views[String(zone_name)] = meshes
-	if not views.is_empty():
-		geom.set_meta("street_views", views)
-		_drop_sources(zone_nodes)
+	# The view is built when the camera enters a cell, from these caches plus
+	# the folded shops. Building every cell here included shops a takeover had
+	# not hidden yet.
+	geom.set_meta("street_zone_nodes", zone_nodes)
+	geom.set_meta("street_zones", zones)
 	if host.has_meta("street_shown"):
 		host.remove_meta("street_shown")
+
+
+## A takeover is about to scale this shop, so its triangles have to leave the
+## block mesh and draw on the shop again.
+static func unfold(node: Node3D) -> void:
+	if node.has_meta("street_unfolded"):
+		return
+	if not _show_folded(node, true):
+		return
+	node.set_meta("street_unfolded", true)
+	touch(node)
+
+
+## The shop is back to standing still. Hide its own draw and fold it into the block.
+static func fold(node: Node3D) -> void:
+	if not node.has_meta("street_unfolded"):
+		return
+	node.remove_meta("street_unfolded")
+	_show_folded(node, false)
+	touch(node)
+
+
+static func touch(from: Node) -> void:
+	var geom := _geom_from(from)
+	if geom != null:
+		_pending = geom
+
+
+static func flush() -> void:
+	if _pending == null or not is_instance_valid(_pending):
+		_pending = null
+		return
+	var geom := _pending
+	_pending = null
+	geom.set_meta("fold_gen", int(geom.get_meta("fold_gen", 0)) + 1)
+	if geom.has_meta("street_views"):
+		geom.remove_meta("street_views")
+	if geom.has_meta("street_view_gen"):
+		geom.remove_meta("street_view_gen")
+	var live := geom.get_node_or_null("StreetVisible") as Node3D
+	if live == null:
+		return
+	var zone_name := String(live.get_meta("shown", ""))
+	var zone_nodes: Dictionary = geom.get_meta("street_zone_nodes", {})
+	var zones: Dictionary = geom.get_meta("street_zones", {})
+	if zone_name.is_empty() or zone_nodes.is_empty():
+		return
+	var gen := int(geom.get_meta("fold_gen"))
+	var meshes := _view_meshes(geom, zone_name, _shown_nodes(zone_nodes, zones, zone_name), gen)
+	_use_meshes(live, meshes)
+	live.set_meta("fold_gen", gen)
 
 
 static func apply_visible(host: Node, zone_name: String, zone_nodes: Dictionary, zones: Dictionary) -> void:
@@ -80,26 +130,20 @@ static func show_zones(host: Node, zone_name: String, zones: Array[Node3D]) -> v
 	var geom := _geometry(host)
 	if geom == null or zone_name.is_empty():
 		return
-	var has_views := geom.has_meta("street_views")
-	if not has_views and not _has_cached_verts(zones):
+	if not _has_cached_verts(zones) and not _has_folded(zones):
 		return
+	var gen := int(geom.get_meta("fold_gen", 0))
 	var live := geom.get_node_or_null("StreetVisible") as Node3D
-	if live != null and String(live.get_meta("shown", "")) == zone_name:
+	if live != null and String(live.get_meta("shown", "")) == zone_name and int(live.get_meta("fold_gen", -1)) == gen:
 		return
 	if live == null:
 		live = Node3D.new()
 		live.name = "StreetVisible"
 		geom.add_child(live)
-	if has_views:
-		var views: Dictionary = geom.get_meta("street_views")
-		var meshes: Array = views.get(zone_name, [])
-		_use_meshes(live, meshes)
-		live.set_meta("shown", zone_name)
-		return
-	for child in live.get_children():
-		child.free()
-	_fill(live, zones)
+	var meshes := _view_meshes(geom, zone_name, zones, gen)
+	_use_meshes(live, meshes)
 	live.set_meta("shown", zone_name)
+	live.set_meta("fold_gen", gen)
 
 
 static func set_solid(zone: Node, shown: bool) -> void:
@@ -215,6 +259,9 @@ static func _batch(zone: Node3D, root: Node) -> void:
 static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job, taken: Array[MeshInstance3D]) -> void:
 	# A shop stays one surface on its own node. Hiding that node is the
 	# takeover. Leaving every wall as its own object is what dropped the frame rate.
+	# A shop used to keep its own surface. A block full of those was still a
+	# few hundred draws, and the same wall texture was in most of them. The
+	# triangles fold into the block. A takeover pulls that one shop back out.
 	if node != zone and node is Node3D and _toon_shop(String(node.name)):
 		_flatten_landmark(node as Node3D)
 		return
@@ -365,6 +412,10 @@ static func _flatten_landmark(landmark: Node3D) -> void:
 	# The faces are the wall triangles, in this node's space. Door nodes are
 	# not collected, so the doorway stays open for the shop and the elevator.
 	_add_landmark_solid(landmark, job.faces)
+	# A cog tower is not in a street cell, so it has to keep drawing itself.
+	# A shop in a cell is drawn with the sidewalk until a takeover squishes it.
+	if _under_zone(landmark):
+		_fold_draws(landmark)
 	landmark.set_meta("landmark_flat", true)
 
 
@@ -751,15 +802,38 @@ static func _has_cached_verts(zones: Array[Node3D]) -> bool:
 	return false
 
 
+static func _view_meshes(geom: Node3D, zone_name: String, zones: Array[Node3D], gen: int) -> Array:
+	var views: Dictionary = geom.get_meta("street_views", {})
+	var gens: Dictionary = geom.get_meta("street_view_gen", {})
+	if int(gens.get(zone_name, -1)) == gen and views.has(zone_name):
+		return views[zone_name]
+	var meshes := _build_meshes(zones)
+	views[zone_name] = meshes
+	gens[zone_name] = gen
+	geom.set_meta("street_views", views)
+	geom.set_meta("street_view_gen", gens)
+	return meshes
+
+
 static func _build_meshes(zones: Array[Node3D]) -> Array[ArrayMesh]:
 	var built: Array[ArrayMesh] = []
 	var job := Job.new()
+	var geom: Node3D = null
+	for zone in zones:
+		if zone != null:
+			geom = _geom_from(zone)
+			break
+	var to_geom := Transform3D.IDENTITY
+	if geom != null:
+		to_geom = geom.global_transform.affine_inverse()
 	for zone in zones:
 		if zone == null:
 			continue
 		for child in zone.get_children():
 			if child.has_meta("verts"):
 				_absorb_cached(job, child)
+			else:
+				_absorb_folded(child, zone, to_geom, job)
 	for key in job.buckets:
 		var mesh := _mesh_from(job.buckets[key] as Bucket)
 		if mesh != null:
@@ -767,26 +841,111 @@ static func _build_meshes(zones: Array[Node3D]) -> Array[ArrayMesh]:
 	return built
 
 
-static func _drop_sources(zone_nodes: Dictionary) -> void:
-	for zone_name in zone_nodes:
-		var zone := zone_nodes[zone_name] as Node
-		if zone == null:
+static func _under_zone(node: Node) -> bool:
+	var current := node.get_parent()
+	while current != null:
+		if _is_zone(current):
+			return true
+		current = current.get_parent()
+	return false
+
+
+static func _geom_from(node: Node) -> Node3D:
+	var current := node
+	while current != null:
+		if current is Node3D and (String(current.name) == "Geometry" or current.has_meta("street_zone_nodes")):
+			return current as Node3D
+		current = current.get_parent()
+	return null
+
+
+static func _fold_draws(node: Node) -> void:
+	if node is MeshInstance3D and String(node.name).begins_with("ZoneBatch"):
+		node.set_meta("folded_part", true)
+		(node as MeshInstance3D).visible = false
+	for child in node.get_children():
+		_fold_draws(child)
+
+
+static func _show_folded(node: Node, show: bool) -> bool:
+	var changed := false
+	if node is MeshInstance3D and node.has_meta("folded_part"):
+		var mesh := node as MeshInstance3D
+		if mesh.visible != show:
+			mesh.visible = show
+			changed = true
+	for child in node.get_children():
+		if _show_folded(child, show):
+			changed = true
+	return changed
+
+
+static func _has_folded(zones: Array[Node3D]) -> bool:
+	for zone in zones:
+		if zone != null and _find_folded(zone):
+			return true
+	return false
+
+
+static func _find_folded(node: Node) -> bool:
+	if node.has_meta("folded_part"):
+		return true
+	for child in node.get_children():
+		if _find_folded(child):
+			return true
+	return false
+
+
+static func _absorb_folded(node: Node, zone: Node, to_geom: Transform3D, job: Job) -> void:
+	# The folded draw is hidden so it does not draw twice. Its parent shop is
+	# what decides whether those triangles belong in the block.
+	if node is MeshInstance3D and node.has_meta("folded_part"):
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			_absorb_mesh(mesh, to_geom, job)
+		return
+	if node != zone and node is Node3D and not (node as Node3D).visible:
+		return
+	if node != zone and node.has_meta("street_unfolded"):
+		return
+	for child in node.get_children():
+		_absorb_folded(child, zone, to_geom, job)
+
+
+static func _absorb_mesh(mesh: MeshInstance3D, to_geom: Transform3D, job: Job) -> void:
+	var xform := to_geom * mesh.global_transform
+	var normal_basis := xform.basis.inverse().transposed()
+	for surface in mesh.mesh.get_surface_count():
+		var arrays := mesh.mesh.surface_get_arrays(surface)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		if verts.is_empty():
 			continue
-		var drop: Array[Node] = []
-		for child in zone.get_children():
-			if child.has_meta("verts"):
-				drop.append(child)
-		for child in drop:
-			child.free()
-
-
-static func _fill(holder: Node3D, zones: Array[Node3D]) -> bool:
-	var meshes := _build_meshes(zones)
-	if meshes.is_empty():
-		return false
-	for mesh in meshes:
-		_instance(holder, mesh)
-	return true
+		var norms := PackedVector3Array()
+		if arrays[Mesh.ARRAY_NORMAL] is PackedVector3Array:
+			norms = arrays[Mesh.ARRAY_NORMAL]
+		var uvs := PackedVector2Array()
+		if arrays[Mesh.ARRAY_TEX_UV] is PackedVector2Array:
+			uvs = arrays[Mesh.ARRAY_TEX_UV]
+		var colors := PackedColorArray()
+		if arrays[Mesh.ARRAY_COLOR] is PackedColorArray:
+			colors = arrays[Mesh.ARRAY_COLOR]
+		var has_uv := uvs.size() == verts.size()
+		var has_color := colors.size() == verts.size()
+		var material := mesh.get_active_material(surface)
+		var bucket := _bucket_shared(job, material, has_uv, has_color)
+		for index in verts.size():
+			bucket.verts.append(xform * verts[index])
+			var normal := Vector3.UP
+			if index < norms.size():
+				normal = normal_basis * norms[index]
+			if normal.length_squared() > 0.000001:
+				bucket.norms.append(normal.normalized())
+			else:
+				bucket.norms.append(Vector3.UP)
+			if bucket.has_uv:
+				bucket.uvs.append(uvs[index] if has_uv else Vector2.ZERO)
+			if bucket.has_color:
+				bucket.colors.append(colors[index] if has_color else Color.WHITE)
 
 
 static func _instance(holder: Node3D, mesh: ArrayMesh) -> void:

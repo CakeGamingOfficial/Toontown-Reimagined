@@ -12,6 +12,7 @@ const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
+const _PET := preload("res://scenes/interiors/pet_shop_door.gd")
 const _HALL := preload("res://scenes/interiors/toon_hall_door.gd")
 const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
@@ -76,8 +77,9 @@ const HARD_LOCK := 0.3
 # Same tube the HQ stairs use. A radius-1 body stands on the landing and
 # floats over the 45-degree plaza stairs.
 const BODY_RADIUS := 0.35
-# Street curbs rise 0.5. The plaza stairs rise 0.82, and the top one is 0.90.
-const STEP_HEIGHT := 1.05
+# Street curbs rise 0.5. Plaza stairs rise 0.82, and the top one is 0.90.
+# Cashbot HQ treads rise 1.82, so the step has to clear that riser.
+const STEP_HEIGHT := 1.95
 const _CAM_PITCH_HOME := 0.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
@@ -104,11 +106,25 @@ var _filming := false
 var _portaling := false
 var _tunnel_ready := false
 var _door_ready := false
+var _gag_sought := false
+var _gag_building: Node3D
+var _gag_door: Node3D
+var _pet_ready := false
+var _pet_sought := false
+var _pet_building: Node3D
+var _pet_door: Node3D
+var _pet_trip := ""
+var _hall_ready := false
+var _hall_sought := false
+var _hall_building: Node3D
+var _hall_door: Node3D
+var _hq_ready := false
+var _officer_ready := false
+var _hq_sought := false
+var _hq_building: Node3D
 # The hall must not share _door_ready. The gag shop arms that flag whenever
 # the toon is simply not standing at the shop, which walked a hall exit
 # straight back through the same door.
-var _hall_ready := false
-var _hq_ready := false
 var _bank_ready := false
 var _bank_open := false
 var _fish_open := false
@@ -210,6 +226,21 @@ func heal(amount: int) -> void:
 	_loadout.save()
 
 
+var _squish_left := 0.0
+
+
+## Train.__handleCollisionSphereEnter. Ten laff and a two-second stun.
+func squish(damage: int) -> void:
+	if _loadout == null or _squish_left > 0.0 or damage <= 0:
+		return
+	_loadout.take_damage(damage)
+	_loadout.save()
+	_squish_left = 2.0
+	if _player != null:
+		_player.set_sad(_is_sad())
+		ToonSpeech.speak(_player, "!")
+
+
 func _ready() -> void:
 	_tasks = ToonTasks.for_selected()
 	var arriving := from_toontorial
@@ -219,23 +250,26 @@ func _ready() -> void:
 	went_sad = false
 	var from_door := door_trip
 	var from_shop := String(_SHOP.trip)
+	var from_pet := String(_PET.trip)
 	var from_hall := String(_HALL.trip)
 	var from_hq := String(_HQ.trip)
 	var from_bldg := String(_BLDG.trip)
 	var from_tunnel := _LINKS.arriving()
 	var from_factory := _FACTORY.trip
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
 	door_trip = ""
 	_SHOP.trip = ""
+	_PET.trip = ""
 	_HALL.trip = ""
 	_HQ.trip = ""
 	_BLDG.trip = ""
 	_from_door = from_door
 	_shop_trip = from_shop
+	_pet_trip = from_pet
 	_hall_trip = from_hall
 	_hq_trip = from_hq
 	_bldg_trip = from_bldg
@@ -251,6 +285,7 @@ func _ready() -> void:
 	_active = true
 	_hood = _current_hood()
 	_SHOP.prepare(get_parent(), _hood)
+	_PET.prepare(get_parent(), _hood)
 	_HALL.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	var window := get_tree().root
@@ -374,6 +409,11 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _squish_left > 0.0:
+		_squish_left = maxf(_squish_left - delta, 0.0)
+		if _body != null:
+			_body.velocity = Vector3.ZERO
+		return
 	if _battle_hold:
 		if _body != null:
 			_body.velocity = Vector3.ZERO
@@ -386,17 +426,21 @@ func _physics_process(delta: float) -> void:
 	_try_tunnel()
 	_try_house_door()
 	_try_gag_door()
+	_try_pet_door()
 	_try_hall_door()
 	_try_hq_door()
 	_try_bank()
 	_try_building_door()
 	_try_clerk()
+	_try_officer()
 	_try_fisherman()
 	_try_fishing()
 	_try_trolley()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _peek_hotkey(event):
+		return
 	if not _active or _casting:
 		return
 	_steer_camera(event)
@@ -409,6 +453,30 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _map != null and _map_hotkey(event):
 		_map.call("toggle")
 		get_viewport().set_input_as_handled()
+
+
+func _peek_hotkey(event: InputEvent) -> bool:
+	if _book == null or not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	var which := ""
+	if _KEYS.matches(event, "gags"):
+		which = "gags"
+	elif _KEYS.matches(event, "tasks"):
+		which = "tasks"
+	else:
+		return false
+	if not key.pressed:
+		_book.hide_peek(which)
+		get_viewport().set_input_as_handled()
+		return true
+	if not _active or _casting or _filming or _locked or _battle_hold or _fish_open or _bank_open or _portaling:
+		return true
+	if _book.is_open() or _tasks == null or not _tasks.book_ready():
+		return true
+	_book.show_peek(which)
+	get_viewport().set_input_as_handled()
+	return true
 
 
 func _book_hotkey(event: InputEvent) -> bool:
@@ -601,6 +669,8 @@ func _arrival_spot() -> Dictionary:
 			return {"point": _snap_drop(ride["point"]), "heading": float(ride["heading"])}
 	if _shop_trip == "out":
 		return _shop_outside_drop()
+	if _pet_trip == "out":
+		return _pet_outside_drop()
 	if _hall_trip == "out":
 		return _hall_outside_drop()
 	if _hq_trip == "out":
@@ -609,6 +679,8 @@ func _arrival_spot() -> Dictionary:
 		return _building_outside_drop()
 	if _PLACES.is_gag_shop(scene_path):
 		return _shop_inside_drop()
+	if _PLACES.is_pet_shop(scene_path):
+		return _pet_inside_drop()
 	if _PLACES.is_toon_hall(scene_path):
 		return _hall_inside_drop()
 	if _PLACES.is_toon_hq(scene_path):
@@ -1054,6 +1126,62 @@ func _try_clerk() -> void:
 	_shop_with(clerk)
 
 
+func _try_officer() -> void:
+	if _body == null or not _PLACES.is_toon_hq(_scene_path()) or _tasks == null:
+		_officer_ready = true
+		return
+	var officer := _nearest_officer()
+	if officer == null:
+		_officer_ready = true
+		return
+	if _book != null and _book.is_open():
+		_officer_ready = false
+		return
+	if _locked or not _officer_ready:
+		return
+	var card := _tasks.ready_hq()
+	if card.is_empty():
+		return
+	_officer_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	var laff := int(card.get("laff", 0))
+	_tasks.turn_in(int(card.get("id", 0)))
+	if laff > 0 and _loadout != null:
+		_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
+		_loadout.save()
+	if _book != null:
+		_book.refresh_tasks()
+	var actor := _clerk_actor(officer)
+	_say_clerk(actor, "Nice work! Here is your reward...", 3.2)
+	await get_tree().create_timer(3.2).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	_locked = false
+
+
+func _nearest_officer() -> Node3D:
+	var host := get_parent()
+	if host == null or _body == null:
+		return null
+	var best: Node3D = null
+	var best_gap := _CLERK_REACH
+	for node in host.find_children("*", "StaticBody3D", true, false):
+		if not String(node.name).begins_with("Officer"):
+			continue
+		var body := node as Node3D
+		var actor := _clerk_actor(body)
+		var center := body.global_position + _clerk_forward(actor) * _CLERK_FORWARD
+		var gap := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(center.x, center.z))
+		if gap < best_gap:
+			best_gap = gap
+			best = body
+	return best
+
+
 func _nearest_clerk() -> Node3D:
 	var host := get_parent()
 	if host == null:
@@ -1320,13 +1448,17 @@ func _try_gag_door() -> void:
 		# The round door is the doorway. Standing against it is close enough.
 		trigger = origin.global_position
 	else:
-		var building := _SHOP.find_building(get_parent())
-		if building == null:
+		if not _gag_sought:
+			_gag_sought = true
+			_gag_building = _SHOP.find_building(get_parent())
+			if _gag_building != null:
+				_gag_door = _SHOP.find_exterior_door(_gag_building)
+		elif _gag_building != null and not is_instance_valid(_gag_building):
+			_gag_sought = false
 			return
-		var door := _SHOP.find_exterior_door(building)
-		if door == null:
+		if _gag_building == null or _gag_door == null or not is_instance_valid(_gag_door):
 			return
-		trigger = _SHOP.outside_trigger(building, door)
+		trigger = _SHOP.outside_trigger(_gag_building, _gag_door)
 		reach = 2.4
 	var here := Vector2(_body.global_position.x, _body.global_position.z)
 	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
@@ -1365,6 +1497,89 @@ func _leave_shop() -> void:
 	ToonLoading.change_to(_PLACES.scene_for(_SHOP.hood))
 
 
+func _try_pet_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_pet_shop(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	if inside:
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		trigger = origin.global_position
+	else:
+		if not _pet_sought:
+			_pet_sought = true
+			_pet_building = _PET.find_building(get_parent())
+			if _pet_building != null:
+				_pet_door = _PET.find_exterior_door(_pet_building)
+		elif _pet_building != null and not is_instance_valid(_pet_building):
+			_pet_sought = false
+			return
+		if _pet_building == null or _pet_door == null or not is_instance_valid(_pet_door):
+			return
+		trigger = _PET.outside_trigger(_pet_building, _pet_door)
+		reach = 2.4
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_pet_ready = true
+		return
+	if not _pet_ready or not _KEYS.held("forward"):
+		return
+	_pet_ready = false
+	if inside:
+		_leave_pet()
+	else:
+		_enter_pet()
+
+
+func _enter_pet() -> void:
+	_locked = true
+	var building := _PET.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _PET.find_exterior_door(building)
+	_PET.open(self, door)
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_PET.enter_frame(building, door))
+	await _walk_into_door(goal)
+	_PET.hood = _hood
+	_PET.trip = "in"
+	ToonLoading.change_to(_PLACES.pet_shop_scene())
+
+
+func _leave_pet() -> void:
+	_locked = true
+	_PET.open(self, _PET.find_interior_door(get_parent()))
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	_PET.trip = "out"
+	ToonLoading.change_to(_PLACES.scene_for(_PET.hood))
+
+
+func _pet_inside_drop() -> Dictionary:
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _pet_outside_drop() -> Dictionary:
+	var building := _PET.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var door := _PET.find_exterior_door(building)
+	if door == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _PET.outside_drop(building, door)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
 func _try_hall_door() -> void:
 	if _player == null or _body == null:
 		return
@@ -1378,13 +1593,17 @@ func _try_hall_door() -> void:
 			return
 		trigger = origin.global_position
 	else:
-		var building := _HALL.find_building(get_parent())
-		if building == null:
+		if not _hall_sought:
+			_hall_sought = true
+			_hall_building = _HALL.find_building(get_parent())
+			if _hall_building != null:
+				_hall_door = _HALL.find_exterior_door(_hall_building)
+		elif _hall_building != null and not is_instance_valid(_hall_building):
+			_hall_sought = false
 			return
-		var door := _HALL.find_exterior_door(building)
-		if door == null:
+		if _hall_building == null or _hall_door == null or not is_instance_valid(_hall_door):
 			return
-		trigger = _HALL.outside_trigger(building, door)
+		trigger = _HALL.outside_trigger(_hall_building, _hall_door)
 		reach = 2.4
 	var here := Vector2(_body.global_position.x, _body.global_position.z)
 	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
@@ -1495,15 +1714,20 @@ func _try_hq_door() -> void:
 		if not found:
 			return
 	else:
-		var building := _HQ.find_building(get_parent())
-		if building == null:
+		if not _hq_sought:
+			_hq_sought = true
+			_hq_building = _HQ.find_building(get_parent())
+		elif _hq_building != null and not is_instance_valid(_hq_building):
+			_hq_sought = false
+			return
+		if _hq_building == null:
 			return
 		var nearest := 1000.0
 		var found := false
 		for door_index in 2:
-			if _HQ.find_exterior_door(building, door_index) == null:
+			if _HQ.find_exterior_door(_hq_building, door_index) == null:
 				continue
-			var there := _HQ.outside_trigger(building, door_index)
+			var there := _HQ.outside_trigger(_hq_building, door_index)
 			var distance := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(there.x, there.z))
 			if distance < nearest:
 				nearest = distance

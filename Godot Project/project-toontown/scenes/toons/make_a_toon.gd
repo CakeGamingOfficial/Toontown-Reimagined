@@ -232,6 +232,29 @@ func _build_chrome() -> void:
 	_hover_grow(_next, 0.35 / 0.3)
 	_next_caption = _hover_caption(_next, "Next", 1.175, -0.763)
 
+	var options := TextureButton.new()
+	options.name = "Options"
+	options.texture_normal = preload("res://assets/toons/gui/QuitBtn_UP.png")
+	options.texture_pressed = preload("res://assets/toons/gui/QuitBtn_DN.png")
+	options.texture_hover = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+	options.ignore_texture_size = true
+	options.stretch_mode = TextureButton.STRETCH_SCALE
+	options.clip_contents = true
+	options.focus_mode = Control.FOCUS_NONE
+	options.pressed.connect(_toggle_options)
+	ToonGui.button_sounds(options)
+	add_child(options)
+	var options_label := Label.new()
+	options_label.name = "Caption"
+	options_label.text = "OPTIONS"
+	options_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	options_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	options_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	options_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	options.add_child(options_label)
+	_dock = 1
+	_track(options, 1.12, 0.9, 0.5, 0.12)
+
 	_dock = 0
 	_rotate_left = _rotate_button(true)
 	_shop_box.add_child(_rotate_left)
@@ -969,7 +992,24 @@ func _layout() -> void:
 		_title.size = Vector2(size.x, size.y * 0.12)
 		var px := int(_TITLE_SCALES[_shop] * size.y * 0.5)
 		ToonGui.style_title(_title, _TITLE_COLORS[_shop], px)
+	var options := get_node_or_null("Options") as TextureButton
+	if options:
+		var caption := options.get_node_or_null("Caption") as Label
+		if caption:
+			ToonGui.style_sign(caption, Color(1, 0.9, 0.1), int(options.size.y * 0.42), Color(0, 0, 0), maxi(int(options.size.y * 0.04), 1))
 	_refresh_typed_name()
+
+
+func _toggle_options() -> void:
+	var open := get_node_or_null("OptionsPanel") as OptionsPanel
+	if open != null:
+		open.queue_free()
+		return
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused != null:
+		focused.release_focus()
+	var panel := OptionsPanel.open_popup(self)
+	panel.name = "OptionsPanel"
 
 
 func _track(control: Control, x: float, z: float, width: float, height: float, rot: float = 0.0) -> void:

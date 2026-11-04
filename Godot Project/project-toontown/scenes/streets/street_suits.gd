@@ -32,6 +32,10 @@ const HOOD := {
 	5300: Vector2i(1, 5),
 	9100: Vector2i(1, 5),
 	9200: Vector2i(1, 5),
+	11000: Vector2i(3, 15),
+	11200: Vector2i(10, 20),
+	12000: Vector2i(10, 20),
+	13000: Vector2i(10, 20),
 }
 const STREETS := {
 	"silly_street": "res://assets/neighborhoods/toontown_central/streets/silly_street_suits.json",
@@ -51,6 +55,10 @@ const STREETS := {
 	"polar_place": "res://assets/neighborhoods/the_burrrgh/streets/polar_place_suits.json",
 	"pajama_place": "res://assets/neighborhoods/donalds_dreamland/streets/pajama_place_suits.json",
 	"lullaby_lane": "res://assets/neighborhoods/donalds_dreamland/streets/lullaby_lane_suits.json",
+	"sellbot_courtyard": "res://assets/cog_hq/sellbot_courtyard_suits.json",
+	"sellbot_factory_exterior": "res://assets/cog_hq/sellbot_factory_exterior_suits.json",
+	"cashbot_trainyard": "res://assets/cog_hq/cashbot_trainyard_suits.json",
+	"lawbot_courtyard": "res://assets/cog_hq/lawbot_courtyard_suits.json",
 }
 
 var json_path := ""
@@ -59,6 +67,10 @@ var street_slug := ""
 var _points: Array[Vector3] = []
 var _links: Array[PackedInt32Array] = []
 var _route: PackedInt32Array = PackedInt32Array()
+## Cashbot HQ is several separate loops. A street is one. Extra loops are kept
+## only when a step climbs, so the far stairs get cogs and flat streets do not.
+var _routes: Array[PackedInt32Array] = []
+var _route_pick := 0
 var _starts: Array[int] = []
 var _nametags: Node
 var _rider: CollisionObject3D
@@ -320,6 +332,15 @@ func _build_route() -> void:
 		start = _starts[0]
 	if start < 0:
 		return
+	var route := _trace_loop(start)
+	if route.size() < 2:
+		return
+	_route = route
+	_routes = [route]
+	_collect_stair_loops()
+
+
+func _trace_loop(start: int) -> PackedInt32Array:
 	var route := PackedInt32Array()
 	var prev := -1
 	var cur := start
@@ -333,7 +354,7 @@ func _build_route() -> void:
 		prev = cur
 		cur = nxt
 	if route.size() < 2:
-		return
+		return PackedInt32Array()
 	if _right_hand_score(route) < 0.0:
 		var flipped := PackedInt32Array()
 		var index := route.size() - 1
@@ -341,7 +362,49 @@ func _build_route() -> void:
 			flipped.append(route[index])
 			index -= 1
 		route = flipped
-	_route = route
+	return route
+
+
+## A landing-to-landing step shorter than 80 is a staircase. The long drops
+## off the station platform are not.
+func _collect_stair_loops() -> void:
+	var used := {}
+	for index in _route:
+		used[int(index)] = true
+	for start in _links.size():
+		if used.has(start) or _links[start].size() < 2:
+			continue
+		var route := _trace_loop(start)
+		var fresh := false
+		for index in route:
+			if used.has(int(index)):
+				fresh = false
+				break
+			fresh = true
+		if not fresh or not _climbs(route):
+			continue
+		for index in route:
+			used[int(index)] = true
+		_routes.append(route)
+
+
+func _climbs(route: PackedInt32Array) -> bool:
+	for index in route.size():
+		var a := _points[route[index]]
+		var b := _points[route[(index + 1) % route.size()]]
+		if absf(a.y - b.y) < 8.0:
+			continue
+		if Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z)) < 80.0:
+			return true
+	return false
+
+
+func _pick_route() -> int:
+	if _routes.size() <= 1:
+		return 0
+	var picked := _route_pick % _routes.size()
+	_route_pick += 1
+	return picked
 
 
 func _next_lane(prev: int, cur: int) -> int:
@@ -641,8 +704,13 @@ func _spawn_state(state: Dictionary) -> Node3D:
 	var resume := state
 	if int(state.get("phase", -1)) < 0:
 		resume = {}
+	var route_id := int(state.get("route_id", 0))
+	var route := _route
+	if route_id > 0 and route_id < _routes.size():
+		route = _routes[route_id]
+	suit.set_meta("route_id", route_id)
 	_living += 1
-	suit.call("setup", cog, _points, _route, int(state.get("slot", 0)), _timing, _propeller, resume)
+	suit.call("setup", cog, _points, route, int(state.get("slot", 0)), _timing, _propeller, resume)
 	var net_id := int(state.get("do_id", (cog as Dictionary).get("do_id", 0)))
 	suit.set_meta("do_id", net_id)
 	return suit
@@ -705,10 +773,13 @@ func _authorize() -> void:
 			break
 		var net_id := ToonNet.next_id()
 		cog["do_id"] = net_id
+		var route_id := _pick_route()
+		var route := _route if route_id >= _routes.size() else _routes[route_id]
 		var job := {
 			"cog": cog,
 			"do_id": net_id,
-			"slot": _open_slot(),
+			"slot": _open_slot(route, route_id),
+			"route_id": route_id,
 			"phase": -1,
 		}
 		if not plan.is_empty():
@@ -936,15 +1007,19 @@ func _keep(traffic: Node, suit: Node) -> void:
 
 
 ## Spread arrivals around the loop. Two suits should not land on the same corner.
-func _open_slot() -> int:
-	var count := _route.size()
+func _open_slot(route: PackedInt32Array, route_id: int) -> int:
+	var count := route.size()
 	if count < 1:
 		return 0
 	var taken := PackedInt32Array()
 	for child in get_children():
+		if int(child.get_meta("route_id", 0)) != route_id:
+			continue
 		if child.has_method("lane_slot"):
 			taken.append(int(child.call("lane_slot")))
 	for job in _queue:
+		if int(job.get("route_id", 0)) != route_id:
+			continue
 		taken.append(int(job.get("slot", 0)))
 	if taken.is_empty():
 		return randi() % count

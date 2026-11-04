@@ -206,6 +206,9 @@ func _show_activity(task: Dictionary) -> void:
 		_frame.modulate = _LIGHT_BLUE
 		_icon_fit = 0.13 / 0.15
 		_icon.texture = _TROLLEY
+	elif kind == "recover":
+		_frame.modulate = _LIGHT_GREEN
+		_icon.visible = false
 	else:
 		_frame.visible = false
 		_icon.visible = false

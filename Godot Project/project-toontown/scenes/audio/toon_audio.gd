@@ -19,6 +19,8 @@ func _ready() -> void:
 	_ensure_bus(_SFX)
 	_load()
 	_apply()
+	# The window mode has to be in place before the first scene, and this bus is already running then.
+	DisplaySettings.apply()
 
 
 static func music_player() -> AudioStreamPlayer:

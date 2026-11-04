@@ -1241,6 +1241,8 @@ func _try_tunnel() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _peek_hotkey(event):
+		return
 	_steer_camera(event)
 	if in_cutscene():
 		return
@@ -1266,6 +1268,30 @@ func _unhandled_input(event: InputEvent) -> void:
 				_book.toggle_hotkey()
 				get_viewport().set_input_as_handled()
 
+
+
+func _peek_hotkey(event: InputEvent) -> bool:
+	if _book == null or not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	var which := ""
+	if _KEYS.matches(event, "gags"):
+		which = "gags"
+	elif _KEYS.matches(event, "tasks"):
+		which = "tasks"
+	else:
+		return false
+	if not key.pressed:
+		_book.hide_peek(which)
+		get_viewport().set_input_as_handled()
+		return true
+	if in_cutscene() or (_battle != null and _battle.active()) or _book.is_open():
+		return true
+	if _briefing == null or not _briefing.finished or _tasks == null or not _tasks.book_ready():
+		return true
+	_book.show_peek(which)
+	get_viewport().set_input_as_handled()
+	return true
 
 
 func _build_bubble() -> void:

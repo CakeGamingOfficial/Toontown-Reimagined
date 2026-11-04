@@ -30,6 +30,10 @@ func _ready() -> void:
 	_prepare_cog_sky()
 	if Engine.is_editor_hint():
 		return
+	if scene_file_path.ends_with("cashbot_trainyard.tscn"):
+		preload("res://scenes/cog_hq/cashbot_trains.gd").place(self)
+	if scene_file_path.ends_with("bossbot_country_club.tscn"):
+		preload("res://scenes/cog_hq/bossbot_karts.gd").place(self)
 	if estate_slot >= 0:
 		_keep_estate_house(estate_slot)
 		_DOORS.ensure_exterior(self, estate_slot)

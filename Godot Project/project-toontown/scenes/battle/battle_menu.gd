@@ -66,7 +66,6 @@ const _ICONS: Array[Texture2D] = [
 	preload("res://assets/gui/tutorial/gags/inventory_piano.png"),
 	preload("res://assets/gui/tutorial/gags/inventory_ship.png"),
 ]
-const _TRACK_ACC: PackedStringArray = ["Medium", "Perfect", "Low", "High", "Medium", "High", "Low"]
 const _PRESSABLE := Color(0, 0.6, 1, 1)
 const _UNPRESSABLE := Color(0.3, 0.3, 0.3, 0.8)
 const _INK := Color(0.05, 0.14, 0.4)
@@ -355,7 +354,7 @@ func _show_detail(track: int, level: int) -> void:
 	_detail_name.text = _loadout.gag_name(track, level)
 	_detail_amount.text = "%d / %d" % [_loadout.count_of(track, level), _loadout.carry_limit(track, level)]
 	_detail_data.text = "Accuracy: %s\n%s: %d\nAffects: %s" % [
-		_TRACK_ACC[track],
+		ToonLoadout.accuracy_label(track, level),
 		kind,
 		ToonLoadout.gag_damage(track, level, exp),
 		ToonLoadout.affects_label(track, level),

@@ -589,7 +589,9 @@ func _ensure_clips() -> void:
 	if not load_extra_clips:
 			return
 	# Extra clips have to load with the walk, while the joints are still at rest.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "pushbutton", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end"]:
+	# A gag clip loaded on first use records the idle pose as the bind, and the
+	# throw, squirt, or lure never matches the original.
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []

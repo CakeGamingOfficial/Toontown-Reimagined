@@ -145,7 +145,8 @@ func _process(delta: float) -> void:
 			_player.pose_action("victory", fposmod(_dance, length))
 	if _card == null:
 		return
-	var show := _active and _flunky != null and _flunky.visible and _camera != null
+	# The level and health card rides with the gag menu. Attacks and the reward hide both.
+	var show := _menu != null and _menu.visible and _flunky != null and _flunky.visible and _camera != null
 	_card.visible = show
 	if not show:
 		return

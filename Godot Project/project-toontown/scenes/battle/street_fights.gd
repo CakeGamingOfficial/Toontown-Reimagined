@@ -1033,13 +1033,20 @@ func _time_beats(beats: Array) -> float:
 	while index < beats.size():
 		var lead: Dictionary = beats[index]
 		var span := 1
+		var killed := _gag_killed(lead)
 		if _group_gag(lead):
 			var follow := index + 1
 			while follow < beats.size() and _same_gag(lead, beats[follow]):
 				(beats[follow] as Dictionary)["dur"] = 0.0
+				if _gag_killed(beats[follow]):
+					killed = true
 				span += 1
 				follow += 1
 		var dur := _beat_dur(lead)
+		# The lead survived and another cog in the group did not. One death
+		# track covers the group, so the extra time is added once.
+		if killed and not _gag_killed(lead):
+			dur += GagMovie.LOSE_SECONDS
 		lead["dur"] = dur
 		total += dur
 		index += span
@@ -1059,9 +1066,20 @@ func _same_gag(lead: Dictionary, other: Variant) -> bool:
 	return String(nxt.get("kind", "")) == "gag" and int(nxt.get("track", -2)) == int(lead.get("track", -1)) and int(nxt.get("level", -2)) == int(lead.get("level", -1)) and int(nxt.get("toon", -2)) == int(lead.get("toon", -1))
 
 
+func _gag_killed(beat: Variant) -> bool:
+	if not (beat is Dictionary):
+		return false
+	var row: Dictionary = beat
+	return String(row.get("kind", "")) == "gag" and int(row.get("cog_hp", 1)) <= 0
+
+
 func _beat_dur(beat: Dictionary) -> float:
 	# Toon.getDiedInterval starts at the hit. The movie stays up through the shrink.
-	return GagMovie.seconds(String(beat.get("kind", "")), int(beat.get("track", -1)), int(beat.get("level", 0)), bool(beat.get("died", false)))
+	# A defeated cog then plays Suit.getLoseActor for SUIT_LOSE_DURATION.
+	var length := GagMovie.seconds(String(beat.get("kind", "")), int(beat.get("track", -1)), int(beat.get("level", 0)), bool(beat.get("died", false)))
+	if _gag_killed(beat):
+		length += GagMovie.LOSE_SECONDS
+	return length
 
 
 func _beat(text: String, track: int, level: int, toon: Dictionary, cog: Dictionary, hit: bool, damage: int, react: String = "auto") -> Dictionary:

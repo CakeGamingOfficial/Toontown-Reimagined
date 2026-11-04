@@ -79,11 +79,18 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 		layer.add_child(panel)
 	# Measured once, from the resting head. A live head would bob the card.
 	# The scale is remembered so a teleport hole shrinks the card with the toon.
+	# Suit.setHeight puts a cog card one unit above the suit height.
 	var born := actor.global_transform.basis.get_scale().y
+	var lift := _lift(actor)
+	if kind == "cog" and actor.get("height") != null:
+		var suit_height := float(actor.get("height"))
+		if suit_height > 0.05:
+			var suit_scale := born if born > 0.05 else 1.0
+			lift = (suit_height + 1.0) * suit_scale
 	_tags.append({
 		"label": panel,
 		"actor": actor,
-		"lift": _lift(actor),
+		"lift": lift,
 		"scale": born,
 		"kind": kind,
 		"plain": text,

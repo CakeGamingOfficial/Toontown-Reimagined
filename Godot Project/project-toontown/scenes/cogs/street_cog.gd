@@ -122,6 +122,11 @@ var _propeller: Node3D
 var _prop_bank: Dictionary = {}
 var _sound: AudioStreamPlayer3D
 var _fight_key := ""
+# MovieUtil.SUIT_LOSE_DURATION. Suit.getLoseActor plays the lose-mod across it.
+const LOSE_SECONDS := 6.0
+var _lose_on := false
+var _lose_tried := false
+var _lose_bank: Dictionary = {}
 var _fight_time := 0.0
 var _take: Dictionary = {}
 var _take_stage := ""
@@ -136,7 +141,19 @@ var _door := Vector3.ZERO
 var _exit := Vector3.ZERO
 
 
+## The dressed suit already carries generateSuit's scale. Applying that
+## number again shrinks the smallest bodies, Penny Pincher and Double Talker
+## most of all. A skelecog mesh only has the 1.0173 factor, so its own scale
+## is still applied here.
+func _apply_suit_scale(cog: Dictionary) -> void:
+	if bool(cog.get("skeleton", false)) and cog.has("scale"):
+		scale = Vector3.ONE * float(cog["scale"])
+	else:
+		scale = Vector3.ONE
+
+
 func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
+	_clear_lose()
 	var paths := _suit_paths(cog)
 	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"]) and _model_path == String(paths["model"])
 	cog_code = str(cog["code"])
@@ -147,10 +164,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	cog_level = int(cog.get("level", 1))
 	name = cog_name
 	_model_path = String(paths["model"])
-	if cog.has("scale"):
-		scale = Vector3.ONE * float(cog["scale"])
-	else:
-		scale = Vector3.ONE
+	_apply_suit_scale(cog)
 	_source = cog
 	_points = points
 	_route = route
@@ -191,7 +205,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		actor.name = "Suit"
 		add_child(actor)
 		if not bool(cog.get("skeleton", false)):
-			_hide_gray_cuffs(actor)
+			_hide_sleeve_pop(actor)
 		_materials.clear()
 		_own_materials(actor)
 		_paint_hands(actor)
@@ -273,7 +287,7 @@ func preload_suit(cog: Dictionary, timing: Dictionary, propeller: Dictionary) ->
 	var actor := packed.instantiate()
 	actor.name = "Suit"
 	add_child(actor)
-	_hide_gray_cuffs(actor)
+	_hide_sleeve_pop(actor)
 	_materials.clear()
 	_own_materials(actor)
 	_paint_hands(actor)
@@ -379,13 +393,109 @@ func march(walking: bool) -> void:
 
 
 func begin_react(key: String, elapsed: float) -> void:
+	if _lose_on:
+		return
 	_fight_key = key
 	_fight_time = elapsed
+	# The movie asks for this pose on its own clock. Posing here keeps the
+	# attack up even when this cog already idled earlier in the frame.
+	if key != "" and bool(get_meta("in_fight", false)):
+		play_attack(key, elapsed)
+
+
+## Suit.getLoseActor. The live suit hides and suit-lose-mod plays for 6 seconds.
+func play_lose(elapsed: float) -> void:
+	_detail = 2
+	if not _lose_on and not _lose_tried:
+		_start_lose()
+	if not _lose_on:
+		return
+	var frames := int(_lose_bank.get("frames", 0))
+	if frames <= 1:
+		return
+	var frame := mini(int(clampf(elapsed / LOSE_SECONDS, 0.0, 1.0) * float(frames - 1)), frames - 1)
+	_pose_clip(_lose_bank, frame, frame, 0.0)
+
+
+func _start_lose() -> void:
+	_lose_tried = true
+	var packed := load("res://assets/cogs/lose/%s.glb" % body) as PackedScene
+	if packed == null:
+		return
+	var suit := get_node_or_null("Suit")
+	var lose := packed.instantiate()
+	lose.name = "LoseActor"
+	add_child(lose)
+	_match_lose_scale(lose, suit)
+	if suit != null:
+		_dress_lose(lose, suit)
+		_copy_head(lose, suit)
+		suit.visible = false
+	_release_nametag()
+	_lose_bank = _read_bank("res://assets/cogs/lose/%s.lose" % body, lose)
+	if int(_lose_bank.get("frames", 0)) <= 1:
+		lose.free()
+		if suit != null:
+			suit.visible = true
+		return
+	_lose_on = true
+
+
+func _clear_lose() -> void:
+	_lose_on = false
+	_lose_tried = false
+	_lose_bank = {}
+	var suit := get_node_or_null("Suit")
+	if suit != null:
+		suit.visible = true
+	var lose := get_node_or_null("LoseActor")
+	if lose != null:
+		lose.free()
+
+
+func _match_lose_scale(lose: Node, suit: Node) -> void:
+	if suit == null:
+		return
+	var worn := 1.0
+	for child in suit.get_children():
+		if child is Node3D and (child as Node3D).scale.x > 0.05:
+			worn = (child as Node3D).scale.x
+			break
+	for child in lose.get_children():
+		if child is Node3D:
+			(child as Node3D).scale = Vector3.ONE * worn
+
+
+func _dress_lose(lose: Node, suit: Node) -> void:
+	for part in ["torso", "arms", "legs", "hands"]:
+		var src := _find(suit, part) as MeshInstance3D
+		var dst := _find(lose, part) as MeshInstance3D
+		if src == null or dst == null or src.mesh == null or dst.mesh == null:
+			continue
+		var count := mini(src.mesh.get_surface_count(), dst.mesh.get_surface_count())
+		for index in count:
+			var material := src.get_surface_override_material(index)
+			if material == null:
+				material = src.mesh.surface_get_material(index)
+			if material != null:
+				dst.set_surface_override_material(index, material)
+
+
+func _copy_head(lose: Node, suit: Node) -> void:
+	var src := _find(suit, "joint_head")
+	var dst := _find(lose, "joint_head")
+	if src == null or dst == null:
+		return
+	for child in src.get_children():
+		if not (child is Node3D) or String(child.name).begins_with("joint"):
+			continue
+		dst.add_child(child.duplicate())
 
 
 func defeat() -> void:
 	if bool(get_meta("playback", false)):
 		return
+	_clear_lose()
 	set_meta("in_fight", false)
 	_fight_key = ""
 	departed.emit()
@@ -465,6 +575,7 @@ func _street_stay(count: int) -> int:
 
 
 func present(cog: Dictionary, timing: Dictionary) -> void:
+	_clear_lose()
 	# Factory suits stand and walk in place. The street route, and the drop
 	# out of the sky, belong to the street planner.
 	cog_code = str(cog["code"])
@@ -495,9 +606,9 @@ func present(cog: Dictionary, timing: Dictionary) -> void:
 	var actor := packed.instantiate()
 	actor.name = "Suit"
 	add_child(actor)
-	if cog.has("scale"):
-		scale = Vector3.ONE * float(cog["scale"])
-	_hide_gray_cuffs(actor)
+	_apply_suit_scale(cog)
+	if not bool(cog.get("skeleton", false)):
+		_hide_sleeve_pop(actor)
 	_materials.clear()
 	_own_materials(actor)
 	_paint_hands(actor)
@@ -516,6 +627,9 @@ func set_walking(moving: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	# The death actor is posed by the battle movie. Idle would put the suit back.
+	if _lose_on:
+		return
 	if bool(get_meta("in_fight", false)):
 		if _fight_key == "walk":
 			_march(delta)
@@ -1201,22 +1315,27 @@ func _find_named(node: Node, tail: String) -> MeshInstance3D:
 			return found
 	return null
 
-
-func _hide_gray_cuffs(actor: Node) -> void:
-	if body != "c":
-		return
+## The loose suit mesh keeps a shirt card on the right wrist. Posed, that card
+## sticks out of the sleeve. Both wrists also carry a flat gray lining that
+## sits on the pinstripe. The left shirt cuff stays in the sleeve opening, and
+## the black ring at the neck stays. Clips for these bodies drop the same
+## surfaces, so the pose swap still lines materials up with the standing mesh.
+func _hide_sleeve_pop(actor: Node) -> void:
 	var suit := _find(actor, "node") as MeshInstance3D
 	if suit == null or suit.mesh == null:
 		return
 	var drop: Array[int] = []
+	var shirt_cards := 0
 	for index in suit.mesh.get_surface_count():
+		var arrays := suit.mesh.surface_get_arrays(index)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		var material := suit.mesh.surface_get_material(index) as BaseMaterial3D
-		if material == null or material.albedo_texture != null:
-			continue
-		var color := material.albedo_color
-		var brightest := maxf(color.r, maxf(color.g, color.b))
-		var dullest := minf(color.r, minf(color.g, color.b))
-		if brightest > 0.02 and brightest < 0.55 and brightest - dullest < 0.2:
+		var textured := material != null and material.albedo_texture != null
+		if textured and verts.size() == 24:
+			shirt_cards += 1
+			if shirt_cards == 2:
+				drop.append(index)
+		elif not textured and verts.size() > 9:
 			drop.append(index)
 	if drop.is_empty():
 		return
@@ -1224,10 +1343,14 @@ func _hide_gray_cuffs(actor: Node) -> void:
 	for index in suit.mesh.get_surface_count():
 		if drop.has(index):
 			continue
-		var arrays := suit.mesh.surface_get_arrays(index)
-		kept.add_surface_from_arrays(suit.mesh.surface_get_primitive_type(index), arrays)
+		var kept_arrays := suit.mesh.surface_get_arrays(index)
+		kept.add_surface_from_arrays(suit.mesh.surface_get_primitive_type(index), kept_arrays)
 		kept.surface_set_material(kept.get_surface_count() - 1, suit.mesh.surface_get_material(index))
 	suit.mesh = kept
+
+
+static func _drops_sleeve_pop(path: String) -> bool:
+	return path.contains("/anims/a/") or path.contains("/anims/b/") or path.contains("/anims/c/")
 
 
 func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> void:
@@ -1453,6 +1576,8 @@ static func _parse_clip(path: String) -> Dictionary:
 		at += name_len
 		var surface_count := bytes.decode_u32(at)
 		at += 4
+		var shirt_cards := 0
+		var drop_pop := _drops_sleeve_pop(path) and node_name == "node"
 		var surfaces: Array = []
 		for _surface_index in surface_count:
 			var vertex_count := bytes.decode_u32(at)
@@ -1470,6 +1595,14 @@ static func _parse_clip(path: String) -> Dictionary:
 					uvs[index] = Vector2(u, v)
 			var base := at
 			at += frame_count * vertex_count * 12
+			var drop := false
+			if drop_pop and has_uv != 0 and vertex_count == 24:
+				shirt_cards += 1
+				drop = shirt_cards == 2
+			elif drop_pop and has_uv == 0 and vertex_count > 9:
+				drop = true
+			if drop:
+				continue
 			if vertex_count >= 1 and base + frame_count * vertex_count * 12 <= bytes.size():
 				surfaces.append({"uv": uvs, "verts": vertex_count, "base": base})
 		if surfaces.is_empty():

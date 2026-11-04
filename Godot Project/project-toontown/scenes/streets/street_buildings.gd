@@ -370,6 +370,7 @@ func _sync(rows: Array) -> void:
 			gone.append(block)
 	for block in gone:
 		_release_block(int(block))
+	preload("res://scenes/playgrounds/street_batch.gd").flush()
 
 
 func _animate() -> void:
@@ -391,6 +392,7 @@ func _animate() -> void:
 		_hear(int(block), elapsed)
 	for block in finished:
 		_active.erase(block)
+	preload("res://scenes/playgrounds/street_batch.gd").flush()
 
 
 func _elapsed(since: int) -> float:
@@ -425,6 +427,8 @@ func _restore_piece(piece: Node) -> void:
 		solid.collision_layer = 1
 	if piece is Node3D and piece.has_meta("shop_scale"):
 		(piece as Node3D).scale = piece.get_meta("shop_scale")
+	if piece is Node3D:
+		preload("res://scenes/playgrounds/street_batch.gd").fold(piece as Node3D)
 	_clear_dark(piece)
 
 
@@ -1284,6 +1288,7 @@ func _squash_list(landmark: Node3D, key: String, crush: float, darken: float, hi
 				body.visible = false
 				body.scale = shop_scale
 				_clear_dark(body)
+				preload("res://scenes/playgrounds/street_batch.gd").touch(body)
 			# The suit wall stands on this flat's footprint, so the solid stays.
 			var solid := body.get_node_or_null("LandmarkSolid") as CollisionObject3D
 			if solid != null and not body.has_meta("cog_walls"):
@@ -1291,6 +1296,7 @@ func _squash_list(landmark: Node3D, key: String, crush: float, darken: float, hi
 			continue
 		var next := Vector3(shop_scale.x, shop_scale.y * crush, shop_scale.z)
 		body.visible = true
+		preload("res://scenes/playgrounds/street_batch.gd").unfold(body)
 		if body.scale != next:
 			body.scale = next
 		if darken > 0.0:

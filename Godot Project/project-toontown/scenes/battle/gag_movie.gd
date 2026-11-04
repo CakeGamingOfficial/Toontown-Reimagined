@@ -8,6 +8,8 @@ extends Node
 const _PROPS := "res://assets/battle/props/"
 const _SFX := "res://assets/audio/battle/"
 const _HEIGHT := 4.88
+# MovieUtil.SUIT_LOSE_DURATION. The lose-mod plays after the hit react.
+const LOSE_SECONDS := 6.0
 const _GAGS: Array = [
 	["feather", "megaphone", "lipstick", "cane", "", "cubes", "ladder"],
 	["banana", "rake", "marbles", "quicksand", "trapdoor", "tnt", "traintrack"],
@@ -229,6 +231,8 @@ func play(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, c
 		if still.call():
 			contact.call()
 	_clear_spawned()
+	if kind == "gag":
+		await _cog_death(marks, still)
 	_rest(actor, marks)
 
 
@@ -643,6 +647,11 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 		_on_joint(prop, cog, joint_name, pose_name)
 	var victims: Array = lead.get("victims", [])
 	var gate := {}
+	var title := String(lead.get("attack", ""))
+	if cog != null and title != "":
+		cog.set_meta("chat_line", title)
+		cog.set_meta("chat_until", Time.get_ticks_msec() + 3800)
+		ToonSpeech.cog(title)
 	# A fatal hit keeps the round open for the shrink. This clip is only the attack.
 	await _run(3.8, still, func(elapsed: float) -> void:
 		if cog != null:
@@ -684,6 +693,9 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 			continue
 		var react := "cringe" if bool((item as Dictionary).get("hit", false)) else "sidestep-left"
 		actor.end_action(react)
+	if cog != null:
+		cog.set_meta("chat_line", "")
+		cog.set_meta("chat_until", 0)
 
 
 func _plant(cog: Node3D, prop: Node3D, cog_id: int, sound_name: String, level: int) -> void:
@@ -725,9 +737,33 @@ func _react_marks(marks: Array, elapsed: float, at: float, hit_key: String, miss
 		var key := hit_key
 		if not bool(row.get("hit", false)):
 			key = "sidestep-left"
-		elif int(row.get("hp", 1)) <= 0:
-			key = "lose"
+		# A killing hit still plays the react. The lose-mod follows the gag.
 		_react_one(row.get("cog"), key, elapsed - when)
+
+
+func _cog_death(marks: Array, still: Callable) -> void:
+	var dying := false
+	for mark in marks:
+		var row: Dictionary = mark
+		if int(row.get("hp", 1)) <= 0 and row.get("cog") != null:
+			dying = true
+	if not dying:
+		return
+	var gate := {}
+	await _run(LOSE_SECONDS, still, func(elapsed: float) -> void:
+		for mark in marks:
+			var row: Dictionary = mark
+			if int(row.get("hp", 1)) > 0:
+				continue
+			var cog: Variant = row.get("cog")
+			if cog is Node and (cog as Node).has_method("play_lose"):
+				(cog as Node).call("play_lose", elapsed)
+		# MovieUtil deathSoundTrack. Cog_Death is the spin, then the crash.
+		if elapsed >= 0.8 and _latch(gate, "spin"):
+			_sfx("Cog_Death.ogg")
+		if elapsed >= 5.0 and _latch(gate, "crash"):
+			_sfx("ENC_cogfall_apart.ogg")
+	)
 
 
 func _react_one(cog: Variant, key: String, elapsed: float) -> void:

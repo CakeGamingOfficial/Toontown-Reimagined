@@ -151,8 +151,6 @@ var _tabs: Array[Button] = []
 var _tab_name: Label
 var _next: TextureButton
 var _prev: TextureButton
-var _bind_buttons: Array[TextureButton] = []
-var _bind_captions: Array[Label] = []
 var _gag_rows: Array[TextureRect] = []
 var _gag_names: Array[Label] = []
 var _gag_slots: Array[Control] = []
@@ -177,11 +175,7 @@ const _QUEST_SLOT: Array[Vector2] = [
 var _here: Label
 var _go_home: TextureButton
 var _go_back: TextureButton
-var _switch_button: TextureButton
-var _quit_button: TextureButton
-var _audio_captions: Array[Label] = []
-var _audio_toggles: Array[TextureButton] = []
-var _audio_sliders: Array[HSlider] = []
+var _options: OptionsPanel
 var _exit_dialog: Control
 var _exit_accept: Callable
 var _map_picture: TextureRect
@@ -190,11 +184,13 @@ var _hood_clouds: Array[TextureRect] = []
 var _hood_hits: Array[Control] = []
 var _page := 0
 var _open := false
+var _peek := ""
+var _gag_peek_at := -10.0
+var _task_peek_at := -10.0
 var _guided := false
 var _open_armed := false
 var _next_armed := false
 var _close_armed := false
-var _listen := ""
 var _pulse: Tween
 var _open_sound: AudioStreamPlayer
 var _turn_sound: AudioStreamPlayer
@@ -267,6 +263,31 @@ func arm_close() -> void:
 
 func is_open() -> bool:
 	return _open
+
+
+## InventoryHotkey is Home, QuestsHotkey is End. The page stays up only while the key is held.
+func show_peek(which: String) -> void:
+	if which != "gags" and which != "tasks":
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var last := _gag_peek_at if which == "gags" else _task_peek_at
+	if now - last < 0.7:
+		return
+	if which == "gags":
+		_gag_peek_at = now
+	else:
+		_task_peek_at = now
+	if _open or _peek != "" or _pages.size() <= PAGE_TASKS:
+		return
+	_peek = which
+	_layout()
+
+
+func hide_peek(which: String) -> void:
+	if _peek != which:
+		return
+	_peek = ""
+	_restore_peek()
 
 
 func page() -> int:
@@ -404,123 +425,14 @@ func _build_book() -> void:
 
 
 func _build_options() -> Control:
-	var sheet := Control.new()
-	sheet.mouse_filter = MOUSE_FILTER_IGNORE
-	sheet.visible = false
-	sheet.name = "Options"
-	_cover.add_child(sheet)
-	sheet.add_child(_title("Options"))
-	for index in _KEYS.ACTIONS.size():
-		var caption := Label.new()
-		caption.text = _KEYS.LABELS[index]
-		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		caption.mouse_filter = MOUSE_FILTER_IGNORE
-		sheet.add_child(caption)
-		var button := TextureButton.new()
-		button.texture_normal = _PILL
-		button.texture_hover = _PILL_HOVER
-		button.texture_pressed = _PILL_DOWN
-		button.ignore_texture_size = true
-		button.stretch_mode = TextureButton.STRETCH_SCALE
-		button.focus_mode = Control.FOCUS_NONE
-		button.clip_contents = true
-		button.pressed.connect(_on_bind.bind(_KEYS.ACTIONS[index]))
-		var key_name := Label.new()
-		key_name.mouse_filter = MOUSE_FILTER_IGNORE
-		key_name.clip_text = true
-		key_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		key_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		key_name.set_anchors_preset(PRESET_FULL_RECT)
-		button.add_child(key_name)
-		sheet.add_child(button)
-		_bind_captions.append(caption)
-		_bind_buttons.append(button)
-	_audio_row(sheet, "Music", true)
-	_audio_row(sheet, "Sound Effects", false)
-	# Switch Toon throws the portable hole and returns to Pick a Toon.
-	# Quit Game writes the journal, then closes the window.
-	_switch_button = _pill("Switch Toon")
-	_switch_button.pressed.connect(_ask_switch)
-	sheet.add_child(_switch_button)
-	_quit_button = _pill("Quit Game")
-	_quit_button.pressed.connect(_ask_quit)
-	sheet.add_child(_quit_button)
-	return sheet
-
-
-func _audio_row(sheet: Control, title: String, music: bool) -> void:
-	var caption := Label.new()
-	caption.text = title
-	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	caption.mouse_filter = MOUSE_FILTER_IGNORE
-	sheet.add_child(caption)
-	var toggle := _pill("On")
-	toggle.pressed.connect(_toggle_audio.bind(music))
-	sheet.add_child(toggle)
-	var slider := HSlider.new()
-	slider.min_value = 0.0
-	slider.max_value = 100.0
-	slider.step = 1.0
-	slider.focus_mode = Control.FOCUS_NONE
-	var level := ToonAudio.music_volume() if music else ToonAudio.sfx_volume()
-	slider.set_value_no_signal(level * 100.0)
-	slider.value_changed.connect(_on_audio_volume.bind(music))
-	_style_slider(slider)
-	sheet.add_child(slider)
-	_audio_captions.append(caption)
-	_audio_toggles.append(toggle)
-	_audio_sliders.append(slider)
-
-
-func _style_slider(slider: HSlider) -> void:
-	var track := StyleBoxFlat.new()
-	track.bg_color = Color(0.72, 0.58, 0.38, 1)
-	track.set_corner_radius_all(5)
-	track.content_margin_top = 6
-	track.content_margin_bottom = 6
-	var fill := track.duplicate() as StyleBoxFlat
-	fill.bg_color = Color(0.95, 0.55, 0.16, 1)
-	var knob := _knob_texture()
-	slider.add_theme_stylebox_override("slider", track)
-	slider.add_theme_stylebox_override("grabber_area", fill)
-	slider.add_theme_stylebox_override("grabber_area_highlight", fill)
-	slider.add_theme_icon_override("grabber", knob)
-	slider.add_theme_icon_override("grabber_highlight", knob)
-
-
-func _knob_texture() -> Texture2D:
-	var image := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	image.fill(Color(0, 0, 0, 0))
-	for y in 16:
-		for x in 16:
-			var edge := x < 2 or y < 2 or x > 13 or y > 13
-			image.set_pixel(x, y, Color(0.42, 0.24, 0.05, 1) if edge else Color(0.98, 0.84, 0.32, 1))
-	return ImageTexture.create_from_image(image)
-
-
-func _toggle_audio(music: bool) -> void:
-	if music:
-		ToonAudio.set_music_on(not ToonAudio.music_on())
-	else:
-		ToonAudio.set_sfx_on(not ToonAudio.sfx_on())
-	_paint_audio()
-
-
-func _on_audio_volume(value: float, music: bool) -> void:
-	if music:
-		ToonAudio.set_music_volume(value / 100.0)
-	else:
-		ToonAudio.set_sfx_volume(value / 100.0)
-
-
-func _paint_audio() -> void:
-	for index in _audio_toggles.size():
-		var enabled := ToonAudio.music_on() if index == 0 else ToonAudio.sfx_on()
-		var caption := _audio_toggles[index].get_child(0) as Label
-		if caption:
-			caption.text = "On" if enabled else "Off"
+	var panel := OptionsPanel.new()
+	panel.name = "Options"
+	panel.mouse_filter = MOUSE_FILTER_IGNORE
+	panel.visible = false
+	panel.enable_game_actions(_ask_switch, _ask_quit)
+	_cover.add_child(panel)
+	_options = panel
+	return panel
 
 
 func _build_map() -> Control:
@@ -801,55 +713,26 @@ func _turn(step: int) -> void:
 	_set_page(_page + step)
 
 
-func _on_bind(action: String) -> void:
-	if _guided:
-		return
-	_listen = action
-	_refresh_binds()
-
-
 func _input(event: InputEvent) -> void:
-	if _exit_dialog != null:
-		if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
-			get_viewport().set_input_as_handled()
-			var key := event as InputEventKey
-			if event.is_action_pressed("ui_cancel") or key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
-				_close_exit()
+	if _exit_dialog == null:
 		return
-	if _listen == "":
-		return
-	if event.is_action_pressed("ui_cancel"):
-		_cancel_bind()
-		return
-	if not (event is InputEventKey):
-		return
-	var key := event as InputEventKey
-	if not key.pressed or key.echo:
-		return
-	var code := key.physical_keycode
-	if code == KEY_NONE:
-		code = key.keycode
-	if code == KEY_ESCAPE or key.keycode == KEY_ESCAPE or key.key_label == KEY_ESCAPE:
-		_cancel_bind()
-		return
-	get_viewport().set_input_as_handled()
-	_KEYS.assign(_listen, code)
-	_listen = ""
-	_refresh_binds()
-
-
-func _cancel_bind() -> void:
-	get_viewport().set_input_as_handled()
-	_listen = ""
-	_refresh_binds()
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+		get_viewport().set_input_as_handled()
+		var key := event as InputEventKey
+		if event.is_action_pressed("ui_cancel") or key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
+			_close_exit()
 
 
 func _open_book() -> void:
+	if _peek != "":
+		_peek = ""
+		_restore_peek()
 	if _pulse != null and _pulse.is_valid():
 		_pulse.kill()
 	_button.scale = Vector2.ONE
 	_open = true
-	_listen = ""
+	if _options != null:
+		_options.cancel_listen()
 	_page = PAGE_MAP if _guided else PAGE_OPTIONS
 	_next_armed = false
 	var parent := get_parent()
@@ -880,7 +763,8 @@ func _close() -> void:
 	_close_exit()
 	_open = false
 	_guided = false
-	_listen = ""
+	if _options != null:
+		_options.cancel_listen()
 	_next_armed = false
 	_close_armed = false
 	_dim.visible = false
@@ -898,7 +782,8 @@ func _set_page(index: int) -> void:
 	if next_page != PAGE_GAGS:
 		_set_deleting(false)
 	_page = next_page
-	_listen = ""
+	if _options != null:
+		_options.cancel_listen()
 	_next_armed = false
 	_show_page(_page)
 	_play(_turn_sound)
@@ -906,8 +791,8 @@ func _set_page(index: int) -> void:
 
 
 func _show_page(index: int) -> void:
-	if index == PAGE_OPTIONS:
-		_refresh_binds()
+	if index == PAGE_OPTIONS and _options != null:
+		_options.layout(_options.size, maxi(int(_options.size.y * 0.038), 13), _guided)
 	elif index == PAGE_DISTRICTS and _districts_page != null:
 		_districts_page.refresh()
 	elif index == PAGE_MAP:
@@ -929,17 +814,8 @@ func _show_page(index: int) -> void:
 	_apply_arrows()
 
 
-func _refresh_binds() -> void:
-	var listening := Color(0.45, 0.9, 1.0)
-	for index in _bind_buttons.size():
-		var action := _KEYS.ACTIONS[index]
-		var caption := _bind_buttons[index].get_child(0) as Label
-		if action == _listen:
-			caption.text = "?"
-			_bind_buttons[index].modulate = listening
-		else:
-			caption.text = _KEYS.label(action)
-			_bind_buttons[index].modulate = Color.WHITE
+func refresh_tasks() -> void:
+	_fill_tasks()
 
 
 func refresh_jar() -> void:
@@ -1024,7 +900,7 @@ func _on_gag(track: int, level: int) -> void:
 			_detail.text = "%s\n\nClick to delete." % _loadout.gag_name(track, level)
 		return
 	var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
-	var accuracy := ToonLoadout.accuracy_word(ToonLoadout.gag_accuracy(track, level))
+	var accuracy := ToonLoadout.accuracy_label(track, level)
 	_detail.text = "%s\n\nDamage: %d\nAccuracy: %s\n%s" % [
 		_loadout.gag_name(track, level),
 		damage,
@@ -1372,7 +1248,9 @@ func _layout() -> void:
 			title.position = Vector2(0, 0)
 			title.size = Vector2(page_size.x, float(title_px) + 8.0)
 			ToonGui.style_label(title, Color(0.08, 0.08, 0.08), title_px, Color(0, 0, 0, 0), 0)
-	_layout_options(page_size, body_px)
+	if _options != null:
+		_options.layout(page_size, body_px, _guided)
+	_layout_exit()
 	if _districts_page != null:
 		_districts_page.layout(page_size)
 	_layout_map(page_size, body_px)
@@ -1397,41 +1275,7 @@ func _layout() -> void:
 	var arrow_y := _cover.size.y * 0.9407 - arrow * 0.5
 	_prev.position = Vector2(_cover.size.x * 0.081 - arrow * 0.5, arrow_y)
 	_next.position = Vector2(_cover.size.x * 0.919 - arrow * 0.5, arrow_y)
-
-
-func _layout_options(page_size: Vector2, body_px: int) -> void:
-	var top := page_size.y * 0.13
-	var row_h := minf(page_size.y * 0.062, 34.0)
-	for index in _bind_buttons.size():
-		var y := top + float(index) * row_h
-		var caption := _bind_captions[index]
-		caption.position = Vector2(0, y)
-		caption.size = Vector2(page_size.x * 0.46, row_h)
-		ToonGui.style_label(caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		var button := _bind_buttons[index]
-		button.position = Vector2(page_size.x * 0.52, y + row_h * 0.12)
-		button.size = Vector2(page_size.x * 0.28, row_h * 0.76)
-		var key_name := button.get_child(0) as Label
-		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), body_px, Color(0, 0, 0, 0), 0)
-	var audio_top := top + float(_bind_buttons.size()) * row_h + page_size.y * 0.03
-	var audio_h := minf(page_size.y * 0.08, 40.0)
-	for index in _audio_sliders.size():
-		var y := audio_top + float(index) * audio_h
-		var caption := _audio_captions[index]
-		caption.position = Vector2(0, y)
-		caption.size = Vector2(page_size.x * 0.34, audio_h)
-		ToonGui.style_label(caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		var toggle := _audio_toggles[index]
-		_place_pill(toggle, Vector2(page_size.x * 0.36, y + audio_h * 0.12), Vector2(page_size.x * 0.16, audio_h * 0.76), body_px)
-		var slider := _audio_sliders[index]
-		slider.position = Vector2(page_size.x * 0.54, y + audio_h * 0.22)
-		slider.size = Vector2(page_size.x * 0.42, audio_h * 0.56)
-	_paint_audio()
-	_switch_button.visible = not _guided
-	_quit_button.visible = not _guided
-	_place_pill(_switch_button, Vector2(page_size.x * 0.04, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)
-	_place_pill(_quit_button, Vector2(page_size.x * 0.52, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)
-	_layout_exit()
+	_apply_peek()
 
 
 func _layout_map(page_size: Vector2, body_px: int) -> void:
@@ -1587,10 +1431,46 @@ func _place_pill(button: TextureButton, at: Vector2, box: Vector2, body_px: int)
 	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), maxi(body_px - 1, 12), Color(0, 0, 0, 0), 0)
 
 
+func _restore_peek() -> void:
+	if _cover == null or _pages.size() <= PAGE_TASKS:
+		return
+	var origin := _cover.size * Vector2(0.0635, 0.0118)
+	for index in [PAGE_GAGS, PAGE_TASKS]:
+		var sheet := _pages[index]
+		if sheet.get_parent() != _cover:
+			sheet.reparent(_cover)
+		sheet.position = origin
+		if not _open:
+			sheet.visible = false
+	var title := _pages[PAGE_TASKS].get_node_or_null("Title") as Label
+	if title != null:
+		title.visible = true
+
+
+## The gag rows and task posters sit where the book page would, with the book itself hidden.
+func _apply_peek() -> void:
+	if _peek != "gags" and _peek != "tasks":
+		return
+	var sheet := _pages[PAGE_GAGS if _peek == "gags" else PAGE_TASKS]
+	if sheet.get_parent() != self:
+		sheet.reparent(self)
+	sheet.position = _cover.position + _cover.size * Vector2(0.0635, 0.0118)
+	sheet.visible = true
+	if _peek == "gags":
+		_refresh_gags()
+	else:
+		_fill_tasks()
+		var title := sheet.get_node_or_null("Title") as Label
+		if title != null:
+			title.visible = false
+	if _button != null:
+		move_child(_button, get_child_count() - 1)
+
+
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_RESIZED or _button == null:
 		return
-	if _open:
+	if _open or _peek != "":
 		_layout()
 	else:
 		_place_button()

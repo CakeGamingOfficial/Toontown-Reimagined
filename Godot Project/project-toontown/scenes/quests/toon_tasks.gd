@@ -1,13 +1,15 @@
 class_name ToonTasks
 extends RefCounted
 
-## The ToonTask journal. Quest 101 is Tutorial Tom's Flunky, and finishing it
-## leads to quest 110. Later playground tasks are more entries in CATALOG.
+## The ToonTask journal. Quest 101 is Tutorial Tom's Flunky. The Toontown
+## Central chain continues 110, 145, then the friend and phone tasks. A task
+## marked hold stays in the chain and is not handed out until its feature exists.
 ## Battle code reports a defeat with note_cog_defeat. Turning a finished task
 ## in assigns whatever it points at next.
 
 const COG := "cog"
 const TROLLEY := "trolley"
+const RECOVER := "recover"
 
 const _PATH := "user://toon_tasks.json"
 
@@ -33,8 +35,51 @@ const CATALOG := {
 		"goal": 1,
 		"show_count": false,
 		"speech": "I need to ride the trolley.",
+		"next": 145,
+		"turn_in": "hq",
+	},
+	145: {
+		"headline": "RECOVER",
+		"caption": "A Blackboard Eraser",
+		"where": "from Cogs\nin Toontown Central",
+		"kind": RECOVER,
+		"cog": "any",
+		"hood": 2000,
+		"chance": 100,
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to recover a blackboard eraser from the Cogs.",
+		"next": 150,
+		"turn_in": "hq",
+		"laff": 1,
+	},
+	150: {
+		"headline": "FRIEND",
+		"caption": "Make a friend",
+		"where": "Anywhere",
+		"kind": "friend",
+		"cog": "",
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to make a friend.",
+		"next": 175,
+		"turn_in": "hq",
+		"laff": 1,
+		"hold": true,
+	},
+	175: {
+		"headline": "CLARABELLE",
+		"caption": "Call Clarabelle",
+		"where": "Anywhere",
+		"kind": "phone",
+		"cog": "",
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to call Clarabelle.",
 		"next": 0,
 		"turn_in": "hq",
+		"laff": 1,
+		"hold": true,
 	},
 }
 
@@ -74,23 +119,62 @@ func has_laff_meter() -> bool:
 func assign(quest_id: int) -> void:
 	if not CATALOG.has(quest_id) or _is_active(quest_id) or _done.has(quest_id):
 		return
+	# Friend and phone tasks stay in the chain until those features can finish them.
+	if bool(CATALOG[quest_id].get("hold", false)):
+		return
 	_active.append({"id": quest_id, "progress": 0})
 	save()
 
 
-func note_cog_defeat(cog: String) -> void:
+func note_cog_defeat(cog: String, hood: int = 0, dept: String = "") -> void:
 	var code := cog.to_lower()
 	CogGallery.note(code)
+	var playground := hood - posmod(hood, 1000)
+	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
 		var info: Dictionary = CATALOG[quest_id]
-		if String(info["kind"]) != COG:
+		var kind := String(info["kind"])
+		if kind == COG:
+			var wanted := String(info["cog"])
+			var want_dept := String(info.get("dept", ""))
+			if want_dept != "" and want_dept != dept:
+				continue
+			if wanted != code and wanted != "any":
+				continue
+			var need_hood := int(info.get("hood", 0))
+			if need_hood != 0 and playground != need_hood:
+				continue
+			entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+			changed = true
+		elif kind == RECOVER:
+			var need_hood := int(info.get("hood", 0))
+			if need_hood != 0 and playground != need_hood:
+				continue
+			if int(entry["progress"]) >= int(info["goal"]):
+				continue
+			var chance := int(info.get("chance", 100))
+			if randi_range(1, 100) > chance:
+				continue
+			entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+			changed = true
+	if changed:
+		save()
+
+
+## The first finished task an HQ officer can take.
+func ready_hq() -> Dictionary:
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not CATALOG.has(quest_id) or not is_complete(quest_id):
 			continue
-		var wanted := String(info["cog"])
-		if wanted != code and wanted != "any":
+		var info: Dictionary = CATALOG[quest_id]
+		if String(info.get("turn_in", "")) != "hq":
 			continue
-		entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
-	save()
+		var card: Dictionary = info.duplicate()
+		card["id"] = quest_id
+		return card
+	return {}
 
 
 ## Finishing a trolley ride calls this. Nothing else marks quest 110 complete.
@@ -359,6 +443,9 @@ func _load() -> void:
 		repaired = true
 	if _done.has(101) and not _done.has(110) and not _is_active(110):
 		_active.append({"id": 110, "progress": 0})
+		repaired = true
+	if _done.has(110) and not _done.has(145) and not _is_active(145):
+		_active.append({"id": 145, "progress": 0})
 		repaired = true
 	if repaired:
 		save()

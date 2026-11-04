@@ -5,7 +5,10 @@ extends Node
 ## recording: the book button flies to the corner, then he walks the pages
 ## for the map, the gags, and the new trolley ToonTask.
 
-const _ARROW := preload("res://assets/gui/tutorial/book/arrow_button.png")
+## phase_3/models/props/arrow. The quad points right at roll 0. BlinkingArrows
+## draws it at scale 0.2 and pulses the alpha between 1 and 0.25.
+const _ARROW := preload("res://assets/gui/nametag/arrow.png")
+const _ARROW_SCALE := 0.2
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
 const _BALLOON_TOP := preload("res://assets/gui/nametag/chat_top.png")
 const _BALLOON_MID := preload("res://assets/gui/nametag/chat_middle.png")
@@ -37,6 +40,7 @@ var _advance := false
 var _ducked := false
 var _music_db := 0.0
 var _arrow_mode := ""
+var _blink := 0.0
 var _world: PanelContainer
 var _world_label: Label
 var _world_arrow: TextureRect
@@ -127,6 +131,7 @@ func _process(delta: float) -> void:
 		_harry.set_dialogue(delta)
 	_place_world_bubble()
 	_place_book_chat()
+	_blink += delta
 	if _arrow_mode == "button":
 		_aim_button()
 	elif _arrow_mode == "page":
@@ -549,26 +554,19 @@ func _aim_button() -> void:
 	if book == null:
 		return
 	book.arm_open()
-	_ensure_arrows(book)
-	if _arrows.size() < 2:
-		return
+	# quest_assign_110: ARROWS_ON 0.92 -0.89 0  1.22 -0.64 90, measured from the
+	# book button at (1.175, -0.83). Roll 0 points right, roll 90 points down.
 	_arrow_mode = "button"
-	var at := book.button_center()
-	_point(_arrows[0], at, at + Vector2(-130.0, 18.0))
-	_point(_arrows[1], at, at + Vector2(-48.0, -96.0))
+	_place_arrows(book.button_center(), [Vector2(-0.255, -0.06), Vector2(0.045, 0.19)], [0.0, 90.0])
 
 
 func _aim_page() -> void:
 	var book := _book()
 	if book == null:
 		return
-	_ensure_arrows(book)
-	if _arrows.is_empty():
-		return
+	# Both arrows sit on the next-page button (0.838, -0.661) at roll -90, so they point up.
 	_arrow_mode = "page"
-	var at := book.turn_center()
-	_point(_arrows[0], at, at + Vector2(6.0, 84.0))
-	_arrows[1].visible = false
+	_place_arrows(book.turn_center(), [Vector2(0.012, -0.089), Vector2(0.012, -0.089)], [-90.0, -90.0])
 
 
 func _arrows_off() -> void:
@@ -587,23 +585,43 @@ func _ensure_arrows(book: ShtickerBook) -> void:
 func _make_arrow(book: ShtickerBook) -> TextureRect:
 	var arrow := TextureRect.new()
 	arrow.texture = _ARROW
-	arrow.modulate = Color(0.86, 0.08, 0.1)
+	arrow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	arrow.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	arrow.size = Vector2(84, 84)
-	arrow.pivot_offset = arrow.size * 0.5
+	arrow.stretch_mode = TextureRect.STRETCH_SCALE
 	arrow.visible = false
 	arrow.z_index = 70
 	book.add_child(arrow)
 	return arrow
 
 
-func _point(arrow: TextureRect, at: Vector2, park: Vector2) -> void:
-	arrow.visible = true
-	arrow.global_position = park - arrow.pivot_offset
-	# The picture's tip sits up and to the right, which is -45 degrees.
-	arrow.rotation = (at - park).angle() + PI * 0.25
+## offsets are aspect2d (x, z) from the target's center. Positive z is up the screen.
+func _place_arrows(at: Vector2, offsets: Array, rolls: Array) -> void:
+	var book := _book()
+	if book == null or _host == null:
+		return
+	_ensure_arrows(book)
+	if _arrows.size() < 2:
+		return
+	var unit := _host.get_viewport().get_visible_rect().size.y * 0.5
+	var pixels := _ARROW_SCALE * unit
+	var alpha := _blink_alpha()
+	for index in 2:
+		var arrow := _arrows[index]
+		var shift: Vector2 = offsets[index]
+		arrow.visible = true
+		arrow.size = Vector2(pixels, pixels)
+		arrow.pivot_offset = arrow.size * 0.5
+		arrow.rotation_degrees = float(rolls[index])
+		arrow.global_position = at + Vector2(shift.x * unit, -shift.y * unit) - arrow.pivot_offset
+		arrow.modulate = Color(1, 1, 1, alpha)
+
+
+func _blink_alpha() -> float:
+	var turn := fposmod(_blink, 1.5) / 0.75
+	if turn < 1.0:
+		return lerpf(0.25, 1.0, turn)
+	return lerpf(1.0, 0.25, turn - 1.0)
 
 
 func _hud() -> Node:

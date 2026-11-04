@@ -11,7 +11,9 @@ const FLIPPY_PANDA := Vector3(207.4, 18.81, -0.475)
 const FLIPPY_HEADING := 90.0
 const PLAYER_PANDA := Vector3(203.8, 18.64, -0.475)
 const PLAYER_HEADING := -90.0
-const _ARROW := preload("res://assets/gui/tutorial/book/arrow_button.png")
+## phase_3/models/props/arrow. Roll 0 points right. BlinkingArrows scales it by 0.2.
+const _ARROW := preload("res://assets/gui/nametag/arrow.png")
+const _ARROW_SCALE := 0.2
 const _BLACK := Color(0.08, 0.08, 0.1)
 const _TEAL := Color(0.0, 0.58, 0.64)
 
@@ -24,6 +26,8 @@ var _arrows: Array[TextureRect] = []
 var _advance := false
 var _talking := false
 var _running := false
+var _arrow_mode := ""
+var _blink := 0.0
 var _music_db := 0.0
 var _ducked := false
 
@@ -108,6 +112,11 @@ func _process(delta: float) -> void:
 	else:
 		_flippy.set_locomotion(0.0, false, false, delta)
 	_place_bubble()
+	_blink += delta
+	if _arrow_mode == "button":
+		_aim_button()
+	elif _arrow_mode == "entry":
+		_aim_entry()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -251,25 +260,22 @@ func _aim_button() -> void:
 	var chat := _speed()
 	if chat == null:
 		return
-	_point_at(chat.speed_center())
+	# tutorial_blocker: ARROWS_ON -0.92 0.91 180  -1.12 0.74 -90, from the
+	# SpeedChat button at (-1.129, 0.928). Roll 180 points left, -90 points up.
+	_arrow_mode = "button"
+	_place_arrows(chat.speed_center())
 
 
 func _aim_entry() -> void:
 	var chat := _speed()
 	if chat == null:
 		return
-	_point_at(chat.entry_center())
-
-
-func _point_at(at: Vector2) -> void:
-	_ensure_arrows()
-	if _arrows.size() < 2:
-		return
-	_point(_arrows[0], at, at + Vector2(78.0, 8.0))
-	_point(_arrows[1], at, at + Vector2(6.0, 72.0))
+	_arrow_mode = "entry"
+	_place_arrows(chat.entry_center())
 
 
 func _arrows_off() -> void:
+	_arrow_mode = ""
 	for arrow in _arrows:
 		arrow.visible = false
 
@@ -284,22 +290,44 @@ func _ensure_arrows() -> void:
 func _make_arrow() -> TextureRect:
 	var arrow := TextureRect.new()
 	arrow.texture = _ARROW
-	arrow.modulate = Color(0.86, 0.08, 0.1)
+	arrow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	arrow.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	arrow.size = Vector2(84, 84)
-	arrow.pivot_offset = arrow.size * 0.5
+	arrow.stretch_mode = TextureRect.STRETCH_SCALE
 	arrow.visible = false
 	arrow.z_index = 70
 	_hud().add_child(arrow)
 	return arrow
 
 
-func _point(arrow: TextureRect, at: Vector2, park: Vector2) -> void:
-	arrow.visible = true
-	arrow.global_position = park - arrow.pivot_offset
-	arrow.rotation = (at - park).angle() + PI * 0.25
+## offsets are aspect2d (x, z) from the target. Positive z is up the screen.
+func _place_arrows(at: Vector2) -> void:
+	if _host == null:
+		return
+	_ensure_arrows()
+	if _arrows.size() < 2:
+		return
+	var unit := _host.get_viewport().get_visible_rect().size.y * 0.5
+	var pixels := _ARROW_SCALE * unit
+	var alpha := _blink_alpha()
+	var offsets: Array[Vector2] = [Vector2(0.209, -0.018), Vector2(0.009, -0.188)]
+	var rolls: Array[float] = [180.0, -90.0]
+	for index in 2:
+		var arrow := _arrows[index]
+		var shift := offsets[index]
+		arrow.visible = true
+		arrow.size = Vector2(pixels, pixels)
+		arrow.pivot_offset = arrow.size * 0.5
+		arrow.rotation_degrees = rolls[index]
+		arrow.global_position = at + Vector2(shift.x * unit, -shift.y * unit) - arrow.pivot_offset
+		arrow.modulate = Color(1, 1, 1, alpha)
+
+
+func _blink_alpha() -> float:
+	var turn := fposmod(_blink, 1.5) / 0.75
+	if turn < 1.0:
+		return lerpf(0.25, 1.0, turn)
+	return lerpf(1.0, 0.25, turn - 1.0)
 
 
 func _finish() -> void:

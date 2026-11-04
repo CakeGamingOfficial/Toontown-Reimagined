@@ -156,6 +156,34 @@ func _build() -> void:
 	quit_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	quit_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	quit.add_child(quit_label)
+	var options := TextureButton.new()
+	options.name = "Options"
+	options.texture_normal = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+	options.texture_pressed = preload("res://assets/toons/gui/QuitBtn_DN.png")
+	options.texture_hover = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+	options.ignore_texture_size = true
+	options.stretch_mode = TextureButton.STRETCH_SCALE
+	options.clip_contents = true
+	options.pressed.connect(_toggle_options)
+	ToonGui.button_sounds(options)
+	add_child(options)
+	var options_label := Label.new()
+	options_label.name = "OptionsLabel"
+	options_label.text = "OPTIONS"
+	options_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	options_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	options_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	options_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	options.add_child(options_label)
+
+
+func _toggle_options() -> void:
+	var open := get_node_or_null("OptionsPanel") as OptionsPanel
+	if open != null:
+		open.queue_free()
+		return
+	var panel := OptionsPanel.open_popup(self)
+	panel.name = "OptionsPanel"
 
 
 func _card_rect() -> Rect2:
@@ -201,6 +229,23 @@ func _layout() -> void:
 			quit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			quit_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			ToonGui.style_sign(quit_label, _YELLOW, int(quit_size.y * 0.76), Color(0, 0, 0), maxi(int(quit_size.y * 0.03), 1))
+		var options := get_node_or_null("Options") as TextureButton
+		if options:
+			var options_size := quit_size
+			var gap := margin.x
+			options.position = quit.position - Vector2(options_size.x + gap, 0.0)
+			options.size = options_size
+			var options_label := options.get_node_or_null("OptionsLabel") as Label
+			if options_label:
+				options_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+				var drop := options_size.y * 0.05
+				options_label.offset_left = 0.0
+				options_label.offset_top = drop
+				options_label.offset_right = 0.0
+				options_label.offset_bottom = drop
+				options_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				options_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+				ToonGui.style_sign(options_label, _YELLOW, int(options_size.y * 0.42), Color(0, 0, 0), maxi(int(options_size.y * 0.03), 1))
 	for index in ToonRoster.SLOT_COUNT:
 		var panel := get_node_or_null("Slot%d" % index) as Control
 		if panel == null:

@@ -5,11 +5,11 @@ extends RefCounted
 
 const _PATH := "user://keybinds.cfg"
 
-const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book", "position", "metrics"]
+const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book", "gags", "tasks", "position", "metrics"]
 const LABELS: PackedStringArray = [
-	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book", "Position", "Metrics",
+	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book", "Gags", "ToonTasks", "Position", "Metrics",
 ]
-const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I, KEY_F1, KEY_F2]
+const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I, KEY_HOME, KEY_END, KEY_F1, KEY_F2]
 
 static var _keys: Dictionary = {}
 static var _ready := false
@@ -36,7 +36,17 @@ static func event_is(event: InputEvent, action: String) -> bool:
 	if typing() or not (event is InputEventKey):
 		return false
 	var key := event as InputEventKey
-	if not key.pressed or key.echo:
+	if not key.pressed:
+		return false
+	return matches(event, action)
+
+
+## Press or release. The gag and ToonTask panels stay up for as long as the key is held.
+static func matches(event: InputEvent, action: String) -> bool:
+	if not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	if key.echo:
 		return false
 	_ensure()
 	var code := key.physical_keycode

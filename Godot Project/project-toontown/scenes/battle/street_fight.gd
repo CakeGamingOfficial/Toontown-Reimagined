@@ -15,6 +15,7 @@ const _LOSE := "res://assets/audio/battle/ENC_Lose.ogg"
 const _WIN := "res://assets/audio/sfx/ENC_Win.mp3"
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _TITLES := preload("res://scenes/places/zone_title.gd")
 ## Toon.getDiedInterval: lose, ENC_Lose at 2s, then a 1.5s shrink starting at 5.333.
 const _LOSE_SHRINK := 5.333
 const _LOSE_END := 6.833
@@ -35,6 +36,8 @@ var _movie_seq := -1
 var _show_gen := 0
 var _gags
 var _shown: Dictionary = {}
+var _credited_fight := -1
+var _credited: Dictionary = {}
 var _cool := 0.0
 var _scan := 0.0
 var _music: AudioStreamPlayer
@@ -151,10 +154,13 @@ func _process(delta: float) -> void:
 		return
 	_show_hud(fight, delta)
 	_spend(fight)
+	# Close the inventory before the movie starts. The timer runs out while
+	# choose() is still waiting, and cancelling that wait in the same call
+	# as the new movie keeps the cog attack from playing.
+	_choose(fight, true)
 	_play(fight, delta)
 	if String(fight.get("state", "")) == "movie":
 		_aim_camera(fight)
-	_choose(fight, true)
 
 
 func _rows() -> Array:
@@ -190,6 +196,7 @@ func _watch(rows: Array, delta: float) -> void:
 	var current_id := int(_fight.get("id", -2))
 	if watching.is_empty():
 		if _movie_seq != -1 or not _fight.is_empty():
+			_end_victory()
 			_show_gen += 1
 			_clear_movie()
 			_banner.text = ""
@@ -444,6 +451,11 @@ func _spend(fight: Dictionary) -> void:
 		loadout.save()
 
 
+func _movie_playing() -> bool:
+	var movie := _gags as GagMovie
+	return movie != null and movie.has_aim()
+
+
 func _play(fight: Dictionary, _delta: float) -> void:
 	var state := String(fight.get("state", ""))
 	var seq := int(fight.get("seq", 0))
@@ -572,8 +584,29 @@ func _apply_one(beat: Dictionary) -> void:
 		_begin_sad(toon_id, beat)
 
 
-func _credit(_fight: Dictionary, _beat: Dictionary) -> void:
-	return
+func _credit(fight: Dictionary, beat: Dictionary) -> void:
+	var fight_id := int(fight.get("id", 0))
+	if _credited_fight != fight_id:
+		_credited_fight = fight_id
+		_credited.clear()
+	if not _mine(fight) or String(beat.get("kind", "")) != "gag":
+		return
+	if int(beat.get("cog_hp", 1)) > 0:
+		return
+	var cog_id := int(beat.get("cog", 0))
+	if _credited.has(cog_id):
+		return
+	_credited[cog_id] = true
+	var code := ""
+	var dept := ""
+	for item in fight.get("cogs", []):
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == cog_id:
+			code = String((item as Dictionary).get("code", ""))
+			dept = String((item as Dictionary).get("dept", ""))
+			break
+	var tasks := ToonTasks.for_selected()
+	if tasks != null:
+		tasks.note_cog_defeat(code, _battle_hood(), dept)
 
 
 ## DistributedToon.died starts Toon.getDiedInterval at the hit. Every client
@@ -789,7 +822,7 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 				cog.call("march", false)
 		else:
 			cog.call("hold_fight", true, stand, deg_to_rad(_yaw(stand, toon_center)))
-			if state != "movie":
+			if state != "movie" and not _movie_playing():
 				if cog.has_method("march"):
 					cog.call("march", false)
 				if cog.has_method("begin_react"):
@@ -1075,6 +1108,17 @@ func _any_earned(rows: Array, peer: int) -> bool:
 	return false
 
 
+func _end_victory() -> void:
+	# pose_action locks locomotion on the last victory frame. The tutorial
+	# battle calls end_action when the reward closes. A street battle did not.
+	for item in _fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var actor := _actor_for(int((item as Dictionary).get("id", 0)))
+		if actor != null:
+			actor.end_action("victory")
+
+
 func _pose_roster(fight: Dictionary, clip: String, elapsed: float) -> void:
 	for item in fight.get("toons", []):
 		if not (item is Dictionary):
@@ -1125,6 +1169,7 @@ func _hold(active: bool) -> void:
 	if toon != null:
 		toon.call("hold_for_battle", active)
 	if not active:
+		_end_victory()
 		_cool = 2.0
 		_sent_seq = -1
 		_need_target = false
@@ -1452,6 +1497,13 @@ func _point() -> Vector3:
 	if toon == null:
 		return Vector3.ZERO
 	return toon.call("battle_point")
+
+
+func _battle_hood() -> int:
+	var scene := get_parent()
+	if scene == null:
+		return 0
+	return _TITLES.zone_of(scene.scene_file_path)
 
 
 func _street_district() -> int:
