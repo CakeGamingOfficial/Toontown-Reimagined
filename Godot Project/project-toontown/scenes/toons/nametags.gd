@@ -43,6 +43,10 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var text_color := Color(0.25, 0.28, 0.75)
 	var face := ToonGui.font()
+	if kind == "player":
+		var bought := _bought_font()
+		if bought != null:
+			face = bought
 	if kind == "npc":
 		text_color = text_tint if text_tint.a > 0.0 else Color(0.93, 0.45, 0.14)
 	elif kind == "cog":
@@ -111,6 +115,36 @@ func cards() -> Array:
 			"lift": float(item.get("lift", 3.2)),
 		})
 	return rows
+
+
+func apply_font(path: String) -> void:
+	var face := load(path) as Font
+	if face == null:
+		return
+	for item in _tags:
+		if String(item.get("kind", "")) != "player":
+			continue
+		var panel := item["label"] as Control
+		if panel == null:
+			continue
+		var words := panel.get_node_or_null("Label") as Label
+		if words == null:
+			for child in panel.get_children():
+				words = child as Label
+				if words != null:
+					break
+		if words != null:
+			words.add_theme_font_override("font", face)
+
+
+func _bought_font() -> Font:
+	var closet := load("res://scenes/catalog/catalog_closet.gd") as GDScript
+	if closet == null:
+		return null
+	var path := String(closet.call("font_path"))
+	if path == "":
+		return null
+	return load(path) as Font
 
 
 func release(actor: Node3D) -> void:

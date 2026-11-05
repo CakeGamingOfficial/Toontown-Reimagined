@@ -149,6 +149,10 @@ var top_tex := 0
 var top_color := 4
 var bot_tex := 0
 var bot_color := 8
+## Clarabelle's clothes. Empty keeps the Make a Toon shirt and shorts.
+var top_map := ""
+var sleeve_map := ""
+var bottom_map := ""
 ## Stable id for this toon, the stand-in for a distributed doId.
 var av_id := 0
 

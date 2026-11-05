@@ -70,6 +70,10 @@ var _land_kind := ""
 var _land_left := 0.0
 var _cycle_time := {"walk": 0.0, "run": 0.0, "jump": 0.0, "rjump": 0.0, "land": 0.0, "rland": 0.0}
 var _extra := {}
+var _accessory_ids := {}
+var _shoe_mesh := ""
+var _shoe_shown := ""
+static var _accessory_book: Dictionary = {}
 var _idle_time := 0.0
 var _frame_count := 0
 var _idle_frames := 0
@@ -195,6 +199,7 @@ func show_style(style: ToonStyle) -> void:
 	_unify_forehead(body)
 	_prepare_face()
 	_add_shadow(body)
+	_dress_all()
 
 
 ## One LOD, parented the same way as the 1000 body. Missing parts mean this
@@ -272,6 +277,7 @@ func _ensure_lod(lod: int) -> bool:
 	_unify_forehead(body)
 	_collect_face(body)
 	_add_shadow(body)
+	_dress_body(body)
 	for suffix in ["walk", "idle", "run", "sad-neutral", "sad-walk", "jump", "rjump", "land", "rland"]:
 		var clips: Array = []
 		var joints: Array = []
@@ -906,6 +912,200 @@ func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 	return Transform3D(basis, Vector3(cells[12], cells[13], cells[14]))
 
 
+## Catalog hats and glasses sit on the head. Backpacks sit on the flower
+## joint. Shoes swap the leg geoms the original model already has.
+func wear_accessories(worn: Dictionary) -> void:
+	_accessory_ids = worn.duplicate()
+	_dress_all()
+	_adopt_shoe_clips()
+
+
+func _dress_all() -> void:
+	if _style == null:
+		return
+	for key in _lod_roots.keys():
+		var body := _lod_roots[key] as Node
+		if body:
+			_dress_body(body)
+
+
+func _dress_body(body: Node) -> void:
+	for old in body.find_children("catalog_*", "", true, false):
+		old.free()
+	var book := _accessory_catalog()
+	var items: Dictionary = book.get("items", {})
+	var head_key := _style.head.substr(0, 2) if _style.head.length() >= 2 else ""
+	var torso_key := _style.torso.substr(0, 1) if not _style.torso.is_empty() else "m"
+	var hide_ears := false
+	var hide_lashes := false
+	_shoe_mesh = ""
+	_shoe_shown = ""
+	for slot in _accessory_ids.keys():
+		var item: Dictionary = items.get(str(int(_accessory_ids[slot])), {})
+		if item.is_empty():
+			continue
+		var kind := String(item.get("slot", slot))
+		if kind == "hat" or kind == "glasses":
+			_place_accessory(body, item, head_key, "head_look")
+			hide_ears = hide_ears or bool(item.get("hide_ears", false))
+			hide_lashes = hide_lashes or bool(item.get("hide_lashes", false))
+		elif kind == "backpack":
+			_place_accessory(body, item, torso_key, "def_joint_attachFlower")
+		elif kind == "shoes":
+			_shoe_mesh = String(item.get("mesh", ""))
+			_paint_shoes(body, item)
+	_set_named_visible(body, "ears", not hide_ears)
+	var lashes := _style.gender == "f" and not hide_lashes
+	for node in body.find_children("eyelashes", "", true, false):
+		node.visible = lashes
+	_sync_shoes([])
+
+
+func _place_accessory(body: Node, item: Dictionary, key: String, anchor_name: String) -> void:
+	var model := String(item.get("model", ""))
+	if model == "":
+		return
+	var host := _find(body, anchor_name)
+	if host == null:
+		return
+	if anchor_name == "head_look" and host.get_child_count() > 0 and host.get_child(0) is Node3D:
+		host = host.get_child(0) as Node3D
+	var prop := _instance(model)
+	if prop == null:
+		return
+	prop.name = "catalog_" + String(item.get("slot", "acc"))
+	host.add_child(prop)
+	prop.transform = _accessory_xform(item, key)
+	_retint_accessory(prop, _mapped(String(item.get("texture", ""))))
+
+
+func _accessory_xform(item: Dictionary, key: String) -> Transform3D:
+	var book := _accessory_catalog()
+	var slot := String(item.get("slot", ""))
+	var extra: Dictionary = book.get(slot + "_extra", {})
+	var special: Dictionary = extra.get(str(int(item.get("index", 0))), {})
+	var cells: Array = special.get(key, [])
+	if cells.is_empty():
+		var base: Dictionary = book.get(slot, {})
+		cells = base.get(key, [])
+	if cells.size() < 16:
+		return Transform3D.IDENTITY
+	return _cells_to_xform(cells)
+
+
+func _cells_to_xform(cells: Array) -> Transform3D:
+	var basis := Basis(
+		Vector3(float(cells[0]), float(cells[1]), float(cells[2])),
+		Vector3(float(cells[4]), float(cells[5]), float(cells[6])),
+		Vector3(float(cells[8]), float(cells[9]), float(cells[10]))
+	)
+	return Transform3D(basis, Vector3(float(cells[12]), float(cells[13]), float(cells[14])))
+
+
+func _retint_accessory(node: Node, texture: Texture2D) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var found := texture
+		if found == null and mesh.mesh != null and mesh.mesh.get_surface_count() > 0:
+			var material := mesh.mesh.surface_get_material(0)
+			if material is BaseMaterial3D:
+				found = (material as BaseMaterial3D).albedo_texture
+		mesh.material_override = _body_material(found, Color.WHITE, 0.0)
+	for child in node.get_children():
+		_retint_accessory(child, texture)
+
+
+func _paint_shoes(body: Node, item: Dictionary) -> void:
+	var path := String(item.get("texture", ""))
+	if _style.legs == "l" and String(item.get("long_texture", "")) != "":
+		path = String(item.get("long_texture", ""))
+	var texture := _mapped(path)
+	if texture == null:
+		return
+	var mesh := _find(body, _shoe_mesh) as MeshInstance3D
+	if mesh != null:
+		mesh.material_override = _body_material(texture, Color.WHITE, 0.0)
+
+
+func _set_named_visible(body: Node, prefix: String, shown: bool) -> void:
+	for node in body.find_children("*", "MeshInstance3D", true, false):
+		if String(node.name).begins_with(prefix):
+			node.visible = shown
+
+
+func _sync_shoes(clips: Array) -> void:
+	var want := "feet"
+	if _shoe_mesh != "":
+		for clip in clips:
+			var inst := clip.get("instance") as Node
+			if inst != null and String(inst.name) == _shoe_mesh:
+				want = _shoe_mesh
+				break
+	if want == _shoe_shown:
+		return
+	_shoe_shown = want
+	for name in ["feet", "shoes", "boots_short", "boots_long"]:
+		_set_named_visible(self, name, name == want)
+
+
+func _adopt_shoe_clips() -> void:
+	if _shoe_mesh == "" or _style == null:
+		return
+	_adopt_shoe(_walk_clips, "walk")
+	_adopt_shoe(_idle_clips, "idle")
+	for suffix in _extra.keys():
+		_adopt_shoe((_extra[suffix] as Dictionary).get("clips", []), String(suffix))
+	for key in _far_clips.keys():
+		var label := String(key)
+		var suffix := label.split(":")[1] if label.contains(":") else label
+		var bank: Dictionary = _far_clips[key]
+		_adopt_shoe(bank.get("clips", []), suffix)
+
+
+func _adopt_shoe(clips: Array, suffix: String) -> void:
+	if clips.is_empty():
+		return
+	var sample := clips[0].get("instance") as Node
+	if sample == null:
+		return
+	var body := sample
+	while body != null and not _lod_roots.values().has(body):
+		body = body.get_parent()
+	if body == null:
+		body = self
+	var shoe := _find(body, _shoe_mesh) as MeshInstance3D
+	if shoe == null:
+		return
+	for clip in clips:
+		if clip.get("instance") == shoe:
+			return
+	var lod := ""
+	var owner := shoe
+	while owner != null:
+		if _lod_roots.values().has(owner) and String(owner.name).is_valid_int() and int(owner.name) != 1000:
+			lod = "_" + String(owner.name)
+			break
+		owner = owner.get_parent()
+	var data := _read_walk(_ANIMS + "legs_%s%s.%s" % [_style.legs, lod, suffix])
+	var surfaces: Array = (data.get("surfaces", {}) as Dictionary).get(_shoe_mesh, [])
+	if surfaces.is_empty():
+		return
+	clips.append({
+		"instance": shoe,
+		"original": shoe.mesh,
+		"surfaces": surfaces,
+	})
+
+
+func _accessory_catalog() -> Dictionary:
+	if not _accessory_book.is_empty():
+		return _accessory_book
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/toons/accessories/catalog.json"))
+	if parsed is Dictionary:
+		_accessory_book = parsed
+	return _accessory_book
+
+
 func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: float) -> void:
 	# These clips are 24 discrete frames. Building a new mesh and smoothing its
 	# normals on every tick, for the toon and again for a street fisherman,
@@ -929,6 +1129,7 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 			instance.mesh = posed
 		if String(instance.name).begins_with("head"):
 			posed_head = instance
+	_sync_shoes(clips)
 	if built and posed_head != null:
 		var host: Node = posed_head
 		while host.get_parent() != null and host.get_parent() != self:
@@ -1167,11 +1368,11 @@ func _recolor(node: Node) -> void:
 				paint = true
 			elif part == "torso-top":
 				color = ToonStyle.clothes_color(_style.top_color)
-				texture = _SHIRT[clampi(_style.top_tex, 0, _SHIRT.size() - 1)]
+				texture = _shirt_texture(_style)
 				paint = true
 			elif part == "sleeves":
 				color = ToonStyle.clothes_color(_style.top_color)
-				texture = _SLEEVE[clampi(_style.top_tex, 0, _SLEEVE.size() - 1)]
+				texture = _sleeve_texture(_style)
 				paint = true
 			elif part.begins_with("torso-bot"):
 				color = ToonStyle.clothes_color(_style.bot_color)
@@ -1234,10 +1435,10 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 		face_sign = -1.0
 	elif part == "torso-top":
 		color = ToonStyle.clothes_color(style.top_color)
-		texture = _SHIRT[clampi(style.top_tex, 0, _SHIRT.size() - 1)]
+		texture = _shirt_texture(style)
 	elif part == "sleeves":
 		color = ToonStyle.clothes_color(style.top_color)
-		texture = _SLEEVE[clampi(style.top_tex, 0, _SLEEVE.size() - 1)]
+		texture = _sleeve_texture(style)
 	elif part.begins_with("torso-bot"):
 		color = ToonStyle.clothes_color(style.bot_color)
 		if part.ends_with("cap"):
@@ -1253,7 +1454,30 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 	mesh.material_override = _body_material(texture, color, shell, 0.0, glove, face_sign)
 
 
+func _mapped(path: String) -> Texture2D:
+	if path == "":
+		return null
+	return load(path) as Texture2D
+
+
+func _shirt_texture(style: ToonStyle) -> Texture2D:
+	var mapped := _mapped(style.top_map)
+	if mapped != null:
+		return mapped
+	return _SHIRT[clampi(style.top_tex, 0, _SHIRT.size() - 1)]
+
+
+func _sleeve_texture(style: ToonStyle) -> Texture2D:
+	var mapped := _mapped(style.sleeve_map)
+	if mapped != null:
+		return mapped
+	return _SLEEVE[clampi(style.top_tex, 0, _SLEEVE.size() - 1)]
+
+
 func _bottom_texture(style: ToonStyle) -> Texture2D:
+	var mapped := _mapped(style.bottom_map)
+	if mapped != null:
+		return mapped
 	if style.wears_skirt():
 		return _SKIRT
 	if style.bot_tex == 1:
