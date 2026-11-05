@@ -19,6 +19,8 @@ const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
+const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
+const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _FISH := preload("res://scenes/fishing/fish_tank.gd")
@@ -128,6 +130,12 @@ var _hq_building: Node3D
 # straight back through the same door.
 var _bank_ready := false
 var _bank_open := false
+var _phone_ready := false
+var _catalog_open := false
+var _closet_ready := false
+var _closet_open := false
+var _closet_cam := Transform3D.IDENTITY
+var _phone_done := false
 var _fish_open := false
 var _casting := false
 var _cast_ready := false
@@ -419,6 +427,8 @@ func _process(delta: float) -> void:
 		MagicWords.fly_camera(_camera, delta)
 	elif _trolley != null and _trolley.holds_camera():
 		_trolley.aim(_camera)
+	elif _closet_open:
+		_hold_closet_camera.call_deferred()
 	else:
 		_place_camera()
 	_place_line(delta)
@@ -429,12 +439,15 @@ func _physics_process(delta: float) -> void:
 		_squish_left = maxf(_squish_left - delta, 0.0)
 		if _body != null:
 			_body.velocity = Vector3.ZERO
+		_leave_water()
 		return
 	if _battle_hold:
 		if _body != null:
 			_body.velocity = Vector3.ZERO
+		_leave_water()
 		return
 	if not _active or _locked:
+		_leave_water()
 		return
 	_walk(delta)
 	if _is_sad():
@@ -446,6 +459,8 @@ func _physics_process(delta: float) -> void:
 	_try_hall_door()
 	_try_hq_door()
 	_try_bank()
+	_try_phone()
+	_try_closet()
 	_try_building_door()
 	_try_clerk()
 	_try_officer()
@@ -690,6 +705,9 @@ func _arrival_spot() -> Dictionary:
 	if ToonSocial.visit_on and ToonSocial.visit_scene == _scene_path():
 		ToonSocial.visit_on = false
 		return {"point": ToonSocial.visit_point, "heading": ToonSocial.visit_heading}
+	var club: Dictionary = preload("res://scenes/cog_hq/bossbot_doors.gd").arrival(get_parent())
+	if not club.is_empty():
+		return {"point": _snap_drop(club["point"]), "heading": float(club["heading"])}
 	var scene_path := _scene_path()
 	if _factory_trip != "":
 		var ride: Dictionary = _FACTORY.arrival(get_parent(), _factory_entrance, _factory_trip == "in")
@@ -892,6 +910,466 @@ func _use_bank(bank: Node3D) -> void:
 	_locked = false
 	if _book != null:
 		_book.refresh_jar()
+
+
+## DistributedPhone's sphere is 0.2, just in front of the handset. The toon's
+## own radius makes the phone answer from a step away.
+const _PHONE_REACH := 2.2
+# takePhoneInterval stands at the phone's (0, -4.5, 0) and walks for one second.
+const _PHONE_WALK := 1.0
+const _PHONE_STAND := 4.5
+const _PHONE_PICKUP_AT := 0.625
+const _PHONE_HANDLE_AT := 1.625
+const _PHONE_HANG_AT := 1.0
+const _PHONE_CLIPS := "res://assets/props/phone_clips.bin"
+const _PHONE_PICKUP := "res://assets/audio/sfx/telephone_pickup1.ogg"
+const _PHONE_HANDLE := "res://assets/audio/sfx/telephone_handle2.ogg"
+const _PHONE_HANG := "res://assets/audio/sfx/telephone_hang_up.ogg"
+const _PHONE_RING := "res://assets/audio/sfx/telephone_ring.ogg"
+static var _phone_book: Dictionary = {}
+
+
+## DistributedCloset's sphere is 2.125. The toon walks to the closet's
+## (1.67, -3.29) and the wardrobe opens.
+const _CLOSET_REACH := 3.2
+const _CLOSET_WALK := 1.0
+const _WARDROBE := preload("res://scenes/catalog/wardrobe.gd")
+
+
+func _try_closet() -> void:
+	if _body == null or get_parent() == null or not _PLACES.is_house(_scene_path()):
+		_closet_ready = true
+		return
+	if _catalog_open or _bank_open or _closet_open or (_book != null and _book.is_open()):
+		_closet_ready = false
+		return
+	var closet := get_parent().find_child("closet", true, false) as Node3D
+	if closet == null:
+		_closet_ready = true
+		return
+	var offset := closet.global_position - _body.global_position
+	if Vector2(offset.x, offset.z).length() > _CLOSET_REACH:
+		_closet_ready = true
+		return
+	if not _closet_ready:
+		return
+	_closet_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	_use_closet(closet)
+
+
+func _use_closet(closet: Node3D) -> void:
+	if _player == null or _body == null:
+		_locked = false
+		return
+	var stand := closet.to_global(Vector3(1.67, -3.29, 0.0))
+	stand.y = _body.global_position.y
+	var face := closet.global_position - stand
+	face.y = 0.0
+	var aim := _heading_toward(face) if face.length_squared() > 0.0001 else _heading
+	var start := _body.global_position
+	var start_heading := _heading
+	var elapsed := 0.0
+	while elapsed < _CLOSET_WALK:
+		var weight := _ease_in_out(elapsed / _CLOSET_WALK)
+		_body.global_position = start.lerp(stand, weight)
+		_heading = rad_to_deg(lerp_angle(deg_to_rad(start_heading), deg_to_rad(aim), weight))
+		_face(_player, _heading)
+		_player.play_walk(get_process_delta_time())
+		_place_camera()
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		elapsed += get_process_delta_time()
+	_body.global_position = stand
+	_heading = aim
+	_face(_player, _heading)
+	_player.set_locomotion(0.0, false, false, 0.0)
+	if _camera != null:
+		_closet_cam = _camera.global_transform
+	var book := _WARDROBE.new() as Control
+	book.name = "Wardrobe"
+	_hud().add_child(book)
+	_closet_open = true
+	var style := ToonRoster.selected_style()
+	var camera_yaw := _cam_yaw
+	var kept: bool = await book.open(_player, style)
+	_cam_yaw = camera_yaw
+	_adopt_facing()
+	if _camera != null:
+		_camera.top_level = false
+	_closet_open = false
+	if kept and style != null:
+		_CLOSET.dress(style)
+	_locked = false
+
+
+func _try_phone() -> void:
+	if _body == null or get_parent() == null or not _PLACES.is_house(_scene_path()):
+		_phone_ready = true
+		return
+	if _catalog_open or _bank_open or _closet_open or (_book != null and _book.is_open()):
+		_phone_ready = false
+		return
+	var phone := get_parent().find_child("phone", true, false) as Node3D
+	if phone == null:
+		_phone_ready = true
+		return
+	var offset := phone.global_position - _body.global_position
+	if Vector2(offset.x, offset.z).length() > _PHONE_REACH:
+		_phone_ready = true
+		return
+	if not _phone_ready:
+		return
+	_phone_ready = false
+	_locked = true
+	_catalog_open = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_use_phone(phone)
+
+
+## takePhoneInterval, then the catalog, then replacePhoneInterval.
+func _use_phone(phone: Node3D) -> void:
+	if _player == null or _body == null:
+		_finish_phone()
+		return
+	_phone_done = false
+	_player.ensure_clip("takePhone")
+	_player.ensure_clip("phoneNeutral")
+	_player.ensure_clip("phoneBack")
+	_player.set_look_enabled(false)
+	var size := _phone_size()
+	var home_scale := phone.scale
+	var toon_scale := _player.scale
+	_bind_phone(phone, size)
+	var stand := phone.to_global(Vector3(0.0, -_PHONE_STAND, 0.0))
+	stand.y = _body.global_position.y
+	var face := phone.global_transform.basis * Vector3(0.0, 1.0, 0.0)
+	face.y = 0.0
+	var aim := _heading
+	if face.length_squared() > 0.0001:
+		aim = _heading_toward(face)
+	var start := _body.global_position
+	var start_heading := _heading
+	var out_len := _phone_length(size, "phoneOut")
+	var lead := maxf(_PHONE_WALK, out_len)
+	var elapsed := 0.0
+	var delta := 0.0
+	while elapsed < lead:
+		if elapsed < _PHONE_WALK:
+			var weight := _ease_in_out(elapsed / _PHONE_WALK)
+			_body.global_position = start.lerp(stand, weight)
+			_heading = rad_to_deg(lerp_angle(deg_to_rad(start_heading), deg_to_rad(aim), weight))
+			_face(_player, _heading)
+			_player.play_walk(delta)
+		else:
+			_body.global_position = stand
+			_heading = aim
+			_face(_player, _heading)
+		_pose_phone(size, "phoneOut", elapsed, false)
+		phone.scale = home_scale.lerp(toon_scale, _ease_in_out(clampf(elapsed / _PHONE_WALK, 0.0, 1.0)))
+		_place_camera()
+		if not await _phone_frame():
+			return
+		delta = get_process_delta_time()
+		elapsed += delta
+	_body.global_position = stand
+	_heading = aim
+	_face(_player, _heading)
+	var take_len := _player.action_length("takePhone")
+	var grabbed := false
+	var handled := false
+	elapsed = 0.0
+	while elapsed < take_len:
+		_player.pose_action("takePhone", elapsed)
+		_pose_phone(size, "takePhone", elapsed, false)
+		if not grabbed and elapsed >= _PHONE_PICKUP_AT:
+			grabbed = true
+			_play_phone_sfx(_PHONE_PICKUP)
+			_grab_receiver(phone)
+		if not handled and elapsed >= _PHONE_HANDLE_AT:
+			handled = true
+			_play_phone_sfx(_PHONE_HANDLE)
+		_place_camera()
+		if not await _phone_frame():
+			return
+		elapsed += get_process_delta_time()
+	if not grabbed:
+		_grab_receiver(phone)
+	_play_phone_sfx(_PHONE_RING)
+	_open_catalog()
+	var neutral := 0.0
+	while not _phone_done:
+		var toon_span := _player.action_length("phoneNeutral")
+		var shown := neutral if toon_span <= 0.0 else fposmod(neutral, toon_span)
+		_player.pose_action("phoneNeutral", shown)
+		_pose_phone(size, "phoneNeutral", neutral, true)
+		_place_camera()
+		if not await _phone_frame():
+			return
+		neutral += get_process_delta_time()
+	var back_len := _player.action_length("phoneBack")
+	var returned := false
+	elapsed = 0.0
+	while elapsed < back_len:
+		_player.pose_action("phoneBack", elapsed)
+		_pose_phone(size, "phoneBack", elapsed, false)
+		if not returned and elapsed >= _PHONE_HANG_AT:
+			returned = true
+			_return_receiver()
+			_play_phone_sfx(_PHONE_HANG)
+		_place_camera()
+		if not await _phone_frame():
+			return
+		elapsed += get_process_delta_time()
+	if not returned:
+		_return_receiver()
+		_play_phone_sfx(_PHONE_HANG)
+	if not home_scale.is_equal_approx(phone.scale):
+		var from_scale := phone.scale
+		var put := 0.0
+		while put < 1.0:
+			phone.scale = from_scale.lerp(home_scale, _ease_in_out(clampf(put, 0.0, 1.0)))
+			_place_camera()
+			if not await _phone_frame():
+				return
+			put += get_process_delta_time()
+	phone.scale = home_scale
+	if back_len > 0.0:
+		_player.end_action("phoneBack")
+	elif take_len > 0.0:
+		_player.end_action("phoneNeutral")
+	_player.set_look_enabled(true)
+	_reset_phone()
+	_finish_phone()
+
+
+func _phone_frame() -> bool:
+	await get_tree().process_frame
+	return is_inside_tree()
+
+
+func _finish_phone() -> void:
+	_return_receiver()
+	_catalog_open = false
+	_locked = false
+	_phone_ready = false
+	_phone_done = false
+
+
+func _open_catalog() -> void:
+	var book := _CATALOG.new() as Control
+	book.name = "Catalog"
+	var style := ToonRoster.selected_style()
+	_CLOSET.dress(style)
+	book.call("open", style, _player)
+	book.connect("finished", _catalog_closed)
+	_hud().add_child(book)
+
+
+func _catalog_closed() -> void:
+	_phone_done = true
+
+
+func _phone_size() -> String:
+	var style := ToonRoster.selected_style()
+	if style == null or style.torso.is_empty() or style.legs.is_empty():
+		return "ms"
+	return (style.torso.substr(0, 1) + style.legs.substr(0, 1)).to_lower()
+
+
+func _play_phone_sfx(path: String) -> void:
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return
+	var player := ToonAudio.effect_player()
+	player.stream = stream
+	add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
+
+
+var _phone_rig: Array = []
+var _receiver: MeshInstance3D
+var _receiver_joint: Node3D
+var _receiver_home := Transform3D.IDENTITY
+var _receiver_held := false
+
+
+func _bind_phone(phone: Node3D, size: String) -> void:
+	_read_phone_book()
+	_phone_rig.clear()
+	var record: Dictionary = _phone_book.get(size, {})
+	var joints: Array = record.get("joints", [])
+	for joint in joints:
+		var data: Dictionary = joint
+		var node := phone.find_child(String(data.get("name", "")), true, false) as Node3D
+		if node == null:
+			_phone_rig.append({})
+		else:
+			_phone_rig.append({
+				"node": node,
+				"rest": node.transform,
+				"bind": data["bind"],
+			})
+
+
+func _pose_phone(size: String, anim: String, elapsed: float, loop: bool) -> void:
+	var record: Dictionary = _phone_book.get(size, {})
+	var anims: Dictionary = record.get("anims", {})
+	var clip: Dictionary = anims.get(anim, {})
+	var frames := int(clip.get("frames", 0))
+	var tracks: Array = clip.get("tracks", [])
+	if frames <= 1 or tracks.size() != _phone_rig.size():
+		return
+	var span := float(frames - 1)
+	var time := elapsed * 24.0
+	if loop:
+		time = fposmod(time, span)
+	else:
+		time = clampf(time, 0.0, span)
+	var frame := mini(int(time), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var blend: float = 0.0 if following == frame else time - float(frame)
+	for index in _phone_rig.size():
+		var rig: Dictionary = _phone_rig[index]
+		if rig.is_empty():
+			continue
+		var track: Array = tracks[index]
+		var posed: Transform3D = track[frame]
+		if blend > 0.0:
+			var after: Transform3D = track[following]
+			posed = posed.interpolate_with(after, blend)
+		var node := rig["node"] as Node3D
+		var rest: Transform3D = rig["rest"]
+		var bind: Transform3D = rig["bind"]
+		node.transform = rest * bind.affine_inverse() * posed
+
+
+func _phone_length(size: String, anim: String) -> float:
+	_read_phone_book()
+	var record: Dictionary = _phone_book.get(size, {})
+	var anims: Dictionary = record.get("anims", {})
+	var clip: Dictionary = anims.get(anim, {})
+	var frames := int(clip.get("frames", 0))
+	if frames <= 1:
+		return 0.0
+	return float(frames - 1) / 24.0
+
+
+func _reset_phone() -> void:
+	for rig in _phone_rig:
+		if rig.is_empty():
+			continue
+		var node := rig["node"] as Node3D
+		if node != null and is_instance_valid(node):
+			node.transform = rig["rest"]
+	_phone_rig.clear()
+
+
+func _grab_receiver(phone: Node3D) -> void:
+	if _receiver_held or _player == null:
+		return
+	var joint := phone.find_child("joint_receiver", true, false) as Node3D
+	var mesh := _first_mesh(joint)
+	var hand := _find(_player, "def_joint_left_hold")
+	if joint == null or mesh == null or hand == null:
+		return
+	_receiver = mesh
+	_receiver_joint = joint
+	_receiver_home = mesh.transform
+	mesh.reparent(hand)
+	mesh.transform = _receiver_in_hand()
+	_receiver_held = true
+
+
+func _return_receiver() -> void:
+	if not _receiver_held or _receiver == null or not is_instance_valid(_receiver):
+		_receiver_held = false
+		return
+	if _receiver_joint != null and is_instance_valid(_receiver_joint):
+		_receiver.reparent(_receiver_joint)
+		_receiver.transform = _receiver_home
+	_receiver_held = false
+
+
+## __receiverToHand. Panda pos/hpr (0.0906813, 0.380375, 0.1, 32.41, 70.68, 137.04).
+func _receiver_in_hand() -> Transform3D:
+	var basis := Basis(
+		Vector3(-0.962526, 0.150694, -0.225466),
+		Vector3(-0.177324, 0.27931, 0.943685),
+		Vector3(0.205183, 0.948302, -0.242121)
+	)
+	return Transform3D(basis, Vector3(0.090681, 0.380375, 0.1))
+
+
+func _first_mesh(node: Node) -> MeshInstance3D:
+	if node == null:
+		return null
+	if node is MeshInstance3D:
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _first_mesh(child)
+		if found != null:
+			return found
+	return null
+
+
+func _read_phone_book() -> void:
+	if not _phone_book.is_empty():
+		return
+	var file := FileAccess.open(_PHONE_CLIPS, FileAccess.READ)
+	if file == null:
+		return
+	var magic := file.get_buffer(7).get_string_from_utf8()
+	if magic != "PHONE1":
+		file.close()
+		return
+	var sizes := file.get_32()
+	for _size_index in sizes:
+		var size_name := _phone_string(file)
+		var joint_count := file.get_32()
+		var joints: Array = []
+		for _joint_index in joint_count:
+			joints.append({
+				"name": _phone_string(file),
+				"bind": _phone_xform(file),
+			})
+		var anim_count := file.get_32()
+		var anims := {}
+		for _anim_index in anim_count:
+			var anim_name := _phone_string(file)
+			var frames := file.get_32()
+			var tracks: Array = []
+			for _track_index in joint_count:
+				var track: Array[Transform3D] = []
+				for _frame_index in frames:
+					track.append(_phone_xform(file))
+				tracks.append(track)
+			anims[anim_name] = {"frames": frames, "tracks": tracks}
+		_phone_book[size_name] = {"joints": joints, "anims": anims}
+	file.close()
+
+
+func _phone_string(file: FileAccess) -> String:
+	var length := file.get_16()
+	return file.get_buffer(length).get_string_from_utf8()
+
+
+func _phone_xform(file: FileAccess) -> Transform3D:
+	var cells := PackedFloat32Array()
+	cells.resize(16)
+	for index in 16:
+		cells[index] = file.get_float()
+	var basis := Basis(
+		Vector3(cells[0], cells[1], cells[2]),
+		Vector3(cells[4], cells[5], cells[6]),
+		Vector3(cells[8], cells[9], cells[10])
+	)
+	return Transform3D(basis, Vector3(cells[12], cells[13], cells[14]))
 
 
 func _open_bank_gui() -> void:
@@ -1889,6 +2367,9 @@ func _try_building_door() -> void:
 	var inside := _PLACES.is_shop(scene_path)
 	var trigger := Vector3.ZERO
 	var reach := 2.2
+	# closest() is the door panel. A second circle around the sidewalk point
+	# would open the door from the street again.
+	var at_door := false
 	if inside:
 		var origin := _DOORS.find_origin(get_parent())
 		if origin == null:
@@ -1901,13 +2382,12 @@ func _try_building_door() -> void:
 		if near.is_empty():
 			_bldg_ready = true
 			return
-		var point: Vector3 = near["point"]
-		trigger = point
-		reach = 2.4
-	var here := Vector2(_body.global_position.x, _body.global_position.z)
-	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
-		_bldg_ready = true
-		return
+		at_door = true
+	if not at_door:
+		var here := Vector2(_body.global_position.x, _body.global_position.z)
+		if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+			_bldg_ready = true
+			return
 	if not _bldg_ready or not _KEYS.held("forward"):
 		return
 	_bldg_ready = false
@@ -2180,7 +2660,9 @@ func _spawn(underground: bool) -> void:
 	_player.name = "Toon" if style == null else style.display_name()
 	_body.add_child(_player)
 	if style:
+		_CLOSET.dress(style)
 		_player.show_style(style)
+		_player.wear_accessories(_CLOSET.accessory_ids())
 	# The standing pose is only intact until the first step. Loading the clips
 	# then is the hitch a moment after the hole closes, so load them now.
 	_player.set_locomotion(0.0, false, false, 0.0)
@@ -2530,6 +3012,15 @@ func _ready_hud() -> void:
 	_hud().add_child(avatar_panel)
 
 
+func local_toon() -> ToonActor:
+	return _player
+
+
+func _leave_water() -> void:
+	if _player != null:
+		_player.set_swimming(false)
+
+
 func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
@@ -2538,6 +3029,12 @@ func _walk(delta: float) -> void:
 	var left_held := _KEYS.held("left")
 	var right_held := _KEYS.held("right")
 	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	# The book clips replace walking until the toon closes it.
+	if _player != null and _player.holding_book():
+		forward_held = false
+		back_held = false
+		left_held = false
+		right_held = false
 	# Right-click turns the side keys into a full run across the camera.
 	if MagicWords.detached_camera():
 		forward_held = false
@@ -2587,7 +3084,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if not _is_sad() and _KEYS.held("jump") and _jump_lock <= 0.0:
+		if not _is_sad() and not _player.holding_book() and _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -2624,6 +3121,7 @@ func _walk(delta: float) -> void:
 			_jump_lock = JUMP_LOCK
 	_face(_player, face_heading)
 	_player.set_sad(_is_sad())
+	_player.set_swimming(_player.under_water())
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 	if _remotes != null:
 		_remotes.note(face_heading, speed, turning, _jumping or jumped, not _player.visible)
@@ -2773,6 +3271,10 @@ func _place_line(delta: float) -> void:
 	_line.reset_size()
 	var screen := _camera.unproject_position(point)
 	_line.position = screen - Vector2(_line.size.x * 0.5, _line.size.y + 8.0)
+	var view := _camera.get_viewport().get_visible_rect()
+	var margin := 8.0
+	_line.position.x = clampf(_line.position.x, view.position.x + margin, maxf(view.position.x + margin, view.end.x - _line.size.x - margin))
+	_line.position.y = clampf(_line.position.y, view.position.y + margin, maxf(view.position.y + margin, view.end.y - _line.size.y - margin))
 
 
 func _add_capsule() -> void:
@@ -2872,6 +3374,27 @@ func _cache_eye_height() -> void:
 	if _player == null:
 		return
 	_eye_height = _player.clamped_height()
+
+
+func turn_toon(heading: float) -> void:
+	# The follow camera orbits _heading. Turning in the wardrobe only changes
+	# the pose, so the view stays where it was when the closet opened.
+	if _player != null:
+		_face(_player, heading)
+
+
+func _hold_closet_camera() -> void:
+	if _camera == null or not _closet_open:
+		return
+	_camera.top_level = true
+	_camera.global_transform = _closet_cam
+
+
+func _adopt_facing() -> void:
+	if _player == null:
+		return
+	var forward := _player.transform.basis.orthonormalized().y
+	_heading = rad_to_deg(atan2(forward.x, -forward.z))
 
 
 func _face(actor: Node3D, heading: float) -> void:

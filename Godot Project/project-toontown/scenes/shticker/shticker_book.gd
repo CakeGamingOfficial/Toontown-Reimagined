@@ -184,6 +184,7 @@ var _hood_clouds: Array[TextureRect] = []
 var _hood_hits: Array[Control] = []
 var _page := 0
 var _open := false
+var _presented := false
 var _peek := ""
 var _gag_peek_at := -10.0
 var _task_peek_at := -10.0
@@ -579,7 +580,7 @@ func _build_gags() -> Control:
 	_beans.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_beans.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_beans.mouse_filter = MOUSE_FILTER_IGNORE
-	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.POUCH_MAX]
+	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.pouch_limit()]
 	sheet.add_child(_beans)
 	_trash = TextureButton.new()
 	_trash.name = "Trash"
@@ -731,6 +732,7 @@ func _open_book() -> void:
 		_pulse.kill()
 	_button.scale = Vector2.ONE
 	_open = true
+	_presented = false
 	if _options != null:
 		_options.cancel_listen()
 	_page = PAGE_MAP if _guided else PAGE_OPTIONS
@@ -745,12 +747,31 @@ func _open_book() -> void:
 			parent.move_child(chat, parent.get_child_count() - 1)
 	move_child(_button, get_child_count() - 1)
 	_layout()
+	# enterOpenBook finishes before the pages are shown.
+	var actor := _local_toon()
+	if actor != null:
+		actor.open_shticker()
+		await actor.shticker_opened
+	if not _open:
+		return
+	_present()
+
+
+func _present() -> void:
+	_presented = true
 	_dim.visible = true
 	_cover.visible = true
 	_button.texture_normal = _OPEN_ICON
 	_show_page(_page)
 	_play(_open_sound)
 	book_opened.emit()
+
+
+func _local_toon() -> ToonActor:
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_method("local_toon"):
+		return scene.local_toon()
+	return null
 
 
 func close() -> void:
@@ -761,7 +782,9 @@ func close() -> void:
 func _close() -> void:
 	_set_deleting(false)
 	_close_exit()
+	var was_open := _presented
 	_open = false
+	_presented = false
 	_guided = false
 	if _options != null:
 		_options.cancel_listen()
@@ -771,7 +794,11 @@ func _close() -> void:
 	_cover.visible = false
 	_tab_name.visible = false
 	_button.texture_normal = _CLOSED
-	_play(_close_sound)
+	var actor := _local_toon()
+	if actor != null:
+		actor.close_shticker()
+	if was_open:
+		_play(_close_sound)
 	book_closed.emit()
 
 
@@ -785,6 +812,8 @@ func _set_page(index: int) -> void:
 	if _options != null:
 		_options.cancel_listen()
 	_next_armed = false
+	if not _presented:
+		return
 	_show_page(_page)
 	_play(_turn_sound)
 	page_ready.emit(_page)
@@ -821,7 +850,7 @@ func refresh_tasks() -> void:
 func refresh_jar() -> void:
 	if _beans == null:
 		return
-	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.POUCH_MAX]
+	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.pouch_limit()]
 
 
 func refresh_gags() -> void:

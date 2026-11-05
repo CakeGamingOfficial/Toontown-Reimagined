@@ -122,6 +122,8 @@ func _apply_net() -> void:
 		_spawned.erase(cog_id)
 		_cogs.erase(walker)
 		if walker != null and walker.actor != null and is_instance_valid(walker.actor):
+			if walker.actor.has_method("fly_away") and bool(walker.actor.call("fly_away")):
+				continue
 			walker.actor.queue_free()
 
 
@@ -174,7 +176,7 @@ func _route(path_id: int, paths: Dictionary, nodes: Dictionary) -> PackedVector3
 func _step(cog: Walker, delta: float, toon: Node3D) -> void:
 	if cog.actor == null or not is_instance_valid(cog.actor):
 		return
-	if bool(cog.actor.get_meta("in_fight", false)):
+	if bool(cog.actor.get_meta("in_fight", false)) or bool(cog.actor.get_meta("flying", false)):
 		return
 	var alert := _near(cog, toon, _ALERT)
 	var touch := _near(cog, toon, _TOUCH)

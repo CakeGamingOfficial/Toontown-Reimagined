@@ -54,7 +54,8 @@ const _BRANCH: Dictionary = {
 	9000: "res://scenes/playgrounds/donalds_dreamland.tscn",
 	9100: "res://scenes/streets/lullaby_lane.tscn",
 	9200: "res://scenes/streets/pajama_place.tscn",
-	10000: "res://scenes/cog_hq/bossbot_lobby.tscn",
+	10000: "res://scenes/cog_hq/bossbot_country_club.tscn",
+	10100: "res://scenes/cog_hq/bossbot_lobby.tscn",
 	11000: "res://scenes/cog_hq/sellbot_courtyard.tscn",
 	11200: "res://scenes/cog_hq/sellbot_factory_exterior.tscn",
 	12000: "res://scenes/cog_hq/cashbot_trainyard.tscn",
@@ -73,6 +74,9 @@ static func name_hq_exits(host: Node) -> void:
 		_rename_tunnel(host, "Tunnel2", "linktunnel_sellhq_11200_DNARoot", 11000)
 	elif file == "sellbot_factory_exterior.tscn":
 		_rename_tunnel(host, "tunnel_group2", "linktunnel_sellhq_11000_DNARoot", 11200)
+	elif file == "bossbot_country_club.tscn":
+		# BossbotCogHQLoader.loadPlaceGeom. This shaft comes out at the minigolf.
+		_rename_tunnel(host, "LinkTunnel1", "linktunnel_gz_17000_DNARoot", 10000)
 
 
 static func _rename_tunnel(host: Node, node_name: String, link_name: String, from_zone: int) -> void:

@@ -280,14 +280,19 @@ def write_clip(path: Path, frame_count: int, nodes, joints) -> None:
     path.write_bytes(blob)
 
 
+# Shoe geoms stay in the leg clips when a catalog pair is being worn.
+KEEP_SHOES = False
+
+
 def export_part(name: str, model: str, anim: str, suffix: str) -> None:
     root = load_model(model)
     if root is None:
         raise RuntimeError("missing " + model)
-    for pattern in ("**/boots_short", "**/boots_long", "**/shoes"):
-        found = root.findAllMatches(pattern)
-        for index in range(found.getNumPaths()):
-            found.getPath(index).hide()
+    if not KEEP_SHOES:
+        for pattern in ("**/boots_short", "**/boots_long", "**/shoes"):
+            found = root.findAllMatches(pattern)
+            for index in range(found.getNumPaths()):
+                found.getPath(index).hide()
     saved = snapshot(root)
     names = joint_names(name)
     bind = glb_bind(name, names)

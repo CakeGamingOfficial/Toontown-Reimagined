@@ -806,6 +806,22 @@ func _ask_hop(district: int, slug: String, block: int) -> void:
 		_request_hop.rpc_id(1, district, slug, block)
 
 
+func _ask_next(district: int, slug: String, block: int) -> void:
+	if is_authority():
+		_open_next(district, slug, block, peer_id())
+		return
+	if _role == "client":
+		_request_next.rpc_id(1, district, slug, block)
+
+
+func _ask_floor_hop(district: int, slug: String, block: int) -> void:
+	if is_authority():
+		_open_floor_hop(district, slug, block, peer_id())
+		return
+	if _role == "client":
+		_request_floor_hop.rpc_id(1, district, slug, block)
+
+
 func _open_board(district: int, slug: String, block: int, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
 	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
 	if runs != null and runs.has_method("board"):
@@ -816,6 +832,18 @@ func _open_hop(district: int, slug: String, block: int, peer: int) -> void:
 	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
 	if runs != null and runs.has_method("hop"):
 		runs.call("hop", district, slug, block, peer)
+
+
+func _open_next(district: int, slug: String, block: int, peer: int) -> void:
+	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
+	if runs != null and runs.has_method("next_floor"):
+		runs.call("next_floor", district, slug, block, peer)
+
+
+func _open_floor_hop(district: int, slug: String, block: int, peer: int) -> void:
+	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
+	if runs != null and runs.has_method("floor_hop"):
+		runs.call("floor_hop", district, slug, block, peer)
 
 
 func _ask_fight(district: int, slug: String, cog_id: int, toon_name: String, hp: int, max_hp: int) -> void:
@@ -1086,6 +1114,20 @@ static func ask_hop(district: int, slug: String, block: int) -> void:
 	if net == null:
 		return
 	net._ask_hop(district, slug, block)
+
+
+static func ask_next(district: int, slug: String, block: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_next(district, slug, block)
+
+
+static func ask_floor_hop(district: int, slug: String, block: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_floor_hop(district, slug, block)
 
 
 static func ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
@@ -1503,6 +1545,26 @@ func _request_hop(district: int, slug: String, block: int) -> void:
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_open_hop(district, slug, block, sender)
+
+
+@rpc("any_peer", "reliable")
+func _request_next(district: int, slug: String, block: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_open_next(district, slug, block, sender)
+
+
+@rpc("any_peer", "reliable")
+func _request_floor_hop(district: int, slug: String, block: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_open_floor_hop(district, slug, block, sender)
 
 
 @rpc("any_peer", "reliable")

@@ -7,11 +7,12 @@ extends RefCounted
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~districts   ~district host   ~district join 127.0.0.1"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
 const _WORDS: Dictionary = {
@@ -65,6 +66,17 @@ const _WORDS: Dictionary = {
 	"districts": "districts",
 	"district": "district",
 	"shard": "district",
+	"hat": "accessory",
+	"sethat": "accessory",
+	"glasses": "accessory",
+	"setglasses": "accessory",
+	"backpack": "accessory",
+	"setbackpack": "accessory",
+	"shoes": "accessory",
+	"setshoes": "accessory",
+	"accessory": "accessory",
+	"accessories": "accessory",
+	"acc": "accessory",
 }
 
 ## Solo games from MinigamePlayerMatrix. Names match ToontownGlobals.MinigameNames.
@@ -288,6 +300,8 @@ static func invoke(scene: Node, text: String) -> String:
 			return _districts_word(PackedStringArray())
 		"district":
 			return _districts_word(args)
+		"accessory":
+			return _accessory(scene, word, args)
 	return "Uh-oh! This Magic Word doesn't exist!"
 
 
@@ -426,15 +440,18 @@ static func _restock(scene: Node, everything: bool) -> String:
 		loadout.set_hp(137, 137)
 		loadout.save()
 		filled = loadout.unlock_all()
+		_BEANS.set_pouch_limit(_BEANS.POUCH_MAX)
+		_BEANS.fill_pouch()
 	else:
 		filled = loadout.restock()
 	var book := _find(scene, "ShtickerBook") as ShtickerBook
 	if book != null:
 		book.refresh_gags()
+		book.refresh_jar()
 	if filled <= 0:
 		return "No gags are unlocked yet. ~max unlocks them."
 	if everything:
-		return "Maxed laff to 137, gag pouch to %d, and filled %d gags." % [loadout.max_carry, filled]
+		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, and filled %d gags." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
 	return "Restocked %d gags." % filled
 
 
@@ -671,6 +688,103 @@ static func _camera(scene: Node) -> Camera3D:
 	if named != null:
 		return named
 	return scene.get_node_or_null("Camera") as Camera3D
+
+
+static var _acc_items: Dictionary = {}
+static var _acc_loaded := false
+
+
+## setHat, setGlasses, setBackpack, and setShoes. A style code such as hbb1
+## wears that catalog item. Three numbers are the model, texture, and color.
+## No argument, or 0, takes that accessory off.
+static func _accessory(scene: Node, word: String, args: PackedStringArray) -> String:
+	var slot := ""
+	match word:
+		"hat", "sethat":
+			slot = "hat"
+		"glasses", "setglasses":
+			slot = "glasses"
+		"backpack", "setbackpack":
+			slot = "backpack"
+		"shoes", "setshoes":
+			slot = "shoes"
+	var rest := args
+	if slot == "" and not rest.is_empty() and ["hat", "glasses", "backpack", "shoes"].has(rest[0].to_lower()):
+		slot = rest[0].to_lower()
+		rest = rest.slice(1)
+	if rest.is_empty() or rest[0].to_lower() == "off" or rest[0] == "0":
+		if slot == "":
+			return "Usage: ~acc hbb1   ~hat 1 0 0   ~glasses off"
+		_apply_accessory(scene, slot, -1)
+		return "%s removed." % slot.capitalize()
+	var found := _find_accessory(slot, rest)
+	if found.is_empty():
+		return "That accessory isn't in the catalog."
+	slot = String(found.get("slot", slot))
+	_apply_accessory(scene, slot, int(found.get("id", -1)))
+	var label := String(found.get("name", ""))
+	if label == "":
+		label = String(found.get("code", ""))
+	return "Set %s to %s." % [slot, label]
+
+
+static func _apply_accessory(scene: Node, slot: String, item_id: int) -> void:
+	CatalogCloset.set_accessory(slot, item_id)
+	var body := scene.get_node_or_null("Player")
+	if body == null:
+		body = _find(scene, "Player")
+	if body == null:
+		return
+	var toon := _toon(body) as ToonActor
+	if toon:
+		toon.wear_accessories(CatalogCloset.accessory_ids())
+
+
+static func _find_accessory(slot: String, args: PackedStringArray) -> Dictionary:
+	var items := _accessory_items()
+	if not args[0].is_valid_int():
+		var code := args[0].to_lower()
+		for item_id in items.keys():
+			var item: Dictionary = items[item_id]
+			if String(item.get("code", "")).to_lower() != code:
+				continue
+			if slot != "" and String(item.get("slot", "")) != slot:
+				continue
+			var copy := item.duplicate()
+			copy["id"] = int(String(item_id))
+			return copy
+		return {}
+	var index := int(args[0])
+	var tex := int(args[1]) if args.size() > 1 and args[1].is_valid_int() else 0
+	var color := int(args[2]) if args.size() > 2 and args[2].is_valid_int() else 0
+	if index <= 0:
+		return {}
+	for item_id in items.keys():
+		var item: Dictionary = items[item_id]
+		if slot != "" and String(item.get("slot", "")) != slot:
+			continue
+		if int(item.get("index", -1)) != index:
+			continue
+		if int(item.get("tex", 0)) != tex:
+			continue
+		if int(item.get("color", 0)) != color:
+			continue
+		var copy := item.duplicate()
+		copy["id"] = int(String(item_id))
+		return copy
+	return {}
+
+
+static func _accessory_items() -> Dictionary:
+	if _acc_loaded:
+		return _acc_items
+	_acc_loaded = true
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/toons/accessories/catalog.json"))
+	if parsed is Dictionary:
+		var items: Variant = (parsed as Dictionary).get("items", {})
+		if items is Dictionary:
+			_acc_items = items
+	return _acc_items
 
 
 static func _toon(body: Node) -> Node3D:

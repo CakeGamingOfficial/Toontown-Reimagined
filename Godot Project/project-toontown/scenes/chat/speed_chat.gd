@@ -1573,3 +1573,39 @@ func _load_menu() -> void:
 	var items: Variant = root.get("items", [])
 	if typeof(items) == TYPE_ARRAY:
 		_items = items as Array
+	apply_catalog()
+
+
+## Bought emotions and SpeedChat lines from Clarabelle.
+func apply_catalog() -> void:
+	var closet := load("res://scenes/catalog/catalog_closet.gd") as GDScript
+	if closet == null:
+		return
+	var emotes: Array = closet.call("emote_rows")
+	var phrases: Array = closet.call("phrase_rows")
+	if not emotes.is_empty():
+		var emotions: Dictionary = _items[0] if not _items.is_empty() and _items[0] is Dictionary else {}
+		var lines: Array = emotions.get("items", [])
+		for row in emotes:
+			if row is not Dictionary or _has_emote(lines, int(row.get("emote", -1))):
+				continue
+			lines.append(row)
+		if emotions.is_empty():
+			_items.insert(0, {"title": "EMOTIONS", "items": lines})
+		else:
+			emotions["items"] = lines
+			_items[0] = emotions
+	if phrases.is_empty():
+		return
+	for group in _items:
+		if group is Dictionary and String(group.get("title", "")) == "MY PHRASES":
+			group["items"] = phrases
+			return
+	_items.append({"title": "MY PHRASES", "items": phrases})
+
+
+func _has_emote(lines: Array, emote: int) -> bool:
+	for row in lines:
+		if row is Dictionary and int(row.get("emote", -2)) == emote:
+			return true
+	return false

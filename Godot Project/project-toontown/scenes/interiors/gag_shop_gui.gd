@@ -25,6 +25,7 @@ const _TRASH_CLOSED := preload("res://assets/toons/gui/TrashCan_CLSD.png")
 const _TRASH_OPEN := preload("res://assets/toons/gui/TrashCan_OPEN.png")
 const _TRASH_HOVER := preload("res://assets/toons/gui/TrashCan_RLVR.png")
 const _SECONDS := 120.0
+const _LOADOUT_PATH := "user://gag_shop_loadout.json"
 const _GAG_ICON: Array[Texture2D] = [
 	preload("res://assets/gui/tutorial/gags/inventory_feather.png"),
 	preload("res://assets/gui/tutorial/gags/inventory_megaphone.png"),
@@ -95,6 +96,8 @@ var _status: Label
 var _clock: TextureRect
 var _time: Label
 var _done: TextureButton
+var _save: TextureButton
+var _load: TextureButton
 var _trash: TextureButton
 var _pouch: Label
 var _rows: Array[TextureRect] = []
@@ -236,6 +239,8 @@ func _build() -> void:
 	add_child(_done)
 	_sign = _image(_SIGN)
 	_title = _label()
+	_save = _shop_button("SAVE\nLOADOUT", _save_loadout)
+	_load = _shop_button("LOAD\nLOADOUT", _load_loadout)
 	_title.text = "Goofy's Gag Shop"
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -285,6 +290,11 @@ func _layout() -> void:
 	ToonGui.style_label(caption, Color(0.0, 0.1, 0.7), _px_of(0.05 * 1.04), Color(0, 0, 0, 0), 0)
 	_place(_clock, 1.16, 0.83, 0.7417 * 0.45, 0.7292 * 0.45)
 	_time.position = _clock.position
+	# Under the jellybean jar, on the left of the panel.
+	_place(_save, shop_x - 1.15, shop_z - 0.24, 0.5, 0.16)
+	_place(_load, shop_x - 1.15, shop_z - 0.42, 0.5, 0.16)
+	_style_shop_caption(_save)
+	_style_shop_caption(_load)
 	_time.size = _clock.size
 	_paint_timer()
 	# The trash can is (-0.55, -0.91) on the inventory frame, which is scaled by 0.81.
@@ -463,6 +473,146 @@ func _press(track: int, level: int) -> void:
 
 func _toggle_delete() -> void:
 	_deleting = not _deleting
+func _shop_button(words: String, pressed: Callable) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = _UP
+	button.texture_pressed = _DN
+	button.texture_hover = _OVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.pressed.connect(pressed)
+	ToonGui.button_sounds(button)
+	var caption := _label()
+	caption.text = words
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.set_anchors_preset(Control.PRESET_FULL_RECT)
+	button.add_child(caption)
+	add_child(button)
+	return button
+
+
+func _style_shop_caption(button: TextureButton) -> void:
+	var caption := button.get_child(0) as Label
+	if caption == null:
+		return
+	ToonGui.style_label(caption, Color(0.0, 0.1, 0.7), _px_of(0.042), Color(0, 0, 0, 0), 0)
+
+
+## The counts this toon is carrying, for the gags the shop can sell.
+func _save_loadout() -> void:
+	if _closed or loadout == null:
+		return
+	var slot := ToonRoster.selected_index()
+	if slot < 0:
+		return
+	var rows: Array = []
+	var carried := 0
+	for track in ToonLoadout.TRACK_COUNT:
+		var levels: Array = []
+		for level in ToonLoadout.LAST_REGULAR + 1:
+			var owned := loadout.count_of(track, level)
+			levels.append(owned)
+			carried += owned
+		rows.append(levels)
+	var book := _read_loadouts()
+	book[str(slot)] = rows
+	_write_loadouts(book)
+	if carried == 0:
+		_note("Saved an empty loadout.")
+	else:
+		_note("Saved the gags you are carrying.")
+
+
+## Buy back up to the saved counts. Extras you picked up since then stay.
+func _load_loadout() -> void:
+	if _closed or loadout == null or _deleting:
+		return
+	var slot := ToonRoster.selected_index()
+	var book := _read_loadouts()
+	var raw: Variant = book.get(str(slot), [])
+	if slot < 0 or not (raw is Array) or (raw as Array).is_empty():
+		_note("You have no saved loadout yet.")
+		return
+	var bought := 0
+	var short_beans := false
+	var short_pouch := false
+	var pocket_full := false
+	var untrained := false
+	var needed := false
+	for track in mini((raw as Array).size(), ToonLoadout.TRACK_COUNT):
+		var levels: Variant = (raw as Array)[track]
+		if not (levels is Array):
+			continue
+		for level in mini((levels as Array).size(), ToonLoadout.LAST_REGULAR + 1):
+			var want := int((levels as Array)[level])
+			while loadout.count_of(track, level) < want:
+				needed = true
+				if _BEANS.pouch() <= 0:
+					short_beans = true
+					break
+				var result := loadout.purchase(track, level)
+				if result > 0:
+					if _BEANS.take_beans(1, false):
+						bought += 1
+					else:
+						loadout.toss_gag(track, level)
+						short_beans = true
+						break
+				elif result == -2:
+					short_pouch = true
+					break
+				elif result == -1:
+					pocket_full = true
+					break
+				else:
+					untrained = true
+					break
+			if short_beans or short_pouch:
+				break
+		if short_beans or short_pouch:
+			break
+	if bought > 0 and short_beans:
+		_note("Bought %d. You are out of jellybeans." % bought)
+	elif bought > 0 and short_pouch:
+		_note("Bought %d. Your pouch is full." % bought)
+	elif bought == 1:
+		_note("Bought 1 gag from your loadout.")
+	elif bought > 1:
+		_note("Bought %d gags from your loadout." % bought)
+	elif short_beans:
+		_note("Sorry, you are all out of jellybeans!")
+	elif short_pouch:
+		_note("Sorry, you have too many props")
+	elif pocket_full:
+		_note("Sorry, you have enough of those gags already")
+	elif untrained:
+		_note("You do not have enough skill for that yet")
+	elif not needed:
+		_note("Your gags already match that loadout.")
+	else:
+		_note("You do not have enough skill for that yet")
+	_refresh()
+
+
+func _read_loadouts() -> Dictionary:
+	if not FileAccess.file_exists(_LOADOUT_PATH):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_LOADOUT_PATH))
+	if parsed is Dictionary:
+		return parsed
+	return {}
+
+
+func _write_loadouts(book: Dictionary) -> void:
+	var file := FileAccess.open(_LOADOUT_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify(book))
+	file.close()
+
+
 	_trash.texture_normal = _TRASH_OPEN if _deleting else _TRASH_CLOSED
 	_status_left = 0.0
 	_refresh()

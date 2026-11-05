@@ -22,8 +22,8 @@ const _FRONT := 1.6
 ## One door will not heal faster than picking up treasures.
 const _COOLDOWN_MS := 20000
 const _TALL := 10.0
-## Nametags lifts an empty marker by about 3.6. Sitting the marker on the
-## panel puts the Door card, and its balloon, at the top of the door.
+## The marker sits on the panel. nametag_lift holds the Door card just above
+## that spot, so the joke balloon stays on screen in front of the door.
 const _DOOR_RAISE := 0.5
 const _DOOR_INK := Color(0.25, 0.28, 0.75)
 
@@ -241,6 +241,9 @@ func _try_side(anchor: Node3D, slab: Node3D, landmarks: Dictionary, zone_id: int
 func _add_side(anchor: Node3D, slab: Node3D, landmark: Node3D, block: int, zone_id: int) -> void:
 	var marker := Marker3D.new()
 	marker.name = "DoorTag%d_%d" % [block, _doors.size()]
+	# The card sits just over the panel. Nametags would otherwise lift an
+	# empty marker by 3.6 and the joke balloon would leave the screen.
+	marker.set_meta("nametag_lift", 1.15)
 	add_child(marker)
 	var spot := _center(slab)
 	var out := _normal(slab, spot, landmark)

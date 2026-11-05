@@ -1,6 +1,8 @@
 class_name ToonActor
 extends Node3D
 
+signal shticker_opened
+
 ## Legs, torso, and head posed in neutral and assembled the way
 ## Toon.parentToonParts does: torso on joint_hips, head on def_head.
 ## Toon.setLODs keeps three copies. 1000 shows inside 20 feet, 500 until 80,
@@ -70,6 +72,10 @@ var _land_kind := ""
 var _land_left := 0.0
 var _cycle_time := {"walk": 0.0, "run": 0.0, "jump": 0.0, "rjump": 0.0, "land": 0.0, "rland": 0.0}
 var _extra := {}
+var _accessory_ids := {}
+var _shoe_mesh := ""
+var _shoe_shown := ""
+static var _accessory_book: Dictionary = {}
 var _idle_time := 0.0
 var _frame_count := 0
 var _idle_frames := 0
@@ -87,6 +93,15 @@ var _look_enabled := true
 var _gesture := ""
 var _gesture_rate := 1.0
 var _gesture_loop := true
+## Place.enterStickerBook plays openBook, then readBook, then closeBook.
+const _BOOK_MODEL := "res://assets/props/shticker_book.glb"
+const _BOOK_CLIP := "res://assets/toons/anims/shticker_book.book"
+var _book_phase := ""
+var _book_clock := 0.0
+var _book_hold := 0.0
+var _book_prop: Node3D
+var _book_joints: Array = []
+var _swimming := false
 var _mood := "normal"
 var _mood_open: Texture2D
 var _mood_closed: Texture2D
@@ -149,6 +164,10 @@ func show_style(style: ToonStyle) -> void:
 	_cycle_time = {"walk": 0.0, "run": 0.0, "jump": 0.0, "rjump": 0.0, "land": 0.0, "rland": 0.0}
 	_extra = {}
 	_gesture = ""
+	_book_phase = ""
+	_book_prop = null
+	_book_joints.clear()
+	_swimming = false
 	_mood = "normal"
 	_mood_open = null
 	_mood_closed = null
@@ -195,6 +214,7 @@ func show_style(style: ToonStyle) -> void:
 	_unify_forehead(body)
 	_prepare_face()
 	_add_shadow(body)
+	_dress_all()
 
 
 ## One LOD, parented the same way as the 1000 body. Missing parts mean this
@@ -272,6 +292,7 @@ func _ensure_lod(lod: int) -> bool:
 	_unify_forehead(body)
 	_collect_face(body)
 	_add_shadow(body)
+	_dress_body(body)
 	for suffix in ["walk", "idle", "run", "sad-neutral", "sad-walk", "jump", "rjump", "land", "rland"]:
 		var clips: Array = []
 		var joints: Array = []
@@ -390,6 +411,22 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 	if _pose_lock:
 		return
 	_ensure_clips()
+	# The shticker book owns the pose until the close clip finishes.
+	if _book_phase != "":
+		_look_enabled = false
+		_tick_shticker(delta)
+		if _book_phase != "":
+			_footsteps(0.0, false)
+			return
+	# enterSwim loops swim and pitches the geom. Walking and jumping stay off
+	# until the toon is back above the water.
+	if _swimming:
+		_look_enabled = false
+		if _gesture != "swim":
+			play_gesture("swim", 1.0, true)
+		_play_bank("swim", 1.0, delta, true)
+		_footsteps(0.0, false)
+		return
 	if _sad:
 		set_expression("sad")
 		_footsteps(forward_speed, turning)
@@ -525,9 +562,193 @@ func clear_gesture() -> void:
 	_look_enabled = true
 
 
+## True from the open clip through the close clip. Walking stays off.
+func holding_book() -> bool:
+	return _book_phase != ""
+
+
+## enterOpenBook plays book from 1.2s to 1.5s, waits a tenth, then readBook.
+func open_shticker() -> void:
+	if _book_phase == "open" or _book_phase == "read":
+		return
+	_ensure_book_prop()
+	if _book_prop != null:
+		_book_prop.visible = true
+	_book_phase = "open"
+	_book_clock = 1.2
+	_book_hold = 0.0
+	_look_enabled = false
+	_pose_book_frame(1.2 * 24.0)
+
+
+## enterCloseBook plays book from 4.96s to 6.5s and then hides it.
+func close_shticker() -> void:
+	if _book_phase == "" or _book_phase == "close":
+		return
+	if _book_phase == "open":
+		shticker_opened.emit()
+	_book_phase = "close"
+	_book_clock = 4.96
+	_book_hold = 0.0
+	if _book_prop != null and is_instance_valid(_book_prop):
+		_book_prop.visible = true
+	_pose_book_frame(4.96 * 24.0)
+
+
+func _tick_shticker(delta: float) -> void:
+	if _book_phase == "open":
+		_book_clock += delta
+		if _book_clock < 1.5:
+			_pose_book_frame(_book_clock * 24.0)
+			return
+		_pose_book_frame(36.0)
+		_book_hold += delta
+		if _book_hold < 0.1:
+			return
+		_book_phase = "read"
+		_book_clock = 0.0
+		shticker_opened.emit()
+		_pose_book_frame(38.0)
+	elif _book_phase == "read":
+		# pingpong from frame 38 to frame 118.
+		_book_clock += delta
+		var span := 80.0
+		var trip := fposmod(_book_clock * 24.0, span * 2.0)
+		var along := trip if trip <= span else span * 2.0 - trip
+		_pose_book_frame(38.0 + along)
+	elif _book_phase == "close":
+		_book_clock += delta
+		_pose_book_frame(minf(_book_clock * 24.0, 155.0))
+		if _book_clock >= 6.5:
+			_book_phase = ""
+			if _book_prop != null and is_instance_valid(_book_prop):
+				_book_prop.visible = false
+
+
+func _pose_book_frame(time: float) -> void:
+	ensure_clip("book")
+	var bank: Dictionary = _extra.get("book", {})
+	var frames := int(bank.get("frames", 0))
+	var clips: Array = bank.get("clips", [])
+	if frames <= 1 or clips.is_empty():
+		_pose_book_prop(time)
+		return
+	var posed_time := clampf(time, 0.0, float(frames - 1))
+	var frame := mini(int(posed_time), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var blend := 0.0 if following == frame else posed_time - float(frame)
+	_posing = true
+	_clip = "book"
+	var drawn := _pose_target("book", clips, bank["joints"])
+	if not drawn.is_empty():
+		_pose_clip(drawn["clips"], drawn["joints"], frame, following, blend)
+	_pose_book_prop(posed_time)
+
+
+func _ensure_book_prop() -> void:
+	if _book_prop != null and is_instance_valid(_book_prop):
+		var held := find_child("def_joint_right_hold", true, false) as Node3D
+		if held != null and _book_prop.get_parent() != held:
+			held.add_child(_book_prop)
+		return
+	var packed := load(_BOOK_MODEL) as PackedScene
+	if packed == null:
+		return
+	var prop := packed.instantiate() as Node3D
+	if prop == null:
+		return
+	prop.name = "ShtickerBookProp"
+	_book_prop = prop
+	var hand := find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		add_child(prop)
+	else:
+		hand.add_child(prop)
+	_book_joints.clear()
+	_ingest(_read_walk(_BOOK_CLIP), [], _book_joints, prop)
+
+
+func _pose_book_prop(time: float) -> void:
+	if _book_joints.is_empty() or _book_prop == null or not is_instance_valid(_book_prop):
+		return
+	var count := 0
+	var first: Dictionary = _book_joints[0]
+	count = (first.get("frames", []) as Array).size()
+	if count <= 1:
+		return
+	var posed_time := clampf(time, 0.0, float(count - 1))
+	var frame := mini(int(posed_time), count - 1)
+	var following := mini(frame + 1, count - 1)
+	var blend := 0.0 if following == frame else posed_time - float(frame)
+	for joint in _book_joints:
+		var node := joint["node"] as Node3D
+		if not is_instance_valid(node):
+			continue
+		node.transform = _joint_pose(joint, frame, following, blend)
+
+
 ## enterSwim pitches the geom -89 degrees and loops swim. enterDive sinks that
 ## same body two units. The drop shadow stays off, the way both games hide it.
 func pose_swimming(sunk: bool) -> void:
+	_tilt_swim(sunk)
+	play_gesture("swim", 1.0, true)
+	set_locomotion(0.0, false, false, 0.0)
+
+
+## Walk.py enters swimming once the toon is under the water. The pitch is the
+## same one enterSwim puts on the geom, so the swim cycle reads as swimming.
+func set_swimming(on: bool) -> void:
+	if on:
+		if not _swimming:
+			_swimming = true
+			play_gesture("swim", 1.0, true)
+		# SwimWalker keeps the toon on the floor. The geom bob is what keeps
+		# the pitched body out of that floor.
+		_tilt_swim(false, true)
+		return
+	if not _swimming:
+		return
+	_swimming = false
+	_untilt_swim()
+	if _gesture == "swim":
+		clear_gesture()
+
+
+func is_swimming() -> bool:
+	return _swimming
+
+
+## Feet are under a water surface in this place. Donald's Dock, the estate
+## lake, and the street ponds are those planes. A waterfall or a hydrant is not.
+## The returned height is that surface. INF means the toon is not under it.
+func swim_surface() -> float:
+	if not is_inside_tree():
+		return INF
+	var feet := global_position
+	var found := INF
+	for box in _water_planes(self):
+		if feet.x < box.position.x or feet.x > box.end.x:
+			continue
+		if feet.z < box.position.z or feet.z > box.end.z:
+			continue
+		var surface := box.end.y
+		if feet.y < surface - 0.35 and surface < found:
+			found = surface
+	return found
+
+
+func under_water() -> bool:
+	return swim_surface() < INF
+
+
+func _tilt_swim(sunk: bool, bob := false) -> void:
+	var lifted := Vector3.ZERO
+	if sunk:
+		lifted = Vector3(0.0, 0.0, -2.0)
+	elif bob:
+		# startBobSwimTask. The geom rides 3 to 4 units up, clear of the floor.
+		var wave := sin(float(Time.get_ticks_msec()) * 0.001 * PI)
+		lifted = Vector3(0.0, -3.0, 3.5 + 0.5 * wave)
 	for key in _lod_roots.keys():
 		var root := _lod_roots[key] as Node3D
 		if root == null:
@@ -539,11 +760,63 @@ func pose_swimming(sunk: bool) -> void:
 		while body.get_parent() != root and body.get_parent() is Node3D:
 			body = body.get_parent() as Node3D
 		body.rotation_degrees.x = -89.0
-		body.position = Vector3(0.0, 0.0, -2.0 if sunk else 0.0)
+		body.position = lifted
 	for shadow in find_children("drop_shadow", "MeshInstance3D", true, false):
 		shadow.visible = false
-	play_gesture("swim", 1.0, true)
-	set_locomotion(0.0, false, false, 0.0)
+
+
+func _untilt_swim() -> void:
+	for key in _lod_roots.keys():
+		var root := _lod_roots[key] as Node3D
+		if root == null:
+			continue
+		var hips := _find(root, "joint_hips") as Node3D
+		if hips == null:
+			continue
+		var body := hips
+		while body.get_parent() != root and body.get_parent() is Node3D:
+			body = body.get_parent() as Node3D
+		body.rotation_degrees.x = 0.0
+		body.position = Vector3.ZERO
+	for shadow in find_children("drop_shadow", "MeshInstance3D", true, false):
+		shadow.visible = true
+
+
+static var _planes: Array[AABB] = []
+static var _plane_place := 0
+
+
+static func _water_planes(actor: Node) -> Array[AABB]:
+	var place := actor
+	while place.get_parent() != null and place.scene_file_path.is_empty():
+		place = place.get_parent()
+	var id := place.get_instance_id()
+	if id == _plane_place:
+		return _planes
+	_plane_place = id
+	_planes = []
+	_collect_water(place)
+	return _planes
+
+
+static func _collect_water(node: Node) -> void:
+	if node is MeshInstance3D and _water_surface(node.name):
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			_planes.append(mesh.global_transform * mesh.mesh.get_aabb())
+	for child in node.get_children():
+		_collect_water(child)
+
+
+static func _water_surface(node_name: String) -> bool:
+	var low := node_name.to_lower()
+	if low.contains("waterfall") or low.contains("tower") or low.begins_with("dx_") or low.contains("ice"):
+		return false
+	if low == "top_surface" or low == "lake" or low == "water1" or low == "water_surface":
+		return true
+	if low.ends_with("pd_water") or low.ends_with("sz_water"):
+		return true
+	return "street_water" in low and low.ends_with("water")
 
 
 func gesture_finished() -> bool:
@@ -591,7 +864,7 @@ func _ensure_clips() -> void:
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -908,6 +1181,200 @@ func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 	return Transform3D(basis, Vector3(cells[12], cells[13], cells[14]))
 
 
+## Catalog hats and glasses sit on the head. Backpacks sit on the flower
+## joint. Shoes swap the leg geoms the original model already has.
+func wear_accessories(worn: Dictionary) -> void:
+	_accessory_ids = worn.duplicate()
+	_dress_all()
+	_adopt_shoe_clips()
+
+
+func _dress_all() -> void:
+	if _style == null:
+		return
+	for key in _lod_roots.keys():
+		var body := _lod_roots[key] as Node
+		if body:
+			_dress_body(body)
+
+
+func _dress_body(body: Node) -> void:
+	for old in body.find_children("catalog_*", "", true, false):
+		old.free()
+	var book := _accessory_catalog()
+	var items: Dictionary = book.get("items", {})
+	var head_key := _style.head.substr(0, 2) if _style.head.length() >= 2 else ""
+	var torso_key := _style.torso.substr(0, 1) if not _style.torso.is_empty() else "m"
+	var hide_ears := false
+	var hide_lashes := false
+	_shoe_mesh = ""
+	_shoe_shown = ""
+	for slot in _accessory_ids.keys():
+		var item: Dictionary = items.get(str(int(_accessory_ids[slot])), {})
+		if item.is_empty():
+			continue
+		var kind := String(item.get("slot", slot))
+		if kind == "hat" or kind == "glasses":
+			_place_accessory(body, item, head_key, "head_look")
+			hide_ears = hide_ears or bool(item.get("hide_ears", false))
+			hide_lashes = hide_lashes or bool(item.get("hide_lashes", false))
+		elif kind == "backpack":
+			_place_accessory(body, item, torso_key, "def_joint_attachFlower")
+		elif kind == "shoes":
+			_shoe_mesh = String(item.get("mesh", ""))
+			_paint_shoes(body, item)
+	_set_named_visible(body, "ears", not hide_ears)
+	var lashes := _style.gender == "f" and not hide_lashes
+	for node in body.find_children("eyelashes", "", true, false):
+		node.visible = lashes
+	_sync_shoes([])
+
+
+func _place_accessory(body: Node, item: Dictionary, key: String, anchor_name: String) -> void:
+	var model := String(item.get("model", ""))
+	if model == "":
+		return
+	var host := _find(body, anchor_name)
+	if host == null:
+		return
+	if anchor_name == "head_look" and host.get_child_count() > 0 and host.get_child(0) is Node3D:
+		host = host.get_child(0) as Node3D
+	var prop := _instance(model)
+	if prop == null:
+		return
+	prop.name = "catalog_" + String(item.get("slot", "acc"))
+	host.add_child(prop)
+	prop.transform = _accessory_xform(item, key)
+	_retint_accessory(prop, _mapped(String(item.get("texture", ""))))
+
+
+func _accessory_xform(item: Dictionary, key: String) -> Transform3D:
+	var book := _accessory_catalog()
+	var slot := String(item.get("slot", ""))
+	var extra: Dictionary = book.get(slot + "_extra", {})
+	var special: Dictionary = extra.get(str(int(item.get("index", 0))), {})
+	var cells: Array = special.get(key, [])
+	if cells.is_empty():
+		var base: Dictionary = book.get(slot, {})
+		cells = base.get(key, [])
+	if cells.size() < 16:
+		return Transform3D.IDENTITY
+	return _cells_to_xform(cells)
+
+
+func _cells_to_xform(cells: Array) -> Transform3D:
+	var basis := Basis(
+		Vector3(float(cells[0]), float(cells[1]), float(cells[2])),
+		Vector3(float(cells[4]), float(cells[5]), float(cells[6])),
+		Vector3(float(cells[8]), float(cells[9]), float(cells[10]))
+	)
+	return Transform3D(basis, Vector3(float(cells[12]), float(cells[13]), float(cells[14])))
+
+
+func _retint_accessory(node: Node, texture: Texture2D) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var found := texture
+		if found == null and mesh.mesh != null and mesh.mesh.get_surface_count() > 0:
+			var material := mesh.mesh.surface_get_material(0)
+			if material is BaseMaterial3D:
+				found = (material as BaseMaterial3D).albedo_texture
+		mesh.material_override = _body_material(found, Color.WHITE, 0.0)
+	for child in node.get_children():
+		_retint_accessory(child, texture)
+
+
+func _paint_shoes(body: Node, item: Dictionary) -> void:
+	var path := String(item.get("texture", ""))
+	if _style.legs == "l" and String(item.get("long_texture", "")) != "":
+		path = String(item.get("long_texture", ""))
+	var texture := _mapped(path)
+	if texture == null:
+		return
+	var mesh := _find(body, _shoe_mesh) as MeshInstance3D
+	if mesh != null:
+		mesh.material_override = _body_material(texture, Color.WHITE, 0.0)
+
+
+func _set_named_visible(body: Node, prefix: String, shown: bool) -> void:
+	for node in body.find_children("*", "MeshInstance3D", true, false):
+		if String(node.name).begins_with(prefix):
+			node.visible = shown
+
+
+func _sync_shoes(clips: Array) -> void:
+	var want := "feet"
+	if _shoe_mesh != "":
+		for clip in clips:
+			var inst := clip.get("instance") as Node
+			if inst != null and String(inst.name) == _shoe_mesh:
+				want = _shoe_mesh
+				break
+	if want == _shoe_shown:
+		return
+	_shoe_shown = want
+	for name in ["feet", "shoes", "boots_short", "boots_long"]:
+		_set_named_visible(self, name, name == want)
+
+
+func _adopt_shoe_clips() -> void:
+	if _shoe_mesh == "" or _style == null:
+		return
+	_adopt_shoe(_walk_clips, "walk")
+	_adopt_shoe(_idle_clips, "idle")
+	for suffix in _extra.keys():
+		_adopt_shoe((_extra[suffix] as Dictionary).get("clips", []), String(suffix))
+	for key in _far_clips.keys():
+		var label := String(key)
+		var suffix := label.split(":")[1] if label.contains(":") else label
+		var bank: Dictionary = _far_clips[key]
+		_adopt_shoe(bank.get("clips", []), suffix)
+
+
+func _adopt_shoe(clips: Array, suffix: String) -> void:
+	if clips.is_empty():
+		return
+	var sample := clips[0].get("instance") as Node
+	if sample == null:
+		return
+	var body := sample
+	while body != null and not _lod_roots.values().has(body):
+		body = body.get_parent()
+	if body == null:
+		body = self
+	var shoe := _find(body, _shoe_mesh) as MeshInstance3D
+	if shoe == null:
+		return
+	for clip in clips:
+		if clip.get("instance") == shoe:
+			return
+	var lod := ""
+	var owner := shoe
+	while owner != null:
+		if _lod_roots.values().has(owner) and String(owner.name).is_valid_int() and int(owner.name) != 1000:
+			lod = "_" + String(owner.name)
+			break
+		owner = owner.get_parent()
+	var data := _read_walk(_ANIMS + "legs_%s%s.%s" % [_style.legs, lod, suffix])
+	var surfaces: Array = (data.get("surfaces", {}) as Dictionary).get(_shoe_mesh, [])
+	if surfaces.is_empty():
+		return
+	clips.append({
+		"instance": shoe,
+		"original": shoe.mesh,
+		"surfaces": surfaces,
+	})
+
+
+func _accessory_catalog() -> Dictionary:
+	if not _accessory_book.is_empty():
+		return _accessory_book
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/toons/accessories/catalog.json"))
+	if parsed is Dictionary:
+		_accessory_book = parsed
+	return _accessory_book
+
+
 func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: float) -> void:
 	# These clips are 24 discrete frames. Building a new mesh and smoothing its
 	# normals on every tick, for the toon and again for a street fisherman,
@@ -931,6 +1398,7 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 			instance.mesh = posed
 		if String(instance.name).begins_with("head"):
 			posed_head = instance
+	_sync_shoes(clips)
 	if built and posed_head != null:
 		var host: Node = posed_head
 		while host.get_parent() != null and host.get_parent() != self:
@@ -1170,11 +1638,11 @@ func _recolor(node: Node) -> void:
 				paint = true
 			elif part == "torso-top":
 				color = ToonStyle.clothes_color(_style.top_color)
-				texture = _SHIRT[clampi(_style.top_tex, 0, _SHIRT.size() - 1)]
+				texture = _shirt_texture(_style)
 				paint = true
 			elif part == "sleeves":
 				color = ToonStyle.clothes_color(_style.top_color)
-				texture = _SLEEVE[clampi(_style.top_tex, 0, _SLEEVE.size() - 1)]
+				texture = _sleeve_texture(_style)
 				paint = true
 			elif part.begins_with("torso-bot"):
 				color = ToonStyle.clothes_color(_style.bot_color)
@@ -1237,10 +1705,10 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 		face_sign = -1.0
 	elif part == "torso-top":
 		color = ToonStyle.clothes_color(style.top_color)
-		texture = _SHIRT[clampi(style.top_tex, 0, _SHIRT.size() - 1)]
+		texture = _shirt_texture(style)
 	elif part == "sleeves":
 		color = ToonStyle.clothes_color(style.top_color)
-		texture = _SLEEVE[clampi(style.top_tex, 0, _SLEEVE.size() - 1)]
+		texture = _sleeve_texture(style)
 	elif part.begins_with("torso-bot"):
 		color = ToonStyle.clothes_color(style.bot_color)
 		if part.ends_with("cap"):
@@ -1256,7 +1724,30 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 	mesh.material_override = _body_material(texture, color, shell, 0.0, glove, face_sign)
 
 
+func _mapped(path: String) -> Texture2D:
+	if path == "":
+		return null
+	return load(path) as Texture2D
+
+
+func _shirt_texture(style: ToonStyle) -> Texture2D:
+	var mapped := _mapped(style.top_map)
+	if mapped != null:
+		return mapped
+	return _SHIRT[clampi(style.top_tex, 0, _SHIRT.size() - 1)]
+
+
+func _sleeve_texture(style: ToonStyle) -> Texture2D:
+	var mapped := _mapped(style.sleeve_map)
+	if mapped != null:
+		return mapped
+	return _SLEEVE[clampi(style.top_tex, 0, _SLEEVE.size() - 1)]
+
+
 func _bottom_texture(style: ToonStyle) -> Texture2D:
+	var mapped := _mapped(style.bottom_map)
+	if mapped != null:
+		return mapped
 	if style.wears_skirt():
 		return _SKIRT
 	if style.bot_tex == 1:

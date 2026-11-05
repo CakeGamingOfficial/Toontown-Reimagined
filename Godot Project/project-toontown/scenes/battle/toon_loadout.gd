@@ -226,12 +226,10 @@ func resume_tutorial() -> void:
 	ToonNet.persist_laff(avatar, hp, max_hp)
 
 
+## InventoryBase.calcTotalProps. Level 7 gags are carried, but they do not
+## take a spot in the pouch.
 func gag_count() -> int:
-	var total := 0
-	for track in TRACK_COUNT:
-		for level in LEVEL_COUNT:
-			total += count_of(track, level)
-	return total
+	return _regular_count()
 
 
 ## InventoryBase CarryLimits. The row is Experience.getExpLevel, the highest
@@ -489,23 +487,54 @@ func set_hp(current: int, maximum: int) -> void:
 	hp_changed.emit(hp, max_hp)
 
 
-## ~restock. Owned gags are wiped and the carry limit is dealt back out.
+## InventoryBase.maxOutInv. One of each gag you can hold, then fill from the
+## strongest gag down. Each pocket stops at CarryLimits. A level 7 gag does
+## not take a pouch slot, and only one of them is carried.
 func restock() -> int:
-	var slots: Array[Vector2i] = []
 	for track in TRACK_COUNT:
 		for level in LEVEL_COUNT:
-			if unlocked(track, level):
+			if _can_carry(track, level):
 				set_gag(track, level, 0, true)
-				slots.append(Vector2i(track, level))
-	var left := max_carry
-	var index := 0
-	while left > 0 and not slots.is_empty():
-		var slot := slots[index % slots.size()]
-		set_gag(slot.x, slot.y, count_of(slot.x, slot.y) + 1, true)
-		left -= 1
-		index += 1
+	for track in TRACK_COUNT:
+		for level in LEVEL_COUNT:
+			if _can_carry(track, level):
+				_add_carried(track, level)
+	var added := true
+	while added:
+		added = false
+		for track in TRACK_COUNT:
+			var level := LEVEL_COUNT - 1
+			var result := 0
+			while result <= 0 and level >= 0:
+				result = _add_carried(track, level) if _can_carry(track, level) else 0
+				if result <= 0:
+					level -= 1
+			if result > 0:
+				added = true
 	save()
-	return max_carry - left
+	return gag_count()
+
+
+func _can_carry(track: int, level: int) -> bool:
+	if not track_open(track):
+		return false
+	if level > LAST_REGULAR:
+		return experience_of(track) >= skill_at(track, level)
+	return gag_usable(track, level)
+
+
+## InventoryBase.addItem. Positive is the new count. -1 is that gag's cap,
+## -2 is a full pouch, and 0 means the gag is not trained.
+func _add_carried(track: int, level: int) -> int:
+	if not _can_carry(track, level):
+		return 0
+	if count_of(track, level) >= carry_limit(track, level):
+		return -1
+	if level <= LAST_REGULAR and _regular_count() >= max_carry:
+		return -2
+	var next := count_of(track, level) + 1
+	set_gag(track, level, next, true)
+	return next
 
 
 ## ~max. Every gag is owned, the tracks are maxed, the pouch is raised to

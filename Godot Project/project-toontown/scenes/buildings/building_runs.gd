@@ -176,6 +176,16 @@ func _tick(run: Dictionary, delta: float) -> void:
 		else:
 			_after_floor(run)
 		return
+	# DistributedSuitInterior enterResting. The toon walks to the far elevator.
+	if state == "resting":
+		return
+	if state == "floorboard":
+		run["left"] = maxf(float(run.get("left", 0.0)) - delta, 0.0)
+		if float(run["left"]) > 0.0:
+			_mark(run)
+			return
+		_ride_next(run)
+		return
 	if state == "boarding":
 		run["grace"] = maxf(float(run.get("grace", 0.0)) - delta, 0.0)
 	run["left"] = maxf(float(run.get("left", 0.0)) - delta, 0.0)
@@ -216,6 +226,7 @@ func _begin_floor(run: Dictionary) -> void:
 	run["room"] = String(plan.get("room", "lobby"))
 	var fights := get_node_or_null("../StreetFights")
 	var origin := room_origin(int(run.get("block", 0)))
+	var story := int(run.get("floor", 0))
 	var fight_id := 0
 	if fights != null and fights.has_method("open_roster"):
 		fight_id = int(fights.call(
@@ -228,7 +239,9 @@ func _begin_floor(run: Dictionary) -> void:
 			origin,
 			0.0,
 			int(run.get("block", 0)),
-			plan.get("out", [origin.x, origin.y, origin.z])
+			plan.get("out", [origin.x, origin.y, origin.z]),
+			story + 1 >= int(run.get("floors", 1)),
+			story
 		))
 	if fight_id == 0:
 		run["state"] = "failed"
@@ -261,12 +274,53 @@ func _after_floor(run: Dictionary) -> void:
 		run["cogs"] = []
 		_mark(run)
 		return
+	run["cogs"] = []
+	run["fight"] = 0
+	run["state"] = "resting"
+	run["left"] = 0.0
+	_mark(run)
+
+
+## The far elevator's countdown finished. The next floor's ride starts.
+func _ride_next(run: Dictionary) -> void:
+	var floor := int(run.get("floor", 0)) + 1
 	run["floor"] = floor
 	run["room"] = room_kind(floor, int(run.get("floors", 1)))
 	run["cogs"] = []
 	run["fight"] = 0
 	run["state"] = "riding"
 	run["left"] = RIDE_TIME
+	run["depart"] = false
+	_mark(run)
+
+
+## DistributedElevatorInt. Walking into the far car starts its countdown.
+func next_floor(district: int, slug: String, block: int, peer: int) -> void:
+	if not ToonNet.is_authority() or peer < 0 or block == 0:
+		return
+	var run := _run_for(district, slug, block)
+	if run.is_empty() or String(run.get("state", "")) != "resting":
+		return
+	if not _has(run, peer):
+		return
+	run["state"] = "floorboard"
+	run["left"] = BOARD_TIME
+	run["depart"] = false
+	_mark(run)
+
+
+## Hop off puts the run back in the room. The toon stays in the building.
+func floor_hop(district: int, slug: String, block: int, peer: int) -> void:
+	if not ToonNet.is_authority() or peer < 0 or block == 0:
+		return
+	var run := _run_for(district, slug, block)
+	if run.is_empty() or String(run.get("state", "")) != "floorboard":
+		return
+	if not _has(run, peer):
+		return
+	run["state"] = "resting"
+	run["left"] = 0.0
+	run["depart"] = false
 	_mark(run)
 
 

@@ -7,6 +7,8 @@ const _CARD := preload("res://assets/gui/tutorial/book/questCard.png")
 const _FRAME := preload("res://assets/gui/tutorial/book/questPictureFrame.png")
 const _TROLLEY := preload("res://assets/gui/tutorial/book/trolley.png")
 const _COG := preload("res://assets/gui/tutorial/book/cog_icon.png")
+## RecoverItemQuest uses the stickerbook package, scaled to 0.12 inside the 0.15 frame.
+const _PACKAGE := preload("res://assets/gui/tutorial/book/package.png")
 ## QuestPoster colors the picture square. Cog tasks are blue, the trolley is light blue.
 const _BLUE := Color(0.45, 0.45, 0.8)
 const _LIGHT_BLUE := Color(0.42, 0.671, 1.0)
@@ -23,6 +25,7 @@ var _progress: Label
 var _return: Label
 var _left_name: Label
 var _right_name: Label
+var _aux: Label
 var _badge: Panel
 var _count: Label
 var _badge_box: StyleBoxFlat
@@ -34,7 +37,9 @@ var _port: SubViewport
 var _officer_port: SubViewport
 var _head_code := ""
 var _icon_fit := 0.8
+var _right_fit := 0.8
 var _complete := false
+var _split := false
 var _hovered := false
 var _hover_tween: Tween
 var _rest_pos := Vector2.ZERO
@@ -87,6 +92,8 @@ func _init() -> void:
 	_return = _label()
 	_left_name = _label()
 	_right_name = _label()
+	_aux = _label()
+	_aux.visible = false
 	_return.visible = false
 	_left_name.visible = false
 	_right_name.visible = false
@@ -127,6 +134,15 @@ func layout(card: Vector2) -> void:
 		_place_line(_right_name, 0.18, 0.02, 0.0325, card, false)
 		_place_line(_where, 0.0, -0.075, 0.045, card, true)
 		_where.size.y = card.y * (0.16 / 0.58)
+	elif _split:
+		# RecoverItemQuest puts the package at x -0.18, "from:" in the middle,
+		# and the holder at x 0.18. Each caption sits under its picture.
+		_place_sign(_headline, 0.23, 0.05, card)
+		_place_line(_caption, -0.18, 0.02, 0.0325, card, false)
+		_place_line(_right_name, 0.18, 0.02, 0.0325, card, false)
+		_place_line(_aux, 0.0, 0.12, 0.04, card, false)
+		_place_line(_where, 0.0, -0.075, 0.045, card, true)
+		_progress.visible = false
 	else:
 		# An open poster keeps the picture centered. The headline sits at z 0.23,
 		# the caption under the frame, and the location at z -0.075.
@@ -135,12 +151,12 @@ func layout(card: Vector2) -> void:
 		_place_line(_where, 0.0, -0.075, 0.045, card, true)
 		_progress.visible = false
 	# The picture square is image_scale 0.15. Open tasks center it at z 0.13.
-	# A finished task shifts it to x -0.18 and adds the return picture at x 0.18.
+	# A finished task, and an open recover task, shift it to x -0.18.
 	var frame := card * Vector2(0.15 / 0.8, 0.15 / 0.58)
 	var open_center := Vector2(card.x * 0.5, card.y * ((0.29 - 0.13) / 0.58))
 	var left_center := Vector2(card.x * ((-0.18 + 0.4) / 0.8), open_center.y)
 	var right_center := Vector2(card.x * ((0.18 + 0.4) / 0.8), open_center.y)
-	var shown := left_center if _complete else open_center
+	var shown := left_center if _complete or _split else open_center
 	_frame.position = shown - frame * 0.5
 	_frame.size = frame
 	var icon := frame * _icon_fit
@@ -148,7 +164,7 @@ func layout(card: Vector2) -> void:
 	_icon.size = icon
 	_right_frame.position = right_center - frame * 0.5
 	_right_frame.size = frame
-	var officer := frame * 0.8
+	var officer := frame * _right_fit
 	_right_icon.position = _right_frame.position + (frame - officer) * 0.5
 	_right_icon.size = officer
 
@@ -189,6 +205,9 @@ func show_task(task: Dictionary) -> void:
 
 func _show_activity(task: Dictionary) -> void:
 	_clear_head()
+	_split = false
+	_aux.visible = false
+	_right_fit = 0.8
 	var kind := String(task.get("kind", ""))
 	_frame.visible = kind != ""
 	_icon.visible = kind != ""
@@ -207,8 +226,23 @@ func _show_activity(task: Dictionary) -> void:
 		_icon_fit = 0.13 / 0.15
 		_icon.texture = _TROLLEY
 	elif kind == "recover":
+		# The item picture is the stickerbook package. An open task also shows
+		# "from:" and the holder. Quest 145 recovers it from any Cog.
 		_frame.modulate = _LIGHT_GREEN
-		_icon.visible = false
+		_icon_fit = 0.12 / 0.15
+		_icon.texture = _PACKAGE
+		_icon.visible = true
+		if not _complete:
+			_split = true
+			_aux.text = "from:"
+			_aux.visible = true
+			_right_name.text = "The Cogs"
+			_right_name.visible = true
+			_right_frame.visible = true
+			_right_frame.modulate = _LIGHT_GREEN
+			_right_icon.texture = _COG
+			_right_icon.visible = true
+			_right_fit = 1.0
 	else:
 		_frame.visible = false
 		_icon.visible = false

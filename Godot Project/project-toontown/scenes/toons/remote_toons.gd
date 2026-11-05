@@ -239,6 +239,7 @@ func _move_puppets(delta: float) -> void:
 			var pinned: Dictionary = _pins[peer]
 			actor.global_position = pinned.get("pos", actor.global_position)
 			_face(actor, float(pinned.get("heading", 0.0)))
+			actor.set_swimming(false)
 			continue
 		var target: Vector3 = puppet.get("pos", actor.global_position)
 		var blend := clampf(delta / _PERIOD, 0.0, 1.0)
@@ -248,6 +249,7 @@ func _move_puppets(delta: float) -> void:
 		_face(actor, facing(actor) + rad_to_deg(turn) * blend)
 		var anim := String(puppet.get("anim", "neutral"))
 		actor.set_sad(anim == "sad-walk" or anim == "sad-neutral")
+		actor.set_swimming(actor.under_water())
 		if anim == "run":
 			actor.set_locomotion(9.0, false, false, delta)
 		elif anim == "walk":
@@ -271,6 +273,7 @@ func _hide(peer: int) -> void:
 	var actor: ToonActor = puppet.get("actor")
 	if actor != null and is_instance_valid(actor):
 		actor.visible = false
+		actor.set_swimming(false)
 		actor.set_locomotion(0.0, false, false, 0.0)
 
 

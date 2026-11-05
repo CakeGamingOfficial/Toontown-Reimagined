@@ -122,6 +122,34 @@ var _propeller: Node3D
 var _prop_bank: Dictionary = {}
 var _sound: AudioStreamPlayer3D
 var _fight_key := ""
+## Suit.healthColors and healthGlowColors. The chest light replaces the badge in a battle.
+const _HEALTH_COLORS: Array[Color] = [
+	Color(0, 1, 0, 1),
+	Color(1, 1, 0, 1),
+	Color(1, 0.5, 0, 1),
+	Color(1, 0, 0, 1),
+	Color(0.3, 0.3, 0.3, 1),
+]
+const _HEALTH_GLOW: Array[Color] = [
+	Color(0.25, 1, 0.25, 0.5),
+	Color(1, 1, 0.25, 0.5),
+	Color(1, 0.5, 0.25, 0.5),
+	Color(1, 0.25, 0.25, 0.5),
+	Color(0.3, 0.3, 0.3, 0.0),
+]
+var _health: Node3D
+var _health_disc: MeshInstance3D
+var _health_glow: MeshInstance3D
+var _health_mat: StandardMaterial3D
+var _glow_mat: StandardMaterial3D
+var _badge: MeshInstance3D
+var _health_scale := Vector3.ONE
+var _hp := -1
+var _max_hp := 1
+var _health_condition := -1
+var _blink := 0.0
+var _blink_red := true
+static var _health_mesh: ArrayMesh
 # MovieUtil.SUIT_LOSE_DURATION. Suit.getLoseActor plays the lose-mod across it.
 const LOSE_SECONDS := 6.0
 var _lose_on := false
@@ -196,6 +224,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 	if not same:
 		var previous := get_node_or_null("Suit")
 		if previous != null:
+			_drop_health()
 			previous.free()
 		var packed := load(String(paths["model"])) as PackedScene
 		if packed == null:
@@ -351,7 +380,7 @@ func _resume(state: Dictionary) -> void:
 		_pose_elapsed(_landing, maxf(_fly - _wait, 0.0), _landing_fps, false)
 		return
 	if _phase == 2:
-		_set_alpha(1.0 - clampf(_fly, 0.0, 1.0))
+		_set_alpha(_fly_out_alpha())
 		_attach_propeller()
 		_play_propeller(false)
 		var dur := float(maxi(_landing_frames, 1)) / _landing_fps
@@ -383,9 +412,179 @@ func hold_fight(held: bool, point: Vector3, yaw: float) -> void:
 	set_meta("in_fight", held)
 	if not held:
 		_fight_key = ""
+		_hide_health()
 		return
 	global_position = point
 	rotation.y = yaw
+
+
+## Suit.generateHealthBar. The department badge hides and this light shows the
+## cog's health: green, yellow, orange, red, then a blink when it is nearly gone.
+func set_battle_hp(current: int, maximum: int) -> void:
+	var cap := maxi(maximum, 1)
+	var next := clampi(current, 0, cap)
+	var changed := next != _hp or cap != _max_hp or _health == null or not is_instance_valid(_health)
+	_hp = next
+	_max_hp = cap
+	_ensure_health()
+	if changed:
+		_health_condition = -1
+		_paint_health()
+
+
+func _ensure_health() -> void:
+	if _health != null and is_instance_valid(_health):
+		_health.visible = true
+		if _badge != null and is_instance_valid(_badge):
+			_badge.visible = false
+		return
+	var suit := get_node_or_null("Suit")
+	if suit == null:
+		return
+	var icon := _find_named(suit, "Icon")
+	var chest := icon.get_parent() as Node3D if icon != null else _find(suit, "joint_attachMeter") as Node3D
+	if chest == null:
+		return
+	_badge = icon
+	var light := Node3D.new()
+	light.name = "HealthLight"
+	chest.add_child(light)
+	if icon != null:
+		light.transform = icon.transform
+		icon.visible = false
+	_health = light
+	_health_scale = light.scale
+	var disc := MeshInstance3D.new()
+	disc.name = "Disc"
+	disc.mesh = _disc_mesh()
+	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_health_mat = _light_mat(Color(0, 1, 0), false)
+	disc.material_override = _health_mat
+	light.add_child(disc)
+	_health_disc = disc
+	var glow := MeshInstance3D.new()
+	glow.name = "Glow"
+	glow.mesh = _disc_mesh()
+	glow.scale = Vector3(1.55, 1.55, 1.55)
+	glow.position = Vector3(0.0, 0.04, 0.0)
+	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_glow_mat = _light_mat(Color(0.25, 1, 0.25, 0.5), true)
+	glow.material_override = _glow_mat
+	light.add_child(glow)
+	_health_glow = glow
+	light.visible = true
+
+
+func _hide_health() -> void:
+	_hp = -1
+	_health_condition = -1
+	if _health != null and is_instance_valid(_health):
+		_health.visible = false
+		_health.scale = _health_scale
+	if _badge != null and is_instance_valid(_badge):
+		_badge.visible = true
+
+
+func _drop_health() -> void:
+	_health = null
+	_health_disc = null
+	_health_glow = null
+	_health_mat = null
+	_glow_mat = null
+	_badge = null
+	_hp = -1
+	_health_condition = -1
+
+
+func _paint_health() -> void:
+	if _health == null or not is_instance_valid(_health) or _health_mat == null or _glow_mat == null:
+		return
+	var ratio := clampf(float(_hp) / float(maxi(_max_hp, 1)), 0.0, 1.0)
+	var condition := 5
+	if ratio > 0.95:
+		condition = 0
+	elif ratio > 0.7:
+		condition = 1
+	elif ratio > 0.3:
+		condition = 2
+	elif ratio > 0.05:
+		condition = 3
+	elif ratio > 0.0:
+		condition = 4
+	if condition == _health_condition:
+		return
+	_health_condition = condition
+	_blink = 0.0
+	_blink_red = true
+	_health.scale = _health_scale
+	if condition >= 4:
+		_apply_blink()
+		return
+	_health_mat.albedo_color = _HEALTH_COLORS[condition]
+	_glow_mat.albedo_color = _HEALTH_GLOW[condition]
+
+
+func _tick_health(delta: float) -> void:
+	if _health_condition < 4 or _health == null or not is_instance_valid(_health) or not _health.visible:
+		return
+	_blink += delta
+	var hold := 0.25 if _health_condition == 5 else 0.75
+	var span := hold if _blink_red else 0.1
+	if _blink < span:
+		return
+	_blink = 0.0
+	_blink_red = not _blink_red
+	_apply_blink()
+
+
+func _apply_blink() -> void:
+	if _health_mat == null or _glow_mat == null or _health == null or not is_instance_valid(_health):
+		return
+	var red := _blink_red
+	_health_mat.albedo_color = _HEALTH_COLORS[3] if red else _HEALTH_COLORS[4]
+	_glow_mat.albedo_color = _HEALTH_GLOW[3] if red else _HEALTH_GLOW[4]
+	var pulse := 1.17 if _health_condition == 5 and red else 1.0
+	_health.scale = _health_scale * pulse
+
+
+static func _disc_mesh() -> ArrayMesh:
+	if _health_mesh != null:
+		return _health_mesh
+	var segments := 20
+	var radius := 0.533
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	verts.append(Vector3.ZERO)
+	normals.append(Vector3.UP)
+	for index in segments:
+		var angle := TAU * float(index) / float(segments)
+		verts.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+		normals.append(Vector3.UP)
+	var indices := PackedInt32Array()
+	for index in segments:
+		indices.append(0)
+		indices.append(1 + index)
+		indices.append(1 + (index + 1) % segments)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_health_mesh = mesh
+	return mesh
+
+
+static func _light_mat(color: Color, glow: bool) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if glow:
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	return mat
 
 
 func march(walking: bool) -> void:
@@ -679,6 +878,7 @@ func _process(delta: float) -> void:
 	if _lose_on:
 		return
 	if bool(get_meta("in_fight", false)):
+		_tick_health(delta)
 		if _fight_key == "walk":
 			_march(delta)
 		elif _fight_key != "":
@@ -687,6 +887,9 @@ func _process(delta: float) -> void:
 			_idle(delta)
 		return
 	if bool(get_meta("factory", false)):
+		if _phase == 2:
+			_fly_out(delta)
+			return
 		# Same pose budget as a street suit. A cog in a stashed room, or one
 		# you are not looking at, keeps its place without a new mesh.
 		_detail = _camera_detail()
@@ -791,7 +994,9 @@ func _fly_in(delta: float) -> void:
 
 func _fly_out(delta: float) -> void:
 	_fly += delta
-	_set_alpha(1.0 - clampf(_fly, 0.0, 1.0))
+	# The fade is the last second of the climb. Fading on the first second
+	# hid the suit before it left the sidewalk.
+	_set_alpha(_fly_out_alpha())
 	var dur := float(maxi(_landing_frames, 1)) / _landing_fps
 	_pose_elapsed(_landing, dur - _fly, _landing_fps, false)
 	if _fly < _impact:
@@ -978,10 +1183,35 @@ func _enter_building(delta: float) -> void:
 	queue_free()
 
 
+## The suit is leaving the street. Rise on the propeller instead of popping out.
+func fly_away() -> bool:
+	if bool(get_meta("in_fight", false)) or _lose_on:
+		return false
+	if _phase == 2 or _phase == 3:
+		return true
+	set_meta("flying", true)
+	_begin_fly_out()
+	return true
+
+
+func _fly_out_alpha() -> float:
+	var fade_start := maxf(FROM_SKY - 1.0, 0.0)
+	if _fly <= fade_start:
+		return 1.0
+	return 1.0 - clampf(_fly - fade_start, 0.0, 1.0)
+
+
 func _begin_fly_out() -> void:
+	if int(_landing.get("frames", 0)) <= 1:
+		var paths := _suit_paths(_source)
+		_landing = _read_bank(String(paths["landing"]))
+		if int(_landing.get("frames", 0)) > 1:
+			_landing_frames = int(_landing["frames"])
+		_prepare_landing()
 	_phase = 2
 	_fly = 0.0
 	_ground = global_position
+	_set_alpha(1.0)
 	_attach_propeller()
 	_play_propeller(false)
 

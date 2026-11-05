@@ -404,7 +404,8 @@ func _layout() -> void:
 		return
 	_background.position = Vector2.ZERO
 	_background.size = view
-	_place(_logo, view, 0.0, 0.65, 1.708, 0.6)
+	# The Reimagined mark is square. The old wordmark was a wide 1.708 by 0.6.
+	_place(_logo, view, 0.0, 0.66, 0.72, 0.72)
 	_place(_scroll, view, 0.0, -0.16, 1.1506, 0.7986)
 	_place(_shadow_left, view, -1.05, -0.85, 0.1, 0.1)
 	_place(_shadow_mid, view, 0.0, -0.85, 2.0, 0.1)

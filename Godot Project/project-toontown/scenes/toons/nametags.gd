@@ -43,6 +43,10 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var text_color := Color(0.25, 0.28, 0.75)
 	var face := ToonGui.font()
+	if kind == "player":
+		var bought := _bought_font()
+		if bought != null:
+			face = bought
 	if kind == "npc":
 		text_color = text_tint if text_tint.a > 0.0 else Color(0.93, 0.45, 0.14)
 	elif kind == "cog":
@@ -82,7 +86,11 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 	# The scale is remembered so a teleport hole shrinks the card with the toon.
 	# Suit.setHeight puts a cog card one unit above the suit height.
 	var born := actor.global_transform.basis.get_scale().y
-	var lift := _lift(actor)
+	# A door marker has no head. The default lift would park its balloon
+	# above the top of the view when you stand in front of the door.
+	var lift := float(actor.get_meta("nametag_lift", -1.0))
+	if lift < 0.0:
+		lift = _lift(actor)
 	if kind == "cog" and actor.get("height") != null:
 		var suit_height := float(actor.get("height"))
 		if suit_height > 0.05:
@@ -111,6 +119,36 @@ func cards() -> Array:
 			"lift": float(item.get("lift", 3.2)),
 		})
 	return rows
+
+
+func apply_font(path: String) -> void:
+	var face := load(path) as Font
+	if face == null:
+		return
+	for item in _tags:
+		if String(item.get("kind", "")) != "player":
+			continue
+		var panel := item["label"] as Control
+		if panel == null:
+			continue
+		var words := panel.get_node_or_null("Label") as Label
+		if words == null:
+			for child in panel.get_children():
+				words = child as Label
+				if words != null:
+					break
+		if words != null:
+			words.add_theme_font_override("font", face)
+
+
+func _bought_font() -> Font:
+	var closet := load("res://scenes/catalog/catalog_closet.gd") as GDScript
+	if closet == null:
+		return null
+	var path := String(closet.call("font_path"))
+	if path == "":
+		return null
+	return load(path) as Font
 
 
 func release(actor: Node3D) -> void:
@@ -285,6 +323,7 @@ func _place_chat(item: Dictionary, label: Control, actor: Node3D) -> void:
 	if fill != null:
 		fill.bg_color = _ChatSettings.bubble(String(actor.get_meta("chat_kind", "")))
 	bubble.position = label.position + Vector2((label.size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
+	_keep_on_screen(bubble)
 
 
 func _chat_panel(item: Dictionary) -> PanelContainer:
@@ -315,6 +354,17 @@ func _chat_panel(item: Dictionary) -> PanelContainer:
 		layer.add_child(bubble)
 	item["chat"] = bubble
 	return bubble
+
+
+func _keep_on_screen(control: Control) -> void:
+	if camera == null:
+		return
+	var view := camera.get_viewport().get_visible_rect()
+	var margin := 8.0
+	var widest := maxf(view.position.x + margin, view.end.x - control.size.x - margin)
+	var tallest := maxf(view.position.y + margin, view.end.y - control.size.y - margin)
+	control.position.x = clampf(control.position.x, view.position.x + margin, widest)
+	control.position.y = clampf(control.position.y, view.position.y + margin, tallest)
 
 
 func _hide_chat(item: Dictionary) -> void:
