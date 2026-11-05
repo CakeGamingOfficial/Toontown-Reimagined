@@ -497,6 +497,112 @@ func _build_layout() -> void:
 		cells.add_child(area)
 
 
+## The block's battle spot. DNA puts it near the middle of the road. When the
+## two sidewalks are a clear pair, the spot is the point halfway between them.
+func battle_spot(near: Vector3) -> Dictionary:
+	var cell := _nearest_cell(near)
+	if cell == Vector3.INF:
+		return {}
+	if not json_path.contains("cog_hq"):
+		var middle := _between_sidewalks(cell)
+		if middle != Vector3.INF:
+			return {"at": middle}
+	return {"at": cell}
+
+
+func _nearest_cell(near: Vector3) -> Vector3:
+	var holder := get_node_or_null("BattleCells")
+	if holder == null:
+		return Vector3.INF
+	var best := Vector3.INF
+	var best_d := INF
+	for child in holder.get_children():
+		if not (child is Node3D):
+			continue
+		var at := (child as Node3D).global_position
+		var flat := Vector2(at.x - near.x, at.z - near.z).length_squared()
+		if flat < best_d:
+			best_d = flat
+			best = at
+	return best
+
+
+func _between_sidewalks(cell: Vector3) -> Vector3:
+	if _points.size() < 2:
+		return Vector3.INF
+	var space := get_parent() as Node3D
+	var local := cell
+	if space != null:
+		local = space.to_local(cell)
+	var point_a := Vector3.ZERO
+	var street := Vector3.ZERO
+	var best := INF
+	var found := false
+	for index in _points.size():
+		for other in _links[index]:
+			if other < index:
+				continue
+			var hit := _segment_point(local, _points[index], _points[other])
+			var dist := Vector2(hit.x - local.x, hit.z - local.z).length()
+			if dist < best:
+				best = dist
+				point_a = hit
+				street = _points[other] - _points[index]
+				found = true
+	if not found:
+		return Vector3.INF
+	street.y = 0.0
+	if street.length_squared() < 0.0001:
+		return Vector3.INF
+	street = street.normalized()
+	var point_b := Vector3.ZERO
+	var best_span := INF
+	var have_b := false
+	for index in _points.size():
+		for other in _links[index]:
+			if other < index:
+				continue
+			var hit := _segment_point(local, _points[index], _points[other])
+			var across := hit - point_a
+			across.y = 0.0
+			var span := across.length()
+			if span < 8.0 or span > 14.0:
+				continue
+			if absf(across.normalized().dot(street)) > 0.35:
+				continue
+			var along := Vector2(local.x - point_a.x, local.z - point_a.z)
+			var curb := Vector2(across.x, across.z)
+			var den := curb.length_squared()
+			if den < 0.0001:
+				continue
+			var t := along.dot(curb) / den
+			if t < 0.15 or t > 0.85:
+				continue
+			var on_line := point_a + across * t
+			if Vector2(local.x - on_line.x, local.z - on_line.z).length() > 0.75:
+				continue
+			if span < best_span:
+				best_span = span
+				point_b = hit
+				have_b = true
+	if not have_b:
+		return Vector3.INF
+	var middle := (point_a + point_b) * 0.5
+	if space != null:
+		return space.to_global(middle)
+	return middle
+
+
+func _segment_point(local: Vector3, a: Vector3, b: Vector3) -> Vector3:
+	var ab := Vector2(b.x - a.x, b.z - a.z)
+	var den := ab.length_squared()
+	var t := 0.0
+	if den > 0.0001:
+		var ap := Vector2(local.x - a.x, local.z - a.z)
+		t = clampf(ap.dot(ab) / den, 0.0, 1.0)
+	return a.lerp(b, t)
+
+
 ## Established suit buildings on this street. The count is the server's list.
 func established_suit_buildings() -> int:
 	var snap := ToonNet.latest("buildings:%d:%s" % [district_id, street_slug])

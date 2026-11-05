@@ -98,15 +98,15 @@ func _ready_playground_treasures() -> void:
 
 func _attach_returning_toon() -> void:
 	var places := preload("res://scenes/places/hood_places.gd")
-	var links := preload("res://scenes/places/tunnel_links.gd")
-	var returning := preload("res://scenes/interiors/shop_door.gd").trip == "out"
-	var restoring := preload("res://scenes/playgrounds/playground_toon.gd").reload_resume()
+	var toon := preload("res://scenes/playgrounds/playground_toon.gd")
 	var factory := preload("res://scenes/cog_hq/factory_elevator.gd")
 	factory.place(self)
 	preload("res://scenes/cog_hq/factory_cogs.gd").place(self)
-	if places.hood_for_scene(scene_file_path) == 0 and not links.arriving() and not returning and not restoring and not factory.riding():
+	# A playground always has someone to walk. A street does too when a door,
+	# a tunnel, or a factory car is bringing them back.
+	if places.hood_for_scene(scene_file_path) == 0 and not toon.expects_avatar():
 		return
-	preload("res://scenes/playgrounds/playground_toon.gd").attach(self)
+	toon.attach(self)
 
 
 func _process(_delta: float) -> void:

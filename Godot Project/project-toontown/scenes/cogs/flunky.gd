@@ -337,22 +337,30 @@ func _paint_hands(actor: Node) -> void:
 			mesh_node.mesh.surface_set_material(index, mat)
 
 
-func _show_both_sides() -> void:
+func _show_both_sides(actor: Node = null) -> void:
 	# The walk replaces each part with a posed mesh. Suit pieces overlap and
 	# some triangles face inward, so culling makes the cuffs vanish and the
-	# gloves look like they left the sleeves.
+	# gloves look like they left the sleeves. The face card is one of those.
+	var root: Node = self if actor == null else actor
 	var seen: Array[Material] = []
-	for child in find_children("*", "MeshInstance3D", true, false):
+	for child in root.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := child as MeshInstance3D
 		if mesh_node.mesh == null:
 			continue
 		for index in mesh_node.mesh.get_surface_count():
-			var material := mesh_node.mesh.surface_get_material(index)
-			if material == null or material in seen:
-				continue
-			seen.append(material)
-			if material is BaseMaterial3D:
-				(material as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
+			var layers: Array[Material] = []
+			var over := mesh_node.get_surface_override_material(index)
+			var owned := mesh_node.mesh.surface_get_material(index)
+			if over != null:
+				layers.append(over)
+			if owned != null:
+				layers.append(owned)
+			for material in layers:
+				if material in seen:
+					continue
+				seen.append(material)
+				if material is BaseMaterial3D:
+					(material as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
 
 
 func _hide_gray_cuffs() -> void:
@@ -477,7 +485,21 @@ func begin_lose() -> void:
 		_lose_root = packed.instantiate()
 		_lose_root.name = "LoseActor"
 		add_child(_lose_root)
+		# The eyes, moustache, and frames are a one-sided card. The standing
+		# suit already draws both sides. This model is a second scene, so the
+		# card was being culled and the head read as a blank cone.
+		_show_both_sides(_lose_root)
 		_lose_bank = _read_bank(_LOSE, _lose_root)
+		# The head and glasses do not change shape. Rebuilding them dropped the
+		# face card. Leave the imported meshes and let the neck carry them.
+		var kept: Array = []
+		for clip in _lose_bank.get("clips", []):
+			var record: Dictionary = clip
+			var instance := record.get("instance") as MeshInstance3D
+			if instance != null and (String(instance.name) == "flunky" or String(instance.name) == "glasses"):
+				continue
+			kept.append(clip)
+		_lose_bank["clips"] = kept
 	_lose_shown = -1
 	for child in get_children():
 		if child == _lose_root:

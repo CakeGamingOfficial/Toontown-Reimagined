@@ -210,6 +210,22 @@ func add_experience(track: int, amount: int) -> void:
 	_exp[track] += maxi(amount, 0)
 
 
+## A quit or a crash leaves the Flunky's experience and any lost Laff on the
+## bank row. merge_exp keeps the higher number, so this writes the lesson's
+## starting values directly. A playground toon never comes back through here.
+func resume_tutorial() -> void:
+	for track in TRACK_COUNT:
+		if track < _exp.size():
+			_exp[track] = 0
+	set_hp(max_hp, max_hp)
+	ToonNet.silence_keep(true)
+	save()
+	ToonNet.silence_keep(false)
+	var avatar := ToonRoster.avatar_id()
+	ToonNet.persist_exp(avatar, track_experience())
+	ToonNet.persist_laff(avatar, hp, max_hp)
+
+
 func gag_count() -> int:
 	var total := 0
 	for track in TRACK_COUNT:

@@ -20,6 +20,9 @@ var _port_edit: LineEdit
 var _waiting := false
 var _wait_for_lan := false
 var _host_port := 0
+var _press_locked := false
+var _press_left := 0
+var _closing := false
 
 
 func _ready() -> void:
@@ -53,6 +56,8 @@ func _ready() -> void:
 	set_process(false)
 	ToonGui.warm_clicks()
 	_show_menu()
+	# Ignore a click that landed while the head shader was compiling.
+	_lock_press()
 
 
 func _show_menu() -> void:
@@ -106,7 +111,20 @@ func _hosting_copy(port: int) -> String:
 
 
 func _process(_delta: float) -> void:
+	if _press_locked:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			_press_left = 2
+			return
+		_press_left -= 1
+		if _press_left > 0:
+			return
+		_press_locked = false
+		if _closing:
+			queue_free()
+			return
 	if not _wait_for_lan or not ToonNet.lan_ready():
+		if not _wait_for_lan:
+			set_process(false)
 		return
 	_wait_for_lan = false
 	set_process(false)
@@ -169,12 +187,29 @@ func _play_alone() -> void:
 
 func _enter() -> void:
 	_waiting = false
-	# queue_free during this click marks the dialog for deletion, and Godot
-	# then offers the same press to the toon slot behind the button. That
-	# starts Make a Toon or Play and hitches on the scene load. Leave the
-	# dialog up until the click has finished.
+	_closing = true
+	if not _press_locked:
+		_lock_press()
+	for widget in _widgets:
+		if is_instance_valid(widget):
+			widget.hide()
+			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if widget is BaseButton:
+				widget.disabled = true
+
+
+func _press(action: Callable) -> void:
+	if _press_locked:
+		return
+	_lock_press()
+	action.call()
+
+
+func _lock_press() -> void:
+	_press_locked = true
+	_press_left = 2
+	set_process(true)
 	_guard_slots()
-	call_deferred("queue_free")
 
 
 func _guard_slots() -> void:
@@ -227,7 +262,8 @@ func _pill(caption: String, action: Callable) -> TextureButton:
 	button.texture_hover = _PILL_HOVER
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
-	button.pressed.connect(action)
+	button.pressed.connect(_press.bind(action))
+	button.button_down.connect(_guard_slots)
 	ToonGui.button_sounds(button)
 	var label := Label.new()
 	label.text = caption

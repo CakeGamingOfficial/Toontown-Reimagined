@@ -10,9 +10,6 @@ extends Node
 const _ARROW := preload("res://assets/gui/nametag/arrow.png")
 const _ARROW_SCALE := 0.2
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
-const _BALLOON_TOP := preload("res://assets/gui/nametag/chat_top.png")
-const _BALLOON_MID := preload("res://assets/gui/nametag/chat_middle.png")
-const _BALLOON_BOT := preload("res://assets/gui/nametag/chat_bottom.png")
 const _BLACK := Color(0.08, 0.08, 0.1)
 const _TEAL := Color(0.0, 0.58, 0.64)
 const _NAME := Color(0.86, 0.22, 0.12)
@@ -22,15 +19,11 @@ const _FRAME_AT := Vector2(-0.2, -0.45)
 const _DIALOG_SIZE := Vector2(1.112161, 0.59304)
 const _DIALOG_SHIFT := Vector2(-0.021097, -0.019366)
 # Head, name card, and 2D speech nametag, in the frame's own coordinates.
+# ToonHeadFrame scales the head by 0.2, about 0.27 tall in the dialog.
 const _HEAD_AT := Vector2(-0.27, -0.09)
-const _HEAD_SIZE := Vector2(0.46, 0.52)
+const _HEAD_SIZE := Vector2(0.28, 0.34)
 const _NAME_AT := Vector2(-0.27, 0.16)
 const _SPEECH_AT := Vector2(-0.16, -0.09)
-# chatbox_noarrow is the 2D speech balloon. Its slices are 10.04 wide.
-const _BALLOON_MODEL_W := 10.040655
-const _BALLOON_TOP_H := 0.709887
-const _BALLOON_BOT_H := 0.70989
-const _BALLOON_SCALE := 0.055
 
 var _host: Node
 var _harry: ToonActor
@@ -49,10 +42,7 @@ var _chat_dialog: TextureRect
 var _chat_head: TextureRect
 var _chat_name: Label
 var _chat_name_card: ColorRect
-var _chat_balloon: Control
-var _chat_top: TextureRect
-var _chat_mid: TextureRect
-var _chat_bot: TextureRect
+var _chat_card: PanelContainer
 var _chat_label: Label
 var _chat_arrow: TextureRect
 var _arrows: Array[TextureRect] = []
@@ -378,23 +368,25 @@ func _build_book_chat() -> void:
 	_chat_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_chat_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(_chat_name)
-	_chat_balloon = Control.new()
-	_chat_balloon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(_chat_balloon)
-	_chat_top = _sheet(_BALLOON_TOP)
-	_chat_mid = _sheet(_BALLOON_MID)
-	_chat_bot = _sheet(_BALLOON_BOT)
-	_chat_balloon.add_child(_chat_top)
-	_chat_balloon.add_child(_chat_mid)
-	_chat_balloon.add_child(_chat_bot)
+	_chat_card = PanelContainer.new()
+	_chat_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(1, 1, 1, 0.98)
+	box.border_color = Color(0, 0, 0)
+	box.set_border_width_all(3)
+	box.set_corner_radius_all(18)
+	box.content_margin_left = 16
+	box.content_margin_right = 28
+	box.content_margin_top = 10
+	box.content_margin_bottom = 16
+	_chat_card.add_theme_stylebox_override("panel", box)
+	panel.add_child(_chat_card)
 	_chat_label = Label.new()
-	_chat_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_chat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_chat_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_chat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(_chat_label, _BLACK, 18, Color(0, 0, 0, 0), 0)
-	_chat_balloon.add_child(_chat_label)
-	_chat_arrow = ToonGui.attach_next_arrow(_chat_balloon)
+	ToonGui.style_label(_chat_label, _BLACK, 22, Color(0, 0, 0, 0), 0)
+	_chat_card.add_child(_chat_label)
+	_chat_arrow = ToonGui.attach_next_arrow(_chat_card)
 	_chat_arrow.visible = false
 	book.add_child(panel)
 	_chat = panel
@@ -405,7 +397,7 @@ func _portrait() -> TextureRect:
 	port.name = "HarryHead"
 	port.own_world_3d = true
 	port.transparent_bg = true
-	port.size = Vector2i(180, 180)
+	port.size = Vector2i(200, 248)
 	port.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(port)
 	var world := Node3D.new()
@@ -425,16 +417,19 @@ func _portrait() -> TextureRect:
 	var actor := ToonActor.new()
 	world.add_child(actor)
 	actor.show_style(_harry_style())
+	_hide_body(actor)
 	var cam := Camera3D.new()
-	cam.fov = 26.0
+	# ToonHeadFrame uses the flat GUI camera. A close perspective lens sits
+	# on the muzzle and balloons the skull over the speech balloon.
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = 1.7
 	world.add_child(cam)
 	await get_tree().process_frame
-	var focus := actor.global_position + Vector3(0.0, 3.3, 0.0)
+	var focus := actor.global_position + Vector3(0.0, 3.5, 0.0)
 	var head := _find(actor, "def_head")
 	if head:
-		focus = head.global_position
-	# show_style turns the toon to face +Z, the Make a Toon camera.
-	cam.global_position = focus + Vector3(0.0, 0.12, 2.15)
+		focus = head.global_position + Vector3(0.0, 0.24, 0.0)
+	cam.global_position = focus + Vector3(0.0, 0.0, 4.0)
 	cam.look_at(focus, Vector3.UP)
 	cam.current = true
 	var picture := TextureRect.new()
@@ -443,6 +438,20 @@ func _portrait() -> TextureRect:
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return picture
+
+
+
+func _hide_body(node: Node) -> void:
+	var part := String(node.name)
+	# ToonHeadFrame shows the head only. The shirt under this camera reads as Harry.
+	if node is MeshInstance3D and not _is_head_part(part):
+		node.visible = false
+	for child in node.get_children():
+		_hide_body(child)
+
+
+func _is_head_part(part: String) -> bool:
+	return part.begins_with("head") or part.begins_with("ears") or part.begins_with("eyes") or part.begins_with("muzzle") or part.begins_with("eyelash") or part == "nose" or part == "node" or part == "node2" or part.contains("pupil")
 
 
 func _harry_style() -> ToonStyle:
@@ -468,7 +477,7 @@ func _show_book(text: String, color: Color, confirm: bool) -> void:
 	_hide_world()
 	if _chat == null:
 		return
-	_chat_label.text = text
+	ToonGui.show_speech(_chat_label, text, 22)
 	_chat_label.add_theme_color_override("font_color", color)
 	_chat_arrow.visible = confirm
 	_chat.visible = true
@@ -496,34 +505,18 @@ func _place_book_chat() -> void:
 	var name_box := Vector2(0.42, 0.08)
 	_put(_chat_name_card, _FRAME_AT + _NAME_AT, name_box, unit)
 	_put(_chat_name, _FRAME_AT + _NAME_AT, name_box, unit)
-	_place_balloon(unit)
+	_place_card(unit)
 
 
-## The 2D nametag scales chatbox_noarrow by 0.055. Wider lines grow the middle.
-func _place_balloon(unit: float) -> void:
-	var width := maxf(0.92, _BALLOON_MODEL_W * _BALLOON_SCALE) * unit
-	var top_h := width * (_BALLOON_TOP_H / _BALLOON_MODEL_W)
-	var bot_h := width * (_BALLOON_BOT_H / _BALLOON_MODEL_W)
-	var pad := width * 0.07
-	var text_px := maxi(int(0.048 * unit), 13)
-	ToonGui.style_label(_chat_label, _chat_label.get_theme_color("font_color"), text_px, Color(0, 0, 0, 0), 0)
-	_chat_label.custom_minimum_size = Vector2(width - pad * 2.0, 0.0)
-	_chat_label.size = _chat_label.custom_minimum_size
-	var text_h := maxf(_chat_label.get_minimum_size().y, text_px * 1.2)
-	var mid_h := maxf(text_h + pad * 0.35, width * (1.0 / _BALLOON_MODEL_W))
-	var total := top_h + mid_h + bot_h
+## Same rounded card as his lines before the book opens. The sliced chatbox
+## drew a second cap through the bottom of this one.
+func _place_card(unit: float) -> void:
+	if _chat_card == null:
+		return
+	_chat_card.reset_size()
 	var speech := _FRAME_AT + _SPEECH_AT
-	var origin := Vector2(view_x(speech.x, unit), view_y(speech.y, unit) - total * 0.5)
-	_chat_balloon.position = origin
-	_chat_balloon.size = Vector2(width, total)
-	_chat_top.position = Vector2.ZERO
-	_chat_top.size = Vector2(width, top_h)
-	_chat_mid.position = Vector2(0.0, top_h)
-	_chat_mid.size = Vector2(width, mid_h)
-	_chat_bot.position = Vector2(0.0, top_h + mid_h)
-	_chat_bot.size = Vector2(width, bot_h)
-	_chat_label.position = Vector2(pad, top_h + (mid_h - text_h) * 0.5)
-	_chat_label.size = Vector2(width - pad * 2.0, text_h)
+	var at := Vector2(view_x(speech.x, unit), view_y(speech.y, unit))
+	_chat_card.position = at - Vector2(0.0, _chat_card.size.y * 0.5)
 
 
 func _put(control: Control, at: Vector2, box: Vector2, unit: float) -> void:

@@ -121,13 +121,34 @@ const CLICK_SFX := "res://assets/toons/audio/GUI_create_toon_fwd.mp3"
 const ROLLOVER_SFX := "res://assets/toons/audio/GUI_rollover.mp3"
 
 static var _streams: Dictionary = {}
+static var _primed: Dictionary = {}
 
 
-## Load the click and rollover once, so the first button on Pick a Toon
-## does not decode them on the click itself.
+## Load and play the click and rollover once, so the first welcome button
+## does not decode them or open the effect bus on the click itself.
 static func warm_clicks() -> void:
 	_stream(CLICK_SFX)
 	_stream(ROLLOVER_SFX)
+	_prime(CLICK_SFX)
+	_prime(ROLLOVER_SFX)
+
+
+static func _prime(path: String) -> void:
+	if _primed.has(path) or DisplayServer.get_name() == "headless":
+		return
+	var stream := _stream(path)
+	if stream == null:
+		return
+	_primed[path] = true
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return
+	var player := ToonAudio.effect_player()
+	player.stream = stream
+	player.volume_db = -80.0
+	player.finished.connect(player.queue_free)
+	tree.root.add_child(player)
+	player.play()
 
 
 static func _stream(path: String) -> AudioStream:
@@ -152,7 +173,14 @@ static func button_sounds(button: BaseButton) -> void:
 
 
 static func play_sfx(host: Node, path: String) -> void:
-	if path.is_empty() or not ResourceLoader.exists(path):
+	if path.is_empty():
+		return
+	var stream: AudioStream = _streams.get(path)
+	if stream == null:
+		if not ResourceLoader.exists(path):
+			return
+		stream = _stream(path)
+	if stream == null:
 		return
 	# A click can rebuild the shop and pull the button out of the tree before
 	# this runs. The scene root still can play it.
@@ -167,7 +195,7 @@ static func play_sfx(host: Node, path: String) -> void:
 	if parent == null:
 		return
 	var player := ToonAudio.effect_player()
-	player.stream = _stream(path)
+	player.stream = stream
 	player.finished.connect(player.queue_free)
 	parent.add_child(player)
 	player.play()

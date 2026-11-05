@@ -11,6 +11,7 @@ const _DOORS := preload("res://scenes/interiors/shop_door.gd")
 const _ARROW_TEX := preload("res://assets/gui/nametag/arrow.png")
 ## phase_3/models/props/panel, the card NametagGlobals.setNametagCard installs.
 const _NAME_PANEL := preload("res://assets/gui/nametag/name_panel.png")
+const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 ## Hood id from the playground scene file. Kept here so this board does not
 ## pull the place table back into the toon that owns it.
 const _HOODS: Dictionary = {
@@ -170,6 +171,7 @@ func _offer_card(item: Dictionary, camera: Camera3D, view: Rect2, wish: Array[Di
 		"key": "who:%d" % actor.get_instance_id(),
 		"text": plain,
 		"chat": chat,
+		"chat_kind": String(actor.get_meta("chat_kind", "")),
 		"ink": ink,
 		"arrow": arrow,
 		"card": card,
@@ -438,6 +440,9 @@ func _place_margin_chat(widget: Dictionary, item: Dictionary, panel_size: Vector
 			written.add_theme_font_override("font", raw_font)
 		ToonGui.show_speech(written, chat, _TEXT_PX)
 	bubble.visible = true
+	var fill := bubble.get_theme_stylebox("panel") as StyleBoxFlat
+	if fill != null:
+		fill.bg_color = _ChatSettings.bubble(String(item.get("chat_kind", "")))
 	bubble.reset_size()
 	bubble.position = Vector2((panel_size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
 

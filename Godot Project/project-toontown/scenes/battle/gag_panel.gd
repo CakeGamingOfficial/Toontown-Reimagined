@@ -155,13 +155,20 @@ func refresh() -> void:
 	if _loadout == null:
 		return
 	for track in ToonLoadout.TRACK_COUNT:
-		var current := _loadout.experience_of(track)
-		var nxt := maxi(_loadout.next_skill(track), 1)
-		var ratio := clampf(float(current) / float(nxt), 0.0, 1.0)
-		_skills[track].text = "%d / %d" % [current, nxt]
-		var back := _bars[track]
-		_fills[track].position = back.position
-		_fills[track].size = Vector2(back.size.x * ratio, back.size.y)
+		# InventoryNew.hideTrack. The name stays. The experience bar shows
+		# only after the toon has that track, which starts as throw and squirt.
+		var open := _loadout.track_open(track)
+		_bars[track].visible = open
+		_fills[track].visible = open
+		_skills[track].visible = open
+		if open:
+			var current := _loadout.experience_of(track)
+			var nxt := maxi(_loadout.next_skill(track), 1)
+			var ratio := clampf(float(current) / float(nxt), 0.0, 1.0)
+			_skills[track].text = "%d / %d" % [current, nxt]
+			var back := _bars[track]
+			_fills[track].position = back.position
+			_fills[track].size = Vector2(back.size.x * ratio, back.size.y)
 		for level in ToonLoadout.LEVEL_COUNT:
 			var index := track * ToonLoadout.LEVEL_COUNT + level
 			var owned := _loadout.unlocked(track, level)

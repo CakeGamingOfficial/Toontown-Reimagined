@@ -143,8 +143,21 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 	}
 	var cog_pos := _point(cog.get("pos", []))
 	var yaw := _opening_yaw(cog_pos)
-	var forward := _battle_forward(yaw)
-	var origin := cog_pos - forward * 5.0
+	var origin := cog_pos
+	var suits := _street_suits(slug)
+	var placed := false
+	if suits != null:
+		var spot: Dictionary = suits.battle_spot(cog_pos)
+		if not spot.is_empty():
+			origin = spot["at"] as Vector3
+			placed = true
+	if not placed:
+		var forward := _battle_forward(yaw)
+		origin = cog_pos - forward * 5.0
+	else:
+		var flat := Vector2(cog_pos.x - origin.x, cog_pos.z - origin.z)
+		if flat.length() > 0.75:
+			yaw = rad_to_deg(atan2(-flat.x, -flat.y))
 	origin.y = cog_pos.y
 	fight["origin"] = [origin.x, origin.y, origin.z]
 	fight["yaw"] = yaw
@@ -1253,6 +1266,16 @@ func _opening_yaw(cog_pos: Vector3) -> float:
 	if flat.length_squared() < 0.04:
 		return 180.0
 	return rad_to_deg(atan2(-flat.x, -flat.y))
+
+
+func _street_suits(slug: String) -> StreetSuits:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+	var node := scene.find_child("StreetSuits", true, false)
+	if node is StreetSuits and (node as StreetSuits).street_slug == slug:
+		return node as StreetSuits
+	return null
 
 
 func _battle_forward(heading: float) -> Vector3:

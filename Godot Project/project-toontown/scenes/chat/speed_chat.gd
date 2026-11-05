@@ -15,11 +15,13 @@ const _HOVER := preload("res://assets/gui/speedchat/ChtBx_ChtBtn_RLVR.png")
 const _ARROW := preload("res://assets/gui/speedchat/chatArrow.png")
 const _EMOTE := preload("res://assets/gui/speedchat/emotionIcon.png")
 const _MENU := "res://assets/gui/speedchat/menu.json"
+const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
+const _Style := preload("res://scenes/chat/speed_chat_style.gd")
 const _CLICK := "res://assets/gui/speedchat/GUI_quicktalker.mp3"
-const _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
-const _HOVER_ROW := Color(0.53, 0.9, 0.53, 0.95)
-const _ARROW_TINT := Color(0.5, 0.5, 1.0)
-const _EMOTE_TINT := Color(0.2, 0.72, 0.32)
+var _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
+var _HOVER_ROW := Color(0.53, 0.9, 0.53, 0.95)
+var _ARROW_TINT := Color(0.5, 0.5, 1.0)
+var _EMOTE_TINT := Color(0.2, 0.72, 0.32)
 const _POP_AT := Vector2(-0.3, -0.1)
 const _HOME_SCALE := 1.179
 const _POP_SCALE := 2.0
@@ -41,17 +43,6 @@ const _TAB_GROUPS := 4
 const _TAB_GUILD := 5
 const _TAB_CONSOLE := 6
 const _TAB_NAMES: PackedStringArray = ["Main", "System", "Whispers", "NPC", "Groups", "Guild", "Console"]
-const _CHANNEL_ROWS: Array[Dictionary] = [
-	{"id": "player", "label": "Players", "on": true},
-	{"id": "cog", "label": "Cogs", "on": true},
-	{"id": "whisper", "label": "Whispers", "on": true},
-	{"id": "system", "label": "System Alerts/Notifications", "on": true},
-	{"id": "npc", "label": "NPCs", "on": true},
-	{"id": "group", "label": "Group", "on": true},
-	{"id": "guild", "label": "Guild", "on": true},
-	{"id": "console", "label": "Console (for developers)", "on": false},
-	{"id": "magic", "label": "Magic Words (for staff)", "on": true},
-]
 const _CREAM := Color(1.0, 0.97, 0.86, 0.98)
 const _ORANGE := Color(0.9, 0.48, 0.1, 1.0)
 const _INK := Color(0.22, 0.12, 0.06, 1.0)
@@ -66,7 +57,8 @@ var _pin: Button
 var _blocker: ColorRect
 var _panel: PanelContainer
 var _subs: Array[Control] = []
-var _open_sub: Control
+var _open_subs: Array[Control] = []
+var phrase_is_speedchat := true
 var _click: AudioStreamPlayer
 var _shown := false
 var _chat_live := false
@@ -79,7 +71,7 @@ const _LOG_PATH := "user://chat_log.json"
 
 var _tab := 0
 var _entries: Array[Dictionary] = []
-var _channel_on := {}
+var _channel_boxes := {}
 var _restored := false
 ## A new play from the toon picker bumps this. Area changes keep the same number,
 ## so the log survives a tunnel and starts empty the next time you load in.
@@ -232,8 +224,9 @@ func _process(_delta: float) -> void:
 	if _flying or _speed_btn == null:
 		return
 	_layout_buttons()
-	if _open_sub != null and is_instance_valid(_open_sub):
-		_fit(_open_sub)
+	for sub in _open_subs:
+		if is_instance_valid(sub) and sub.visible:
+			_fit(sub)
 
 
 func _apply_unlock() -> void:
@@ -287,7 +280,7 @@ func _open_menu() -> void:
 
 
 func _close_menu() -> void:
-	_open_sub = null
+	_open_subs.clear()
 	if _panel != null and is_instance_valid(_panel):
 		_panel.queue_free()
 	_panel = null
@@ -356,6 +349,7 @@ func _add_holder(rows: VBoxContainer, item: Dictionary) -> void:
 	submenu.visible = false
 	submenu.z_index = 50
 	button.set_meta("submenu", submenu)
+	submenu.set_meta("parent_menu", rows.get_parent())
 	button.mouse_entered.connect(_hover_holder.bind(button))
 	rows.add_child(button)
 	_subs.append(submenu)
@@ -367,6 +361,7 @@ func _add_phrase(rows: VBoxContainer, item: Dictionary) -> void:
 	var button := _row(String(item.get("text", "")), false, emote)
 	var spoken := String(item.get("say", item.get("text", "")))
 	button.pressed.connect(_choose.bind(spoken))
+	button.mouse_entered.connect(_hover_line.bind(button))
 	rows.add_child(button)
 
 
@@ -429,16 +424,40 @@ func _row(text: String, holder: bool, emote: int) -> Button:
 
 
 func _hover_holder(button: Button) -> void:
-	if _open_sub != null and is_instance_valid(_open_sub):
-		_open_sub.visible = false
+	var parent_menu := button.get_parent().get_parent() as Control
+	_keep_menu_chain(parent_menu)
 	var submenu := button.get_meta("submenu") as Control
 	if submenu == null:
-		_open_sub = null
 		return
 	submenu.visible = true
+	submenu.z_index = 50 + _open_subs.size()
 	submenu.global_position = button.global_position + Vector2(button.size.x - 8.0, 0.0)
-	_open_sub = submenu
+	if not _open_subs.has(submenu):
+		_open_subs.append(submenu)
 	_fit(submenu)
+
+
+func _hover_line(button: Button) -> void:
+	_keep_menu_chain(button.get_parent().get_parent() as Control)
+
+
+func _keep_menu_chain(menu: Control) -> void:
+	var keep := {}
+	var cursor := menu
+	while cursor != null and is_instance_valid(cursor):
+		keep[cursor.get_instance_id()] = true
+		if not cursor.has_meta("parent_menu"):
+			break
+		cursor = cursor.get_meta("parent_menu") as Control
+	var still: Array[Control] = []
+	for sub in _open_subs:
+		if not is_instance_valid(sub):
+			continue
+		if keep.has(sub.get_instance_id()):
+			still.append(sub)
+		else:
+			sub.visible = false
+	_open_subs = still
 
 
 func _choose(raw: String) -> void:
@@ -449,6 +468,7 @@ func _choose(raw: String) -> void:
 		_send_whisper(spoken, true)
 		return
 	_remember(spoken)
+	phrase_is_speedchat = true
 	phrase_said.emit(spoken)
 	_publish(spoken, true)
 
@@ -648,7 +668,7 @@ func _pointer_on_chat() -> bool:
 	var hovered := get_viewport().gui_get_hovered_control()
 	if hovered == null:
 		return false
-	if _chat_owns(hovered, _dock) or _chat_owns(hovered, _settings) or _chat_owns(hovered, _panel) or _chat_owns(hovered, _open_sub):
+	if _chat_owns(hovered, _dock) or _chat_owns(hovered, _settings) or _chat_owns(hovered, _panel):
 		return true
 	for sub in _subs:
 		if _chat_owns(hovered, sub):
@@ -902,6 +922,7 @@ func _send_typed(text: String) -> void:
 		_send_whisper(spoken, false)
 		return
 	_remember(spoken)
+	phrase_is_speedchat = false
 	phrase_said.emit(spoken)
 	_publish(spoken, false)
 	if _click.stream != null:
@@ -1003,7 +1024,7 @@ static func begin_session() -> void:
 func _restore_log() -> void:
 	var record := _stored_record()
 	_pinned = bool(record.get("pinned", false))
-	_load_channels(record.get("channels", {}))
+	_ChatSettings.bind(_log_key())
 	var fresh := _generation != _loaded_generation
 	_loaded_generation = _generation
 	_entries.clear()
@@ -1028,7 +1049,7 @@ func _keep_log() -> void:
 		"entries": _entries_of(),
 		"tab": _tab,
 		"pinned": _pinned,
-		"channels": _channel_on.duplicate(),
+		"channels": _ChatSettings.channels(),
 	}
 	_write_logs(saved)
 
@@ -1341,17 +1362,7 @@ func _empty_line(tab: int) -> String:
 
 
 func _wants(channel: String) -> bool:
-	return bool(_channel_on.get(channel, true))
-
-
-func _load_channels(value: Variant) -> void:
-	var saved := {}
-	if value is Dictionary:
-		saved = value
-	_channel_on = {}
-	for row in _CHANNEL_ROWS:
-		var id := String(row.get("id", ""))
-		_channel_on[id] = bool(saved.get(id, row.get("on", true)))
+	return _ChatSettings.enabled(channel)
 
 
 func _entries_of() -> Array:
@@ -1411,7 +1422,7 @@ func _build_settings() -> void:
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ToonGui.style_label(hint, Color(0.35, 0.24, 0.14), 13, Color(0, 0, 0, 0), 0)
 	column.add_child(hint)
-	for row in _CHANNEL_ROWS:
+	for row in _ChatSettings.rows():
 		var id := String(row.get("id", ""))
 		var box := CheckBox.new()
 		box.text = String(row.get("label", id))
@@ -1422,17 +1433,72 @@ func _build_settings() -> void:
 		box.add_theme_color_override("font_color", _INK)
 		box.add_theme_color_override("font_hover_color", _INK)
 		box.add_theme_color_override("font_pressed_color", _INK)
-		box.set_pressed_no_signal(_wants(id))
+		box.set_pressed_no_signal(_ChatSettings.enabled(id))
 		box.toggled.connect(_set_channel.bind(id))
 		column.add_child(box)
+		_channel_boxes[id] = box
 	add_child(_settings)
+	_ChatSettings.watch(_on_chat_settings)
+	_apply_menu_colors()
 
+
+
+func _apply_menu_colors() -> void:
+	var fill := _Style.frame(_ChatSettings.speed_color())
+	fill.a = 0.95
+	_FRAME = fill
+	_HOVER_ROW = _Style.rollover(_ChatSettings.speed_color())
+	_ARROW_TINT = _Style.arrow(_ChatSettings.speed_color())
+	_EMOTE_TINT = _Style.emote(_ChatSettings.speed_color())
+	_tint_menu(_panel)
+	for sub in _subs:
+		_tint_menu(sub)
+
+
+func _tint_menu(panel: Control) -> void:
+	if panel == null or not is_instance_valid(panel):
+		return
+	var box := panel.get_theme_stylebox("panel")
+	if box is StyleBoxFlat:
+		var next := (box as StyleBoxFlat).duplicate() as StyleBoxFlat
+		next.bg_color = _FRAME
+		next.border_color = Color(_ARROW_TINT.r, _ARROW_TINT.g, _ARROW_TINT.b, 0.85)
+		panel.add_theme_stylebox_override("panel", next)
+	if panel.get_child_count() == 0:
+		return
+	var rows := panel.get_child(0)
+	for node in rows.get_children():
+		if not (node is Button):
+			continue
+		var button := node as Button
+		var hot := button.get_theme_stylebox("hover")
+		if hot is StyleBoxFlat:
+			var copy := (hot as StyleBoxFlat).duplicate() as StyleBoxFlat
+			copy.bg_color = _HOVER_ROW
+			button.add_theme_stylebox_override("hover", copy)
+			button.add_theme_stylebox_override("pressed", copy)
+		for child in button.get_children():
+			if not (child is TextureRect):
+				continue
+			var icon := child as TextureRect
+			if icon.texture == _ARROW:
+				icon.modulate = _ARROW_TINT
+			elif icon.texture == _EMOTE:
+				icon.modulate = _EMOTE_TINT
 
 func _set_channel(on: bool, id: String) -> void:
-	_channel_on[id] = on
-	_keep_log()
-	if _tab == _TAB_MAIN:
+	_ChatSettings.set_enabled(id, on)
+
+
+func _on_chat_settings() -> void:
+	for id in _channel_boxes.keys():
+		var box := _channel_boxes[id] as CheckBox
+		if box == null:
+			continue
+		box.set_pressed_no_signal(_ChatSettings.enabled(String(id)))
+	if _restored and _tab == _TAB_MAIN:
 		_refresh_log()
+	_apply_menu_colors()
 
 
 func _place_settings() -> void:

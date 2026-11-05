@@ -277,11 +277,21 @@ func _change(path: String) -> void:
 	_ratio = 1.0
 	_layout()
 	await get_tree().process_frame
+	var leaving := get_tree().current_scene
 	if packed != null:
 		get_tree().change_scene_to_packed(packed)
 	else:
 		get_tree().change_scene_to_file(path)
-	await get_tree().process_frame
+	# The swap waits a frame. The new place then compiles its shaders on the
+	# first draw. Keep this screen up through that draw, so arriving is not
+	# the frame that stalls.
+	for _wait in 4:
+		await get_tree().process_frame
+		var arrived := get_tree().current_scene
+		if arrived != null and arrived != leaving:
+			break
+	if DisplayServer.get_name() != "headless":
+		RenderingServer.force_draw()
 	if ToonSocial.visit_on and ToonSocial.visit_scene == path:
 		ToonSocial.visit_on = false
 	visible = false

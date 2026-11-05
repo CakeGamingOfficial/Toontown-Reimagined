@@ -433,18 +433,22 @@ func _show_chat(msg: Dictionary) -> void:
 		text = _garble()
 	var called := String(msg.get("from_name", "Toon"))
 	if not whisper:
-		_bubble(from_av, text)
+		_bubble(from_av, text, bool(msg.get("speedchat", false)))
 	heard.emit(called, text, whisper)
 
 
-func _bubble(av: int, text: String) -> void:
+func _bubble(av: int, text: String, speedchat: bool) -> void:
 	var tree := get_tree()
 	if tree == null or tree.root == null:
 		return
 	var actor := _find_actor(tree.root, av)
 	if actor == null:
 		return
+	var kind := "plus"
+	if speedchat:
+		kind = "speed"
 	actor.set_meta("chat_line", text)
+	actor.set_meta("chat_kind", kind)
 	actor.set_meta("chat_until", Time.get_ticks_msec() + maxi(2800, text.length() * 45))
 	ToonSpeech.speak(actor, text)
 

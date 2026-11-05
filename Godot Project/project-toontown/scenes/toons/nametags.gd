@@ -7,6 +7,7 @@ extends Node
 const _TAG_BODY := ["legs", "hands", "torso", "arms", "node", "drop_shadow", "CorpIcon"]
 ## phase_3/models/props/panel, the card NametagGlobals.setNametagCard installs.
 const _NAME_PANEL := preload("res://assets/gui/nametag/name_panel.png")
+const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 # NametagGlobals CCSuit card and name colors. Ready, rollover, depressed.
 const _SUIT_CARD := Color(0.8, 0.8, 0.8, 0.5)
 const _SUIT_CARD_OVER := Color(1.0, 1.0, 1.0, 1.0)
@@ -280,6 +281,9 @@ func _place_chat(item: Dictionary, label: Control, actor: Node3D) -> void:
 		ToonGui.show_speech(words, line, px)
 	bubble.visible = label.visible
 	bubble.reset_size()
+	var fill := bubble.get_theme_stylebox("panel") as StyleBoxFlat
+	if fill != null:
+		fill.bg_color = _ChatSettings.bubble(String(actor.get_meta("chat_kind", "")))
 	bubble.position = label.position + Vector2((label.size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
 
 

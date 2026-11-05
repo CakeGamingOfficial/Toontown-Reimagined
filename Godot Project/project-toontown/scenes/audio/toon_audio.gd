@@ -12,6 +12,8 @@ static var _music_on := true
 static var _sfx_on := true
 static var _music_volume := 1.0
 static var _sfx_volume := 1.0
+static var _master_volume := 1.0
+static var _device := ""
 
 
 func _ready() -> void:
@@ -57,6 +59,34 @@ static func sfx_volume() -> float:
 	return _sfx_volume
 
 
+static func master_volume() -> float:
+	return _master_volume
+
+
+static func device_name() -> String:
+	if _device == "":
+		return "Default"
+	return _device
+
+
+static func devices() -> PackedStringArray:
+	var found := AudioServer.get_output_device_list()
+	var lines := PackedStringArray()
+	lines.append("Default")
+	for name in found:
+		var device := String(name)
+		if device == "" or device == "Default" or lines.has(device):
+			continue
+		lines.append(device)
+	return lines
+
+
+static func set_device(name: String) -> void:
+	_device = "" if name == "" or name == "Default" else name
+	_apply_device()
+	_save()
+
+
 static func set_music_on(enabled: bool) -> void:
 	_music_on = enabled
 	_apply()
@@ -81,6 +111,12 @@ static func set_sfx_volume(linear: float) -> void:
 	_save()
 
 
+static func set_master_volume(linear: float) -> void:
+	_master_volume = clampf(linear, 0.0, 1.0)
+	_apply()
+	_save()
+
+
 static func _ensure_bus(bus_name: String) -> void:
 	if AudioServer.get_bus_index(bus_name) >= 0:
 		return
@@ -91,8 +127,17 @@ static func _ensure_bus(bus_name: String) -> void:
 
 
 static func _apply() -> void:
+	_apply_bus("Master", true, _master_volume)
 	_apply_bus(_MUSIC, _music_on, _music_volume)
 	_apply_bus(_SFX, _sfx_on, _sfx_volume)
+	_apply_device()
+
+
+static func _apply_device() -> void:
+	var wanted := "Default" if _device == "" else _device
+	if not devices().has(wanted):
+		wanted = "Default"
+	AudioServer.output_device = wanted
 
 
 static func _apply_bus(bus_name: String, enabled: bool, linear: float) -> void:
@@ -112,6 +157,8 @@ static func _load() -> void:
 	_sfx_on = bool(config.get_value("audio", "sfx_on", true))
 	_music_volume = clampf(float(config.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
 	_sfx_volume = clampf(float(config.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+	_master_volume = clampf(float(config.get_value("audio", "master_volume", 1.0)), 0.0, 1.0)
+	_device = String(config.get_value("audio", "device", ""))
 
 
 static func _save() -> void:
@@ -120,4 +167,6 @@ static func _save() -> void:
 	config.set_value("audio", "sfx_on", _sfx_on)
 	config.set_value("audio", "music_volume", _music_volume)
 	config.set_value("audio", "sfx_volume", _sfx_volume)
+	config.set_value("audio", "master_volume", _master_volume)
+	config.set_value("audio", "device", _device)
 	config.save(_PATH)

@@ -14,6 +14,8 @@ const _PIER_FLOOR := 0.2
 
 var _built := false
 var _lawbot := false
+var _pet_record: Dictionary = {}
+var _clothes_record: Dictionary = {}
 
 
 static func finish(host: Node, flat: bool) -> void:
@@ -34,6 +36,7 @@ func _ready() -> void:
 		preload("res://scenes/cog_hq/factory_floor.gd").place(host)
 	_add_collision(self)
 	_place_recorded_solids()
+	_place_shells()
 
 
 func build_street(flat: bool) -> void:
@@ -148,6 +151,8 @@ func _place_recorded_solids() -> void:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return
 	var buildings: Dictionary = parsed
+	_pet_record = _record(buildings, "sz22_toon_landmark_TT_pet_shop_DNARoot")
+	_clothes_record = _record(buildings, "sz21_toon_landmark_TT_clothes_shop_DNARoot")
 	for building_name in buildings.keys():
 		var landmark := find_child(String(building_name), true, false) as Node3D
 		if landmark == null or landmark.get_node_or_null("LandmarkSolid") != null:
@@ -169,7 +174,9 @@ func _add_recorded_solid(landmark: Node3D, record: Dictionary) -> void:
 	while index + 2 < raw.size():
 		faces.append(Vector3(float(raw[index]), float(raw[index + 1]), float(raw[index + 2])))
 		index += 3
-	if faces.size() >= 3:
+	if faces.size() >= 3 and _shop_landmark(String(landmark.name)):
+		_thicken_faces(body, faces)
+	elif faces.size() >= 3:
 		var shape := ConcavePolygonShape3D.new()
 		shape.set_faces(faces)
 		var collision := CollisionShape3D.new()
@@ -184,6 +191,175 @@ func _add_recorded_solid(landmark: Node3D, record: Dictionary) -> void:
 	if body.get_child_count() == 0:
 		return
 	landmark.add_child(body)
+
+
+## Toon Hall, the library, the bank, the school, HQ, the clothes shop, and the
+## pet shop. The recorded wall is one flat polygon, and a toon walks through it.
+func _record(buildings: Dictionary, building_name: String) -> Dictionary:
+	var record: Variant = buildings.get(building_name, {})
+	if typeof(record) != TYPE_DICTIONARY:
+		return {}
+	return record
+
+
+func _shop_landmark(node_name: String) -> bool:
+	var low := node_name.to_lower()
+	if not low.contains("toon_landmark"):
+		return false
+	return low.contains("toonhall") or low.contains("library") or low.contains("school_house") or low.contains("_bank") or low.contains("clothes_shop") or low.contains("pet_shop") or low.contains("hq")
+
+
+## The same shops in the other playgrounds never had a recorded solid.
+func _place_shells() -> void:
+	if _on_street():
+		return
+	_walk_shells(self)
+
+
+func _walk_shells(node: Node) -> void:
+	if node is Node3D and _shop_landmark(String(node.name)) and node.get_node_or_null("LandmarkSolid") == null:
+		var low := String(node.name).to_lower()
+		if low.contains("pet_shop") and not _pet_record.is_empty():
+			_add_recorded_solid(node as Node3D, _pet_record)
+		elif low.contains("clothes_shop") and not _clothes_record.is_empty():
+			_add_recorded_solid(node as Node3D, _clothes_record)
+		else:
+			_add_shell(node as Node3D)
+		return
+	for child in node.get_children():
+		_walk_shells(child)
+
+
+func _add_shell(landmark: Node3D) -> void:
+	var body := StaticBody3D.new()
+	body.name = "LandmarkSolid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var into := landmark.global_transform.affine_inverse()
+	var bag := {"faces": PackedVector3Array()}
+	_collect_shell(landmark, landmark, into, body, bag)
+	var faces: PackedVector3Array = bag["faces"]
+	if faces.size() >= 3:
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(faces)
+		var collision := CollisionShape3D.new()
+		collision.shape = shape
+		body.add_child(collision)
+	if body.get_child_count() == 0:
+		return
+	landmark.add_child(body)
+
+
+func _collect_shell(node: Node, landmark: Node3D, into: Transform3D, body: StaticBody3D, bag: Dictionary) -> void:
+	if node != landmark and _skip_shell(node):
+		return
+	if node is MeshInstance3D and node != landmark:
+		var mesh := node as MeshInstance3D
+		if mesh.visible and mesh.mesh != null:
+			var to_local := into * mesh.global_transform
+			var floor := _floor_piece(String(mesh.name))
+			for surface in mesh.mesh.get_surface_count():
+				_shell_surface(mesh, surface, to_local, body, floor, bag)
+	for child in node.get_children():
+		_collect_shell(child, landmark, into, body, bag)
+
+
+func _skip_shell(node: Node) -> bool:
+	var low := String(node.name).to_lower()
+	return low.contains("door") or low.contains("sign") or low.contains("billboard") or low.contains("decal") or low.contains("baseline") or low.contains("kelp") or low.contains("flag") or low.contains("pig") or low.contains("fish") or low.contains("telescope") or low.contains("periscope")
+
+
+func _floor_piece(node_name: String) -> bool:
+	var low := node_name.to_lower()
+	return low.contains("porch") or low.contains("stair") or low.contains("stoop")
+
+
+func _shell_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, body: StaticBody3D, floor: bool, bag: Dictionary) -> void:
+	var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+	var source: Variant = arrays[Mesh.ARRAY_VERTEX]
+	if not (source is PackedVector3Array):
+		return
+	var verts := source as PackedVector3Array
+	var ids := PackedInt32Array()
+	if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
+		ids = arrays[Mesh.ARRAY_INDEX]
+	var cursor := 0
+	var limit := verts.size()
+	if ids.size() >= 3:
+		limit = ids.size()
+	while cursor + 2 < limit:
+		var i0 := cursor
+		var i1 := cursor + 1
+		var i2 := cursor + 2
+		if ids.size() >= 3:
+			i0 = ids[cursor]
+			i1 = ids[cursor + 1]
+			i2 = ids[cursor + 2]
+		cursor += 3
+		if i0 < 0 or i1 < 0 or i2 < 0 or i0 >= verts.size() or i1 >= verts.size() or i2 >= verts.size():
+			continue
+		var a := to_local * verts[i0]
+		var b := to_local * verts[i1]
+		var c := to_local * verts[i2]
+		var cross := (b - a).cross(c - a)
+		var span := cross.length()
+		if span < 1.0:
+			continue
+		var normal := cross / span
+		if not floor and absf(normal.y) > 0.72:
+			continue
+		var faces: PackedVector3Array = bag["faces"]
+		faces.append(a)
+		faces.append(b)
+		faces.append(c)
+		bag["faces"] = faces
+		# A single flat quad does not stop a toon. Only the big wall faces need a box.
+		if span >= 80.0:
+			_add_slab(body, a, b, c, normal)
+
+
+func _thicken_faces(body: StaticBody3D, faces: PackedVector3Array) -> void:
+	var index := 0
+	while index + 2 < faces.size():
+		var a := faces[index]
+		var b := faces[index + 1]
+		var c := faces[index + 2]
+		index += 3
+		var cross := (b - a).cross(c - a)
+		var span := cross.length()
+		if span < 0.2:
+			continue
+		_add_slab(body, a, b, c, cross / span)
+
+
+func _add_slab(body: StaticBody3D, a: Vector3, b: Vector3, c: Vector3, normal: Vector3) -> void:
+	var tangent := normal.cross(Vector3.UP)
+	if tangent.length_squared() < 0.0001:
+		tangent = normal.cross(Vector3.RIGHT)
+	tangent = tangent.normalized()
+	var bitangent := tangent.cross(normal).normalized()
+	var low := Vector2(INF, INF)
+	var high := Vector2(-INF, -INF)
+	var mid := 0.0
+	for point in [a, b, c]:
+		low = low.min(Vector2(point.dot(tangent), point.dot(bitangent)))
+		high = high.max(Vector2(point.dot(tangent), point.dot(bitangent)))
+		mid += point.dot(normal)
+	mid /= 3.0
+	var span := high - low
+	if span.x < 0.15 or span.y < 0.15:
+		return
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(span.x, _WALL_THICK, span.y)
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	var basis := Basis()
+	basis.x = tangent
+	basis.y = normal
+	basis.z = bitangent
+	var center := tangent * ((low.x + high.x) * 0.5) + bitangent * ((low.y + high.y) * 0.5) + normal * mid
+	collision.transform = Transform3D(basis, center)
+	body.add_child(collision)
 
 
 func _point(raw: Variant) -> Vector3:

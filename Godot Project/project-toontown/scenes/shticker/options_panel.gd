@@ -8,6 +8,11 @@ const _PILL := preload("res://assets/toons/gui/QuitBtn_UP.png")
 const _PILL_DOWN := preload("res://assets/toons/gui/QuitBtn_DN.png")
 const _PILL_HOVER := preload("res://assets/toons/gui/QuitBtn_RLVR.png")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
+const _Style := preload("res://scenes/chat/speed_chat_style.gd")
+const _ARROW_UP := preload("res://assets/gui/friends/Horiz_Arrow_UP.png")
+const _ARROW_DOWN := preload("res://assets/gui/friends/Horiz_Arrow_DN.png")
+const _ARROW_HOVER := preload("res://assets/gui/friends/Horiz_Arrow_Rllvr.png")
 
 var _page: Control
 var _title: Label
@@ -20,15 +25,31 @@ var _bind_buttons: Array[TextureButton] = []
 var _bind_captions: Array[Label] = []
 var _audio_captions: Array[Label] = []
 var _audio_toggles: Array[TextureButton] = []
+var _toggle_kinds: Array[String] = []
 var _audio_sliders: Array[HSlider] = []
+var _audio_fields: Array[LineEdit] = []
+var _audio_kinds: Array[String] = []
+var _device_caption: Label
+var _device_button: TextureButton
 var _gfx_captions: Array[Label] = []
 var _gfx_buttons: Array[TextureButton] = []
+var _chat_captions: Array[Label] = []
+var _chat_toggles: Array[TextureButton] = []
+var _chat_ids: Array[String] = []
+var _color_captions: Array[Label] = []
+var _color_left: Array[TextureButton] = []
+var _color_right: Array[TextureButton] = []
+var _color_chips: Array[PanelContainer] = []
+var _color_names: Array[Label] = []
+var _color_which: Array[String] = []
 var _switch_button: TextureButton
 var _quit_button: TextureButton
 var _close_button: TextureButton
 var _on_switch: Callable = Callable()
 var _on_quit: Callable = Callable()
 var _built := false
+var _closing := false
+var _close_left := 0
 
 
 static func open_popup(host: Node) -> OptionsPanel:
@@ -98,7 +119,7 @@ func _ensure() -> void:
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.mouse_filter = MOUSE_FILTER_IGNORE
 	_page.add_child(_title)
-	var tab_names: PackedStringArray = ["Sound", "Keybinds", "Graphics"]
+	var tab_names: PackedStringArray = ["Audio", "Controls", "Video", "Chat", "Gameplay"]
 	for index in tab_names.size():
 		var tab := _pill(tab_names[index])
 		tab.pressed.connect(_set_tab.bind(index))
@@ -117,10 +138,19 @@ func _ensure() -> void:
 		_page.add_child(button)
 		_bind_captions.append(caption)
 		_bind_buttons.append(button)
-	_audio_row("Music", true)
-	_audio_row("Sound Effects", false)
-	_gfx_row("Display", _cycle_window)
+	_device_row()
+	_volume_row("Master Volume", "master", false)
+	_volume_row("Music", "music", true)
+	_volume_row("Sound Effects", "sfx", true)
+	_gfx_row("Display Mode", _cycle_window)
+	_gfx_row("Resolution", _cycle_resolution)
 	_gfx_row("VSync", _cycle_vsync)
+	_ChatSettings.bind(_ChatSettings.current_key())
+	_color_row("SpeedChat Color", "speed")
+	_color_row("SpeedChat++ Color", "plus")
+	for row in _ChatSettings.rows():
+		_chat_row(String(row.get("label", "")), String(row.get("id", "")))
+	_ChatSettings.watch(_paint_chat)
 	if _on_switch.is_valid():
 		_switch_button = _pill("Switch Toon")
 		_switch_button.pressed.connect(_on_switch)
@@ -130,7 +160,8 @@ func _ensure() -> void:
 		_page.add_child(_quit_button)
 	if _popup:
 		_close_button = _pill("Close")
-		_close_button.pressed.connect(queue_free)
+		_close_button.button_down.connect(_guard_host)
+		_close_button.pressed.connect(_request_close)
 		_page.add_child(_close_button)
 
 
@@ -156,15 +187,18 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		card.size = page_size
 	var tab_y := page_size.y * 0.14
 	var tab_h := minf(page_size.y * 0.08, 40.0)
-	var tab_w := page_size.x * 0.28
-	var tab_gap := (page_size.x - tab_w * float(_tabs.size())) / float(_tabs.size() + 1)
+	var tab_gap := page_size.x * 0.012
+	var tab_w := (page_size.x - tab_gap * (float(_tabs.size()) + 1.0)) / float(maxi(_tabs.size(), 1))
 	for index in _tabs.size():
 		var tab_at := Vector2(tab_gap + float(index) * (tab_w + tab_gap), tab_y)
-		_place_pill(_tabs[index], tab_at, Vector2(tab_w, tab_h), body_px)
+		_place_pill(_tabs[index], tab_at, Vector2(tab_w, tab_h), maxi(int(tab_h * 0.38), 11))
 		_tabs[index].modulate = Color(1.0, 0.86, 0.35) if index == _tab else Color.WHITE
 		_tabs[index].mouse_filter = MOUSE_FILTER_IGNORE if _locked else MOUSE_FILTER_STOP
-	var top := tab_y + tab_h + page_size.y * 0.04
-	var room := page_size.y * 0.86 - top
+	var action_h := page_size.y * 0.09
+	var action_pad := maxf(page_size.y * 0.012, 6.0)
+	var action_y := page_size.y - action_pad - action_h
+	var top := tab_y + tab_h + page_size.y * 0.03
+	var room := maxf(action_y - top - page_size.y * 0.015, 1.0)
 	var row_h := minf(room / float(maxi(_bind_buttons.size(), 1)), 36.0)
 	for index in _bind_buttons.size():
 		var y := top + float(index) * row_h
@@ -177,50 +211,104 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		button.size = Vector2(page_size.x * 0.28, row_h * 0.76)
 		var key_name := button.get_child(0) as Label
 		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), body_px, Color(0, 0, 0, 0), 0)
-	var audio_h := minf(room / float(maxi(_audio_sliders.size(), 1)), 52.0)
+	var audio_rows := _audio_sliders.size() + (1 if _device_button != null else 0)
+	var audio_h := minf(room / float(maxi(audio_rows, 1)), 52.0)
+	var audio_at := 0
+	if _device_button != null:
+		var device_y := top
+		_device_caption.position = Vector2(0, device_y)
+		_device_caption.size = Vector2(page_size.x * 0.38, audio_h)
+		ToonGui.style_label(_device_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		_place_pill(_device_button, Vector2(page_size.x * 0.42, device_y + audio_h * 0.22), Vector2(page_size.x * 0.54, audio_h * 0.56), body_px)
+		audio_at = 1
 	for index in _audio_sliders.size():
-		var y := top + float(index) * audio_h
+		var y := top + float(index + audio_at) * audio_h
 		var caption := _audio_captions[index]
 		caption.position = Vector2(0, y)
-		caption.size = Vector2(page_size.x * 0.34, audio_h)
+		caption.size = Vector2(page_size.x * 0.30, audio_h)
 		ToonGui.style_label(caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		var toggle := _audio_toggles[index]
-		_place_pill(toggle, Vector2(page_size.x * 0.36, y + audio_h * 0.22), Vector2(page_size.x * 0.16, audio_h * 0.56), body_px)
+		var slider_x := page_size.x * 0.32
+		var toggle := _toggle_for(_audio_kinds[index])
+		if toggle != null:
+			_place_pill(toggle, Vector2(page_size.x * 0.32, y + audio_h * 0.22), Vector2(page_size.x * 0.13, audio_h * 0.56), body_px)
+			slider_x = page_size.x * 0.47
+		var field_w := page_size.x * 0.12
+		var field := _audio_fields[index]
+		field.position = Vector2(page_size.x * 0.84, y + audio_h * 0.2)
+		field.size = Vector2(field_w, audio_h * 0.6)
+		field.add_theme_font_size_override("font_size", body_px)
 		var slider := _audio_sliders[index]
-		slider.position = Vector2(page_size.x * 0.54, y + audio_h * 0.32)
-		slider.size = Vector2(page_size.x * 0.42, audio_h * 0.36)
+		slider.position = Vector2(slider_x, y + audio_h * 0.32)
+		slider.size = Vector2(page_size.x * 0.82 - slider_x, audio_h * 0.36)
 	var gfx_h := minf(room / float(maxi(_gfx_buttons.size(), 1)), 52.0)
 	for index in _gfx_buttons.size():
 		var y := top + float(index) * gfx_h
 		var caption := _gfx_captions[index]
 		caption.position = Vector2(0, y)
-		caption.size = Vector2(page_size.x * 0.46, gfx_h)
+		caption.size = Vector2(page_size.x * 0.38, gfx_h)
 		ToonGui.style_label(caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		_place_pill(_gfx_buttons[index], Vector2(page_size.x * 0.52, y + gfx_h * 0.22), Vector2(page_size.x * 0.36, gfx_h * 0.56), body_px)
+		_place_pill(_gfx_buttons[index], Vector2(page_size.x * 0.42, y + gfx_h * 0.22), Vector2(page_size.x * 0.54, gfx_h * 0.56), body_px)
+	var chat_rows := _color_captions.size() + _chat_toggles.size()
+	var chat_h := minf(room / float(maxi(chat_rows, 1)), 36.0)
+	var chat_at := 0
+	for index in _color_captions.size():
+		var color_y := top + float(chat_at) * chat_h
+		chat_at += 1
+		var color_caption := _color_captions[index]
+		color_caption.position = Vector2(0, color_y)
+		color_caption.size = Vector2(page_size.x * 0.40, chat_h)
+		ToonGui.style_label(color_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		var arrow_w := page_size.x * 0.07
+		var arrow_h := chat_h * 0.7
+		var arrow_y := color_y + (chat_h - arrow_h) * 0.5
+		_place_arrow(_color_left[index], Vector2(page_size.x * 0.42, arrow_y), Vector2(arrow_w, arrow_h), true)
+		var chip := _color_chips[index]
+		chip.position = Vector2(page_size.x * 0.51, color_y + chat_h * 0.12)
+		chip.size = Vector2(page_size.x * 0.32, chat_h * 0.76)
+		var chip_name := _color_names[index]
+		chip_name.position = Vector2.ZERO
+		chip_name.size = chip.size
+		ToonGui.style_label(chip_name, Color(0.05, 0.05, 0.08), maxi(body_px - 1, 12), Color(0, 0, 0, 0), 0)
+		_place_arrow(_color_right[index], Vector2(page_size.x * 0.85, arrow_y), Vector2(arrow_w, arrow_h), false)
+	for index in _chat_toggles.size():
+		var chat_y := top + float(chat_at) * chat_h
+		chat_at += 1
+		var chat_caption := _chat_captions[index]
+		chat_caption.position = Vector2(0, chat_y)
+		chat_caption.size = Vector2(page_size.x * 0.62, chat_h)
+		ToonGui.style_label(chat_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		_place_pill(_chat_toggles[index], Vector2(page_size.x * 0.66, chat_y + chat_h * 0.12), Vector2(page_size.x * 0.28, chat_h * 0.76), body_px)
 	_refresh_binds()
 	_paint_audio()
 	_paint_graphics()
+	_paint_chat()
 	_show_group()
 	if _switch_button != null:
 		_switch_button.visible = not _locked
 		_quit_button.visible = not _locked
-		_place_pill(_switch_button, Vector2(page_size.x * 0.04, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)
-		_place_pill(_quit_button, Vector2(page_size.x * 0.52, page_size.y * 0.88), Vector2(page_size.x * 0.44, page_size.y * 0.09), body_px)
+		_place_pill(_switch_button, Vector2(page_size.x * 0.04, action_y), Vector2(page_size.x * 0.44, action_h), body_px)
+		_place_pill(_quit_button, Vector2(page_size.x * 0.52, action_y), Vector2(page_size.x * 0.44, action_h), body_px)
 	if _close_button != null:
-		var close_size := Vector2(page_size.x * 0.34, page_size.y * 0.09)
-		_place_pill(_close_button, Vector2((page_size.x - close_size.x) * 0.5, page_size.y * 0.88), close_size, body_px)
+		var close_size := Vector2(page_size.x * 0.34, action_h)
+		_place_pill(_close_button, Vector2((page_size.x - close_size.x) * 0.5, action_y), close_size, body_px)
 
 
 func _show_group() -> void:
 	var sound := _tab == 0
 	var keys := _tab == 1
 	var graphics := _tab == 2
+	var chat := _tab == 3
 	for caption in _audio_captions:
 		caption.visible = sound
 	for toggle in _audio_toggles:
 		toggle.visible = sound
 	for slider in _audio_sliders:
 		slider.visible = sound
+	for field in _audio_fields:
+		field.visible = sound
+	if _device_caption != null:
+		_device_caption.visible = sound
+		_device_button.visible = sound
 	for caption in _bind_captions:
 		caption.visible = keys
 	for button in _bind_buttons:
@@ -229,6 +317,18 @@ func _show_group() -> void:
 		caption.visible = graphics
 	for button in _gfx_buttons:
 		button.visible = graphics
+	for caption in _chat_captions:
+		caption.visible = chat
+	for toggle in _chat_toggles:
+		toggle.visible = chat
+	for caption in _color_captions:
+		caption.visible = chat
+	for arrow in _color_left:
+		arrow.visible = chat
+	for arrow in _color_right:
+		arrow.visible = chat
+	for chip in _color_chips:
+		chip.visible = chat
 
 
 func _set_tab(index: int) -> void:
@@ -242,29 +342,189 @@ func _set_tab(index: int) -> void:
 		layout(size, maxi(int(size.y * 0.038), 13), _locked)
 
 
-func _audio_row(title: String, music: bool) -> void:
+func _device_row() -> void:
+	_device_caption = Label.new()
+	_device_caption.text = "Audio Device"
+	_device_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_device_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_device_caption.mouse_filter = MOUSE_FILTER_IGNORE
+	_page.add_child(_device_caption)
+	_device_button = _pill("Default")
+	_device_button.clip_contents = true
+	var device_label := _device_button.get_child(0) as Label
+	device_label.clip_text = true
+	device_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_device_button.pressed.connect(_cycle_device)
+	_page.add_child(_device_button)
+
+
+func _volume_row(title: String, kind: String, with_toggle: bool) -> void:
 	var caption := Label.new()
 	caption.text = title
 	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	caption.mouse_filter = MOUSE_FILTER_IGNORE
 	_page.add_child(caption)
-	var toggle := _pill("On")
-	toggle.pressed.connect(_toggle_audio.bind(music))
-	_page.add_child(toggle)
+	if with_toggle:
+		var toggle := _pill("On")
+		toggle.pressed.connect(_toggle_audio.bind(kind))
+		_page.add_child(toggle)
+		_audio_toggles.append(toggle)
+		_toggle_kinds.append(kind)
 	var slider := HSlider.new()
 	slider.min_value = 0.0
 	slider.max_value = 100.0
 	slider.step = 1.0
 	slider.focus_mode = Control.FOCUS_NONE
-	var level := ToonAudio.music_volume() if music else ToonAudio.sfx_volume()
-	slider.set_value_no_signal(level * 100.0)
-	slider.value_changed.connect(_on_audio_volume.bind(music))
+	slider.set_value_no_signal(_volume_of(kind) * 100.0)
+	slider.value_changed.connect(_on_audio_volume.bind(kind))
 	_style_slider(slider)
 	_page.add_child(slider)
+	var field := _volume_field(kind)
+	field.text = str(int(round(slider.value)))
+	_page.add_child(field)
 	_audio_captions.append(caption)
-	_audio_toggles.append(toggle)
 	_audio_sliders.append(slider)
+	_audio_fields.append(field)
+	_audio_kinds.append(kind)
+
+
+func _volume_field(kind: String) -> LineEdit:
+	var edit := LineEdit.new()
+	edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	edit.max_length = 3
+	edit.context_menu_enabled = false
+	edit.virtual_keyboard_enabled = false
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(1, 0.98, 0.9, 1)
+	box.border_color = Color(0.45, 0.32, 0.12)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(6)
+	var focus := box.duplicate() as StyleBoxFlat
+	focus.border_color = Color(0.95, 0.55, 0.16, 1)
+	edit.add_theme_stylebox_override("normal", box)
+	edit.add_theme_stylebox_override("focus", focus)
+	edit.add_theme_color_override("font_color", Color(0.1, 0.1, 0.1))
+	var face := ToonGui.font()
+	if face != null:
+		edit.add_theme_font_override("font", face)
+	edit.text_submitted.connect(_commit_volume.bind(kind))
+	edit.focus_exited.connect(_commit_volume_field.bind(kind))
+	return edit
+
+
+func _commit_volume_field(kind: String) -> void:
+	var index := _audio_kinds.find(kind)
+	if index < 0:
+		return
+	_commit_volume(_audio_fields[index].text, kind)
+
+func _color_row(title: String, which: String) -> void:
+	var caption := Label.new()
+	caption.text = title
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.mouse_filter = MOUSE_FILTER_IGNORE
+	caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_page.add_child(caption)
+	var left := _arrow_button()
+	left.pressed.connect(_nudge_color.bind(which, -1))
+	_page.add_child(left)
+	var chip := PanelContainer.new()
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := StyleBoxFlat.new()
+	box.set_corner_radius_all(6)
+	box.set_content_margin_all(2)
+	chip.add_theme_stylebox_override("panel", box)
+	var name := Label.new()
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(name)
+	_page.add_child(chip)
+	var right := _arrow_button()
+	right.pressed.connect(_nudge_color.bind(which, 1))
+	_page.add_child(right)
+	_color_captions.append(caption)
+	_color_left.append(left)
+	_color_right.append(right)
+	_color_chips.append(chip)
+	_color_names.append(name)
+	_color_which.append(which)
+
+
+func _arrow_button() -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = _ARROW_UP
+	button.texture_pressed = _ARROW_DOWN
+	button.texture_hover = _ARROW_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	return button
+
+
+func _place_arrow(button: TextureButton, at: Vector2, box: Vector2, flip: bool) -> void:
+	button.position = at
+	button.size = box
+	button.pivot_offset = box * 0.5
+	button.scale = Vector2(-1, 1) if flip else Vector2.ONE
+
+
+func _nudge_color(which: String, step: int) -> void:
+	var current := _ChatSettings.speed_color() if which == "speed" else _ChatSettings.plus_color()
+	if which == "speed":
+		_ChatSettings.set_speed_color(current + step)
+	else:
+		_ChatSettings.set_plus_color(current + step)
+
+
+func _paint_color(index: int) -> void:
+	var which := _color_which[index]
+	var chosen := _ChatSettings.speed_color() if which == "speed" else _ChatSettings.plus_color()
+	var chip := _color_chips[index]
+	var box := chip.get_theme_stylebox("panel")
+	if box is StyleBoxFlat:
+		var next := (box as StyleBoxFlat).duplicate() as StyleBoxFlat
+		next.bg_color = _Style.frame(chosen)
+		chip.add_theme_stylebox_override("panel", next)
+	_color_names[index].text = _Style.style_name(chosen)
+	var at_start := chosen <= 0
+	var at_end := chosen >= _Style.count() - 1
+	_color_left[index].modulate = Color(1, 1, 1, 0.35) if at_start else Color.WHITE
+	_color_left[index].mouse_filter = Control.MOUSE_FILTER_IGNORE if at_start else Control.MOUSE_FILTER_STOP
+	_color_right[index].modulate = Color(1, 1, 1, 0.35) if at_end else Color.WHITE
+	_color_right[index].mouse_filter = Control.MOUSE_FILTER_IGNORE if at_end else Control.MOUSE_FILTER_STOP
+
+func _chat_row(title: String, id: String) -> void:
+	var caption := Label.new()
+	caption.text = title
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.mouse_filter = MOUSE_FILTER_IGNORE
+	caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_page.add_child(caption)
+	var toggle := _pill("On")
+	toggle.pressed.connect(_toggle_chat.bind(id))
+	_page.add_child(toggle)
+	_chat_captions.append(caption)
+	_chat_toggles.append(toggle)
+	_chat_ids.append(id)
+
+
+func _toggle_chat(id: String) -> void:
+	_ChatSettings.set_enabled(id, not _ChatSettings.enabled(id))
+
+
+func _paint_chat() -> void:
+	for index in _chat_toggles.size():
+		var caption := _chat_toggles[index].get_child(0) as Label
+		if caption == null:
+			continue
+		caption.text = "On" if _ChatSettings.enabled(_chat_ids[index]) else "Off"
+	for index in _color_chips.size():
+		_paint_color(index)
 
 
 func _gfx_row(title: String, action: Callable) -> void:
@@ -275,6 +535,10 @@ func _gfx_row(title: String, action: Callable) -> void:
 	caption.mouse_filter = MOUSE_FILTER_IGNORE
 	_page.add_child(caption)
 	var button := _pill("Windowed")
+	button.clip_contents = true
+	var button_label := button.get_child(0) as Label
+	button_label.clip_text = true
+	button_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	button.pressed.connect(action)
 	_page.add_child(button)
 	_gfx_captions.append(caption)
@@ -282,8 +546,22 @@ func _gfx_row(title: String, action: Callable) -> void:
 
 
 func _cycle_window() -> void:
-	DisplaySettings.set_fullscreen(not DisplaySettings.fullscreen())
+	DisplaySettings.cycle_mode()
 	_paint_graphics()
+
+
+func _cycle_resolution() -> void:
+	DisplaySettings.cycle_resolution()
+	_paint_graphics()
+
+
+func _cycle_device() -> void:
+	var names := ToonAudio.devices()
+	var index := names.find(ToonAudio.device_name())
+	if index < 0:
+		index = 0
+	ToonAudio.set_device(names[(index + 1) % names.size()])
+	_paint_audio()
 
 
 func _cycle_vsync() -> void:
@@ -292,37 +570,118 @@ func _cycle_vsync() -> void:
 
 
 func _paint_graphics() -> void:
-	if _gfx_buttons.size() < 2:
+	if _gfx_buttons.size() < 3:
 		return
 	var window := _gfx_buttons[0].get_child(0) as Label
 	if window != null:
-		window.text = "Fullscreen" if DisplaySettings.fullscreen() else "Windowed"
-	var vsync := _gfx_buttons[1].get_child(0) as Label
+		window.text = DisplaySettings.mode_label()
+	var size := _gfx_buttons[1].get_child(0) as Label
+	if size != null:
+		size.text = DisplaySettings.resolution_label()
+	var vsync := _gfx_buttons[2].get_child(0) as Label
 	if vsync != null:
 		vsync.text = "On" if DisplaySettings.vsync_on() else "Off"
 
 
-func _toggle_audio(music: bool) -> void:
-	if music:
+func _toggle_audio(kind: String) -> void:
+	if kind == "music":
 		ToonAudio.set_music_on(not ToonAudio.music_on())
-	else:
+	elif kind == "sfx":
 		ToonAudio.set_sfx_on(not ToonAudio.sfx_on())
 	_paint_audio()
 
 
-func _on_audio_volume(value: float, music: bool) -> void:
-	if music:
-		ToonAudio.set_music_volume(value / 100.0)
-	else:
-		ToonAudio.set_sfx_volume(value / 100.0)
+func _on_audio_volume(value: float, kind: String) -> void:
+	var linear := value / 100.0
+	if kind == "master":
+		ToonAudio.set_master_volume(linear)
+	elif kind == "music":
+		ToonAudio.set_music_volume(linear)
+	elif kind == "sfx":
+		ToonAudio.set_sfx_volume(linear)
+	var index := _audio_kinds.find(kind)
+	if index >= 0:
+		_show_volume(_audio_fields[index], int(round(value)))
+
+
+func _commit_volume(text: String, kind: String) -> void:
+	var index := _audio_kinds.find(kind)
+	if index < 0:
+		return
+	var field := _audio_fields[index]
+	var slider := _audio_sliders[index]
+	if not text.is_valid_int():
+		field.text = str(int(round(slider.value)))
+		return
+	var number := clampi(int(text), 0, 100)
+	field.text = str(number)
+	if int(round(slider.value)) != number:
+		slider.set_value(float(number))
+
+
+func _show_volume(field: LineEdit, number: int) -> void:
+	if field.has_focus():
+		return
+	field.text = str(number)
+
+
+func _volume_of(kind: String) -> float:
+	if kind == "master":
+		return ToonAudio.master_volume()
+	if kind == "music":
+		return ToonAudio.music_volume()
+	return ToonAudio.sfx_volume()
+
+
+func _toggle_for(kind: String) -> TextureButton:
+	var index := _toggle_kinds.find(kind)
+	if index < 0:
+		return null
+	return _audio_toggles[index]
 
 
 func _paint_audio() -> void:
+	if _device_button != null:
+		var device := _device_button.get_child(0) as Label
+		if device != null:
+			device.text = ToonAudio.device_name()
 	for index in _audio_toggles.size():
-		var enabled := ToonAudio.music_on() if index == 0 else ToonAudio.sfx_on()
+		var kind := _toggle_kinds[index]
+		var enabled := ToonAudio.music_on() if kind == "music" else ToonAudio.sfx_on()
 		var caption := _audio_toggles[index].get_child(0) as Label
 		if caption:
 			caption.text = "On" if enabled else "Off"
+	for index in _audio_fields.size():
+		_show_volume(_audio_fields[index], int(round(_audio_sliders[index].value)))
+
+
+func _guard_host() -> void:
+	var host := get_parent()
+	if host != null and host.has_method("_swallow_click"):
+		host.call("_swallow_click")
+
+
+func _request_close() -> void:
+	if not _popup or _closing:
+		return
+	_closing = true
+	_close_left = 2
+	var host := get_parent()
+	if host != null and host.has_method("_swallow_click"):
+		host.call("_swallow_click")
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if not _closing:
+		return
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_close_left = 2
+		return
+	_close_left -= 1
+	if _close_left > 0:
+		return
+	queue_free()
 
 
 func _on_bind(action: String) -> void:
@@ -350,12 +709,17 @@ func _input(event: InputEvent) -> void:
 		return
 	if _popup and event is InputEventKey:
 		var key := event as InputEventKey
+		if _typing():
+			if key.pressed and not key.echo and (key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE):
+				get_viewport().gui_get_focus_owner().release_focus()
+				get_viewport().set_input_as_handled()
+			return
 		if key.pressed and not key.echo and (key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE):
 			if _listen != "":
 				_listen = ""
 				_refresh_binds()
 			else:
-				queue_free()
+				_request_close()
 			get_viewport().set_input_as_handled()
 			return
 		if _listen == "":
@@ -378,6 +742,11 @@ func _input(event: InputEvent) -> void:
 	_KEYS.assign(_listen, code)
 	_listen = ""
 	_refresh_binds()
+
+
+func _typing() -> bool:
+	var owner := get_viewport().gui_get_focus_owner()
+	return owner is LineEdit or owner is TextEdit
 
 
 func _pill(text: String) -> TextureButton:

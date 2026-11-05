@@ -447,6 +447,32 @@ MEDALLION_COLOR = {
 JOINTS = ("joint_head", "joint_attachMeter")
 
 
+def exposed_joints(model: NodePath) -> list[str]:
+    # The character root is also named suitA. Posing that node would swing
+    # the whole glb. Bone cards hang off the exposed ModelNodes.
+    from panda3d.core import Character
+
+    found = model.find("**/+Character")
+    if found.isEmpty():
+        return []
+    names: list[str] = []
+
+    def walk(part) -> None:
+        if part.getType().getName() == "CharacterJoint":
+            node = model.find("**/" + part.getName())
+            if (
+                not node.isEmpty()
+                and not node.node().isOfType(Character.getClassType())
+                and part.getName() not in names
+            ):
+                names.append(part.getName())
+        for index in range(part.getNumChildren()):
+            walk(part.getChild(index))
+
+    walk(found.node().getBundle(0))
+    return names
+
+
 def panda_file(relative: str) -> str:
     return str(Filename.from_os_specific(str(ASSETS / relative)))
 
@@ -664,10 +690,15 @@ def bake_clip(model: NodePath, saved, relative: str, dest: Path) -> tuple[int, f
     if frame_count <= 0:
         print("empty", relative, flush=True)
         return 0, 0.0
-    names = []
-    for name in JOINTS:
-        if not model.find("**/" + name).isEmpty():
-            names.append(name)
+    # A suited body is skinned, so the head and chest joints are enough.
+    # A skelecog's bone cards are rigid children of the exposed joints, and
+    # those cards do not move in the vertex clip. Every exposed joint has to
+    # be in the file or the bones stay in the bind pose.
+    names = exposed_joints(model) if "robot_" in dest.parent.name else []
+    if not names:
+        for name in JOINTS:
+            if not model.find("**/" + name).isEmpty():
+                names.append(name)
     walked = []
     joint_frames = {name: [] for name in names}
     neutral = BODIES_NEUTRAL[model.getTag("suit_body")]

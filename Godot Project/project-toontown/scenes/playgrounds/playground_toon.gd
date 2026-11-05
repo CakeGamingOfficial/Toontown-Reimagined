@@ -10,6 +10,7 @@ const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _PET := preload("res://scenes/interiors/pet_shop_door.gd")
@@ -174,6 +175,7 @@ var _line: PanelContainer
 var _line_label: Label
 var _line_text := ""
 var _line_left := 0.0
+var _line_kind := ""
 var _cam_yaw := 0.0
 var _cam_pitch := 0.0
 var _cam_distance := 1.0
@@ -193,6 +195,20 @@ static func reload_resume() -> bool:
 		return false
 	var console := tree.root.get_node_or_null("DevConsole")
 	return console != null and bool(console.get("_reload_armed"))
+
+
+## A street keeps the free-fly camera until a toon is due. Every door home
+## counts, not only a shop or a tunnel. Missing one leaves no one to walk.
+static func expects_avatar() -> bool:
+	if reload_resume() or from_toontorial or teleport_in or portal_in:
+		return true
+	if door_trip != "" or _LINKS.arriving():
+		return true
+	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "":
+		return true
+	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "":
+		return true
+	return false
 
 
 static func attach(host: Node) -> void:
@@ -503,7 +519,17 @@ func _map_hotkey(event: InputEvent) -> bool:
 
 
 func show_notice(message: String) -> void:
+	_line_kind = ""
 	say_line(message)
+
+
+func _on_phrase(text: String) -> void:
+	var chat := _hud().get_node_or_null("SpeedChat")
+	_line_kind = "plus"
+	if chat != null and bool(chat.get("phrase_is_speedchat")):
+		_line_kind = "speed"
+	say_line(text)
+	_line_kind = ""
 
 
 func say_line(text: String, seconds: float = -1.0) -> void:
@@ -526,6 +552,9 @@ func say_line(text: String, seconds: float = -1.0) -> void:
 		ToonGui.style_label(_line_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
 		_line.add_child(_line_label)
 		_hud().add_child(_line)
+	var fill := _line.get_theme_stylebox("panel") as StyleBoxFlat
+	if fill != null:
+		fill.bg_color = _ChatSettings.bubble(_line_kind)
 	ToonGui.show_speech(_line_label, text, 22)
 	_line_text = text
 	if seconds < 0.0:
@@ -2152,6 +2181,9 @@ func _spawn(underground: bool) -> void:
 	_body.add_child(_player)
 	if style:
 		_player.show_style(style)
+	# The standing pose is only intact until the first step. Loading the clips
+	# then is the hitch a moment after the hole closes, so load them now.
+	_player.set_locomotion(0.0, false, false, 0.0)
 	_player.set_meta("av", ToonRoster.avatar_id())
 	_player.footsteps = true
 	_face(_player, _heading)
@@ -2489,7 +2521,7 @@ func _ready_hud() -> void:
 	chat.name = "SpeedChat"
 	_hud().add_child(chat)
 	chat.setup(_tasks)
-	chat.phrase_said.connect(say_line)
+	chat.phrase_said.connect(_on_phrase)
 	var friends := FriendsList.new()
 	friends.name = "FriendsList"
 	_hud().add_child(friends)

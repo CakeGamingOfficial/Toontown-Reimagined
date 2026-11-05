@@ -9,6 +9,7 @@ const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 const MUSIC_PATH := "res://assets/neighborhoods/tutorial_zone/audio/TC_SZ.ogg"
 const MUSIC_VOLUME := 0.8
 
@@ -789,6 +790,9 @@ func _ready_loadout() -> void:
 	_briefing.setup(self, _panel, _meter, _loadout)
 	_tasks = ToonTasks.for_selected()
 	ToonNet.claim_toon()
+	# The claim puts the bank row back, including experience and Laff from a
+	# lesson the player left early. Start this one from empty tracks and full Laff.
+	_loadout.resume_tutorial()
 	if _tasks.has_laff_meter():
 		_meter.visible = true
 		_dock_meter()

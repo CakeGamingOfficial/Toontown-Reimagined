@@ -32,9 +32,9 @@ const THEME_VOLUME := 0.9
 var _confirm: Control
 var _confirm_slot := -1
 var _leaving := false
-## The welcome dialog is closing on this click. Ignore slot presses for that
-## frame and the next, so the same press cannot start Make a Toon or Play.
-var _swallow_frame := -1
+## A click that dismisses a dialog can be offered to the slot underneath it.
+## Slots stay inert until that mouse button has been up for a few frames.
+var _guard_left := 0
 static var arrive_from_black := false
 
 
@@ -47,12 +47,29 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_layout()
 	_play_theme()
-	_offer_server()
 	if not multiplayer.server_disconnected.is_connected(_server_closed):
 		multiplayer.server_disconnected.connect(_server_closed)
+	# The head shader compiles on the first draw. Welcome buttons stay hidden
+	# until that draw is done, so Single Player, Host, Connect, and Quit are
+	# not the frame that stalls.
+	await _warm_portraits()
+	_offer_server()
 	if arrive_from_black:
 		arrive_from_black = false
 		_fade_in()
+
+
+func _warm_portraits() -> void:
+	var blocker := ColorRect.new()
+	blocker.color = Color(0, 0, 0, 0)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.z_index = 70
+	add_child(blocker)
+	await get_tree().process_frame
+	if DisplayServer.get_name() != "headless":
+		RenderingServer.force_draw()
+	blocker.queue_free()
 
 
 func _show_dedicated() -> void:
@@ -146,6 +163,7 @@ func _build() -> void:
 	quit.pressed.connect(func() -> void:
 		get_tree().quit()
 	)
+	quit.button_down.connect(_swallow_click)
 	ToonGui.button_sounds(quit)
 	add_child(quit)
 	var quit_label := Label.new()
@@ -165,6 +183,7 @@ func _build() -> void:
 	options.stretch_mode = TextureButton.STRETCH_SCALE
 	options.clip_contents = true
 	options.pressed.connect(_toggle_options)
+	options.button_down.connect(_swallow_click)
 	ToonGui.button_sounds(options)
 	add_child(options)
 	var options_label := Label.new()
@@ -178,9 +197,10 @@ func _build() -> void:
 
 
 func _toggle_options() -> void:
+	_swallow_click()
 	var open := get_node_or_null("OptionsPanel") as OptionsPanel
 	if open != null:
-		open.queue_free()
+		open.call("_request_close")
 		return
 	var panel := OptionsPanel.open_popup(self)
 	panel.name = "OptionsPanel"
@@ -391,6 +411,7 @@ func _add_head(parent: Control, style: ToonStyle) -> void:
 	viewport.size = Vector2i(320, 280)
 	box.add_child(viewport)
 	var actor := ToonActor.new()
+	actor.load_extra_clips = false
 	actor.show_style(style)
 	_hide_body(actor)
 	viewport.add_child(actor)
@@ -420,11 +441,43 @@ func _fade_in() -> void:
 
 
 func _swallow_click() -> void:
-	_swallow_frame = Engine.get_process_frames()
+	_guard_left = 8
+	_set_slots_asleep(true)
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if _guard_left <= 0:
+		set_process(false)
+		return
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_guard_left = 8
+		return
+	_guard_left -= 1
+	if _guard_left > 0:
+		return
+	_set_slots_asleep(false)
+	set_process(false)
 
 
 func _click_swallowed() -> bool:
-	return _swallow_frame >= 0 and Engine.get_process_frames() <= _swallow_frame + 1
+	return _guard_left > 0
+
+
+func _set_slots_asleep(asleep: bool) -> void:
+	var filter: Control.MouseFilter = Control.MOUSE_FILTER_IGNORE if asleep else Control.MOUSE_FILTER_STOP
+	for index in ToonRoster.SLOT_COUNT:
+		var panel := get_node_or_null("Slot%d" % index) as Control
+		if panel == null:
+			continue
+		var button := panel.get_child(0) as BaseButton
+		if button != null:
+			button.mouse_filter = filter
+			button.disabled = asleep
+		var trash := panel.find_child("Trash", true, false) as BaseButton
+		if trash != null:
+			trash.mouse_filter = filter
+			trash.disabled = asleep
 
 
 func _make_toon(index: int) -> void:
@@ -446,8 +499,9 @@ func _make_toon(index: int) -> void:
 
 
 func _play(index: int) -> void:
-	if _click_swallowed():
+	if _leaving or _click_swallowed():
 		return
+	_leaving = true
 	SpeedChat.begin_session()
 	ToonRoster.select_slot(index)
 	var tasks := ToonTasks.for_selected()
@@ -515,6 +569,7 @@ func _dialog_choice(up: Texture2D, down: Texture2D, caption: String, left: float
 	button.anchor_top = 0.0
 	button.anchor_bottom = 0.62
 	button.pressed.connect(action)
+	button.button_down.connect(_swallow_click)
 	ToonGui.button_sounds(button)
 	box.add_child(button)
 	var label := Label.new()
@@ -552,6 +607,8 @@ func _rebuild() -> void:
 		child.queue_free()
 	_build()
 	_layout()
+	if _guard_left > 0:
+		_set_slots_asleep(true)
 
 
 func _hide_body(node: Node) -> void:

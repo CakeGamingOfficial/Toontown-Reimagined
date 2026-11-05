@@ -228,20 +228,22 @@ func _layout() -> void:
 	var row_w := 1.6667 * FRAME
 	var row_h := 0.1137 * 1.1 * FRAME
 	for track in ToonLoadout.TRACK_COUNT:
+		# InventoryNew always draws the colored row and the track name.
+		# hideTrack only takes the experience bar and the gag buttons away.
 		var open := _loadout != null and _loadout.track_open(track)
 		var row_z := origin_z + float(track) * -0.12 * FRAME
-		_rows[track].visible = open
-		_names[track].visible = open
+		_rows[track].visible = true
+		_names[track].visible = true
 		_bars[track].visible = open
 		_fills[track].visible = open
 		_skills[track].visible = open
+		_place(_rows[track], origin_x, row_z, row_w, row_h)
+		var name := _names[track]
+		var name_size := _size(0.55, row_h)
+		name.position = _point(origin_x + -0.785 * FRAME, row_z + 0.01 * 1.1 * FRAME) - Vector2(0.0, name_size.y * 0.5)
+		name.size = name_size
+		ToonGui.style_label(name, Color(0.2, 0.2, 0.2), _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
 		if open:
-			_place(_rows[track], origin_x, row_z, row_w, row_h)
-			var name := _names[track]
-			var name_size := _size(0.55, row_h)
-			name.position = _point(origin_x + -0.785 * FRAME, row_z + 0.01 * 1.1 * FRAME) - Vector2(0.0, name_size.y * 0.5)
-			name.size = name_size
-			ToonGui.style_label(name, Color(0.2, 0.2, 0.2), _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
 			var bar_size := _size(0.3 * FRAME, 0.05 * 1.1 * FRAME)
 			var bar_at := _point(origin_x + -0.645 * FRAME, row_z + -0.025 * 1.1 * FRAME)
 			_bars[track].position = bar_at - bar_size * 0.5

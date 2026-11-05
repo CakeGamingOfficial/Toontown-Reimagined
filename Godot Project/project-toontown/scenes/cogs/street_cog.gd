@@ -413,8 +413,14 @@ func play_lose(elapsed: float) -> void:
 	var frames := int(_lose_bank.get("frames", 0))
 	if frames <= 1:
 		return
-	var frame := mini(int(clampf(elapsed / LOSE_SECONDS, 0.0, 1.0) * float(frames - 1)), frames - 1)
-	_pose_clip(_lose_bank, frame, frame, 0.0)
+	var cursor := clampf(elapsed / LOSE_SECONDS, 0.0, 1.0) * float(frames - 1)
+	var frame := mini(int(cursor), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var fraction := cursor - float(frame)
+	if following == frame:
+		fraction = 0.0
+	_pose_clip(_lose_bank, frame, following, fraction)
+	_keep_lose_face()
 
 
 func _start_lose() -> void:
@@ -486,10 +492,52 @@ func _copy_head(lose: Node, suit: Node) -> void:
 	var dst := _find(lose, "joint_head")
 	if src == null or dst == null:
 		return
+	# Suit.getLoseActor.instanceTo(joint_head). The lose body has an empty
+	# neck. The standing head, glasses included, is what blows up.
 	for child in src.get_children():
 		if not (child is Node3D) or String(child.name).begins_with("joint"):
 			continue
-		dst.add_child(child.duplicate())
+		var copy := (child as Node3D).duplicate()
+		dst.add_child(copy)
+		_show_lose_face(copy)
+
+
+## The head card is one-sided. A duplicate keeps the street suit's material,
+## so the lose copy gets its own and draws the face from either side.
+func _show_lose_face(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh_node := node as MeshInstance3D
+		if mesh_node.mesh != null:
+			for index in mesh_node.mesh.get_surface_count():
+				var source := mesh_node.get_surface_override_material(index)
+				if source == null:
+					source = mesh_node.mesh.surface_get_material(index)
+				if source is BaseMaterial3D:
+					var mat := (source as BaseMaterial3D).duplicate() as BaseMaterial3D
+					mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+					mesh_node.set_surface_override_material(index, mat)
+	for child in node.get_children():
+		_show_lose_face(child)
+
+
+## The lose joint flattens, then drops to a zero scale. That smears the face
+## and then leaves a degenerate mesh. Keep the full head until it pops off.
+func _keep_lose_face() -> void:
+	var lose := get_node_or_null("LoseActor")
+	if lose == null:
+		return
+	var head := _find(lose, "joint_head") as Node3D
+	if head == null:
+		return
+	var posed := head.transform
+	var amount := posed.basis.get_scale()
+	var popped := amount.x < 0.05 or amount.y < 0.05 or amount.z < 0.05
+	if not popped:
+		posed.basis = posed.basis.orthonormalized()
+		head.transform = posed
+	for child in head.get_children():
+		if child is Node3D:
+			(child as Node3D).visible = not popped
 
 
 func defeat() -> void:
@@ -1357,12 +1405,9 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 	if _detail == 0:
 		bank["shown"] = -1
 		return
-	# Suits at the far end of a block snap to the clip frame. Blending every
-	# joint, every frame, is what kept a crowded street under the refresh rate.
-	var fraction := 0.0 if _detail < 2 else clampf(blend, 0.0, 1.0)
-	# Each frame is a finished mesh shared by every suit on that body. Swapping
-	# it does not rewrite vertex buffers, which was both corrupting the pose
-	# and stalling the street.
+	# A visible suit blends. The in-between pose is a shader mix, so the
+	# street does not rewrite a vertex buffer on every display frame.
+	var fraction := clampf(blend, 0.0, 1.0)
 	var show := int(bank.get("shown", -1)) != frame
 	if show:
 		bank["shown"] = frame
@@ -1372,28 +1417,23 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 		var instance := record["instance"] as MeshInstance3D
 		if not is_instance_valid(instance):
 			continue
-		var poses: Array = record.get("poses", [])
-		if frame < 0 or frame >= poses.size():
-			continue
-		var posed: ArrayMesh = null
-		var slot: Variant = poses[frame]
-		if slot is ArrayMesh:
-			posed = slot as ArrayMesh
-		if posed == null:
-			var source: Dictionary = record.get("source", {})
-			posed = _ensure_pose(source, frame)
+		var posed := _frame_mesh(record, frame)
 		if posed == null:
 			continue
-		if instance.mesh != posed:
-			instance.mesh = posed
+		var shown := posed
+		var amount := 0.0
+		if fraction > 0.001 and following != frame:
+			var mixed := _blend_mesh(record, frame, following)
+			if mixed != null:
+				shown = mixed
+				amount = fraction
+		if instance.mesh != shown:
+			instance.mesh = shown
 			show = true
+		_set_pose_blend(record.get("overrides", []), amount)
 		if not show:
 			continue
-		var overrides: Array = record.get("overrides", [])
-		for index in overrides.size():
-			var material := overrides[index] as Material
-			if material != null and index < posed.get_surface_count():
-				instance.set_surface_override_material(index, material)
+		_apply_overrides(instance, shown, record.get("overrides", []))
 	var joints: Array = bank.get("joints", [])
 	for item in joints:
 		var record: Dictionary = item
@@ -1407,7 +1447,7 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 		if fraction > 0.001:
 			var nxt := _joint_at(record, following)
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
-			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, fraction)
+			posed_frame.basis = _blend_basis(posed_frame.basis, nxt.basis, fraction)
 		var stamp := frame * 1000 + int(fraction * 20.0)
 		if int(record.get("stamp", -1)) == stamp:
 			continue
@@ -1423,6 +1463,106 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 		joint.transform = rest * bind_inv * posed_frame
 
 
+func _frame_mesh(record: Dictionary, frame: int) -> ArrayMesh:
+	var poses: Array = record.get("poses", [])
+	if frame < 0 or frame >= poses.size():
+		return null
+	var slot: Variant = poses[frame]
+	if slot is ArrayMesh:
+		return slot as ArrayMesh
+	var source: Dictionary = record.get("source", {})
+	return _ensure_pose(source, frame)
+
+
+func _blend_mesh(record: Dictionary, frame: int, following: int) -> ArrayMesh:
+	var source: Dictionary = record.get("source", {})
+	var cache: Dictionary = source.get("blend_meshes", {})
+	var pair := frame * 10000 + following
+	var cached: ArrayMesh = cache.get(pair) as ArrayMesh
+	if cached != null and cached.get_surface_count() > 0:
+		return cached
+	var first := _frame_mesh(record, frame)
+	var second := _frame_mesh(record, following)
+	if first == null or second == null or first.get_surface_count() != second.get_surface_count():
+		return null
+	var blended := ArrayMesh.new()
+	for index in first.get_surface_count():
+		var left: Array = first.surface_get_arrays(index)
+		var right: Array = second.surface_get_arrays(index)
+		var vertex_slot: Variant = left[Mesh.ARRAY_VERTEX]
+		var next_slot: Variant = right[Mesh.ARRAY_VERTEX]
+		if not (vertex_slot is PackedVector3Array) or not (next_slot is PackedVector3Array):
+			return null
+		var positions: PackedVector3Array = vertex_slot
+		var next_positions: PackedVector3Array = next_slot
+		if positions.size() != next_positions.size() or positions.is_empty():
+			return null
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
+		var normal_slot: Variant = left[Mesh.ARRAY_NORMAL]
+		if normal_slot is PackedVector3Array:
+			var normals: PackedVector3Array = normal_slot
+			if normals.size() == positions.size():
+				arrays[Mesh.ARRAY_NORMAL] = normals
+		var uv_slot: Variant = left[Mesh.ARRAY_TEX_UV]
+		if uv_slot is PackedVector2Array:
+			var uvs: PackedVector2Array = uv_slot
+			if uvs.size() == positions.size():
+				arrays[Mesh.ARRAY_TEX_UV] = uvs
+		arrays[Mesh.ARRAY_CUSTOM0] = _custom_rgba(next_positions)
+		var next_normal_slot: Variant = right[Mesh.ARRAY_NORMAL]
+		if next_normal_slot is PackedVector3Array:
+			var next_normals: PackedVector3Array = next_normal_slot
+			if next_normals.size() == positions.size():
+				arrays[Mesh.ARRAY_TANGENT] = _tangents_from_vec3(next_normals)
+		var flags := Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
+		blended.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
+	cache[pair] = blended
+	source["blend_meshes"] = cache
+	return blended
+
+
+func _apply_overrides(instance: MeshInstance3D, posed: ArrayMesh, overrides: Array) -> void:
+	for index in overrides.size():
+		var material := overrides[index] as Material
+		if material != null and index < posed.get_surface_count():
+			instance.set_surface_override_material(index, material)
+
+
+func _set_pose_blend(overrides: Array, amount: float) -> void:
+	for item in overrides:
+		var material := item as ShaderMaterial
+		if material != null:
+			material.set_shader_parameter("pose_blend", amount)
+
+
+static func _custom_rgba(points: PackedVector3Array) -> PackedFloat32Array:
+	var packed := PackedFloat32Array()
+	packed.resize(points.size() * 4)
+	var at := 0
+	for point in points:
+		packed[at] = point.x
+		packed[at + 1] = point.y
+		packed[at + 2] = point.z
+		packed[at + 3] = 0.0
+		at += 4
+	return packed
+
+
+static func _tangents_from_vec3(normals: PackedVector3Array) -> PackedFloat32Array:
+	var packed := PackedFloat32Array()
+	packed.resize(normals.size() * 4)
+	var at := 0
+	for normal in normals:
+		packed[at] = normal.x
+		packed[at + 1] = normal.y
+		packed[at + 2] = normal.z
+		packed[at + 3] = 1.0
+		at += 4
+	return packed
+
+
 func _camera_detail() -> int:
 	if _block_hidden():
 		return 0
@@ -1431,14 +1571,10 @@ func _camera_detail() -> int:
 		return 2
 	var chest := global_position + Vector3(0.0, height * 0.45, 0.0)
 	var dist2 := chest.distance_squared_to(cam.global_position)
-	# Off-screen suits hold their last pose. Every suit you can see blends
-	# the clip every frame, including one at the far end of the street.
+	# Off-screen suits hold their last pose. Every suit you can see blends.
 	if dist2 > 16.0 * 16.0 and cam.is_position_behind(chest) and not cam.is_position_in_frustum(chest):
 		return 0
-	# Close suits blend. The rest of the block holds the current clip frame.
-	if dist2 < 20.0 * 20.0 and cam.is_position_in_frustum(chest):
-		return 2
-	return 1
+	return 2
 
 
 ## A suit on a stashed block stays on its path, but it does not draw or animate.
@@ -1778,15 +1914,35 @@ func _bind_clip(parsed: Dictionary, root: Node) -> Dictionary:
 	return {"clips": clips, "joints": joints, "frames": int(parsed.get("frames", 0)), "shown": -1}
 
 
+static func _blend_basis(from: Basis, to: Basis, fraction: float) -> Basis:
+	var from_scale := from.get_scale()
+	var to_scale := to.get_scale()
+	if from_scale.x < 0.05 or from_scale.y < 0.05 or from_scale.z < 0.05:
+		return _lerp_basis(from, to, fraction)
+	if to_scale.x < 0.05 or to_scale.y < 0.05 or to_scale.z < 0.05:
+		return _lerp_basis(from, to, fraction)
+	var rotation := from.orthonormalized().slerp(to.orthonormalized(), fraction)
+	return rotation.scaled(from_scale.lerp(to_scale, fraction))
+
+
+static func _lerp_basis(from: Basis, to: Basis, fraction: float) -> Basis:
+	return Basis(from.x.lerp(to.x, fraction), from.y.lerp(to.y, fraction), from.z.lerp(to.z, fraction))
+
+
 static func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 	var x := Vector3(cells[0], cells[1], cells[2])
 	var y := Vector3(cells[4], cells[5], cells[6])
 	var z := Vector3(cells[8], cells[9], cells[10])
 	var origin := Vector3(cells[12], cells[13], cells[14])
-	if x.length_squared() < 0.0025 or y.length_squared() < 0.0025 or z.length_squared() < 0.0025:
-		return Transform3D(Basis.from_scale(Vector3.ZERO), origin)
-	var basis := Basis(x, y, z)
-	basis = basis.orthonormalized()
+	var sx := x.length()
+	var sy := y.length()
+	var sz := z.length()
+	# A scale joint flattens a bone by shrinking one axis. Orthonormalizing
+	# that away leaves the card at its bind size, disconnected from the pose.
+	if sx < 0.05 or sy < 0.05 or sz < 0.05:
+		return Transform3D(Basis(x, y, z), origin)
+	var basis := Basis(x / sx, y / sy, z / sz)
+	basis = basis.orthonormalized().scaled(Vector3(sx, sy, sz))
 	return Transform3D(basis, origin)
 
 

@@ -13,6 +13,16 @@ uniform vec3 light_direction = vec3(0.45, 0.8, 0.35);
 uniform float ambient = 0.58;
 uniform float key_light = 0.48;
 uniform float wrap = 0.6;
+// 0 shows this frame. In between, CUSTOM0 is the next position and TANGENT
+// is the next normal, so the pose moves at the display rate.
+uniform float pose_blend = 0.0;
+
+void vertex() {
+	if (pose_blend > 0.001) {
+		VERTEX = mix(VERTEX, CUSTOM0.xyz, pose_blend);
+		NORMAL = normalize(mix(NORMAL, TANGENT.xyz, pose_blend));
+	}
+}
 
 void fragment() {
 	vec4 sampled = vec4(1.0);
