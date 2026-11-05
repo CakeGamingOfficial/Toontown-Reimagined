@@ -86,7 +86,11 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 	# The scale is remembered so a teleport hole shrinks the card with the toon.
 	# Suit.setHeight puts a cog card one unit above the suit height.
 	var born := actor.global_transform.basis.get_scale().y
-	var lift := _lift(actor)
+	# A door marker has no head. The default lift would park its balloon
+	# above the top of the view when you stand in front of the door.
+	var lift := float(actor.get_meta("nametag_lift", -1.0))
+	if lift < 0.0:
+		lift = _lift(actor)
 	if kind == "cog" and actor.get("height") != null:
 		var suit_height := float(actor.get("height"))
 		if suit_height > 0.05:
@@ -319,6 +323,7 @@ func _place_chat(item: Dictionary, label: Control, actor: Node3D) -> void:
 	if fill != null:
 		fill.bg_color = _ChatSettings.bubble(String(actor.get_meta("chat_kind", "")))
 	bubble.position = label.position + Vector2((label.size.x - bubble.size.x) * 0.5, -bubble.size.y - 4.0)
+	_keep_on_screen(bubble)
 
 
 func _chat_panel(item: Dictionary) -> PanelContainer:
@@ -349,6 +354,17 @@ func _chat_panel(item: Dictionary) -> PanelContainer:
 		layer.add_child(bubble)
 	item["chat"] = bubble
 	return bubble
+
+
+func _keep_on_screen(control: Control) -> void:
+	if camera == null:
+		return
+	var view := camera.get_viewport().get_visible_rect()
+	var margin := 8.0
+	var widest := maxf(view.position.x + margin, view.end.x - control.size.x - margin)
+	var tallest := maxf(view.position.y + margin, view.end.y - control.size.y - margin)
+	control.position.x = clampf(control.position.x, view.position.x + margin, widest)
+	control.position.y = clampf(control.position.y, view.position.y + margin, tallest)
 
 
 func _hide_chat(item: Dictionary) -> void:

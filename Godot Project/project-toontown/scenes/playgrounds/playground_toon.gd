@@ -2361,6 +2361,9 @@ func _try_building_door() -> void:
 	var inside := _PLACES.is_shop(scene_path)
 	var trigger := Vector3.ZERO
 	var reach := 2.2
+	# closest() is the door panel. A second circle around the sidewalk point
+	# would open the door from the street again.
+	var at_door := false
 	if inside:
 		var origin := _DOORS.find_origin(get_parent())
 		if origin == null:
@@ -2373,13 +2376,12 @@ func _try_building_door() -> void:
 		if near.is_empty():
 			_bldg_ready = true
 			return
-		var point: Vector3 = near["point"]
-		trigger = point
-		reach = 2.4
-	var here := Vector2(_body.global_position.x, _body.global_position.z)
-	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
-		_bldg_ready = true
-		return
+		at_door = true
+	if not at_door:
+		var here := Vector2(_body.global_position.x, _body.global_position.z)
+		if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+			_bldg_ready = true
+			return
 	if not _bldg_ready or not _KEYS.held("forward"):
 		return
 	_bldg_ready = false
@@ -3247,6 +3249,10 @@ func _place_line(delta: float) -> void:
 	_line.reset_size()
 	var screen := _camera.unproject_position(point)
 	_line.position = screen - Vector2(_line.size.x * 0.5, _line.size.y + 8.0)
+	var view := _camera.get_viewport().get_visible_rect()
+	var margin := 8.0
+	_line.position.x = clampf(_line.position.x, view.position.x + margin, maxf(view.position.x + margin, view.end.x - _line.size.x - margin))
+	_line.position.y = clampf(_line.position.y, view.position.y + margin, maxf(view.position.y + margin, view.end.y - _line.size.y - margin))
 
 
 func _add_capsule() -> void:

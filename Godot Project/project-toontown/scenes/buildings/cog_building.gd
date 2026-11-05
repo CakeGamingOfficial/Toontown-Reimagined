@@ -10,7 +10,15 @@ const _HALL := preload("res://assets/buildings/cog/cubicle_room.glb")
 const _OFFICE := preload("res://assets/buildings/cog/boss_suit_office.glb")
 const _RUNS := preload("res://scenes/buildings/building_runs.gd")
 const _ELEVATOR_MUSIC := "res://assets/buildings/cog/audio/tt_elevator.ogg"
-const _INDOOR_MUSIC := "res://assets/buildings/cog/audio/encntr_toon_winning_indoor.ogg"
+## DistributedBattleBldg.setBossBattle. A normal floor and the top floor
+## each have their own indoor battle theme.
+const _FLOOR_MUSIC := "res://assets/buildings/cog/audio/encntr_general_bg_indoor.ogg"
+const _BOSS_MUSIC := "res://assets/buildings/cog/audio/encntr_suit_winning_indoor.ogg"
+## DistributedSuitInterior enterResting, after a floor that is not the top.
+const _WAIT_MUSIC := "res://assets/buildings/cog/audio/encntr_toon_winning_indoor.ogg"
+const _ELEVATOR_VOL := 0.8
+const _BATTLE_VOL := 0.9
+const _WAIT_VOL := 0.7
 const _OPEN_SFX := "res://assets/buildings/cog/audio/elevator_door_open.ogg"
 const _CLOSE_SFX := "res://assets/buildings/cog/audio/elevator_door_close.ogg"
 const _HOP_UP := preload("res://assets/gui/rules/InventoryButtonUp.png")
@@ -172,12 +180,12 @@ func _offer(_delta: float) -> void:
 		var block := int(row.get("block", 0))
 		if block == _avoid:
 			continue
-		var spot: Vector3 = buildings.call("elevator_spot", block)
-		if spot == Vector3.ZERO:
+		var elevator := _street_elevator(block)
+		if elevator == null:
 			continue
-		if absf(spot.y - here.y) > 6.0:
+		var dist := _car_gap(elevator, here)
+		if dist > REACH:
 			continue
-		var dist := Vector2(spot.x - here.x, spot.z - here.z).length()
 		if dist < best_dist:
 			best = block
 			best_dist = dist
@@ -209,6 +217,7 @@ func _leave() -> void:
 	_release_riders()
 	_cam_blend = -1.0
 	_quiet()
+	_release_street()
 	_clear_cogs()
 	if _room != null:
 		_room.queue_free()
@@ -257,10 +266,22 @@ func _show(run: Dictionary, delta: float) -> void:
 		if state == "riding" or state == "battle":
 			story = int(run.get("floor", 0))
 		buildings.call("set_story", block, story)
+	# The countdown stays on the street, so the street song keeps playing
+	# until the ride. From there the building owns the music.
 	if state == "riding":
-		_play_music(_ELEVATOR_MUSIC)
-	elif fight_state == "reward":
-		_play_music(_INDOOR_MUSIC)
+		_hold_street()
+		_play_music(_ELEVATOR_MUSIC, _ELEVATOR_VOL)
+	elif state == "battle":
+		_hold_street()
+		if fight_state == "reward" and not _boss_floor(run):
+			_play_music(_WAIT_MUSIC, _WAIT_VOL)
+		elif _boss_floor(run):
+			_play_music(_BOSS_MUSIC, _BATTLE_VOL)
+		else:
+			_play_music(_FLOOR_MUSIC, _BATTLE_VOL)
+	elif state == "victory" or state == "failed":
+		_hold_street()
+		_quiet()
 	else:
 		_quiet()
 	_banner.visible = true
@@ -659,6 +680,7 @@ func _step_exit(delta: float) -> void:
 	if toon != null:
 		toon.call("hold_for_battle", false)
 	_quiet()
+	_release_street()
 	_clear_cogs()
 	if _room != null:
 		_room.queue_free()
@@ -829,9 +851,16 @@ func _street_elevator(block: int) -> Node3D:
 	return null
 
 
+## CollisionSphere(0, 5, 0, collRadius) on the elevator model. The sphere fills
+## the car and meets the doorway. A disk of that radius around the door would
+## board you from the sidewalk.
+func _car_gap(elevator: Node3D, here: Vector3) -> float:
+	var local: Vector3 = elevator.global_transform.affine_inverse() * here
+	return local.distance_to(Vector3(0.0, 5.0, 0.0))
+
+
 func _away_from(elevator: Node3D, here: Vector3) -> bool:
-	var spot := elevator.global_position
-	return Vector2(spot.x - here.x, spot.z - here.z).length() > REACH + 1.5
+	return _car_gap(elevator, here) > REACH
 
 
 func _out_heading(elevator: Node3D) -> float:
@@ -885,7 +914,11 @@ func _fight_of(run: Dictionary) -> Dictionary:
 	return {}
 
 
-func _play_music(path: String) -> void:
+func _boss_floor(run: Dictionary) -> bool:
+	return int(run.get("floor", 0)) + 1 >= maxi(int(run.get("floors", 1)), 1)
+
+
+func _play_music(path: String, volume: float) -> void:
 	if _tune == path and _music != null and _music.playing:
 		return
 	_tune = path
@@ -898,7 +931,7 @@ func _play_music(path: String) -> void:
 		_music.name = "BuildingMusic"
 		add_child(_music)
 	_music.stream = stream
-	_music.volume_db = linear_to_db(0.8)
+	_music.volume_db = linear_to_db(volume)
 	_music.play()
 
 
@@ -906,6 +939,42 @@ func _quiet() -> void:
 	_tune = ""
 	if _music != null:
 		_music.stop()
+
+
+var _street: AudioStreamPlayer
+var _street_on := false
+
+
+func _hold_street() -> void:
+	if _street != null and is_instance_valid(_street):
+		return
+	_street = _street_player()
+	if _street == null:
+		return
+	_street_on = _street.playing
+	_street.stop()
+
+
+func _release_street() -> void:
+	var player := _street
+	var resume := _street_on
+	_street = null
+	_street_on = false
+	if resume and player != null and is_instance_valid(player):
+		player.play()
+
+
+func _street_player() -> AudioStreamPlayer:
+	var current: Node = self
+	while current != null:
+		for child in current.get_children():
+			if child == _music:
+				continue
+			var player := child as AudioStreamPlayer
+			if player != null and str(player.name) == "StreetMusic":
+				return player
+		current = current.get_parent()
+	return null
 
 
 func _once(token: String, path: String) -> void:

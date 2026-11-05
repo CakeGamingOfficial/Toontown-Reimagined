@@ -4,6 +4,11 @@ extends RefCounted
 ## DistributedBuildingAI assigns it: the street's hundred plus 500 plus the
 ## block number. The room itself is baked from that zone's seed.
 
+## doors_practical door_*_trigger is a plane 4 wide on the door. The toon
+## tube radius is 1, so the opening reaches 3 to either side and 1 out.
+const _TRIGGER_ACROSS := 3.0
+const _TRIGGER_OUT := 1.0
+const _TRIGGER_IN := 0.35
 const DOORS := "res://assets/interiors/shops/doors.glb"
 const CATALOG := "res://assets/interiors/shops/shops.json"
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
@@ -130,16 +135,26 @@ static func interior_zone(building: Node) -> int:
 
 static func closest(where: Vector3) -> Dictionary:
 	var best: Dictionary = {}
-	var best_distance := 2.4
-	var here := Vector2(where.x, where.z)
+	var best_out := _TRIGGER_OUT + 1.0
 	for entry in _entries:
 		var building: Node3D = entry["building"]
 		if not is_instance_valid(building) or building.has_meta("cog_building") or building.has_meta("suit_approaching"):
 			continue
-		var point: Vector3 = entry["point"]
-		var distance := here.distance_to(Vector2(point.x, point.z))
-		if distance <= best_distance:
-			best_distance = distance
+		var door: Node3D = entry["door"]
+		if not is_instance_valid(door):
+			continue
+		var mouth := _doorway(door)
+		var axis := _forward(building, door)
+		var offset := where - mouth
+		offset.y = 0.0
+		var outward := offset.dot(axis)
+		var aside := offset.length_squared() - outward * outward
+		if outward < -_TRIGGER_IN or outward > _TRIGGER_OUT:
+			continue
+		if aside > _TRIGGER_ACROSS * _TRIGGER_ACROSS:
+			continue
+		if outward < best_out:
+			best_out = outward
 			best = entry
 	return best
 

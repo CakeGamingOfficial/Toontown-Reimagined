@@ -131,9 +131,9 @@ func _process(delta: float) -> void:
 	_fight = fight
 	_aim_camera(fight)
 	var battle_state := String(fight.get("state", ""))
-	if int(fight.get("building", 0)) != 0 and battle_state == "reward":
-		_stop_music()
-	else:
+	# A cog-building floor uses the indoor battle themes. The outdoor
+	# encounter song, and putting the street song back, belong on the street.
+	if int(fight.get("building", 0)) == 0:
 		_start_music()
 	if battle_state == "reward":
 		_hud.hide_all()
