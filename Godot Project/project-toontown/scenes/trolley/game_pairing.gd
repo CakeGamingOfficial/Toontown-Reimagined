@@ -1,7 +1,10 @@
 extends "res://scenes/trolley/trolley_minigame.gd"
 
 ## Toon Memory Game. The cards are phase_3.5 playingCard: front, back, and logo.
-## Match two cards of the same rank. The bonus card pays an extra point.
+## The back logo is the Reimagined mark. Match two cards of the same rank.
+## The bonus card pays an extra point.
+
+const _LOGO := preload("res://assets/gui/loading/toontown_logo.png")
 
 const _ICONS := [
 	"res://assets/gui/tutorial/gags/inventory_feather.png",
@@ -30,6 +33,7 @@ var _lock := false
 var _bonus := 0
 var _px := 0.0
 var _py := 0.0
+var _logo_mat: StandardMaterial3D
 
 
 func _init() -> void:
@@ -190,9 +194,14 @@ func _lay_card(x: float, y: float, rank: int, bonus: bool) -> Node3D:
 		var front := model.find_child("card_front", true, false)
 		if front != null:
 			_tint(front, _COLORS[rank])
-		var logo := model.find_child("logo", true, false) as Node3D
+		var logo := model.find_child("logo", true, false) as MeshInstance3D
 		if logo != null:
 			logo.rotation_degrees.y = 180.0
+			logo.material_override = _logo_skin()
+			# The old wordmark quad is wider than it is tall. Square it for this mark.
+			var span := logo.mesh.get_aabb().size if logo.mesh != null else Vector3.ONE
+			if span.x > 0.01:
+				logo.scale.x *= span.z / span.x
 	var icon := _icon(_ICONS[rank])
 	model.add_child(icon)
 	icon.position = Vector3(0.0, 0.0, -0.08)
@@ -231,6 +240,17 @@ func _keep_named(root: Node, keep: String) -> void:
 		(root as MeshInstance3D).visible = false
 	for child in root.get_children():
 		_keep_named(child, keep)
+
+
+func _logo_skin() -> StandardMaterial3D:
+	if _logo_mat != null:
+		return _logo_mat
+	_logo_mat = StandardMaterial3D.new()
+	_logo_mat.albedo_texture = _LOGO
+	_logo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_logo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_logo_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return _logo_mat
 
 
 func _icon(path: String) -> MeshInstance3D:

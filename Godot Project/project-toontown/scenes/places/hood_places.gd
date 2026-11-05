@@ -28,7 +28,7 @@ const _SCENES: Dictionary = {
 	6000: "res://scenes/playgrounds/acorn_acres.tscn",
 	8000: "res://scenes/playgrounds/goofy_speedway.tscn",
 	9000: "res://scenes/playgrounds/donalds_dreamland.tscn",
-	10000: "res://scenes/cog_hq/bossbot_lobby.tscn",
+	10000: "res://scenes/cog_hq/bossbot_country_club.tscn",
 	11000: "res://scenes/cog_hq/sellbot_courtyard.tscn",
 	12000: "res://scenes/cog_hq/cashbot_trainyard.tscn",
 	13000: "res://scenes/cog_hq/lawbot_courtyard.tscn",

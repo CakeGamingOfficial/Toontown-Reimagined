@@ -313,6 +313,8 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 		return
 	var origin := _vec(fight.get("origin", []))
 	var here := _point()
+	if absf(origin.y - here.y) > 8.0:
+		return
 	if Vector2(origin.x - here.x, origin.z - here.z).length() > JOIN_REACH:
 		return
 	var toon := _toon()
@@ -335,6 +337,8 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 		if state != "input":
 			_need_target = false
 			_hud.hide_choose()
+			if _menu != null:
+				_menu.tuck()
 		return
 	var toon := _toon()
 	if toon == null:
@@ -349,7 +353,7 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 		return
 	_asking = true
 	_ask_seq = seq
-	_menu.setup(loadout)
+	_menu.setup(loadout, false, int(fight.get("building", 0)) != 0)
 	_ask(fight, seq, loadout)
 
 
@@ -374,6 +378,14 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 func _show_targets(fight: Dictionary) -> void:
 	var track := _pending.x
 	var toons := track == ToonLoadout.TOON_UP
+	# TownBattle.__isCogChoiceNecessary. One cog is the target. The panel is for a choice.
+	if not toons:
+		var only := _only_cog(fight)
+		if only >= 0:
+			var loadout := _loadout()
+			var exp := 0 if loadout == null else loadout.experience_of(track)
+			_send(track, _pending.y, only, exp)
+			return
 	var rows: Array = fight.get("toons", []) if toons else fight.get("cogs", [])
 	var invalid := PackedInt32Array()
 	var skip := -1
@@ -389,6 +401,23 @@ func _show_targets(fight: Dictionary) -> void:
 		elif toons and int(body.get("id", 0)) == ToonNet.peer_id():
 			skip = index
 	_hud.show_choose(toons, rows.size(), invalid, skip)
+
+
+## The living cog, when the battle has exactly one. -1 means there is a choice.
+func _only_cog(fight: Dictionary) -> int:
+	var found := -1
+	var count := 0
+	for item in fight.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		if int(cog.get("hp", 0)) <= 0:
+			continue
+		count += 1
+		found = int(cog.get("id", 0))
+	if count == 1:
+		return found
+	return -1
 
 
 ## A trap cannot be laid on a cog that is lured or already trapped. Lure can be used again.
@@ -476,7 +505,7 @@ func _play(fight: Dictionary, _delta: float) -> void:
 		if _reward_seq != seq:
 			_reward_seq = seq
 			_dance = 0.0
-			if _mine(fight):
+			if _mine(fight) and not bool(fight.get("floor_clear", false)):
 				_reward_token += 1
 				_show_reward(fight, _reward_token)
 		_dance += _delta
@@ -828,6 +857,15 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 				if cog.has_method("begin_react"):
 					cog.call("begin_react", "", 0.0)
 			_clear_taunt(cog, fight)
+		_show_cog_health(suit, cog)
+
+
+func _show_cog_health(suit: Dictionary, cog: Node) -> void:
+	if not cog.has_method("set_battle_hp"):
+		return
+	var cog_id := int(suit.get("id", 0))
+	var hp := int(_shown.get("c:%d" % cog_id, suit.get("hp", 1)))
+	cog.call("set_battle_hp", hp, int(suit.get("max_hp", hp)))
 
 
 func _age_faceoff(fight: Dictionary, delta: float) -> void:
@@ -1286,7 +1324,9 @@ func _nearest_cog(reach: float) -> Node:
 		var cog := child as Node3D
 		if cog == null:
 			continue
-		if _street_slug() == "sellbot_factory" and absf(cog.global_position.y - here.y) > 8.0:
+		# A cog-building floor sits far above the street. The toon up there
+		# must not start a fight with a suit on the sidewalk below.
+		if absf(cog.global_position.y - here.y) > 8.0:
 			continue
 		var dist := Vector2(cog.global_position.x - here.x, cog.global_position.z - here.z).length()
 		if dist <= best_dist:

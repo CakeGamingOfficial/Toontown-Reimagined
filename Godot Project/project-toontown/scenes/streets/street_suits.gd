@@ -1417,6 +1417,8 @@ func _apply_net() -> void:
 		var actor: Variant = _net_actors[net_id]
 		_net_actors.erase(net_id)
 		if actor is Node and is_instance_valid(actor):
+			if (actor as Node).has_method("fly_away") and bool((actor as Node).call("fly_away")):
+				continue
 			if (actor as Node).has_method("retire"):
 				(actor as Node).call("retire")
 			(actor as Node).queue_free()

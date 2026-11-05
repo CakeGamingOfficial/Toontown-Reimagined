@@ -455,7 +455,7 @@ func _animate(delta: float) -> void:
 	elif _age < down_end:
 		pouring = true
 		counter = int(round((1.0 - _ease((_age - hold_end) / _COUNT)) * float(reward)))
-		jar = mini(_jar_start + (reward - counter), _BEANS.POUCH_MAX)
+		jar = mini(_jar_start + (reward - counter), _BEANS.pouch_limit())
 	elif _age < cheer_end:
 		if not _cheered:
 			_cheered = true
@@ -482,7 +482,7 @@ func _animate(delta: float) -> void:
 	_beans.text = str(jar)
 	_paint_jar()
 	if changed and _age >= _WAIT:
-		_tick(pouring and jar >= _BEANS.POUCH_MAX)
+		_tick(pouring and jar >= _BEANS.pouch_limit())
 
 
 func _open_shop(cheer: bool) -> void:
@@ -612,7 +612,7 @@ func _paint_pouch() -> void:
 
 
 func _paint_jar() -> void:
-	var full := _jar_shown >= _BEANS.POUCH_MAX
+	var full := _jar_shown >= _BEANS.pouch_limit()
 	ToonGui.style_title(_beans, Color(1, 0, 0) if full else Color(0.95, 0.95, 0.0), _px_of(0.2 if _shopping else 0.1))
 
 

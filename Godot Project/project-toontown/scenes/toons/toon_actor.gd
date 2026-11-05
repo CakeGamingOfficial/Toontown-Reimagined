@@ -1,6 +1,8 @@
 class_name ToonActor
 extends Node3D
 
+signal shticker_opened
+
 ## Legs, torso, and head posed in neutral and assembled the way
 ## Toon.parentToonParts does: torso on joint_hips, head on def_head.
 ## Toon.setLODs keeps three copies. 1000 shows inside 20 feet, 500 until 80,
@@ -91,6 +93,15 @@ var _look_enabled := true
 var _gesture := ""
 var _gesture_rate := 1.0
 var _gesture_loop := true
+## Place.enterStickerBook plays openBook, then readBook, then closeBook.
+const _BOOK_MODEL := "res://assets/props/shticker_book.glb"
+const _BOOK_CLIP := "res://assets/toons/anims/shticker_book.book"
+var _book_phase := ""
+var _book_clock := 0.0
+var _book_hold := 0.0
+var _book_prop: Node3D
+var _book_joints: Array = []
+var _swimming := false
 var _mood := "normal"
 var _mood_open: Texture2D
 var _mood_closed: Texture2D
@@ -153,6 +164,10 @@ func show_style(style: ToonStyle) -> void:
 	_cycle_time = {"walk": 0.0, "run": 0.0, "jump": 0.0, "rjump": 0.0, "land": 0.0, "rland": 0.0}
 	_extra = {}
 	_gesture = ""
+	_book_phase = ""
+	_book_prop = null
+	_book_joints.clear()
+	_swimming = false
 	_mood = "normal"
 	_mood_open = null
 	_mood_closed = null
@@ -396,6 +411,22 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 	if _pose_lock:
 		return
 	_ensure_clips()
+	# The shticker book owns the pose until the close clip finishes.
+	if _book_phase != "":
+		_look_enabled = false
+		_tick_shticker(delta)
+		if _book_phase != "":
+			_footsteps(0.0, false)
+			return
+	# enterSwim loops swim and pitches the geom. Walking and jumping stay off
+	# until the toon is back above the water.
+	if _swimming:
+		_look_enabled = false
+		if _gesture != "swim":
+			play_gesture("swim", 1.0, true)
+		_play_bank("swim", 1.0, delta, true)
+		_footsteps(0.0, false)
+		return
 	if _sad:
 		set_expression("sad")
 		_footsteps(forward_speed, turning)
@@ -531,9 +562,193 @@ func clear_gesture() -> void:
 	_look_enabled = true
 
 
+## True from the open clip through the close clip. Walking stays off.
+func holding_book() -> bool:
+	return _book_phase != ""
+
+
+## enterOpenBook plays book from 1.2s to 1.5s, waits a tenth, then readBook.
+func open_shticker() -> void:
+	if _book_phase == "open" or _book_phase == "read":
+		return
+	_ensure_book_prop()
+	if _book_prop != null:
+		_book_prop.visible = true
+	_book_phase = "open"
+	_book_clock = 1.2
+	_book_hold = 0.0
+	_look_enabled = false
+	_pose_book_frame(1.2 * 24.0)
+
+
+## enterCloseBook plays book from 4.96s to 6.5s and then hides it.
+func close_shticker() -> void:
+	if _book_phase == "" or _book_phase == "close":
+		return
+	if _book_phase == "open":
+		shticker_opened.emit()
+	_book_phase = "close"
+	_book_clock = 4.96
+	_book_hold = 0.0
+	if _book_prop != null and is_instance_valid(_book_prop):
+		_book_prop.visible = true
+	_pose_book_frame(4.96 * 24.0)
+
+
+func _tick_shticker(delta: float) -> void:
+	if _book_phase == "open":
+		_book_clock += delta
+		if _book_clock < 1.5:
+			_pose_book_frame(_book_clock * 24.0)
+			return
+		_pose_book_frame(36.0)
+		_book_hold += delta
+		if _book_hold < 0.1:
+			return
+		_book_phase = "read"
+		_book_clock = 0.0
+		shticker_opened.emit()
+		_pose_book_frame(38.0)
+	elif _book_phase == "read":
+		# pingpong from frame 38 to frame 118.
+		_book_clock += delta
+		var span := 80.0
+		var trip := fposmod(_book_clock * 24.0, span * 2.0)
+		var along := trip if trip <= span else span * 2.0 - trip
+		_pose_book_frame(38.0 + along)
+	elif _book_phase == "close":
+		_book_clock += delta
+		_pose_book_frame(minf(_book_clock * 24.0, 155.0))
+		if _book_clock >= 6.5:
+			_book_phase = ""
+			if _book_prop != null and is_instance_valid(_book_prop):
+				_book_prop.visible = false
+
+
+func _pose_book_frame(time: float) -> void:
+	ensure_clip("book")
+	var bank: Dictionary = _extra.get("book", {})
+	var frames := int(bank.get("frames", 0))
+	var clips: Array = bank.get("clips", [])
+	if frames <= 1 or clips.is_empty():
+		_pose_book_prop(time)
+		return
+	var posed_time := clampf(time, 0.0, float(frames - 1))
+	var frame := mini(int(posed_time), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var blend := 0.0 if following == frame else posed_time - float(frame)
+	_posing = true
+	_clip = "book"
+	var drawn := _pose_target("book", clips, bank["joints"])
+	if not drawn.is_empty():
+		_pose_clip(drawn["clips"], drawn["joints"], frame, following, blend)
+	_pose_book_prop(posed_time)
+
+
+func _ensure_book_prop() -> void:
+	if _book_prop != null and is_instance_valid(_book_prop):
+		var held := find_child("def_joint_right_hold", true, false) as Node3D
+		if held != null and _book_prop.get_parent() != held:
+			held.add_child(_book_prop)
+		return
+	var packed := load(_BOOK_MODEL) as PackedScene
+	if packed == null:
+		return
+	var prop := packed.instantiate() as Node3D
+	if prop == null:
+		return
+	prop.name = "ShtickerBookProp"
+	_book_prop = prop
+	var hand := find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		add_child(prop)
+	else:
+		hand.add_child(prop)
+	_book_joints.clear()
+	_ingest(_read_walk(_BOOK_CLIP), [], _book_joints, prop)
+
+
+func _pose_book_prop(time: float) -> void:
+	if _book_joints.is_empty() or _book_prop == null or not is_instance_valid(_book_prop):
+		return
+	var count := 0
+	var first: Dictionary = _book_joints[0]
+	count = (first.get("frames", []) as Array).size()
+	if count <= 1:
+		return
+	var posed_time := clampf(time, 0.0, float(count - 1))
+	var frame := mini(int(posed_time), count - 1)
+	var following := mini(frame + 1, count - 1)
+	var blend := 0.0 if following == frame else posed_time - float(frame)
+	for joint in _book_joints:
+		var node := joint["node"] as Node3D
+		if not is_instance_valid(node):
+			continue
+		node.transform = _joint_pose(joint, frame, following, blend)
+
+
 ## enterSwim pitches the geom -89 degrees and loops swim. enterDive sinks that
 ## same body two units. The drop shadow stays off, the way both games hide it.
 func pose_swimming(sunk: bool) -> void:
+	_tilt_swim(sunk)
+	play_gesture("swim", 1.0, true)
+	set_locomotion(0.0, false, false, 0.0)
+
+
+## Walk.py enters swimming once the toon is under the water. The pitch is the
+## same one enterSwim puts on the geom, so the swim cycle reads as swimming.
+func set_swimming(on: bool) -> void:
+	if on:
+		if not _swimming:
+			_swimming = true
+			play_gesture("swim", 1.0, true)
+		# SwimWalker keeps the toon on the floor. The geom bob is what keeps
+		# the pitched body out of that floor.
+		_tilt_swim(false, true)
+		return
+	if not _swimming:
+		return
+	_swimming = false
+	_untilt_swim()
+	if _gesture == "swim":
+		clear_gesture()
+
+
+func is_swimming() -> bool:
+	return _swimming
+
+
+## Feet are under a water surface in this place. Donald's Dock, the estate
+## lake, and the street ponds are those planes. A waterfall or a hydrant is not.
+## The returned height is that surface. INF means the toon is not under it.
+func swim_surface() -> float:
+	if not is_inside_tree():
+		return INF
+	var feet := global_position
+	var found := INF
+	for box in _water_planes(self):
+		if feet.x < box.position.x or feet.x > box.end.x:
+			continue
+		if feet.z < box.position.z or feet.z > box.end.z:
+			continue
+		var surface := box.end.y
+		if feet.y < surface - 0.35 and surface < found:
+			found = surface
+	return found
+
+
+func under_water() -> bool:
+	return swim_surface() < INF
+
+
+func _tilt_swim(sunk: bool, bob := false) -> void:
+	var lifted := Vector3.ZERO
+	if sunk:
+		lifted = Vector3(0.0, 0.0, -2.0)
+	elif bob:
+		# startBobSwimTask. The geom rides 3 to 4 units up, clear of the floor.
+		var wave := sin(float(Time.get_ticks_msec()) * 0.001 * PI)
+		lifted = Vector3(0.0, -3.0, 3.5 + 0.5 * wave)
 	for key in _lod_roots.keys():
 		var root := _lod_roots[key] as Node3D
 		if root == null:
@@ -545,11 +760,63 @@ func pose_swimming(sunk: bool) -> void:
 		while body.get_parent() != root and body.get_parent() is Node3D:
 			body = body.get_parent() as Node3D
 		body.rotation_degrees.x = -89.0
-		body.position = Vector3(0.0, 0.0, -2.0 if sunk else 0.0)
+		body.position = lifted
 	for shadow in find_children("drop_shadow", "MeshInstance3D", true, false):
 		shadow.visible = false
-	play_gesture("swim", 1.0, true)
-	set_locomotion(0.0, false, false, 0.0)
+
+
+func _untilt_swim() -> void:
+	for key in _lod_roots.keys():
+		var root := _lod_roots[key] as Node3D
+		if root == null:
+			continue
+		var hips := _find(root, "joint_hips") as Node3D
+		if hips == null:
+			continue
+		var body := hips
+		while body.get_parent() != root and body.get_parent() is Node3D:
+			body = body.get_parent() as Node3D
+		body.rotation_degrees.x = 0.0
+		body.position = Vector3.ZERO
+	for shadow in find_children("drop_shadow", "MeshInstance3D", true, false):
+		shadow.visible = true
+
+
+static var _planes: Array[AABB] = []
+static var _plane_place := 0
+
+
+static func _water_planes(actor: Node) -> Array[AABB]:
+	var place := actor
+	while place.get_parent() != null and place.scene_file_path.is_empty():
+		place = place.get_parent()
+	var id := place.get_instance_id()
+	if id == _plane_place:
+		return _planes
+	_plane_place = id
+	_planes = []
+	_collect_water(place)
+	return _planes
+
+
+static func _collect_water(node: Node) -> void:
+	if node is MeshInstance3D and _water_surface(node.name):
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			_planes.append(mesh.global_transform * mesh.mesh.get_aabb())
+	for child in node.get_children():
+		_collect_water(child)
+
+
+static func _water_surface(node_name: String) -> bool:
+	var low := node_name.to_lower()
+	if low.contains("waterfall") or low.contains("tower") or low.begins_with("dx_") or low.contains("ice"):
+		return false
+	if low == "top_surface" or low == "lake" or low == "water1" or low == "water_surface":
+		return true
+	if low.ends_with("pd_water") or low.ends_with("sz_water"):
+		return true
+	return "street_water" in low and low.ends_with("water")
 
 
 func gesture_finished() -> bool:
@@ -597,7 +864,7 @@ func _ensure_clips() -> void:
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []

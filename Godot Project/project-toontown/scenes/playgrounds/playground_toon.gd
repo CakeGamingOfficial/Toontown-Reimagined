@@ -439,12 +439,15 @@ func _physics_process(delta: float) -> void:
 		_squish_left = maxf(_squish_left - delta, 0.0)
 		if _body != null:
 			_body.velocity = Vector3.ZERO
+		_leave_water()
 		return
 	if _battle_hold:
 		if _body != null:
 			_body.velocity = Vector3.ZERO
+		_leave_water()
 		return
 	if not _active or _locked:
+		_leave_water()
 		return
 	_walk(delta)
 	if _is_sad():
@@ -702,6 +705,9 @@ func _arrival_spot() -> Dictionary:
 	if ToonSocial.visit_on and ToonSocial.visit_scene == _scene_path():
 		ToonSocial.visit_on = false
 		return {"point": ToonSocial.visit_point, "heading": ToonSocial.visit_heading}
+	var club: Dictionary = preload("res://scenes/cog_hq/bossbot_doors.gd").arrival(get_parent())
+	if not club.is_empty():
+		return {"point": _snap_drop(club["point"]), "heading": float(club["heading"])}
 	var scene_path := _scene_path()
 	if _factory_trip != "":
 		var ride: Dictionary = _FACTORY.arrival(get_parent(), _factory_entrance, _factory_trip == "in")
@@ -3006,6 +3012,15 @@ func _ready_hud() -> void:
 	_hud().add_child(avatar_panel)
 
 
+func local_toon() -> ToonActor:
+	return _player
+
+
+func _leave_water() -> void:
+	if _player != null:
+		_player.set_swimming(false)
+
+
 func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
@@ -3014,6 +3029,12 @@ func _walk(delta: float) -> void:
 	var left_held := _KEYS.held("left")
 	var right_held := _KEYS.held("right")
 	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	# The book clips replace walking until the toon closes it.
+	if _player != null and _player.holding_book():
+		forward_held = false
+		back_held = false
+		left_held = false
+		right_held = false
 	# Right-click turns the side keys into a full run across the camera.
 	if MagicWords.detached_camera():
 		forward_held = false
@@ -3063,7 +3084,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if not _is_sad() and _KEYS.held("jump") and _jump_lock <= 0.0:
+		if not _is_sad() and not _player.holding_book() and _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -3100,6 +3121,7 @@ func _walk(delta: float) -> void:
 			_jump_lock = JUMP_LOCK
 	_face(_player, face_heading)
 	_player.set_sad(_is_sad())
+	_player.set_swimming(_player.under_water())
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 	if _remotes != null:
 		_remotes.note(face_heading, speed, turning, _jumping or jumped, not _player.visible)

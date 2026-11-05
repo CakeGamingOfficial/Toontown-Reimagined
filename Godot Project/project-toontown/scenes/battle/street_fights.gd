@@ -7,6 +7,8 @@ extends Node
 
 const INPUT_TIME := 20.0
 const REWARD_TIME := 120.0
+## BattleBase.FLOOR_REWARD_TIMEOUT. A cleared floor dances, then the elevator.
+const FLOOR_REWARD_TIME := 4.0
 const FACEOFF_TAUNT_T := 3.5
 const SUIT_SPEED := 4.8
 const MAX_TOONS := 4
@@ -67,6 +69,8 @@ const _TOON_POINTS: Array = [
 ]
 
 var _fights: Array = []
+## Gag experience from the floors already cleared, paid out on the top floor.
+var _floor_bank: Dictionary = {}
 var _next := 1
 var _dirty: Dictionary = {}
 var _publish_wait := 0.0
@@ -176,7 +180,7 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 
 
 ## A cog-building floor. The cogs are not on the street; the run already picked them.
-func open_roster(district: int, slug: String, cogs: Array, reserves: Array, riders: Array, origin: Vector3, yaw: float, building: int, out: Variant = null) -> int:
+func open_roster(district: int, slug: String, cogs: Array, reserves: Array, riders: Array, origin: Vector3, yaw: float, building: int, out: Variant = null, final_floor: bool = false, floor_index: int = 0) -> int:
 	if not ToonNet.is_authority() or cogs.is_empty() or riders.is_empty():
 		return 0
 	var exit_at: Array = [origin.x, origin.y, origin.z]
@@ -187,6 +191,7 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 		"district": district,
 		"slug": slug,
 		"building": building,
+		"final_floor": final_floor,
 		"state": "faceoff",
 		"left": FACEOFF_TAUNT_T,
 		"seq": 1,
@@ -203,6 +208,8 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 	}
 	_next += 1
 	_fights.append(fight)
+	if building != 0 and floor_index <= 0:
+		_floor_bank.erase(building)
 	for cog in cogs:
 		if cog is Dictionary:
 			_add_cog(fight, cog)
@@ -293,7 +300,7 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 		"target": target,
 		"exp": clampi(exp, 0, 10500),
 	}
-	if track < -2 or track > 6 or level < -1 or level > 6:
+	if track < -2 or track > 6 or level < -1 or level > 6 or (track == -2 and int(fight.get("building", 0)) != 0):
 		pick["track"] = -1
 		pick["level"] = -1
 	(fight["choices"] as Array).append(pick)
@@ -416,6 +423,8 @@ func _skill_copy(fight: Dictionary, peer: int) -> Array:
 ## The book entry is cleared so the victory card does not add it a second time.
 func _cash_out(fight: Dictionary, toon: Dictionary) -> void:
 	var peer := int(toon.get("id", 0))
+	if int(fight.get("building", 0)) != 0:
+		_pour_toon(fight, peer)
 	_reward_row(fight, peer, String(toon.get("name", "Toon")), toon)
 	var book: Dictionary = fight.get("skill", {})
 	book.erase(str(peer))
@@ -980,28 +989,106 @@ func _finish_movie(fight: Dictionary) -> void:
 		_persist_one(toon)
 	fight["toons"] = toons
 	_place(fight)
+	var building := int(fight.get("building", 0))
 	if toons.is_empty():
-		fight["reward_rows"] = _reward_rows(fight, toons)
-		fight["state"] = "reward"
-		fight["left"] = REWARD_TIME
-		fight["finished"] = []
-		fight["beats"] = []
-		fight["seq"] = int(fight.get("seq", 0)) + 1
-		_mark(fight)
+		if building != 0:
+			_floor_bank.erase(building)
+			_close_fight(fight)
+			return
+		_open_reward(fight, toons)
 		return
 	if _join_reserves(fight, kept):
 		return
 	if kept.is_empty():
-		fight["reward_rows"] = _reward_rows(fight, toons)
-		fight["state"] = "reward"
-		fight["left"] = REWARD_TIME
-		fight["finished"] = []
-		fight["beats"] = []
-		fight["seq"] = int(fight.get("seq", 0)) + 1
-		_mark(fight)
+		if building != 0 and not bool(fight.get("final_floor", false)):
+			_stash_floor(fight)
+			_open_floor_clear(fight)
+			return
+		if building != 0:
+			_pour_bank(fight)
+		_open_reward(fight, toons)
 		return
 	fight["round"] = int(fight.get("round", 1)) + 1
 	_begin_input(fight)
+
+
+func _open_reward(fight: Dictionary, toons: Array) -> void:
+	fight["floor_clear"] = false
+	fight["reward_rows"] = _reward_rows(fight, toons)
+	fight["state"] = "reward"
+	fight["left"] = REWARD_TIME
+	fight["finished"] = []
+	fight["beats"] = []
+	fight["seq"] = int(fight.get("seq", 0)) + 1
+	_mark(fight)
+
+
+## DistributedBattleBldg.enterReward. The experience card waits for the top floor.
+func _open_floor_clear(fight: Dictionary) -> void:
+	fight["floor_clear"] = true
+	fight["reward_rows"] = []
+	fight["state"] = "reward"
+	fight["left"] = FLOOR_REWARD_TIME
+	fight["finished"] = []
+	fight["beats"] = []
+	fight["seq"] = int(fight.get("seq", 0)) + 1
+	_mark(fight)
+
+
+func _close_fight(fight: Dictionary) -> void:
+	fight["state"] = "gone"
+	fight["beats"] = []
+	fight["seq"] = int(fight.get("seq", 0)) + 1
+	_mark(fight)
+
+
+func _stash_floor(fight: Dictionary) -> void:
+	var block := int(fight.get("building", 0))
+	if block == 0:
+		return
+	var bank: Dictionary = _floor_bank.get(block, {})
+	var skill: Dictionary = fight.get("skill", {})
+	for key in skill.keys():
+		bank[str(key)] = _sum_tracks(bank.get(str(key), []), skill[key])
+	_floor_bank[block] = bank
+
+
+func _pour_bank(fight: Dictionary) -> void:
+	var block := int(fight.get("building", 0))
+	if block == 0 or not _floor_bank.has(block):
+		return
+	var bank: Dictionary = _floor_bank[block]
+	_floor_bank.erase(block)
+	var skill: Dictionary = fight.get("skill", {})
+	for key in bank.keys():
+		skill[str(key)] = _sum_tracks(skill.get(str(key), []), bank[key])
+	fight["skill"] = skill
+
+
+func _pour_toon(fight: Dictionary, peer: int) -> void:
+	var block := int(fight.get("building", 0))
+	if block == 0 or not _floor_bank.has(block):
+		return
+	var bank: Dictionary = _floor_bank[block]
+	var key := str(peer)
+	if not bank.has(key):
+		return
+	var skill: Dictionary = fight.get("skill", {})
+	skill[key] = _sum_tracks(skill.get(key, []), bank[key])
+	fight["skill"] = skill
+	bank.erase(key)
+	_floor_bank[block] = bank
+
+
+func _sum_tracks(have: Variant, extra: Variant) -> Array:
+	var left: Array = have if have is Array else []
+	var right: Array = extra if extra is Array else []
+	var sum: Array = []
+	for track in ToonLoadout.TRACK_COUNT:
+		var a := int(left[track]) if track < left.size() else 0
+		var b := int(right[track]) if track < right.size() else 0
+		sum.append(mini(a + b, 10500))
+	return sum
 
 
 ## DistributedSuitInteriorAI.__handleRoundDone. A reserve joins when the

@@ -74,6 +74,7 @@ var _loadout: ToonLoadout
 var _waiting := false
 var _built := false
 var _tutorial := false
+var _building := false
 var _menu: TextureRect
 var _prompt: TextureRect
 var _prompt_text: Label
@@ -96,9 +97,11 @@ var _fire: TextureButton
 var _pass: TextureButton
 
 
-func setup(loadout: ToonLoadout, tutorial := false) -> void:
+func setup(loadout: ToonLoadout, tutorial := false, building := false) -> void:
 	_loadout = loadout
 	_tutorial = tutorial
+	# InventoryNew.battleActivateButtons hides Run when bldg == 1.
+	_building = building
 	# Each street round calls this again. Building twice stacks a new menu
 	# card over the gag buttons, so the inventory looks empty.
 	if not _built:
@@ -123,6 +126,13 @@ func choose() -> Vector2i:
 	visible = false
 	mouse_filter = MOUSE_FILTER_IGNORE
 	return Vector2i(int(result[0]), int(result[1]))
+
+
+## The round left gag selection. Keep the pick waiting, but take the panel down
+## so it is not sitting on the movie.
+func tuck() -> void:
+	visible = false
+	mouse_filter = MOUSE_FILTER_IGNORE
 
 
 ## The round ended while the inventory was still up. -3 is not a gag and not a pass.
@@ -281,6 +291,7 @@ func _layout() -> void:
 	_place_text(_detail_credit, detail_x - 0.22 * FRAME, detail_z - 0.365 * FRAME, 0.46, 0.06, _INK, 0.04 * FRAME)
 	_paint_total()
 	var button := _size(0.1804 * 1.05 * FRAME, 0.1137 * 1.05 * FRAME)
+	_run.visible = not _building
 	_place(_run, 0.73 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_sos, 0.96 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_fire, 0.73 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())

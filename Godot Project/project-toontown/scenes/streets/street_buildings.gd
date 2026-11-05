@@ -899,6 +899,7 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 			building.set_meta("elevator", elevator)
 			_show_story(elevator, int(row.get("story", -1)))
 			_medallion(elevator, track)
+			frame_solid(elevator)
 	var origin := _find(building, "sign_origin")
 	if origin == null:
 		return
@@ -1080,6 +1081,15 @@ func set_story(block: int, story: int) -> void:
 		_show_story(elevator, story)
 
 
+## DistributedSuitInterior.setElevatorLights. The street car and both floor
+## cars use the same bulbs.
+func paint_elevator(elevator: Node, floors: int, story: int) -> void:
+	if elevator == null or not is_instance_valid(elevator):
+		return
+	_floors(elevator, floors)
+	_show_story(elevator, story)
+
+
 func _paint_bulb(node: Node, color: Color) -> void:
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
@@ -1091,7 +1101,16 @@ func _paint_bulb(node: Node, color: Color) -> void:
 			else:
 				mat = StandardMaterial3D.new()
 			mesh.material_override = mat
+		# setColor on the bulb. Unshaded keeps LIGHT_OFF gray and LIGHT_ON white
+		# instead of letting the street shade both of them the same.
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.albedo_color = color
+		var lit := color.r > 0.75
+		mat.emission_enabled = lit
+		if lit:
+			mat.emission = Color.WHITE
+			mat.emission_texture = mat.albedo_texture
+			mat.emission_energy_multiplier = 1.0
 	for child in node.get_children():
 		_paint_bulb(child, color)
 
@@ -1143,6 +1162,33 @@ func _icon(track: String) -> Texture2D:
 			return _SALES_ICON
 		_:
 			return _CORP_ICON
+
+
+## The doorway stays open. The metal frame, its corners, and the light panel
+## are the solid shell around that opening.
+static func frame_solid(elevator: Node) -> void:
+	if elevator == null:
+		return
+	for piece in ["frame", "corners", "light_panel_frame"]:
+		var mesh := _find_named(elevator, piece) as MeshInstance3D
+		if mesh == null or mesh.mesh == null or mesh.get_node_or_null(piece + "_col") != null:
+			continue
+		mesh.create_trimesh_collision()
+		var body := mesh.get_node_or_null(piece + "_col") as StaticBody3D
+		if body == null:
+			continue
+		body.collision_layer = 1
+		body.collision_mask = 0
+
+
+static func _find_named(root: Node, wanted: String) -> Node3D:
+	for child in root.get_children():
+		if str(child.name) == wanted and child is Node3D:
+			return child as Node3D
+		var found := _find_named(child, wanted)
+		if found != null:
+			return found
+	return null
 
 
 ## The shell around the elevator has vertex colors and no texture. Leaving

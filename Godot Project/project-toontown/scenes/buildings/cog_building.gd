@@ -77,6 +77,12 @@ var _exit_heading := 0.0
 var _riders: Dictionary = {}
 var _remote_exits: Dictionary = {}
 var _timing: Dictionary = {}
+## Street boarding uses the panda elevator points. The far car uses the interior seats.
+var _spots: Array = _STAND
+var _floor_out := false
+var _board_key := ""
+var _ride_token := ""
+var _ride_freed: Dictionary = {}
 
 
 func _ready() -> void:
@@ -249,7 +255,9 @@ func _show(run: Dictionary, delta: float) -> void:
 		if elapsed >= 4.0:
 			_once("open", _OPEN_SFX)
 	var out_closed := 1.0
-	if fight_state == "reserves":
+	if state == "resting" or state == "floorboard":
+		out_closed = 0.0
+	elif fight_state == "reserves":
 		var elapsed := 3.0 - float(fight.get("left", 0.0))
 		out_closed = 1.0 - clampf(elapsed / 2.0, 0.0, 1.0)
 		_once("reserves", _OPEN_SFX)
@@ -263,9 +271,14 @@ func _show(run: Dictionary, delta: float) -> void:
 			outside = 1.0
 		buildings.call("set_doors", block, outside)
 		var story := -1
-		if state == "riding" or state == "battle":
+		if state == "riding" or state == "battle" or state == "victory" or state == "failed" or state == "resting" or state == "floorboard":
 			story = int(run.get("floor", 0))
 		buildings.call("set_story", block, story)
+		var floors := int(run.get("floors", 1))
+		if _car != null:
+			buildings.call("paint_elevator", _car, floors, story)
+		if _out != null:
+			buildings.call("paint_elevator", _out, floors, story)
 	# The countdown stays on the street, so the street song keeps playing
 	# until the ride. From there the building owns the music.
 	if state == "riding":
@@ -279,6 +292,9 @@ func _show(run: Dictionary, delta: float) -> void:
 			_play_music(_BOSS_MUSIC, _BATTLE_VOL)
 		else:
 			_play_music(_FLOOR_MUSIC, _BATTLE_VOL)
+	elif state == "resting" or state == "floorboard":
+		_hold_street()
+		_play_music(_WAIT_MUSIC, _WAIT_VOL)
 	elif state == "victory" or state == "failed":
 		_hold_street()
 		_quiet()
@@ -289,11 +305,21 @@ func _show(run: Dictionary, delta: float) -> void:
 		_banner.visible = false
 		_present_board(run, delta)
 		return
+	if state == "resting":
+		_banner.visible = false
+		_offer_next(run)
+		return
+	if state == "floorboard":
+		_banner.visible = false
+		_present_out(run, delta)
+		return
 	_hide_board_gui()
 	_release_riders()
 	if state == "riding":
-		_banner.text = "Floor %d of %d" % [int(run.get("floor", 0)) + 1, int(run.get("floors", 1))]
+		_banner.visible = false
 		_aim_ride(6.0 - float(run.get("left", 0.0)))
+		_pose_ride(run, delta)
+		return
 	elif state == "victory":
 		_banner.text = "You took the building back!"
 	elif state == "failed":
@@ -304,7 +330,7 @@ func _show(run: Dictionary, delta: float) -> void:
 		_banner.visible = false
 	else:
 		_banner.text = "The elevator is closing"
-	if state == "boarding" or state == "closing" or state == "battle":
+	if state == "battle":
 		return
 	var toon := _toon()
 	if toon == null or _car == null:
@@ -336,6 +362,7 @@ func _ensure_room(run: Dictionary) -> void:
 	_room.set_meta("kind", kind)
 	_room.position = _RUNS.room_origin(block)
 	add_child(_room)
+	_solid_room(_room)
 	var depth := 30.0
 	if kind == "hall":
 		depth = 40.0
@@ -355,6 +382,7 @@ func _park_car(car_name: String, spot: Vector3, yaw: float) -> Node3D:
 	_room.add_child(car)
 	car.position = spot
 	car.rotation.y = deg_to_rad(yaw)
+	preload("res://scenes/streets/street_buildings.gd").frame_solid(car)
 	return car
 
 
@@ -409,6 +437,50 @@ func _seat(run: Dictionary) -> Vector3:
 	return _car.global_transform * _SEATS[_seat_index(run) % _SEATS.size()]
 
 
+## __playElevator parents each toon to the in car, setHpr(180) facing out the
+## doors, and loop('neutral') for the whole ride.
+func _pose_ride(run: Dictionary, delta: float) -> void:
+	var heading := _ride_heading()
+	var toon := _toon()
+	if toon == null or _car == null:
+		return
+	var index := 0
+	for item in run.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var rider: Dictionary = item
+		var peer := int(rider.get("id", 0))
+		var seat := index
+		if rider.has("seat"):
+			seat = int(rider.get("seat", index))
+		var spot: Vector3 = _car.global_transform * _SEATS[seat % _SEATS.size()]
+		var actor: ToonActor = null
+		if peer == ToonNet.peer_id():
+			toon.call("visit_friend", spot, heading)
+			actor = toon.call("battle_actor")
+		else:
+			toon.call("pin_remote", peer, spot, heading)
+			actor = toon.call("remote_actor", peer)
+		if actor != null:
+			var token := "%s:%s" % [int(run.get("id", 0)), int(run.get("floor", 0))]
+			if _ride_token != token:
+				_ride_token = token
+				_ride_freed.clear()
+			if not _ride_freed.has(peer):
+				_ride_freed[peer] = true
+				actor.clear_gesture()
+				actor.end_action("victory")
+			actor.set_locomotion(0.0, false, false, delta)
+		index += 1
+
+
+## Panda H 180 faces elevator -Y, out the doors. That direction is this car's +Z.
+func _ride_heading() -> float:
+	if _car == null:
+		return 0.0
+	return _heading_of(_car.global_transform.basis * Vector3(0.0, 0.0, 1.0))
+
+
 func _seat_index(run: Dictionary) -> int:
 	var index := 0
 	var peer := ToonNet.peer_id()
@@ -424,6 +496,7 @@ func _seat_index(run: Dictionary) -> int:
 ## fillSlot parents the toon to the street elevator, runs to ElevatorPoints, and
 ## turns to face out. The camera eases to the boarding shot over 1.5 seconds.
 func _present_board(run: Dictionary, delta: float) -> void:
+	_spots = _STAND
 	var elevator := _street_elevator(int(run.get("block", 0)))
 	var open := String(run.get("state", "")) == "boarding" and not bool(run.get("depart", false))
 	_paint_clock(elevator, open, float(run.get("left", 0.0)))
@@ -436,6 +509,114 @@ func _present_board(run: Dictionary, delta: float) -> void:
 	_cam_blend = minf(_cam_blend + delta / _BOARD_CAM, 1.0)
 	_aim_board(elevator)
 	_step_party(run, elevator, delta)
+
+
+## DistributedSuitInterior enterResting. Control is the toon's, and the far
+## elevator is the one that goes up.
+func _offer_next(run: Dictionary) -> void:
+	_hide_board_gui()
+	_spots = _STAND
+	var toon := _toon()
+	if toon != null and not _floor_out:
+		toon.call("hold_for_battle", false)
+	if _out == null or toon == null or _ask > 0.0:
+		return
+	var here: Vector3 = toon.call("battle_point")
+	if _floor_out:
+		if not _inside_out(here):
+			_floor_out = false
+		return
+	if not _inside_out(here):
+		return
+	_ask = 1.2
+	_board_key = ""
+	_riders.clear()
+	_cam_blend = -1.0
+	ToonNet.ask_next(_district(), _slug(), int(run.get("block", 0)))
+
+
+func _present_out(run: Dictionary, delta: float) -> void:
+	if _floor_out or _out == null:
+		_hide_board_gui()
+		return
+	var key := "floor:%s:%s" % [int(run.get("id", 0)), int(run.get("floor", 0))]
+	if _board_key != key:
+		_board_key = key
+		_riders.clear()
+		_cam_blend = -1.0
+	var toon := _toon()
+	if toon != null:
+		toon.call("hold_for_battle", true)
+	_spots = _SEATS
+	var open := not bool(run.get("depart", false))
+	_paint_clock(_out, open, float(run.get("left", 0.0)))
+	if _hop != null:
+		_hop.visible = open
+	if _cam_blend < 0.0:
+		_remember_cam()
+	_cam_blend = minf(_cam_blend + delta / _BOARD_CAM, 1.0)
+	_aim_interior(_out)
+	_step_party(run, _out, delta)
+	_spots = _STAND
+
+
+## The interior car keeps the glTF spin, so its local -Z is into the car.
+func _aim_interior(car: Node3D) -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var dest: Vector3 = car.global_transform * Vector3(0.0, 4.0, 8.0)
+	var look: Vector3 = car.global_transform * Vector3(0.0, 3.0, -2.0)
+	var blend := clampf(_cam_blend, 0.0, 1.0)
+	camera.global_position = _cam_from.lerp(dest, blend)
+	var focus := _look_from.lerp(look, blend)
+	if camera.global_position.distance_squared_to(focus) > 0.04:
+		camera.look_at(focus, Vector3.UP)
+
+
+func _hop_floor(run: Dictionary) -> void:
+	_floor_out = true
+	_board_key = ""
+	_riders.erase(ToonNet.peer_id())
+	_cam_blend = -1.0
+	_hide_board_gui()
+	var toon := _toon()
+	if toon != null and _out != null:
+		var here: Vector3 = toon.call("battle_point")
+		var flat: Vector3 = _room.global_position - _out.global_position if _room != null else Vector3.ZERO
+		flat.y = 0.0
+		var heading := _out_heading(_out)
+		var spot := here
+		if flat.length_squared() > 0.04:
+			heading = _heading_of(flat)
+			spot = _out.global_position + flat.normalized() * 6.0
+			spot.y = here.y
+		toon.call("visit_friend", spot, heading)
+		toon.call("hold_for_battle", false)
+	ToonNet.ask_floor_hop(_district(), _slug(), int(run.get("block", 0)))
+
+
+func _inside_out(here: Vector3) -> bool:
+	if _out == null:
+		return false
+	var spot: Vector3 = _out.global_transform * Vector3(0.0, 1.0, -2.5)
+	if absf(here.y - spot.y) > 3.0:
+		return false
+	return Vector2(here.x - spot.x, here.z - spot.z).length() <= 3.5
+
+
+func _solid_room(room: Node) -> void:
+	if room is MeshInstance3D:
+		var mesh := room as MeshInstance3D
+		var low := str(mesh.name).to_lower()
+		if mesh.mesh != null and not low.contains("shadow") and not low.contains("shad"):
+			mesh.create_trimesh_collision()
+			var body := mesh.get_node_or_null(str(mesh.name) + "_col") as StaticBody3D
+			if body != null:
+				body.collision_layer = 1
+				body.collision_mask = 0
+	for child in room.get_children():
+		_solid_room(child)
 
 
 func _step_party(run: Dictionary, elevator: Node3D, delta: float) -> void:
@@ -455,9 +636,11 @@ func _step_party(run: Dictionary, elevator: Node3D, delta: float) -> void:
 
 
 func _step_rider(peer: int, seat: int, block: int, elevator: Node3D, delta: float) -> void:
-	if peer == ToonNet.peer_id() and _exiting:
+	if peer == ToonNet.peer_id() and (_exiting or _floor_out):
 		return
-	var goal: Vector3 = elevator.global_transform * _STAND[seat % _STAND.size()]
+	var spots: Array = _spots if not _spots.is_empty() else _STAND
+	var point: Vector3 = spots[seat % spots.size()]
+	var goal := elevator.global_transform * point
 	var face_out := _out_heading(elevator)
 	if not _riders.has(peer):
 		var start := _rider_point(peer, goal)
@@ -622,6 +805,9 @@ func _hop_off() -> void:
 		return
 	var run := _raw_mine()
 	if run.is_empty():
+		return
+	if String(run.get("state", "")) == "floorboard":
+		_hop_floor(run)
 		return
 	if String(run.get("state", "")) != "boarding" or bool(run.get("depart", false)):
 		return
@@ -1062,7 +1248,7 @@ func _mask_remotes(run: Dictionary) -> void:
 		var other: Dictionary = item
 		var together := mine > 0 and int(other.get("id", 0)) == mine
 		var state := String(other.get("state", ""))
-		var gone := state == "riding" or state == "battle" or state == "victory" or state == "failed"
+		var gone := state == "riding" or state == "battle" or state == "victory" or state == "failed" or state == "resting" or state == "floorboard"
 		if together or not gone:
 			continue
 		for rider in other.get("toons", []):

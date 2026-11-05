@@ -117,6 +117,7 @@ static func capture() -> Dictionary:
 		"exp": loadout.track_experience(),
 		"pouch": _BEANS.pouch(),
 		"bank": _BEANS.bank(),
+		"max_money": _BEANS.pouch_limit(),
 		"has_book": tasks.has_book,
 		"met_flippy": tasks.met_flippy,
 		"in_playground": tasks.in_playground,
@@ -134,7 +135,7 @@ static func apply(record: Dictionary) -> void:
 	var loadout := ToonLoadout.for_selected()
 	loadout.apply_dict(record)
 	loadout.save()
-	_BEANS.set_saved(int(record.get("pouch", 0)), int(record.get("bank", 0)))
+	_BEANS.set_saved(int(record.get("pouch", 0)), int(record.get("bank", 0)), int(record.get("max_money", -1)))
 	var tasks := ToonTasks.for_selected()
 	tasks.apply_dict(record)
 	tasks.save()

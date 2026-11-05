@@ -7,6 +7,7 @@ extends RefCounted
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
@@ -439,15 +440,18 @@ static func _restock(scene: Node, everything: bool) -> String:
 		loadout.set_hp(137, 137)
 		loadout.save()
 		filled = loadout.unlock_all()
+		_BEANS.set_pouch_limit(_BEANS.POUCH_MAX)
+		_BEANS.fill_pouch()
 	else:
 		filled = loadout.restock()
 	var book := _find(scene, "ShtickerBook") as ShtickerBook
 	if book != null:
 		book.refresh_gags()
+		book.refresh_jar()
 	if filled <= 0:
 		return "No gags are unlocked yet. ~max unlocks them."
 	if everything:
-		return "Maxed laff to 137, gag pouch to %d, and filled %d gags." % [loadout.max_carry, filled]
+		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, and filled %d gags." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
 	return "Restocked %d gags." % filled
 
 

@@ -198,8 +198,8 @@ func _layout() -> void:
 	var view := get_viewport().get_visible_rect().size
 	if view.y < 2.0:
 		return
-	# The cards stay up through the movie so each toon's gag is still on the panel.
-	var showing := _state == "input" or _state == "movie"
+	# TownBattle shows the status cards only while toons are choosing a gag.
+	var showing := _state == "input"
 	var count := mini(_toons.size(), 4)
 	var spots := _ODD if count % 2 == 1 else _EVEN
 	var start := 0 if count >= 3 else 1

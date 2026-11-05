@@ -41,7 +41,7 @@ const CATALOG := {
 	145: {
 		"headline": "RECOVER",
 		"caption": "A Blackboard Eraser",
-		"where": "from Cogs\nin Toontown Central",
+		"where": "In Toontown Central",
 		"kind": RECOVER,
 		"cog": "any",
 		"hood": 2000,

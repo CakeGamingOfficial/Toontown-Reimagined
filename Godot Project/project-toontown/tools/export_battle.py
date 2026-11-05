@@ -214,8 +214,9 @@ def joint_list(part: str) -> tuple[str, ...]:
     return ("def_head", "def_joint_right_hold", "def_joint_left_hold", "def_joint_attachFlower")
 
 
-def present_joints(part: str, names: tuple[str, ...]) -> tuple[str, ...]:
-    data = (walk_export.PARTS_DIR / f"{part}.glb").read_bytes()
+def present_joints(part: str, names: tuple[str, ...], directory: Path | None = None) -> tuple[str, ...]:
+    folder = walk_export.PARTS_DIR if directory is None else directory
+    data = (folder / f"{part}.glb").read_bytes()
     import struct
     length = struct.unpack_from("<I", data, 12)[0]
     document = json.loads(data[20:20 + length])
@@ -223,7 +224,7 @@ def present_joints(part: str, names: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(name for name in names if name in have)
 
 
-def export_toon_anim(part: str, model: str, suffix: str, phase: str, anim: str) -> None:
+def export_toon_anim(part: str, model: str, suffix: str, phase: str, anim: str, directory: Path | None = None) -> None:
     relative = anim_relative(model, phase, anim)
     root = toon_export.load_model(model)
     if root is None:
@@ -231,7 +232,7 @@ def export_toon_anim(part: str, model: str, suffix: str, phase: str, anim: str) 
         return
     for pattern in ("**/boots_short", "**/boots_long", "**/shoes"):
         toon_export.hide_named(root, pattern)
-    names = present_joints(part, joint_list(part))
+    names = present_joints(part, joint_list(part), directory)
     if not names:
         print("no joints", part, flush=True)
         return
@@ -241,7 +242,7 @@ def export_toon_anim(part: str, model: str, suffix: str, phase: str, anim: str) 
     except RuntimeError as error:
         print("skip", part, suffix, error, flush=True)
         return
-    bind = walk_export.glb_bind(part, names)
+    bind = walk_export.glb_bind(part, names) if directory is None else _glb_bind(directory / f"{part}.glb", names)
     frame_count = control.getNumFrames()
     walked = []
     joint_frames = {name: [] for name in names}
@@ -442,6 +443,63 @@ def export_bills() -> None:
         print(f"prop {name} meshes={writer.mesh_count}", flush=True)
 
 
+def _glb_bind(path: Path, names: tuple[str, ...]) -> dict:
+    import struct
+    data = path.read_bytes()
+    length = struct.unpack_from("<I", data, 12)[0]
+    document = json.loads(data[20:20 + length])
+    found = {}
+    for node in document["nodes"]:
+        if node["name"] in names and "matrix" in node:
+            found[node["name"]] = [float(value) for value in node["matrix"]]
+    missing = [name for name in names if name not in found]
+    if missing:
+        raise RuntimeError(path.name + " missing " + ", ".join(missing))
+    return found
+
+
+def export_shticker_book() -> int:
+    """The book the toon holds. Pages are joint children, so the clip is joints only."""
+    loadPrcFileData("", "window-type none")
+    loadPrcFileData("", "audio-library-name null")
+    getModelPath().prependDirectory(toon_export.ASSETS)
+    prop = toon_export.load_model("phase_3.5/models/props/book-mod.bam")
+    channel = toon_export.load_model("phase_3.5/models/props/book-chan.bam")
+    if prop is None or channel is None:
+        raise RuntimeError("missing shticker book prop")
+    control = walk_export.bind_anim(prop, "phase_3.5/models/props/book-chan.bam")
+    control.pose(0)
+    prop.find("**/+Character").node().getBundle(0).forceUpdate()
+    out = ROOT / "assets" / "props" / "shticker_book.glb"
+    toon_export.write_gltf(prop, out)
+    names = ("joint_front_page", "joint_back_page")
+    bind = _glb_bind(out, names)
+    frames = {name: [] for name in names}
+    for frame in range(control.getNumFrames()):
+        control.pose(frame)
+        prop.find("**/+Character").node().getBundle(0).forceUpdate()
+        for name, matrix in walk_export.joint_matrices(prop, names):
+            frames[name].append(matrix)
+    walk_export.write_walk(
+        ANIMS / "shticker_book.book",
+        control.getNumFrames(),
+        [],
+        [(name, bind[name], frames[name]) for name in names],
+    )
+    print(f"shticker book frames={control.getNumFrames()}", flush=True)
+    for part, model, _neutral, _walk in walk_export.PARTS:
+        export_toon_anim(part, model, "book", "phase_3.5", "book")
+    heads = ROOT / "assets" / "toons" / "heads"
+    for code, prefix in (
+        ("dls", "tt_a_chr_dgm_shorts_head"),
+        ("dss", "tt_a_chr_dgm_skirt_head"),
+        ("dsl", "tt_a_chr_dgs_shorts_head"),
+        ("dll", "tt_a_chr_dgl_shorts_head"),
+    ):
+        export_toon_anim(code, f"phase_3/models/char/{prefix}_1000.bam", "book", "phase_3.5", "book", heads)
+    return 0
+
+
 def export_added() -> int:
     loadPrcFileData("", "window-type none")
     loadPrcFileData("", "audio-library-name null")
@@ -497,4 +555,6 @@ def main() -> int:
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "added":
         sys.exit(export_added())
+    if len(sys.argv) > 1 and sys.argv[1] == "book":
+        sys.exit(export_shticker_book())
     sys.exit(main())

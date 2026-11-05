@@ -246,7 +246,7 @@ func _show_amounts() -> void:
 	_jar_amount.text = str(carried)
 	_bank_amount.text = str(saved)
 	var deposit_full := carried <= 0 or saved >= _BEANS.BANK_MAX
-	var withdraw_full := saved <= 0 or carried >= _BEANS.POUCH_MAX
+	var withdraw_full := saved <= 0 or carried >= _BEANS.pouch_limit()
 	_paint(_deposit, deposit_full)
 	_paint(_withdraw, withdraw_full)
 

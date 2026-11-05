@@ -428,6 +428,12 @@ func _walk(delta: float) -> void:
 	var left_held := _KEYS.held("left")
 	var right_held := _KEYS.held("right")
 	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	# The book clips replace walking until the toon closes it.
+	if _player != null and _player.holding_book():
+		forward_held = false
+		back_held = false
+		left_held = false
+		right_held = false
 	# Right-click turns the side keys into a full run across the camera.
 	if MagicWords.detached_camera():
 		forward_held = false
@@ -477,7 +483,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if _KEYS.held("jump") and _jump_lock <= 0.0:
+		if not _player.holding_book() and _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -827,6 +833,10 @@ func _dock_meter() -> void:
 	if view.y < 2.0:
 		return
 	_meter.dock(view)
+
+
+func local_toon() -> ToonActor:
+	return _player
 
 
 func shticker() -> ShtickerBook:
