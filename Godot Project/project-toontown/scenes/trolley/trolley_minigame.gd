@@ -169,7 +169,9 @@ func _on_view_resized() -> void:
 func _layout_clock(force: bool) -> void:
 	if _clock_face == null or not _clock_face.visible:
 		return
-	var clock := _aspect_rect(1.16, 0.83, 0.7417 * 0.45, 0.7292 * 0.45)
+	var clock_w := 0.7417 * 0.45
+	var clock_h := 0.7292 * 0.45
+	var clock := _aspect_rect(1.16, 0.83, clock_w, clock_h)
 	_clock_face.position = clock.position
 	_clock_face.size = clock.size
 	var whole := maxi(int(ceil(duration)), 0)
@@ -178,15 +180,15 @@ func _layout_clock(force: bool) -> void:
 	_clock_num.text = str(whole)
 	var late := whole <= 5
 	var text_scale := 0.27
-	var nudge := Vector2(-0.025, -0.1)
 	if str(whole).length() <= 1:
 		text_scale = 0.34
-		nudge = Vector2(-0.025, -0.125)
 	elif str(whole).length() >= 3:
 		text_scale = 0.2
-		nudge = Vector2(-0.01, -0.08)
 	ToonGui.style_label(_clock_num, Color(1, 0, 0, 1) if late else Color(0, 0, 0, 1), _font_px(text_scale * 0.45), Color(0, 0, 0, 0), 0)
-	var box := _aspect_rect(1.16 + nudge.x * 0.45, 0.83 + nudge.y * 0.45, 0.26, 0.16)
+	# The white face sits a little left of and below the middle of alarm_clock.
+	var face_x := 1.16 + (28.5 / 61.0 - 0.5) * clock_w
+	var face_z := 0.83 - (33.5 / 61.0 - 0.5) * clock_h
+	var box := _aspect_rect(face_x, face_z, 0.26, 0.16)
 	_clock_num.position = box.position
 	_clock_num.size = box.size
 

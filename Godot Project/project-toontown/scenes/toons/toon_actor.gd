@@ -812,6 +812,8 @@ func _load_clip(suffix: String, clips: Array, joints: Array, host: Node = null, 
 				"original": instance.mesh,
 				"surfaces": surfaces,
 			})
+			if String(node_name) == "arms":
+				_anchor_wrists(scope, surfaces)
 		var joint_records: Dictionary = clip.get("joints", {})
 		for joint_name in joint_records.keys():
 			var joint := _find(scope, String(joint_name)) as Node3D
@@ -950,6 +952,7 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 			continue
 		var count := frames.size()
 		node.transform = _joint_pose(joint, frame % count, following % count, blend)
+	_seat_hands(joints)
 
 
 func _mesh_for_frame(clip: Dictionary, frame: int) -> ArrayMesh:
@@ -1988,6 +1991,67 @@ func _ingest(clip: Dictionary, clips: Array, joints: Array, host: Node = null) -
 			"frames": frames,
 		})
 	return frame_count
+
+
+## 250 hands are parented to the wrist joints, and the clips never pose those
+## joints. Remember the arm corner that sits on the wrist while it is at rest.
+func _anchor_wrists(scope: Node, surfaces: Array) -> void:
+	var frames: Array = surfaces[0]["frames"]
+	if frames.is_empty():
+		return
+	for wrist_name in ["def_left_wrist", "def_right_wrist"]:
+		var wrist := _find(scope, wrist_name)
+		if wrist == null or wrist.has_meta("arm_corner"):
+			continue
+		var best := 0
+		var best_dist := 1000000.0
+		var origin := wrist.transform.origin
+		for frame in frames:
+			var posed: PackedVector3Array = frame
+			for index in posed.size():
+				var dist := posed[index].distance_squared_to(origin)
+				if dist < best_dist:
+					best_dist = dist
+					best = index
+		wrist.set_meta("arm_corner", best)
+		wrist.set_meta("bind_rest", wrist.transform)
+
+
+func _seat_hands(joints: Array) -> void:
+	var head: Node3D = null
+	for joint in joints:
+		var node := joint["node"] as Node3D
+		if node != null and String(node.name) == "def_head":
+			head = node
+	if head == null:
+		return
+	var body: Node = head
+	while body.get_parent() != null and body.get_parent() != self:
+		var parent_name := String(body.get_parent().name)
+		if parent_name == "1000" or parent_name == "500" or parent_name == "250":
+			body = body.get_parent()
+			break
+		body = body.get_parent()
+	var left := _find(body, "def_left_wrist")
+	var right := _find(body, "def_right_wrist")
+	if left == null and right == null:
+		return
+	var arms := _find(body, "arms") as MeshInstance3D
+	if arms == null or arms.mesh == null or arms.mesh.get_surface_count() == 0:
+		return
+	var arrays := arms.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	if vertices.is_empty():
+		return
+	for wrist in [left, right]:
+		if wrist == null or not wrist.has_meta("arm_corner") or not wrist.has_meta("bind_rest"):
+			continue
+		var index := int(wrist.get_meta("arm_corner"))
+		if index < 0 or index >= vertices.size():
+			continue
+		var rest: Transform3D = wrist.get_meta("bind_rest")
+		rest.origin = vertices[index]
+		wrist.transform = rest
 
 
 func _find(node: Node, wanted: String) -> Node3D:

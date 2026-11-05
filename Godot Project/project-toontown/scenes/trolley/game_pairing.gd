@@ -20,6 +20,9 @@ const _COLORS := [
 ]
 ## playingCard is 4.55 by 3.32. This scale fits the original 4-unit grid.
 const _CARD_SCALE := 0.7
+## OrthoDrive on the pairing game. Speed 11 is a run. One frame never moves more than 1.
+const _TOON_SPEED := 11.0
+const _MAX_FRAME_MOVE := 1.0
 var _cards: Array[Node3D] = []
 var _ranks: Array[int] = []
 var _faces: Array[Node3D] = []
@@ -30,6 +33,16 @@ var _lock := false
 var _bonus := 0
 var _px := 0.0
 var _py := 0.0
+var _heading_goal := 0.0
+var _rest_heading := 0.0
+var _rest_pending := 0.0
+var _rest_wait := 0.0
+var _last_x := 0
+var _last_y := 0
+var _glow: Node3D
+var _bonus_order: Array[int] = []
+var _bonus_index := -1
+var _played := 0.0
 
 
 func _init() -> void:
@@ -45,11 +58,10 @@ func _build() -> void:
 		for _suit in 4:
 			deck.append(rank)
 	deck.shuffle()
-	_bonus = randi() % deck.size()
 	for index in deck.size():
 		var col := index % 8
 		var row := int(index / 8)
-		var card := _lay_card(float(col) * 4.0, float(row) * 4.0, deck[index], index == _bonus)
+		var card := _lay_card(float(col) * 4.0, float(row) * 4.0, deck[index])
 		var body := StaticBody3D.new()
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
@@ -60,18 +72,86 @@ func _build() -> void:
 		card.add_child(body)
 		_cards.append(card)
 		_ranks.append(deck[index])
+	_bonus_order = _bonus_path()
+	_glow = _make_glow()
+	_seat_glow(0, false)
 	_make_toon(_panda(0.0, 0.0, 0.0))
-	_toon.rotation_degrees.y = 45.0
-	_aim(14.0, -8.93, 33.45, 14.0, 6.0, 0.0)
+	# A single player starts at the corner, facing the board.
+	_toon.rotation_degrees.y = 0.0
+	_toon.set_locomotion(0.0, false, false, 0.0)
+	# Closer than the old 33-unit pullback, with a margin past a tight crop of the grid.
+	_aim(14.0, -5.5, 20.7, 14.0, 6.0, 0.0)
 	show_board("points")
 
 
 func _play(delta: float) -> void:
 	var move := _stick()
-	_px = clampf(_px + move.x * 10.0 * delta, -1.0, 29.0)
-	_py = clampf(_py + move.y * 10.0 * delta, -1.0, 14.0)
+	var x_vel := int(move.x)
+	var y_vel := int(move.y)
+	_steer(x_vel, y_vel, delta)
+	var speed := 0.0
+	if x_vel != 0 or y_vel != 0:
+		var step := Vector2(float(x_vel), float(y_vel)).normalized() * _TOON_SPEED * delta
+		if step.length() > _MAX_FRAME_MOVE:
+			step = step.normalized() * _MAX_FRAME_MOVE
+		_px += step.x
+		_py += step.y
+		speed = _TOON_SPEED
+	# The board is 8 by 5 card slots. The toon stays inside that rectangle.
+	_px = clampf(_px, 0.0, 28.0)
+	_py = clampf(_py, 0.0, 16.0)
 	_toon.position = _panda(_px, _py, 0.0)
-	_toon.set_locomotion(move.length() * 8.0, false, false, delta)
+	var lift: float = 0.15 if _nearest() >= 0 else 0.0
+	_toon.position = _panda(_px, _py, lift)
+	_toon.set_locomotion(speed, false, false, delta)
+	_played += delta
+	_tick_glow()
+
+
+## OrthoDrive turns toward the keys, then back to the last held heading when they are released.
+func _steer(x_vel: int, y_vel: int, delta: float) -> void:
+	if _rest_wait > 0.0:
+		_rest_wait = maxf(_rest_wait - delta, 0.0)
+		if _rest_wait == 0.0:
+			_rest_heading = _rest_pending
+	if x_vel != _last_x or y_vel != _last_y:
+		_rest_wait = 0.0
+		if x_vel == 0 and y_vel == 0:
+			_heading_goal = _rest_heading
+		else:
+			var heading := _move_heading(x_vel, y_vel)
+			var was_diagonal := _last_x != 0 and _last_y != 0
+			var now_diagonal := x_vel != 0 and y_vel != 0
+			if was_diagonal and not now_diagonal:
+				_rest_pending = heading
+				_rest_wait = 0.05
+			else:
+				_rest_heading = heading
+			_heading_goal = heading
+		_last_x = x_vel
+		_last_y = y_vel
+	var current := deg_to_rad(_toon.rotation_degrees.y)
+	var goal := deg_to_rad(_heading_goal)
+	_toon.rotation_degrees.y = rad_to_deg(rotate_toward(current, goal, deg_to_rad(900.0) * delta))
+
+
+## OrthoDrive's heading table. Panda heading 0 faces +Y, which is this toon's yaw 0.
+func _move_heading(x_vel: int, y_vel: int) -> float:
+	if x_vel == 0 and y_vel > 0:
+		return 0.0
+	if x_vel == 0 and y_vel < 0:
+		return 180.0
+	if x_vel > 0 and y_vel == 0:
+		return -90.0
+	if x_vel < 0 and y_vel == 0:
+		return 90.0
+	if x_vel > 0 and y_vel > 0:
+		return -45.0
+	if x_vel < 0 and y_vel > 0:
+		return 45.0
+	if x_vel > 0 and y_vel < 0:
+		return -135.0
+	return 135.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -132,15 +212,19 @@ func _flip(index: int) -> void:
 		_matched.append(_open[1])
 		score += 2 if bonus else 1
 		_sfx("MG_pairing_match_bonus_both" if bonus else "MG_pairing_match")
-		_cards[_open[0]].visible = false
-		_cards[_open[1]].visible = false
+		# The matched cards fade out over a second, then hide.
+		_fade_card(_cards[_open[0]])
+		_fade_card(_cards[_open[1]])
 		_open.clear()
 		_lock = false
 		_note_flips()
 		if _matched.size() >= _ranks.size():
+			_lock = true
 			_sfx("MG_pairing_all_matched")
 			_bonus_score()
-			_end()
+			await get_tree().create_timer(1.0).timeout
+			if is_inside_tree():
+				_end()
 	else:
 		_note_flips()
 		_turn_down()
@@ -150,12 +234,18 @@ func _turn_down() -> void:
 	await get_tree().create_timer(0.6).timeout
 	if not is_inside_tree():
 		return
-	for shown in _open:
-		_turn(_cards[shown], false)
-		_faces[shown].visible = false
+	var shown: Array[int] = []
+	shown.append_array(_open)
+	for index in shown:
+		_turn(_cards[index], false)
 		_sfx("MG_pairing_card_flip_face_down", 0.6)
 	_open.clear()
 	_lock = false
+	await get_tree().create_timer(0.25).timeout
+	if not is_inside_tree():
+		return
+	for index in shown:
+		_faces[index].visible = false
 
 
 func _note_flips() -> void:
@@ -174,12 +264,12 @@ func _bonus_score() -> void:
 	score += extra
 
 
-func _lay_card(x: float, y: float, rank: int, bonus: bool) -> Node3D:
+func _lay_card(x: float, y: float, rank: int) -> Node3D:
 	var holder := Node3D.new()
 	add_child(holder)
 	holder.position = _panda(x, y, 0.08)
-	# The exported card stands up. This pitch lays it flat with the back on top.
-	holder.rotation_degrees.x = -90.0
+	# Pitch +90 puts card_back and the logo toward the camera. Pitch -90 shows card_front.
+	holder.rotation_degrees.x = 90.0
 	var model := _prop("res://assets/minigames/playing_card.glb")
 	if model == null:
 		model = _box(Vector3(3.2, 2.3, 0.12), _COLORS[rank])
@@ -187,6 +277,8 @@ func _lay_card(x: float, y: float, rank: int, bonus: bool) -> Node3D:
 	else:
 		holder.add_child(model)
 		model.scale = Vector3(_CARD_SCALE, _CARD_SCALE, _CARD_SCALE)
+		# Spins the card in its plane so the back and the gag are right side up.
+		model.rotate_object_local(Vector3.UP, PI)
 		var front := model.find_child("card_front", true, false)
 		if front != null:
 			_tint(front, _COLORS[rank])
@@ -195,35 +287,101 @@ func _lay_card(x: float, y: float, rank: int, bonus: bool) -> Node3D:
 			logo.rotation_degrees.y = 180.0
 	var icon := _icon(_ICONS[rank])
 	model.add_child(icon)
-	icon.position = Vector3(0.0, 0.0, -0.08)
-	icon.rotation_degrees.y = 180.0
+	# card_front is centered just left of the origin. Local -Z is the front side
+	# once the card is pitched, and a yaw of 180 lays the quad flat on that side.
+	icon.position = Vector3(-0.175, 0.0, -0.04)
+	icon.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 	icon.visible = false
-	var skin := icon.material_override as StandardMaterial3D
-	if skin != null:
-		skin.cull_mode = BaseMaterial3D.CULL_BACK
 	_faces.append(icon)
-	if bonus:
-		_place_glow(holder.position)
 	return holder
 
 
 func _turn(holder: Node3D, face_up: bool) -> void:
-	var prior: Variant = holder.get_meta("flip", null)
-	if prior is Tween and (prior as Tween).is_valid():
-		(prior as Tween).kill()
+	# get_meta errors when the key is missing, even if a default is passed.
+	if holder.has_meta("flip"):
+		var prior: Variant = holder.get_meta("flip")
+		if prior is Tween and (prior as Tween).is_valid():
+			(prior as Tween).kill()
 	var tween := create_tween()
 	holder.set_meta("flip", tween)
-	tween.tween_property(holder, "rotation_degrees:x", 90.0 if face_up else -90.0, 0.25)
+	tween.tween_property(holder, "rotation_degrees:x", -90.0 if face_up else 90.0, 0.25)
 
 
-func _place_glow(at: Vector3) -> void:
+## The glow is the garden-sign glow, scaled like the original bonus marker.
+func _make_glow() -> Node3D:
 	var sign := _prop("res://assets/minigames/garden_sign.glb")
 	if sign == null:
-		return
+		return null
 	add_child(sign)
-	sign.position = at + Vector3(0.0, 0.15, 0.0)
-	sign.scale = Vector3(1.9, 1.9, 1.9)
+	sign.scale = Vector3(2.5, 2.5, 2.5)
 	_keep_named(sign, "glow")
+	return sign
+
+
+## calcBonusTraversal walks every card, two columns at a time.
+func _bonus_path() -> Array[int]:
+	var order: Array[int] = []
+	var half := 4
+	for i in half:
+		for side in 2:
+			var col := i + side * half
+			for row in 5:
+				var card := row * 8 + col
+				if card >= 0 and card < _cards.size():
+					order.append(card)
+	return order
+
+
+func _tick_glow() -> void:
+	if _bonus_order.is_empty():
+		return
+	var index := int(_played / 0.5) % _bonus_order.size()
+	if index == _bonus_index:
+		return
+	_seat_glow(index, true)
+
+
+func _seat_glow(index: int, chime: bool) -> void:
+	_bonus_index = index
+	_bonus = _bonus_order[index]
+	if _glow != null:
+		_glow.position = _cards[_bonus].position + Vector3(0.0, 0.05, 0.0)
+	if chime:
+		_sfx("MG_pairing_bonus_moves", 0.25)
+
+
+func _fade_card(card: Node3D) -> void:
+	var mats: Array[StandardMaterial3D] = []
+	_collect_fade(card, mats)
+	var tween := create_tween()
+	tween.tween_method(_paint_fade.bind(mats), 1.0, 0.0, 1.0)
+	tween.tween_callback(card.hide)
+
+
+func _collect_fade(node: Node, mats: Array[StandardMaterial3D]) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var mat: StandardMaterial3D = mesh.material_override as StandardMaterial3D
+		if mat == null:
+			var current := mesh.get_active_material(0)
+			if current is StandardMaterial3D:
+				mat = (current as StandardMaterial3D).duplicate() as StandardMaterial3D
+			else:
+				mat = StandardMaterial3D.new()
+		else:
+			mat = mat.duplicate() as StandardMaterial3D
+		mesh.material_override = mat
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mats.append(mat)
+	for child in node.get_children():
+		_collect_fade(child, mats)
+
+
+func _paint_fade(alpha: float, mats: Array[StandardMaterial3D]) -> void:
+	for mat in mats:
+		var color := mat.albedo_color
+		color.a = alpha
+		mat.albedo_color = color
 
 
 func _keep_named(root: Node, keep: String) -> void:
@@ -241,6 +399,7 @@ func _icon(path: String) -> MeshInstance3D:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if ResourceLoader.exists(path):
 		mat.albedo_texture = load(path)
 	mesh_node.material_override = mat

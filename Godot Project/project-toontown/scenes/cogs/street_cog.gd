@@ -1452,15 +1452,9 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 		if int(record.get("stamp", -1)) == stamp:
 			continue
 		record["stamp"] = stamp
-		var bind_inv := Transform3D.IDENTITY
-		if record.has("bind_inv"):
-			bind_inv = record["bind_inv"] as Transform3D
-		else:
-			var bind: Transform3D = record["bind"]
-			bind_inv = bind.affine_inverse()
-			record["bind_inv"] = bind_inv
-		var rest: Transform3D = record["rest"]
-		joint.transform = rest * bind_inv * posed_frame
+		# The clip stores the joint in the same space as the posed body.
+		# The head stays on the neck when that matrix is used as the pose.
+		joint.transform = posed_frame
 
 
 func _frame_mesh(record: Dictionary, frame: int) -> ArrayMesh:

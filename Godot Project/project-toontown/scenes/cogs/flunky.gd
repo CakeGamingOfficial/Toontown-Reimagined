@@ -304,9 +304,9 @@ func _apply_pose(clips: Array, joints: Array, frame: int, following: int, blend:
 			var nxt: Transform3D = frames[following % frames.size()]
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, blend)
 			posed_frame.basis = posed_frame.basis.slerp(nxt.basis, blend)
-		var bind: Transform3D = record["bind"]
-		var rest: Transform3D = record["rest"]
-		node.transform = rest * bind.affine_inverse() * posed_frame
+		# The clip stores the joint in the same space as the posed body.
+		# The head stays on the neck when that matrix is used as the pose.
+		node.transform = posed_frame
 
 
 func _restore() -> void:

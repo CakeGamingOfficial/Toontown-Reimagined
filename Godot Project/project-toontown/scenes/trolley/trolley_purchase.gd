@@ -79,6 +79,8 @@ const _ICONS: PackedStringArray = [
 
 var loadout: ToonLoadout
 var reward := 0
+# A skipped game still walks the reward street so the score reads 0.
+var preview_score := false
 
 var _env: Environment
 var _set: Node3D
@@ -130,7 +132,7 @@ func _ready() -> void:
 	_beans.text = str(_jar_shown)
 	_play_music()
 	_layout()
-	if reward <= 0:
+	if reward <= 0 and not preview_score:
 		_open_shop(false)
 	else:
 		_show_street(true)

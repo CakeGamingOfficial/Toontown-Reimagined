@@ -35,6 +35,7 @@ var _rules_title: Label
 var _rules_body: Label
 var _rules_copy := ""
 var _rules_play: TextureButton
+var _rules_skip: TextureButton
 var _shop: Node
 var _clock: Label
 var _rules_left := 16.0
@@ -162,6 +163,25 @@ func _show_rules() -> void:
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rules_play.add_child(caption)
 	_rules.add_child(_rules_play)
+	_rules_skip = TextureButton.new()
+	_rules_skip.texture_normal = _PLAY_UP
+	_rules_skip.texture_pressed = _PLAY_DN
+	_rules_skip.texture_hover = _PLAY_OVER
+	_rules_skip.ignore_texture_size = true
+	_rules_skip.stretch_mode = TextureButton.STRETCH_SCALE
+	_rules_skip.focus_mode = Control.FOCUS_NONE
+	_rules_skip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_rules_skip.self_modulate = Color(0.86, 0.22, 0.18)
+	_rules_skip.pressed.connect(_skip)
+	ToonGui.button_sounds(_rules_skip)
+	var skip_caption := Label.new()
+	skip_caption.text = "Skip"
+	skip_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	skip_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	skip_caption.set_anchors_preset(Control.PRESET_FULL_RECT)
+	skip_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rules_skip.add_child(skip_caption)
+	_rules.add_child(_rules_skip)
 	var view := get_viewport()
 	if not view.size_changed.is_connected(_layout_rules):
 		view.size_changed.connect(_layout_rules)
@@ -171,15 +191,46 @@ func _show_rules() -> void:
 func _start() -> void:
 	if _rules == null:
 		return
-	_rules.get_parent().queue_free()
+	_drop_rules()
+	_game.begin()
+
+
+## Skip still shows a score of 0, then Goofy's. It pays nothing and does not
+## count as a trolley ride.
+func _skip() -> void:
+	if _rules == null:
+		return
+	_drop_rules()
+	if _game != null:
+		if _game.finished.is_connected(_reward):
+			_game.finished.disconnect(_reward)
+		_game.queue_free()
+		_game = null
+	_quiet(self)
+	ToonNet.finish_trolley(0)
+	var stage: Node = (load("res://scenes/trolley/trolley_purchase.gd") as GDScript).new()
+	stage.set("loadout", ToonLoadout.for_selected())
+	stage.set("reward", 0)
+	stage.set("preview_score", true)
+	stage.connect("finished", _after_shop)
+	_shop = stage
+	add_child(stage)
+
+
+func _drop_rules() -> void:
+	if _rules == null:
+		return
+	var layer := _rules.get_parent()
 	_rules = null
 	_rules_panel = null
 	_rules_title = null
 	_rules_body = null
 	_rules_copy = ""
 	_rules_play = null
+	_rules_skip = null
 	_clock = null
-	_game.begin()
+	if layer != null:
+		layer.queue_free()
 
 
 func _reward(raw: int) -> void:
@@ -247,15 +298,39 @@ func _layout_rules() -> void:
 	var origin := _RULES_ORIGIN
 	_place(_rules_panel, origin.x, origin.y, 2.3208, 0.6417)
 	ToonGui.style_sign(_rules_title, Color(1.0, 0.33, 0.33), _rules_px(0.11), Color(0, 0, 0, 0), 0)
-	_place(_rules_title, origin.x - 0.046, origin.y + 0.092, 1.55, 0.16)
-	# Word wrap is done by hand. A Label set to autowrap before it has a width
-	# shapes the paragraph at width 0 and then draws nothing on the white page.
-	var wrapped := _wrap_rules(_rules_copy)
-	var lines := maxi(wrapped.split("\n").size(), 1)
-	var text_h := 0.095 * float(lines)
-	_place_top(_rules_body, origin.x - 0.115, origin.y + 0.02, 1.7, text_h)
+	# The title stops short of Skip, which sits in the white page's top-right corner.
+	_place(_rules_title, origin.x - 0.20, origin.y + 0.092, 1.28, 0.16)
+	# The first line starts at the frame center, the same place as the original
+	# instructions label. The white page on the 256x128 card is x 10..218, y 26..112.
+	var panel := _rules_rect(origin.x, origin.y, 2.3208, 0.6417)
+	var white := Rect2(
+		panel.position.x + panel.size.x * (10.0 / 256.0),
+		panel.position.y + panel.size.y * (26.0 / 128.0),
+		panel.size.x * (208.0 / 256.0),
+		panel.size.y * (86.0 / 128.0)
+	)
+	var top := panel.position.y + panel.size.y * 0.5
+	var bottom := white.position.y + white.size.y - 4.0
+	var left := white.position.x + panel.size.x * (8.0 / 256.0)
+	var width := white.size.x - panel.size.x * (16.0 / 256.0)
+	var face := ToonGui.font()
+	var px := _rules_px(0.07)
+	var wrapped := _rules_copy
+	# The line budget is the white page. That is the original 26.5-font-height
+	# word wrap at the full instruction size. A longer game shrinks until the
+	# lines stay above the bottom of the page.
+	while px > 10:
+		wrapped = ToonGui.wrap_words(face, _rules_copy, px, width)
+		var lines := maxi(wrapped.split("\n").size(), 1)
+		if float(face.get_height(px)) * float(lines) <= bottom - top:
+			break
+		px -= 1
 	_rules_body.text = wrapped
-	ToonGui.style_label(_rules_body, Color(0, 0, 0, 1), _rules_px(0.07), Color(0, 0, 0, 0), 0)
+	_rules_body.position = Vector2(left, top)
+	_rules_body.size = Vector2(width, maxf(bottom - top, 1.0))
+	_rules_body.clip_text = true
+	ToonGui.style_label(_rules_body, Color(0, 0, 0, 1), px, Color(0, 0, 0, 0), 0)
+	_rules_body.add_theme_constant_override("line_spacing", 0)
 	ToonGui.style_label(_clock, Color(0, 0, 0), _rules_px(0.108), Color(0, 0, 0, 0), 0)
 	# The digits sit in the clock face that is already painted on the panel.
 	_place(_clock, origin.x + 0.997, origin.y + 0.05, 0.26, 0.2)
@@ -263,33 +338,18 @@ func _layout_rules() -> void:
 	var caption := _rules_play.get_child(0) as Label
 	if caption != null:
 		ToonGui.style_label(caption, Color(1, 1, 1), _rules_px(0.055), Color(0, 0, 0, 0), 0)
-
-
-func _wrap_rules(text: String) -> String:
-	var words := text.split(" ", false)
-	var lines: PackedStringArray = []
-	var line := ""
-	for word in words:
-		var next := word if line.is_empty() else line + " " + word
-		if next.length() > 26 and not line.is_empty():
-			lines.append(line)
-			line = word
-		else:
-			line = next
-	if not line.is_empty():
-		lines.append(line)
-	return "\n".join(lines)
+	# White page on the 256x128 card runs to x 217 and starts at y 26.
+	# Skip is inset from that corner so it stays on the page.
+	if _rules_skip != null:
+		_place(_rules_skip, origin.x + 0.66, origin.y + 0.115, 0.22, 0.09)
+		var skip_caption := _rules_skip.get_child(0) as Label
+		if skip_caption != null:
+			ToonGui.style_label(skip_caption, Color(1, 1, 1), _rules_px(0.05), Color(0, 0, 0, 0), 0)
 
 
 func _place(control: Control, ax: float, az: float, aw: float, ah: float) -> void:
 	var rect := _rules_rect(ax, az, aw, ah)
 	control.position = rect.position
-	control.size = rect.size
-
-
-func _place_top(control: Control, ax: float, az: float, aw: float, ah: float) -> void:
-	var rect := _rules_rect(ax, az, aw, ah)
-	control.position = Vector2(rect.position.x, rect.position.y + rect.size.y * 0.5)
 	control.size = rect.size
 
 
