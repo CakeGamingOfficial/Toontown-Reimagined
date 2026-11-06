@@ -25,6 +25,7 @@ const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
+const _TRACK_CHOICE := preload("res://scenes/quests/track_choice.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _FISH := preload("res://scenes/fishing/fish_tank.gd")
 const _SELL := preload("res://scenes/fishing/fish_sell_gui.gd")
@@ -134,6 +135,7 @@ var _teller_building: Node3D
 var _teller_door: Node3D
 var _hq_ready := false
 var _officer_ready := false
+var _npc_ready := false
 var _hq_sought := false
 var _hq_building: Node3D
 # The hall must not share _door_ready. The gag shop arms that flag whenever
@@ -491,6 +493,7 @@ func _physics_process(delta: float) -> void:
 	_try_building_door()
 	_try_clerk()
 	_try_officer()
+	_try_quest_npc()
 	_try_fisherman()
 	_try_fishing()
 	_try_trolley()
@@ -1731,6 +1734,109 @@ func _try_officer() -> void:
 			return
 		_say_clerk(null, "", 0.0)
 	_locked = false
+
+
+func _try_quest_npc() -> void:
+	if _body == null or _tasks == null:
+		_npc_ready = true
+		return
+	var path := _scene_path()
+	if not (_PLACES.is_toon_hall(path) or _PLACES.is_library(path) or _PLACES.is_shop(path)):
+		_npc_ready = true
+		return
+	var npc := _nearest_quest_npc()
+	if npc == null:
+		_npc_ready = true
+		return
+	if _book != null and _book.is_open():
+		_npc_ready = false
+		return
+	if _locked or not _npc_ready:
+		return
+	var npc_id := int(npc.get_meta("npc_id", 0))
+	var card := _tasks.for_npc(npc_id)
+	if card.is_empty():
+		return
+	_npc_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	var actor := _clerk_actor(npc)
+	var toward := actor.global_position - _body.global_position
+	toward.y = 0.0
+	if toward.length_squared() > 0.0001:
+		_heading = _heading_toward(toward)
+		_face(_player, _heading)
+	var quest_id := int(card.get("id", 0))
+	if not bool(card.get("ready", false)):
+		await _speak_pages(actor, _tasks.busy_pages(quest_id))
+		_locked = false
+		return
+	if String(card.get("kind", "")) == "track":
+		await _speak_pages(actor, _tasks.choice_pages(quest_id))
+		if not is_inside_tree():
+			return
+		var panel := _TRACK_CHOICE.new()
+		panel.name = "TrackChoice"
+		_hud().add_child(panel)
+		var track: int = await panel.chosen
+		if is_instance_valid(panel):
+			panel.queue_free()
+		if not is_inside_tree():
+			return
+		if track < 0:
+			_say_clerk(actor, "Come back when you have decided.", 3.0)
+			await get_tree().create_timer(3.0).timeout
+			if not is_inside_tree():
+				return
+			_say_clerk(null, "", 0.0)
+			_locked = false
+			return
+		_tasks.choose_track(quest_id, track)
+		if _book != null:
+			_book.refresh_tasks()
+		await _speak_pages(actor, _tasks.after_pages(quest_id))
+		_locked = false
+		return
+	var given := _tasks.turn_in(quest_id, npc_id)
+	if _book != null:
+		_book.refresh_tasks()
+	if given != 0:
+		await _speak_pages(actor, _tasks.quest_pages(given))
+	_locked = false
+
+
+func _nearest_quest_npc() -> Node3D:
+	var host := get_parent()
+	if host == null or _body == null:
+		return null
+	var best: Node3D = null
+	var best_gap := _CLERK_REACH
+	for node in host.find_children("*", "StaticBody3D", true, false):
+		if not node.has_meta("npc_id"):
+			continue
+		var body := node as Node3D
+		var actor := _clerk_actor(body)
+		var center := body.global_position + _clerk_forward(actor) * _CLERK_FORWARD
+		var gap := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(center.x, center.z))
+		if gap < best_gap:
+			best_gap = gap
+			best = body
+	return best
+
+
+func _speak_pages(actor: Node3D, lines: PackedStringArray) -> void:
+	for line in lines:
+		if not is_inside_tree():
+			return
+		if line.is_empty():
+			continue
+		var hold := clampf(float(line.length()) * 0.05, 2.2, 6.5)
+		_say_clerk(actor, line, hold)
+		await get_tree().create_timer(hold).timeout
+	if is_inside_tree():
+		_say_clerk(null, "", 0.0)
 
 
 func _nearest_officer() -> Node3D:

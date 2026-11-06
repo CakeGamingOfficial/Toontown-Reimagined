@@ -324,13 +324,15 @@ func let_clicks_through(on: bool) -> void:
 func toggle_hotkey() -> void:
 	if _tasks == null or not _tasks.book_ready():
 		return
-	if _open:
+	if _open and _presented:
 		if _guided and not _close_armed:
 			return
 		_close()
 		return
 	if _guided and not _open_armed:
 		return
+	if _open:
+		_open = false
 	open_to_gags()
 
 
@@ -705,13 +707,16 @@ func _tab_style(sunken: bool) -> StyleBoxFlat:
 
 
 func _on_button() -> void:
-	if _open:
+	if _open and _presented:
 		if _guided and not _close_armed:
 			return
 		_close()
 		return
 	if _guided and not _open_armed:
 		return
+	# A cutscene reload can cancel the open while the flag stays set.
+	if _open:
+		_open = false
 	_open_book()
 
 
@@ -864,6 +869,8 @@ func _show_page(index: int) -> void:
 
 func refresh_tasks() -> void:
 	_fill_tasks()
+	if _tracks_page != null:
+		_tracks_page.refresh()
 
 
 func refresh_jar() -> void:

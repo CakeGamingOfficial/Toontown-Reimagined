@@ -95,6 +95,9 @@ func _place_keepers() -> void:
 			continue
 		var body := StaticBody3D.new()
 		body.name = "Shopkeeper%d" % index
+		var npc_id := int(npc.get("id", 0))
+		if npc_id != 0:
+			body.set_meta("npc_id", npc_id)
 		add_child(body)
 		body.global_position = origin.global_position + Vector3(0.0, 0.02, 0.0)
 		var actor := ToonActor.new()

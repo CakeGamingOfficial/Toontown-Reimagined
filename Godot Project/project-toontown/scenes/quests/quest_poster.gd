@@ -200,7 +200,15 @@ func show_task(task: Dictionary) -> void:
 		_progress.text = ""
 	_show_activity(task)
 	if _complete:
-		_show_officer()
+		var return_name := String(task.get("return_name", ""))
+		if return_name == "":
+			_show_officer()
+		else:
+			# A visit or a Flippy task goes back to that toon, not an HQ officer.
+			_right_name.text = return_name
+			_where.text = String(task.get("return_where", _where.text))
+			_right_frame.visible = false
+			_right_icon.visible = false
 
 
 func _show_activity(task: Dictionary) -> void:

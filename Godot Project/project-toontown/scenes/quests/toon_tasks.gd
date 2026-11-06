@@ -10,6 +10,24 @@ extends RefCounted
 const COG := "cog"
 const TROLLEY := "trolley"
 const RECOVER := "recover"
+const VISIT := "visit"
+const TRACK := "track"
+
+# NPCToons ids the Toontown Central chain visits, and the interior zone the
+# quest map uses for that building.
+const _NPC_ZONE := {2001: 2513, 2005: 2518, 2119: 2629, 2311: 2809}
+const _NPC_NAME := {
+	2001: "Flippy",
+	2005: "Librarian Larry",
+	2119: "Honey Haha",
+	2311: "Franz Neckvein",
+}
+const _NPC_WHERE := {
+	2001: "Toon Hall\nToontown Central",
+	2005: "Toontown Library\nToontown Central",
+	2119: "The Laughin' Place\nSilly Street",
+	2311: "The Punch Line Gym\nPunchline Place",
+}
 
 const _PATH := "user://toon_tasks.json"
 
@@ -81,37 +99,164 @@ const CATALOG := {
 		"laff": 1,
 		"hold": true,
 	},
-	# Tier 0 auto-assigns. The first pick is tier 1: quest 165 is four Cogs.
-	# Quest 1005 is two Flunkies. Both turn in at Toon HQ.
+	# Tier 1 has one starting task. HQ sends the toon to Flippy. He and the
+	# shopkeepers hand out the rest. A list of next ids is random.choice.
+	164: {
+		"headline": "VISIT",
+		"caption": "Flippy",
+		"where": "Toon Hall\nToontown Central",
+		"kind": VISIT,
+		"npc": 2001,
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to visit Flippy.",
+		"lines": ["You look like you could use some new gags.", "Go see Flippy. Maybe he can help you out.", "He is in Toon Hall, on the playground."],
+		"next": 165,
+		"turn_in": "2513",
+	},
 	165: {
 		"headline": "WANTED",
 		"caption": "4 Cogs",
 		"where": "Anywhere",
 		"kind": COG,
 		"cog": "any",
+		"npc": 2001,
+		"same": true,
 		"goal": 4,
 		"show_count": true,
 		"speech": "I need to defeat 4 Cogs.",
-		"next": 0,
-		"turn_in": "hq",
+		"lines": ["Looks like you need to practice training your gags.", "Every time you hit a Cog with one of your gags, your experience increases.", "When you get enough experience, you will be able to use an even better gag.", "Go practice your gags by defeating 4 Cogs."],
+		"busy": ["The Cogs are out in the streets, through the tunnels."],
+		"next": [166, 167, 168, 169],
+		"turn_in": "2513",
 	},
-	1005: {
+	166: {
 		"headline": "WANTED",
-		"caption": "2 Flunkies",
+		"caption": "4 Bossbots",
 		"where": "Anywhere",
 		"kind": COG,
-		"cog": "f",
-		"goal": 2,
+		"cog": "any",
+		"dept": "c",
+		"npc": 2001,
+		"same": true,
+		"goal": 4,
 		"show_count": true,
-		"speech": "I need to defeat 2 Flunkies.",
+		"speech": "I need to defeat 4 Bossbots.",
+		"lines": ["Nice work defeating those Cogs.", "The Cogs come in four types: Lawbots, Cashbots, Sellbots, and Bossbots.", "You can tell them apart by their coloring and their name labels.", "For practice go defeat 4 Bossbots."],
+		"busy": ["Come back after you defeat 4 Bossbots."],
+		"next": [170, 171, 172],
+		"turn_in": "2513",
+	},
+	167: {
+		"headline": "WANTED",
+		"caption": "4 Lawbots",
+		"where": "Anywhere",
+		"kind": COG,
+		"cog": "any",
+		"dept": "l",
+		"npc": 2001,
+		"same": true,
+		"goal": 4,
+		"show_count": true,
+		"speech": "I need to defeat 4 Lawbots.",
+		"lines": ["Nice work defeating those Cogs.", "The Cogs come in four types: Lawbots, Cashbots, Sellbots, and Bossbots.", "You can tell them apart by their coloring and their name labels.", "For practice go defeat 4 Lawbots."],
+		"busy": ["Come back after you defeat 4 Lawbots."],
+		"next": [170, 171, 172],
+		"turn_in": "2513",
+	},
+	168: {
+		"headline": "WANTED",
+		"caption": "4 Sellbots",
+		"where": "Anywhere",
+		"kind": COG,
+		"cog": "any",
+		"dept": "s",
+		"npc": 2001,
+		"same": true,
+		"goal": 4,
+		"show_count": true,
+		"speech": "I need to defeat 4 Sellbots.",
+		"lines": ["Nice work defeating those Cogs.", "The Cogs come in four types: Lawbots, Cashbots, Sellbots, and Bossbots.", "You can tell them apart by their coloring and their name labels.", "For practice go defeat 4 Sellbots."],
+		"busy": ["Come back after you defeat 4 Sellbots."],
+		"next": [170, 171, 172],
+		"turn_in": "2513",
+	},
+	169: {
+		"headline": "WANTED",
+		"caption": "4 Cashbots",
+		"where": "Anywhere",
+		"kind": COG,
+		"cog": "any",
+		"dept": "m",
+		"npc": 2001,
+		"same": true,
+		"goal": 4,
+		"show_count": true,
+		"speech": "I need to defeat 4 Cashbots.",
+		"lines": ["Nice work defeating those Cogs.", "The Cogs come in four types: Lawbots, Cashbots, Sellbots, and Bossbots.", "You can tell them apart by their coloring and their name labels.", "For practice go defeat 4 Cashbots."],
+		"busy": ["Come back after you defeat 4 Cashbots."],
+		"next": [170, 171, 172],
+		"turn_in": "2513",
+	},
+	170: {
+		"headline": "VISIT",
+		"caption": "Librarian Larry",
+		"where": "Toontown Library\nToontown Central",
+		"kind": VISIT,
+		"npc": 2005,
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to visit Librarian Larry.",
+		"lines": ["Nice work. Now you know the difference between the 4 types of Cogs.", "I think you are ready to start training for your third gag track.", "Go talk to Librarian Larry. He can give you some expert advice.", "He is in the Toontown Library, on the playground."],
+		"next": 400,
+		"turn_in": "2518",
+	},
+	171: {
+		"headline": "VISIT",
+		"caption": "Franz Neckvein",
+		"where": "The Punch Line Gym\nPunchline Place",
+		"kind": VISIT,
+		"npc": 2311,
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to visit Franz Neckvein.",
+		"lines": ["Nice work. Now you know the difference between the 4 types of Cogs.", "I think you are ready to start training for your third gag track.", "Go talk to Franz Neckvein. He can give you some expert advice.", "He is at The Punch Line Gym, on Punchline Place."],
+		"next": 400,
+		"turn_in": "2809",
+	},
+	172: {
+		"headline": "VISIT",
+		"caption": "Honey Haha",
+		"where": "The Laughin' Place\nSilly Street",
+		"kind": VISIT,
+		"npc": 2119,
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to visit Honey Haha.",
+		"lines": ["Nice work. Now you know the difference between the 4 types of Cogs.", "I think you are ready to start training for your third gag track.", "Go talk to Honey Haha. She can give you some expert advice.", "She is at The Laughin' Place, on Silly Street."],
+		"next": 400,
+		"turn_in": "2629",
+	},
+	400: {
+		"headline": "TRAINING",
+		"caption": "Sound or Toon-up",
+		"where": "Anywhere",
+		"kind": TRACK,
+		"same": true,
+		"goal": 1,
+		"show_count": false,
+		"speech": "I need to choose between Sound and Toon-up.",
+		"lines": ["Throw and Squirt are great, but you will need more gags to fight higher level Cogs.", "When you team up with other Toons, you can combine attacks for even more damage.", "For your next track, choose between Sound and Toon-up.", "Sound damages all Cogs. Toon-up heals other Toons.", "When you are ready to decide, come back here and choose."],
+		"choice": ["Back so soon? Okay, are you ready to choose?"],
+		"after": ["Good decision. Now before you can use those gags, you must train for them.", "Each task gives you a single frame of your gag attack animation.", "When you collect all 15, you can use your new gags.", "You can check your progress in the Shticker Book."],
 		"next": 0,
-		"turn_in": "hq",
+		"turn_in": "2513",
 	},
 }
 
-## Offered together once the forced Toontown Central chain is finished.
-## getNumChoices(tier 1) is 2.
-const PICKS := [165, 1005]
+## Once the forced chain is finished, HQ offers the visit to Flippy.
+## Tier 1's only starting task is quest 164. He assigns the rest.
+const PICKS := [164]
 
 var has_book := false
 var met_flippy := false
@@ -150,8 +295,8 @@ func has_laff_meter() -> bool:
 	return has_book or not _active.is_empty() or not _done.is_empty()
 
 
-## QuestManagerAI.presentQuestChoice. Tier 0 still assigns its one next task.
-## A free slot after that chain is a real choice.
+## After the eraser, HQ offers quest 164. Friend and phone stay held, so
+## this is the visit to Flippy rather than a two-task choice.
 func offers() -> Array[Dictionary]:
 	if not _active.is_empty() or not _done.has(145):
 		return []
@@ -171,13 +316,17 @@ func offers() -> Array[Dictionary]:
 	return shown
 
 
-func assign(quest_id: int) -> void:
+func assign(quest_id: int, from_npc: int = 0) -> void:
 	if not CATALOG.has(quest_id) or _is_active(quest_id) or _done.has(quest_id):
 		return
 	# Friend and phone tasks stay in the chain until those features can finish them.
 	if bool(CATALOG[quest_id].get("hold", false)):
 		return
-	_active.append({"id": quest_id, "progress": 0})
+	var info: Dictionary = CATALOG[quest_id]
+	var to_npc := int(info.get("npc", 0))
+	if bool(info.get("same", false)):
+		to_npc = from_npc
+	_active.append({"id": quest_id, "progress": 0, "to_npc": to_npc})
 	save()
 
 
@@ -242,18 +391,92 @@ func note_trolley() -> void:
 	save()
 
 
-func turn_in(quest_id: int) -> void:
-	if not is_complete(quest_id):
-		return
-	var next_id := 0
-	if CATALOG.has(quest_id):
-		next_id = int(CATALOG[quest_id]["next"])
+## npc_id is who is standing in front of the toon. HQ passes 0.
+## A visit is finished by arriving. A track choice is finished by choose_track.
+## The returned id is the task this NPC just handed out.
+func turn_in(quest_id: int, npc_id: int = 0) -> int:
+	var entry := _entry(quest_id)
+	if entry.is_empty() or not CATALOG.has(quest_id):
+		return 0
+	var info: Dictionary = CATALOG[quest_id]
+	if String(info["kind"]) == TRACK:
+		return 0
+	var dest := _dest(entry)
+	if dest != 0 and npc_id != dest:
+		return 0
+	var kind := String(info["kind"])
+	var finished := kind == VISIT or int(entry["progress"]) >= int(info["goal"])
+	if not finished:
+		return 0
+	var next_id := _follow(info)
+	# A list pick, or a task already turned in at HQ, is skipped so the chain
+	# still reaches the toon who gives the next part.
+	var guard := 0
+	while next_id != 0 and _done.has(next_id) and guard < 8:
+		guard += 1
+		if not CATALOG.has(next_id):
+			next_id = 0
+			break
+		next_id = _follow(CATALOG[next_id])
 	_remove(quest_id)
 	if not _done.has(quest_id):
 		_done.append(quest_id)
 	save()
 	if next_id != 0:
-		assign(next_id)
+		assign(next_id, npc_id)
+	return next_id
+
+
+## Quest 400. The NPC presents Sound and Toon-up, then the training film starts.
+func choose_track(quest_id: int, track: int) -> void:
+	var entry := _entry(quest_id)
+	if entry.is_empty() or not CATALOG.has(quest_id):
+		return
+	if String(CATALOG[quest_id]["kind"]) != TRACK:
+		return
+	if track < 0 or track >= ToonLoadout.TRACK_COUNT:
+		return
+	track_id = track
+	track_progress = 0
+	_remove(quest_id)
+	if not _done.has(quest_id):
+		_done.append(quest_id)
+	save()
+
+
+## The task aimed at this NPC, finished or not. Empty when they have nothing.
+func for_npc(npc_id: int) -> Dictionary:
+	if npc_id == 0:
+		return {}
+	var waiting: Dictionary = {}
+	for entry in _active:
+		if _dest(entry) != npc_id:
+			continue
+		var quest_id := int(entry["id"])
+		var info: Dictionary = CATALOG[quest_id]
+		var kind := String(info["kind"])
+		var card := _card(entry)
+		card["ready"] = kind == VISIT or kind == TRACK or int(entry["progress"]) >= int(info["goal"])
+		if bool(card["ready"]):
+			return card
+		waiting = card
+	return waiting
+
+
+func quest_pages(quest_id: int) -> PackedStringArray:
+	return _pages(quest_id, "lines")
+
+
+func busy_pages(quest_id: int) -> PackedStringArray:
+	return _pages(quest_id, "busy")
+
+
+func choice_pages(quest_id: int) -> PackedStringArray:
+	return _pages(quest_id, "choice")
+
+
+func after_pages(quest_id: int) -> PackedStringArray:
+	return _pages(quest_id, "after")
 
 
 func is_complete(quest_id: int) -> bool:
@@ -269,19 +492,73 @@ func is_complete(quest_id: int) -> bool:
 func entries() -> Array[Dictionary]:
 	var shown: Array[Dictionary] = []
 	for entry in _active:
-		var quest_id := int(entry["id"])
-		if not CATALOG.has(quest_id):
+		if not CATALOG.has(int(entry["id"])):
 			continue
-		var info: Dictionary = CATALOG[quest_id]
-		var progress := int(entry["progress"])
-		var goal := int(info["goal"])
-		var card: Dictionary = info.duplicate()
-		card["id"] = quest_id
-		card["progress"] = progress
-		card["goal"] = goal
-		card["ready"] = progress >= goal
-		shown.append(card)
+		shown.append(_card(entry))
 	return shown
+
+
+func _card(entry: Dictionary) -> Dictionary:
+	var quest_id := int(entry["id"])
+	var info: Dictionary = CATALOG[quest_id]
+	var progress := int(entry["progress"])
+	var goal := int(info["goal"])
+	var card: Dictionary = info.duplicate()
+	card["id"] = quest_id
+	card["progress"] = progress
+	card["goal"] = goal
+	card["ready"] = progress >= goal
+	var dest := _dest(entry)
+	if dest != 0 and _NPC_ZONE.has(dest):
+		card["turn_in"] = str(_NPC_ZONE[dest])
+		card["return_name"] = String(_NPC_NAME[dest])
+		card["return_where"] = String(_NPC_WHERE[dest])
+		card["where"] = String(_NPC_WHERE[dest]) if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK else String(info.get("where", ""))
+	return card
+
+
+func _entry(quest_id: int) -> Dictionary:
+	for entry in _active:
+		if int(entry["id"]) == quest_id:
+			return entry
+	return {}
+
+
+func _dest(entry: Dictionary) -> int:
+	var stored := int(entry.get("to_npc", 0))
+	if stored != 0:
+		return stored
+	if not CATALOG.has(int(entry.get("id", 0))):
+		return 0
+	return int(CATALOG[int(entry["id"])].get("npc", 0))
+
+
+func _follow(info: Dictionary) -> int:
+	var nxt: Variant = info.get("next", 0)
+	if typeof(nxt) == TYPE_ARRAY:
+		var options: Array = nxt
+		if options.is_empty():
+			return 0
+		return int(options[randi() % options.size()])
+	return int(nxt)
+
+
+func _kept(quest_id: int, progress: int, to_npc: int) -> Dictionary:
+	if to_npc == 0 and CATALOG.has(quest_id):
+		to_npc = int(CATALOG[quest_id].get("npc", 0))
+	return {"id": quest_id, "progress": progress, "to_npc": to_npc}
+
+
+func _pages(quest_id: int, key: String) -> PackedStringArray:
+	var lines := PackedStringArray()
+	if not CATALOG.has(quest_id):
+		return lines
+	var raw: Variant = CATALOG[quest_id].get(key, [])
+	if typeof(raw) != TYPE_ARRAY:
+		return lines
+	for line in raw:
+		lines.append(String(line))
+	return lines
 
 
 func grant_book() -> void:
@@ -417,7 +694,7 @@ func apply_dict(record: Dictionary) -> void:
 			continue
 		var quest_num := int(entry.get("id", 0))
 		if CATALOG.has(quest_num):
-			_active.append({"id": quest_num, "progress": int(entry.get("progress", 0))})
+			_active.append(_kept(quest_num, int(entry.get("progress", 0)), int(entry.get("to_npc", 0))))
 
 
 func save() -> void:
@@ -429,7 +706,11 @@ func save() -> void:
 		return
 	var active: Array = []
 	for entry in _active:
-		active.append({"id": int(entry["id"]), "progress": int(entry["progress"])})
+		active.append({
+			"id": int(entry["id"]),
+			"progress": int(entry["progress"]),
+			"to_npc": int(entry.get("to_npc", 0)),
+		})
 	slots[_slot] = {
 		"has_book": has_book,
 		"met_flippy": met_flippy,
@@ -504,10 +785,7 @@ func _load() -> void:
 		var quest_id := int(entry.get("id", 0))
 		if not CATALOG.has(quest_id) or _done.has(quest_id):
 			continue
-		_active.append({
-			"id": quest_id,
-			"progress": int(entry.get("progress", 0)),
-		})
+		_active.append(_kept(quest_id, int(entry.get("progress", 0)), int(entry.get("to_npc", 0))))
 	var repaired := false
 	# Finishing the Flunky task is what ends the toontorial. A save that kept
 	# that and lost the playground flag must not start Tom's lesson over.

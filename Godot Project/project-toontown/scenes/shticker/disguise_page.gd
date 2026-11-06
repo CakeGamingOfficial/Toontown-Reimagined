@@ -77,7 +77,9 @@ func _ready() -> void:
 func layout(page_size: Vector2) -> void:
 	_page_size = page_size
 	for child in get_children():
-		var spot: Variant = child.get_meta("spot", null)
+		if not child.has_meta("spot"):
+			continue
+		var spot: Variant = child.get_meta("spot")
 		if spot is Dictionary:
 			_place(child, spot)
 	_style_words(page_size)

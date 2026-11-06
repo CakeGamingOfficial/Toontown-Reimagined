@@ -412,12 +412,12 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 		return
 	_ensure_clips()
 	# The shticker book owns the pose until the close clip finishes.
+	# The clip itself advances in _process, so a cutscene that skips
+	# locomotion still lets the book open.
 	if _book_phase != "":
 		_look_enabled = false
-		_tick_shticker(delta)
-		if _book_phase != "":
-			_footsteps(0.0, false)
-			return
+		_footsteps(0.0, false)
+		return
 	# enterSwim loops swim and pitches the geom. Walking and jumping stay off
 	# until the toon is back above the water.
 	if _swimming:
@@ -2161,6 +2161,8 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	if _style == null:
 		return
+	if _book_phase != "":
+		_tick_shticker(delta)
 	_tick_blink(delta)
 	_tick_look(delta)
 	# Pick a Toon only shows the head, so it never asks for locomotion.
