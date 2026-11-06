@@ -15,6 +15,8 @@ const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _PET := preload("res://scenes/interiors/pet_shop_door.gd")
 const _HALL := preload("res://scenes/interiors/toon_hall_door.gd")
+const _LIB := preload("res://scenes/interiors/library_door.gd")
+const _TELLER := preload("res://scenes/interiors/bank_door.gd")
 const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
@@ -22,6 +24,7 @@ const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
+const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _FISH := preload("res://scenes/fishing/fish_tank.gd")
 const _SELL := preload("res://scenes/fishing/fish_sell_gui.gd")
@@ -121,6 +124,14 @@ var _hall_ready := false
 var _hall_sought := false
 var _hall_building: Node3D
 var _hall_door: Node3D
+var _lib_ready := false
+var _lib_sought := false
+var _lib_building: Node3D
+var _lib_door: Node3D
+var _teller_ready := false
+var _teller_sought := false
+var _teller_building: Node3D
+var _teller_door: Node3D
 var _hq_ready := false
 var _officer_ready := false
 var _hq_sought := false
@@ -164,6 +175,8 @@ const _BANK_PING_HI := 92.0 / 24.0
 var _from_door := ""
 var _shop_trip := ""
 var _hall_trip := ""
+var _lib_trip := ""
+var _teller_trip := ""
 var _hq_trip := ""
 var _tunnels: Array[Dictionary] = []
 var _bldg_trip := ""
@@ -212,7 +225,7 @@ static func expects_avatar() -> bool:
 		return true
 	if door_trip != "" or _LINKS.arriving():
 		return true
-	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "":
+	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "" or String(_LIB.trip) != "" or String(_TELLER.trip) != "":
 		return true
 	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "":
 		return true
@@ -276,12 +289,14 @@ func _ready() -> void:
 	var from_shop := String(_SHOP.trip)
 	var from_pet := String(_PET.trip)
 	var from_hall := String(_HALL.trip)
+	var from_lib := String(_LIB.trip)
+	var from_teller := String(_TELLER.trip)
 	var from_hq := String(_HQ.trip)
 	var from_bldg := String(_BLDG.trip)
 	var from_tunnel := _LINKS.arriving()
 	var from_factory := _FACTORY.trip
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_hall != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -289,12 +304,16 @@ func _ready() -> void:
 	_SHOP.trip = ""
 	_PET.trip = ""
 	_HALL.trip = ""
+	_LIB.trip = ""
+	_TELLER.trip = ""
 	_HQ.trip = ""
 	_BLDG.trip = ""
 	_from_door = from_door
 	_shop_trip = from_shop
 	_pet_trip = from_pet
 	_hall_trip = from_hall
+	_lib_trip = from_lib
+	_teller_trip = from_teller
 	_hq_trip = from_hq
 	_bldg_trip = from_bldg
 	_factory_trip = from_factory
@@ -311,6 +330,8 @@ func _ready() -> void:
 	_SHOP.prepare(get_parent(), _hood)
 	_PET.prepare(get_parent(), _hood)
 	_HALL.prepare(get_parent())
+	_LIB.prepare(get_parent())
+	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	var window := get_tree().root
 	if _BLDG.street_zone(_scene_path()) != 0:
@@ -337,10 +358,14 @@ func _ready() -> void:
 		_locked = false
 		_place_camera()
 		return
-	if from_door != "" or from_shop != "" or from_hall != "" or from_hq != "" or from_bldg != "":
+	if from_door != "" or from_shop != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "":
 		_tasks.note_hood(_hood)
 		if from_hall == "out":
 			await _settle_hall_exit()
+		if from_lib == "out":
+			await _settle_library_exit()
+		if from_teller == "out":
+			await _settle_teller_exit()
 		if from_hq == "out":
 			await _settle_hq_exit()
 		_fade_in()
@@ -457,6 +482,8 @@ func _physics_process(delta: float) -> void:
 	_try_gag_door()
 	_try_pet_door()
 	_try_hall_door()
+	_try_library_door()
+	_try_teller_door()
 	_try_hq_door()
 	_try_bank()
 	_try_phone()
@@ -720,6 +747,10 @@ func _arrival_spot() -> Dictionary:
 		return _pet_outside_drop()
 	if _hall_trip == "out":
 		return _hall_outside_drop()
+	if _lib_trip == "out":
+		return _library_outside_drop()
+	if _teller_trip == "out":
+		return _teller_outside_drop()
 	if _hq_trip == "out":
 		return _hq_outside_drop()
 	if _bldg_trip == "out":
@@ -730,6 +761,10 @@ func _arrival_spot() -> Dictionary:
 		return _pet_inside_drop()
 	if _PLACES.is_toon_hall(scene_path):
 		return _hall_inside_drop()
+	if _PLACES.is_library(scene_path):
+		return _library_inside_drop()
+	if _PLACES.is_bank(scene_path):
+		return _teller_inside_drop()
 	if _PLACES.is_toon_hq(scene_path):
 		return _hq_inside_drop()
 	if _PLACES.is_shop(scene_path):
@@ -1647,26 +1682,54 @@ func _try_officer() -> void:
 	if _locked or not _officer_ready:
 		return
 	var card := _tasks.ready_hq()
-	if card.is_empty():
+	var offers := _tasks.offers()
+	if card.is_empty() and offers.is_empty():
 		return
 	_officer_ready = false
 	_locked = true
 	_body.velocity = Vector3.ZERO
 	if _player != null:
 		_player.set_locomotion(0.0, false, false, 0.016)
-	var laff := int(card.get("laff", 0))
-	_tasks.turn_in(int(card.get("id", 0)))
-	if laff > 0 and _loadout != null:
-		_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
-		_loadout.save()
-	if _book != null:
-		_book.refresh_tasks()
 	var actor := _clerk_actor(officer)
-	_say_clerk(actor, "Nice work! Here is your reward...", 3.2)
-	await get_tree().create_timer(3.2).timeout
+	if not card.is_empty():
+		var laff := int(card.get("laff", 0))
+		_tasks.turn_in(int(card.get("id", 0)))
+		if laff > 0 and _loadout != null:
+			_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
+			_loadout.save()
+		if _book != null:
+			_book.refresh_tasks()
+		_say_clerk(actor, "Nice work! Here is your reward...", 3.2)
+		await get_tree().create_timer(3.2).timeout
+		if not is_inside_tree():
+			return
+		_say_clerk(null, "", 0.0)
+		offers = _tasks.offers()
+	if offers.is_empty():
+		_locked = false
+		return
+	# QuestMovieQuestChoice. The posters stay up until Choose, Cancel, or 20 seconds.
+	_say_clerk(actor, "Choose a ToonTask.", 30.0)
+	var panel := _QUEST_CHOICE.new() as QuestChoice
+	panel.name = "QuestChoice"
+	_hud().add_child(panel)
+	panel.show_quests(offers)
+	var picked: int = await panel.chosen
+	if is_instance_valid(panel):
+		panel.queue_free()
+	_say_clerk(null, "", 0.0)
 	if not is_inside_tree():
 		return
-	_say_clerk(null, "", 0.0)
+	if picked != 0:
+		_tasks.assign(picked)
+		if _book != null:
+			_book.refresh_tasks()
+	else:
+		_say_clerk(actor, "Come back later if you need a ToonTask! Bye!", 3.2)
+		await get_tree().create_timer(3.2).timeout
+		if not is_inside_tree():
+			return
+		_say_clerk(null, "", 0.0)
 	_locked = false
 
 
@@ -2192,6 +2255,210 @@ func _hall_outside_drop() -> Dictionary:
 	if door == null:
 		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
 	var drop: Dictionary = _HALL.outside_drop(building, door)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _try_library_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_library(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	if inside:
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		trigger = origin.global_position
+	else:
+		if not _lib_sought:
+			_lib_sought = true
+			_lib_building = _LIB.find_building(get_parent())
+			if _lib_building != null:
+				_lib_door = _LIB.find_exterior_door(_lib_building)
+		elif _lib_building != null and not is_instance_valid(_lib_building):
+			_lib_sought = false
+			return
+		if _lib_building == null or _lib_door == null or not is_instance_valid(_lib_door):
+			return
+		trigger = _LIB.outside_trigger(_lib_building, _lib_door)
+		reach = 3.5
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_lib_ready = true
+		return
+	if not _lib_ready or not _KEYS.held("forward"):
+		return
+	_lib_ready = false
+	if inside:
+		_leave_library()
+	else:
+		_enter_library()
+
+
+func _enter_library() -> void:
+	_locked = true
+	var building := _LIB.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _LIB.find_exterior_door(building)
+	_LIB.open(self, door)
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_LIB.enter_frame(building, door))
+	await _walk_into_door(goal)
+	_LIB.trip = "in"
+	ToonLoading.change_to(_PLACES.library_scene())
+
+
+func _leave_library() -> void:
+	_locked = true
+	_LIB.open(self, _LIB.find_interior_door(get_parent()))
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	_LIB.trip = "out"
+	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
+
+
+func _library_inside_drop() -> Dictionary:
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _settle_library_exit() -> void:
+	for _i in 8:
+		await get_tree().physics_frame
+		var building := _LIB.find_building(get_parent())
+		if building == null:
+			return
+		var door := _LIB.find_exterior_door(building)
+		if door == null:
+			return
+		if not door.has_meta("hall_shell"):
+			_LIB.outside_trigger(building, door)
+			continue
+		var drop := _library_outside_drop()
+		var point: Vector3 = drop["point"]
+		_body.global_position = point
+		_heading = float(drop["heading"])
+		_home = point
+		_home_heading = _heading
+		if _player != null:
+			_face(_player, _heading)
+		_place_camera()
+		return
+
+
+func _library_outside_drop() -> Dictionary:
+	var building := _LIB.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var door := _LIB.find_exterior_door(building)
+	if door == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _LIB.outside_drop(building, door)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _try_teller_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_bank(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	if inside:
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		trigger = origin.global_position
+	else:
+		if not _teller_sought:
+			_teller_sought = true
+			_teller_building = _TELLER.find_building(get_parent())
+			if _teller_building != null:
+				_teller_door = _TELLER.find_exterior_door(_teller_building)
+		elif _teller_building != null and not is_instance_valid(_teller_building):
+			_teller_sought = false
+			return
+		if _teller_building == null or _teller_door == null or not is_instance_valid(_teller_door):
+			return
+		trigger = _TELLER.outside_trigger(_teller_building, _teller_door)
+		reach = 3.5
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_teller_ready = true
+		return
+	if not _teller_ready or not _KEYS.held("forward"):
+		return
+	_teller_ready = false
+	if inside:
+		_leave_bank()
+	else:
+		_enter_bank()
+
+
+func _enter_bank() -> void:
+	_locked = true
+	var building := _TELLER.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _TELLER.find_exterior_door(building)
+	_TELLER.open(self, door)
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_TELLER.enter_frame(building, door))
+	await _walk_into_door(goal)
+	_TELLER.trip = "in"
+	ToonLoading.change_to(_PLACES.bank_scene())
+
+
+func _leave_bank() -> void:
+	_locked = true
+	_TELLER.open(self, _TELLER.find_interior_door(get_parent()))
+	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	_TELLER.trip = "out"
+	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
+
+
+func _teller_inside_drop() -> Dictionary:
+	var origin := _DOORS.find_origin(get_parent())
+	if origin == null:
+		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
+	var drop: Dictionary = _DOORS.inside_drop(origin)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _settle_teller_exit() -> void:
+	# The drop is measured from the slab, so it does not wait on a facade ray.
+	await get_tree().physics_frame
+	if _body == null:
+		return
+	var drop := _teller_outside_drop()
+	var point: Vector3 = drop["point"]
+	_body.global_position = point
+	_heading = float(drop["heading"])
+	_home = point
+	_home_heading = _heading
+	if _player != null:
+		_face(_player, _heading)
+	_place_camera()
+
+
+func _teller_outside_drop() -> Dictionary:
+	var building := _TELLER.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var door := _TELLER.find_exterior_door(building)
+	if door == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _TELLER.outside_drop(building, door)
 	var point: Vector3 = drop["point"]
 	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
 

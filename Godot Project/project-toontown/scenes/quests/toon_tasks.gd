@@ -81,10 +81,44 @@ const CATALOG := {
 		"laff": 1,
 		"hold": true,
 	},
+	# Tier 0 auto-assigns. The first pick is tier 1: quest 165 is four Cogs.
+	# Quest 1005 is two Flunkies. Both turn in at Toon HQ.
+	165: {
+		"headline": "WANTED",
+		"caption": "4 Cogs",
+		"where": "Anywhere",
+		"kind": COG,
+		"cog": "any",
+		"goal": 4,
+		"show_count": true,
+		"speech": "I need to defeat 4 Cogs.",
+		"next": 0,
+		"turn_in": "hq",
+	},
+	1005: {
+		"headline": "WANTED",
+		"caption": "2 Flunkies",
+		"where": "Anywhere",
+		"kind": COG,
+		"cog": "f",
+		"goal": 2,
+		"show_count": true,
+		"speech": "I need to defeat 2 Flunkies.",
+		"next": 0,
+		"turn_in": "hq",
+	},
 }
+
+## Offered together once the forced Toontown Central chain is finished.
+## getNumChoices(tier 1) is 2.
+const PICKS := [165, 1005]
 
 var has_book := false
 var met_flippy := false
+# DistributedToon.trackProgressId is -1 when no gag track is in training.
+# trackProgress is the bit field getTrackProgressAsArray reads, lowest bit first.
+var track_id := -1
+var track_progress := 0
 var in_playground := false
 ## Hood id from DistributedToonAI.setLocation. 2000 is Toontown Central.
 var last_hood := 0
@@ -114,6 +148,27 @@ static func reset_slot(index: int) -> void:
 ## Tom hands over the Laff meter before the first task. After that it stays up.
 func has_laff_meter() -> bool:
 	return has_book or not _active.is_empty() or not _done.is_empty()
+
+
+## QuestManagerAI.presentQuestChoice. Tier 0 still assigns its one next task.
+## A free slot after that chain is a real choice.
+func offers() -> Array[Dictionary]:
+	if not _active.is_empty() or not _done.has(145):
+		return []
+	var shown: Array[Dictionary] = []
+	for quest_id in PICKS:
+		if _done.has(quest_id) or _is_active(quest_id) or not CATALOG.has(quest_id):
+			continue
+		var info: Dictionary = CATALOG[quest_id]
+		if bool(info.get("hold", false)):
+			continue
+		var card: Dictionary = info.duplicate()
+		card["id"] = quest_id
+		card["progress"] = 0
+		card["goal"] = int(info["goal"])
+		card["ready"] = false
+		shown.append(card)
+	return shown
 
 
 func assign(quest_id: int) -> void:
@@ -324,6 +379,18 @@ func task_entries() -> Array:
 	return rows
 
 
+func training_track() -> int:
+	return track_id
+
+
+## Frame index 0 is the first training task. Fifteen bits, matching
+## getTrackProgressAsArray's default length.
+func training_step(index: int) -> bool:
+	if index < 0 or index > 14:
+		return false
+	return (track_progress & (1 << index)) != 0
+
+
 func finished_ids() -> Array:
 	var rows: Array = []
 	for quest_id in _done:
@@ -334,6 +401,8 @@ func finished_ids() -> Array:
 func apply_dict(record: Dictionary) -> void:
 	has_book = bool(record.get("has_book", has_book))
 	met_flippy = bool(record.get("met_flippy", met_flippy))
+	track_id = int(record.get("track_id", track_id))
+	track_progress = int(record.get("track_progress", track_progress))
 	in_playground = bool(record.get("in_playground", in_playground))
 	last_hood = int(record.get("last_hood", last_hood))
 	visited.clear()
@@ -364,6 +433,8 @@ func save() -> void:
 	slots[_slot] = {
 		"has_book": has_book,
 		"met_flippy": met_flippy,
+		"track_id": track_id,
+		"track_progress": track_progress,
 		"in_playground": in_playground,
 		"last_hood": last_hood,
 		"visited": visited.duplicate(),
@@ -402,6 +473,8 @@ func _load() -> void:
 	visited = []
 	has_book = false
 	met_flippy = false
+	track_id = -1
+	track_progress = 0
 	in_playground = false
 	last_hood = 0
 	if _slot < 0:
@@ -413,6 +486,8 @@ func _load() -> void:
 	var stored: Dictionary = slots[_slot]
 	has_book = bool(stored.get("has_book", false))
 	met_flippy = bool(stored.get("met_flippy", false))
+	track_id = int(stored.get("track_id", -1))
+	track_progress = int(stored.get("track_progress", 0))
 	in_playground = bool(stored.get("in_playground", false))
 	last_hood = int(stored.get("last_hood", 0))
 	if in_playground and last_hood == 0:

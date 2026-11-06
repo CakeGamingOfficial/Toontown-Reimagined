@@ -13,6 +13,8 @@ const TTC := 2000
 const GAG_SHOP := "res://scenes/interiors/gag_shop.tscn"
 const PET_SHOP := "res://scenes/interiors/pet_shop.tscn"
 const TOON_HALL := "res://scenes/interiors/toon_hall.tscn"
+const LIBRARY := "res://scenes/interiors/library.tscn"
+const BANK := "res://scenes/interiors/bank.tscn"
 const TOON_HQ := "res://scenes/interiors/toon_hq.tscn"
 const SHOP := "res://scenes/interiors/shop_interior.tscn"
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
@@ -91,6 +93,22 @@ static func is_toon_hall(path: String) -> bool:
 	return path.ends_with("toon_hall.tscn")
 
 
+static func library_scene() -> String:
+	return LIBRARY
+
+
+static func is_library(path: String) -> bool:
+	return path.ends_with("library.tscn")
+
+
+static func bank_scene() -> String:
+	return BANK
+
+
+static func is_bank(path: String) -> bool:
+	return path.ends_with("bank.tscn")
+
+
 static func toon_hq_scene() -> String:
 	return TOON_HQ
 
@@ -112,7 +130,7 @@ static func hood_for_scene(path: String) -> int:
 		return int(_SHOP.hood)
 	if is_pet_shop(path):
 		return int(_PET.hood)
-	if is_toon_hall(path):
+	if is_toon_hall(path) or is_library(path) or is_bank(path):
 		return TTC
 	if is_toon_hq(path):
 		return _HQ.hood()

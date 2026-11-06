@@ -3,7 +3,7 @@ extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
 ## sit down the right edge, and the pages are Options, Districts, the map,
-## Gags, ToonTasks, the Cog Gallery, and Fishing. Harry's reward still opens on the
+## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, and Cog Disguise. Harry's reward still opens on the
 ## map and turns to gags, then tasks.
 
 signal book_opened
@@ -15,9 +15,11 @@ const PAGE_DISTRICTS := 1
 const PAGE_MAP := 2
 const PAGE_GAGS := 3
 const PAGE_TASKS := 4
-const PAGE_COGS := 5
-const PAGE_FISH := 6
-const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Cog Gallery", "Fishing"]
+const PAGE_TRACKS := 5
+const PAGE_COGS := 6
+const PAGE_FISH := 7
+const PAGE_DISGUISE := 8
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Cog Disguise"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
@@ -104,8 +106,10 @@ const _TAB_DISTRICT := preload("res://assets/gui/shticker/tab_district.png")
 const _TAB_MAP := preload("res://assets/gui/tutorial/book/tab_map.png")
 const _TAB_GAGS := preload("res://assets/gui/tutorial/book/tab_gags.png")
 const _TAB_TASKS := preload("res://assets/gui/tutorial/book/tab_tasks.png")
+const _TAB_FILM := preload("res://assets/gui/shticker/filmstrip.png")
 const _TAB_GEAR := preload("res://assets/gui/shticker/gallery/tab_gear.png")
 const _TAB_FISH := preload("res://assets/gui/shticker/fishing/tab_fish.png")
+const _TAB_DISGUISE := preload("res://assets/gui/shticker/disguise/tab_icon.png")
 const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
@@ -140,7 +144,9 @@ const _HOOD_HIT: Array[Rect2] = [
 
 var _tasks: ToonTasks
 var _cogs: CogGallery
+var _tracks_page: TrackPage
 var _fish: Control
+var _disguise: DisguisePage
 var _districts_page: DistrictPage
 var _loadout: ToonLoadout
 var _button: TextureButton
@@ -391,13 +397,19 @@ func _build_book() -> void:
 	_pages.append(_build_map())
 	_pages.append(_build_gags())
 	_pages.append(_build_tasks())
+	_tracks_page = TrackPage.new()
+	_cover.add_child(_tracks_page)
+	_pages.append(_tracks_page)
 	_cogs = CogGallery.new()
 	_cover.add_child(_cogs)
 	_pages.append(_cogs)
 	_fish = _FISH_PAGE.new()
 	_cover.add_child(_fish)
 	_pages.append(_fish)
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_GEAR, _TAB_FISH]
+	_disguise = DisguisePage.new()
+	_cover.add_child(_disguise)
+	_pages.append(_disguise)
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, _TAB_DISGUISE]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -407,6 +419,9 @@ func _build_book() -> void:
 		tab.add_theme_stylebox_override("normal", _tab_style(false))
 		tab.add_theme_stylebox_override("hover", _tab_style(false))
 		tab.add_theme_stylebox_override("pressed", _tab_style(true))
+		# The training tab is the filmstrip tinted grey, the same as the book icon.
+		if index == PAGE_TRACKS or index == PAGE_DISGUISE:
+			tab.modulate = Color(0.7, 0.7, 0.7, 1.0)
 		tab.pressed.connect(_on_tab.bind(index))
 		tab.mouse_entered.connect(_show_tab_name.bind(index))
 		tab.mouse_exited.connect(_hide_tab_name)
@@ -830,10 +845,14 @@ func _show_page(index: int) -> void:
 		_refresh_gags()
 	elif index == PAGE_TASKS:
 		_fill_tasks()
+	elif index == PAGE_TRACKS and _tracks_page != null:
+		_tracks_page.refresh()
 	elif index == PAGE_COGS:
 		_cogs.refresh()
 	elif index == PAGE_FISH and _fish != null:
 		_fish.call("refresh")
+	elif index == PAGE_DISGUISE and _disguise != null:
+		_disguise.refresh()
 	for page_index in _pages.size():
 		_pages[page_index].visible = page_index == index
 	for tab_index in _tabs.size():
@@ -1285,10 +1304,16 @@ func _layout() -> void:
 	_layout_map(page_size, body_px)
 	_layout_gags(page_size, body_px)
 	_layout_tasks(page_size)
+	if _tracks_page != null:
+		_tracks_page.layout(page_size)
+		if _open and _page == PAGE_TRACKS:
+			_tracks_page.refresh()
 	if _cogs != null:
 		_cogs.layout(page_size)
 	if _fish != null:
 		_fish.call("layout", page_size)
+	if _disguise != null:
+		_disguise.layout(page_size)
 	# pageTabFrame scale 1.25, each tab scale 0.06, frame ±0.575, step 0.07.
 	var tab_size := Vector2(_cover.size.x * 0.043125, _cover.size.y * 0.0575)
 	for tab_index in _tabs.size():

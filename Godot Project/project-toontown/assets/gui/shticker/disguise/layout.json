@@ -1,0 +1,1527 @@
+[
+ {
+  "name": "cog_disguises_english.egg",
+  "parent": "",
+  "file": "cog_disguises_english.egg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.8457,
+   -0.0239,
+   -1.4438
+  ],
+  "high": [
+   1.779,
+   0.0468,
+   1.5355
+  ]
+ },
+ {
+  "name": "",
+  "parent": "cog_disguises_english.egg",
+  "file": "cog_disguises_english.egg_.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.8457,
+   -0.0239,
+   -1.4438
+  ],
+  "high": [
+   1.779,
+   0.0468,
+   1.5355
+  ]
+ },
+ {
+  "name": "group",
+  "parent": "",
+  "file": "group.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.8457,
+   -0.0239,
+   -1.4438
+  ],
+  "high": [
+   1.779,
+   0.0468,
+   1.5355
+  ]
+ },
+ {
+  "name": "text_stock_option_progress",
+  "parent": "group",
+  "file": "group_text_stock_option_progress.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.0917,
+   -0.0211,
+   0.3813
+  ],
+  "high": [
+   0.9969,
+   -0.0211,
+   0.6455
+  ]
+ },
+ {
+  "name": "tab4",
+  "parent": "group",
+  "file": "group_tab4.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.4616,
+   0.0468,
+   -1.3
+  ],
+  "high": [
+   1.715,
+   0.0468,
+   -0.7994
+  ]
+ },
+ {
+  "name": "page4",
+  "parent": "group",
+  "file": "group_page4.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.1355,
+   0.0258,
+   -1.3663
+  ],
+  "high": [
+   1.779,
+   0.0258,
+   1.1138
+  ]
+ },
+ {
+  "name": "tab3",
+  "parent": "group",
+  "file": "group_tab3.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.5226,
+   0.0468,
+   -0.7641
+  ],
+  "high": [
+   1.7115,
+   0.0468,
+   -0.1938
+  ]
+ },
+ {
+  "name": "page3",
+  "parent": "group",
+  "file": "group_page3.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.1355,
+   0.0258,
+   -1.3663
+  ],
+  "high": [
+   1.779,
+   0.0258,
+   1.1138
+  ]
+ },
+ {
+  "name": "tab2",
+  "parent": "group",
+  "file": "group_tab2.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.5225,
+   0.039,
+   -0.1714
+  ],
+  "high": [
+   1.7146,
+   0.039,
+   0.4107
+  ]
+ },
+ {
+  "name": "page2",
+  "parent": "group",
+  "file": "group_page2.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.1355,
+   0.0258,
+   -1.3663
+  ],
+  "high": [
+   1.779,
+   0.0258,
+   1.1138
+  ]
+ },
+ {
+  "name": "tab1",
+  "parent": "group",
+  "file": "group_tab1.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.5225,
+   0.039,
+   0.438
+  ],
+  "high": [
+   1.7146,
+   0.039,
+   1.0847
+  ]
+ },
+ {
+  "name": "page1",
+  "parent": "group",
+  "file": "group_page1.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   1.1355,
+   0.0179,
+   -1.3663
+  ],
+  "high": [
+   1.779,
+   0.0179,
+   1.1138
+  ]
+ },
+ {
+  "name": "base",
+  "parent": "group",
+  "file": "group_base.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.7357,
+   0.0077,
+   -1.2773
+  ],
+  "high": [
+   1.3235,
+   0.0077,
+   1.0389
+  ]
+ },
+ {
+  "name": "pipe_frame",
+  "parent": "group",
+  "file": "group_pipe_frame.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.8457,
+   -0.012,
+   -1.4438
+  ],
+  "high": [
+   1.4331,
+   -0.012,
+   1.5355
+  ]
+ },
+ {
+  "name": "robot_hole",
+  "parent": "group",
+  "file": "group_robot_hole.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2395,
+   0.0,
+   -0.6142
+  ],
+  "high": [
+   -0.5669,
+   0.0,
+   0.8251
+  ]
+ },
+ {
+  "name": "robot",
+  "parent": "group",
+  "file": "group_robot.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2395,
+   0.0,
+   -0.6142
+  ],
+  "high": [
+   -0.5669,
+   0.0,
+   0.8251
+  ]
+ },
+ {
+  "name": "tube",
+  "parent": "group",
+  "file": "group_tube.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.4158,
+   -0.0239,
+   -0.6614
+  ],
+  "high": [
+   -0.4158,
+   -0.0239,
+   0.9497
+  ]
+ },
+ {
+  "name": "text_ready4promotion",
+  "parent": "group",
+  "file": "group_text_ready4promotion.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.0822,
+   -0.0211,
+   0.3607
+  ],
+  "high": [
+   1.0065,
+   -0.0211,
+   0.6249
+  ]
+ },
+ {
+  "name": "text_jury_notice_progress",
+  "parent": "group",
+  "file": "group_text_jury_notice_progress.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.0822,
+   -0.0211,
+   0.3801
+  ],
+  "high": [
+   1.0065,
+   -0.0211,
+   0.6443
+  ]
+ },
+ {
+  "name": "text_cashbuck_progress",
+  "parent": "group",
+  "file": "group_text_cashbuck_progress.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.0822,
+   -0.0211,
+   0.3801
+  ],
+  "high": [
+   1.0065,
+   -0.0211,
+   0.6443
+  ]
+ },
+ {
+  "name": "text_merit_progress",
+  "parent": "group",
+  "file": "group_text_merit_progress.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   0.0664,
+   -0.0211,
+   0.4023
+  ],
+  "high": [
+   0.8858,
+   -0.0211,
+   0.6225
+  ]
+ },
+ {
+  "name": "text_cog_disguises",
+  "parent": "group",
+  "file": "group_text_cog_disguises.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7777,
+   -0.0172,
+   1.2075
+  ],
+  "high": [
+   0.7112,
+   -0.0172,
+   1.4266
+  ]
+ },
+ {
+  "name": "locator1",
+  "parent": "group",
+  "file": "group_locator1.png",
+  "pos": [
+   0.4576,
+   -0.0239,
+   0.039
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   0.3106,
+   -0.0239,
+   -0.1086
+  ],
+  "high": [
+   0.6049,
+   -0.0239,
+   0.1857
+  ]
+ },
+ {
+  "name": "meter_face_half",
+  "parent": "locator1",
+  "file": "locator1_meter_face_half.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.147,
+   0.0,
+   -0.1476
+  ],
+  "high": [
+   0.1473,
+   0.0,
+   0.1467
+  ]
+ },
+ {
+  "name": "meter_face_whole",
+  "parent": "locator1",
+  "file": "locator1_meter_face_whole.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.147,
+   0.0,
+   -0.1476
+  ],
+  "high": [
+   0.1473,
+   0.0,
+   0.1467
+  ]
+ },
+ {
+  "name": "lLowarm",
+  "parent": "robot",
+  "file": "robot_lLowarm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7215,
+   0.0,
+   -0.0005
+  ],
+  "high": [
+   -0.5711,
+   0.0,
+   0.2029
+  ]
+ },
+ {
+  "name": "rLowarm",
+  "parent": "robot",
+  "file": "robot_rLowarm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2331,
+   0.0,
+   -0.0022
+  ],
+  "high": [
+   -1.0854,
+   0.0,
+   0.2043
+  ]
+ },
+ {
+  "name": "face",
+  "parent": "robot",
+  "file": "robot_face.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0335,
+   0.0,
+   0.5719
+  ],
+  "high": [
+   -0.7711,
+   0.0,
+   0.8251
+  ]
+ },
+ {
+  "name": "lUpleg",
+  "parent": "robot",
+  "file": "robot_lUpleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.9086,
+   0.0,
+   -0.3206
+  ],
+  "high": [
+   -0.7692,
+   0.0,
+   -0.0395
+  ]
+ },
+ {
+  "name": "lLowleg",
+  "parent": "robot",
+  "file": "robot_lLowleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.9094,
+   0.0,
+   -0.538
+  ],
+  "high": [
+   -0.7729,
+   0.0,
+   -0.3206
+  ]
+ },
+ {
+  "name": "lUparm",
+  "parent": "robot",
+  "file": "robot_lUparm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7411,
+   0.0,
+   0.2069
+  ],
+  "high": [
+   -0.5915,
+   0.0,
+   0.5482
+  ]
+ },
+ {
+  "name": "rUparm",
+  "parent": "robot",
+  "file": "robot_rUparm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2072,
+   0.0,
+   0.2069
+  ],
+  "high": [
+   -1.0566,
+   0.0,
+   0.5567
+  ]
+ },
+ {
+  "name": "chest",
+  "parent": "robot",
+  "file": "robot_chest.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0714,
+   0.0,
+   0.2311
+  ],
+  "high": [
+   -0.73,
+   0.0,
+   0.3492
+  ]
+ },
+ {
+  "name": "waist",
+  "parent": "robot",
+  "file": "robot_waist.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0723,
+   0.0,
+   0.1054
+  ],
+  "high": [
+   -0.7301,
+   0.0,
+   0.2328
+  ]
+ },
+ {
+  "name": "rShoulder",
+  "parent": "robot",
+  "file": "robot_rShoulder.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.1059,
+   0.0,
+   0.3492
+  ],
+  "high": [
+   -0.9052,
+   0.0,
+   0.5732
+  ]
+ },
+ {
+  "name": "rUpleg",
+  "parent": "robot",
+  "file": "robot_rUpleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0504,
+   0.0,
+   -0.3206
+  ],
+  "high": [
+   -0.9075,
+   0.0,
+   -0.0395
+  ]
+ },
+ {
+  "name": "rShoe",
+  "parent": "robot",
+  "file": "robot_rShoe.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.1145,
+   0.0,
+   -0.6142
+  ],
+  "high": [
+   -0.9094,
+   0.0,
+   -0.538
+  ]
+ },
+ {
+  "name": "rLowleg",
+  "parent": "robot",
+  "file": "robot_rLowleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.046,
+   0.0,
+   -0.538
+  ],
+  "high": [
+   -0.9086,
+   0.0,
+   -0.3206
+  ]
+ },
+ {
+  "name": "rHand",
+  "parent": "robot",
+  "file": "robot_rHand.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2395,
+   0.0,
+   -0.1317
+  ],
+  "high": [
+   -1.0955,
+   0.0,
+   -0.0017
+  ]
+ },
+ {
+  "name": "lHand",
+  "parent": "robot",
+  "file": "robot_lHand.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7081,
+   0.0,
+   -0.1298
+  ],
+  "high": [
+   -0.5669,
+   0.0,
+   -0.0001
+  ]
+ },
+ {
+  "name": "lShoulder",
+  "parent": "robot",
+  "file": "robot_lShoulder.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.9061,
+   0.0,
+   0.3492
+  ],
+  "high": [
+   -0.6918,
+   0.0,
+   0.5742
+  ]
+ },
+ {
+  "name": "lShoe",
+  "parent": "robot",
+  "file": "robot_lShoe.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.9097,
+   0.0,
+   -0.6142
+  ],
+  "high": [
+   -0.7039,
+   0.0,
+   -0.538
+  ]
+ },
+ {
+  "name": "hip",
+  "parent": "robot",
+  "file": "robot_hip.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0854,
+   0.0,
+   -0.0395
+  ],
+  "high": [
+   -0.7231,
+   0.0,
+   0.1075
+  ]
+ },
+ {
+  "name": "rLowleg",
+  "parent": "robot_hole",
+  "file": "robot_hole_rLowleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0474,
+   0.0,
+   -0.5374
+  ],
+  "high": [
+   -0.9102,
+   0.0,
+   -0.3165
+  ]
+ },
+ {
+  "name": "lLowleg",
+  "parent": "robot_hole",
+  "file": "robot_hole_lLowleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.9122,
+   0.0,
+   -0.5368
+  ],
+  "high": [
+   -0.7687,
+   0.0,
+   -0.3165
+  ]
+ },
+ {
+  "name": "face",
+  "parent": "robot_hole",
+  "file": "robot_hole_face.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0274,
+   0.0,
+   0.5731
+  ],
+  "high": [
+   -0.7727,
+   0.0,
+   0.8251
+  ]
+ },
+ {
+  "name": "lShoulder",
+  "parent": "robot_hole",
+  "file": "robot_hole_lShoulder.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.904,
+   0.0,
+   0.3502
+  ],
+  "high": [
+   -0.6904,
+   0.0,
+   0.5731
+  ]
+ },
+ {
+  "name": "rShoulder",
+  "parent": "robot_hole",
+  "file": "robot_hole_rShoulder.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.1069,
+   0.0,
+   0.3483
+  ],
+  "high": [
+   -0.9019,
+   0.0,
+   0.5731
+  ]
+ },
+ {
+  "name": "lLowarm",
+  "parent": "robot_hole",
+  "file": "robot_hole_lLowarm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7213,
+   0.0,
+   0.001
+  ],
+  "high": [
+   -0.5703,
+   0.0,
+   0.2049
+  ]
+ },
+ {
+  "name": "rLowarm",
+  "parent": "robot_hole",
+  "file": "robot_hole_rLowarm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2324,
+   0.0,
+   -0.0021
+  ],
+  "high": [
+   -1.0774,
+   0.0,
+   0.2049
+  ]
+ },
+ {
+  "name": "hip",
+  "parent": "robot_hole",
+  "file": "robot_hole_hip.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0775,
+   0.0,
+   -0.0399
+  ],
+  "high": [
+   -0.7279,
+   0.0,
+   0.1074
+  ]
+ },
+ {
+  "name": "lUparm",
+  "parent": "robot_hole",
+  "file": "robot_hole_lUparm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7396,
+   0.0,
+   0.2049
+  ],
+  "high": [
+   -0.5921,
+   0.0,
+   0.5558
+  ]
+ },
+ {
+  "name": "rUparm",
+  "parent": "robot_hole",
+  "file": "robot_hole_rUparm.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2098,
+   0.0,
+   0.2049
+  ],
+  "high": [
+   -1.0552,
+   0.0,
+   0.5602
+  ]
+ },
+ {
+  "name": "lHand",
+  "parent": "robot_hole",
+  "file": "robot_hole_lHand.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.7111,
+   0.0,
+   -0.1314
+  ],
+  "high": [
+   -0.5669,
+   0.0,
+   0.0018
+  ]
+ },
+ {
+  "name": "rHand",
+  "parent": "robot_hole",
+  "file": "robot_hole_rHand.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.2395,
+   0.0,
+   -0.1314
+  ],
+  "high": [
+   -1.0907,
+   0.0,
+   -0.0013
+  ]
+ },
+ {
+  "name": "rShoe",
+  "parent": "robot_hole",
+  "file": "robot_hole_rShoe.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.1171,
+   0.0,
+   -0.6142
+  ],
+  "high": [
+   -0.9122,
+   0.0,
+   -0.5368
+  ]
+ },
+ {
+  "name": "lShoe",
+  "parent": "robot_hole",
+  "file": "robot_hole_lShoe.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.913,
+   0.0,
+   -0.6142
+  ],
+  "high": [
+   -0.7011,
+   0.0,
+   -0.5357
+  ]
+ },
+ {
+  "name": "rUpleg",
+  "parent": "robot_hole",
+  "file": "robot_hole_rUpleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.053,
+   0.0,
+   -0.3165
+  ],
+  "high": [
+   -0.9076,
+   0.0,
+   -0.0399
+  ]
+ },
+ {
+  "name": "lUpleg",
+  "parent": "robot_hole",
+  "file": "robot_hole_lUpleg.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -0.9102,
+   0.0,
+   -0.3165
+  ],
+  "high": [
+   -0.7634,
+   0.0,
+   -0.0399
+  ]
+ },
+ {
+  "name": "chest",
+  "parent": "robot_hole",
+  "file": "robot_hole_chest.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0704,
+   0.0,
+   0.2328
+  ],
+  "high": [
+   -0.7278,
+   0.0,
+   0.3522
+  ]
+ },
+ {
+  "name": "waist",
+  "parent": "robot_hole",
+  "file": "robot_hole_waist.png",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "scale": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "low": [
+   -1.0731,
+   0.0,
+   0.1053
+  ],
+  "high": [
+   -0.727,
+   0.0,
+   0.2347
+  ]
+ }
+]
