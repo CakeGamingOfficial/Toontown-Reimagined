@@ -1059,6 +1059,18 @@
    ]
   },
   {
+   "title": "PETS",
+   "items": [
+    {"text": "Jump!", "say": "Jump!", "trick": 0},
+    {"text": "Beg!", "say": "Beg!", "trick": 1},
+    {"text": "Play dead!", "say": "Play dead!", "trick": 2},
+    {"text": "Rollover!", "say": "Rollover!", "trick": 3},
+    {"text": "Backflip!", "say": "Backflip!", "trick": 4},
+    {"text": "Dance!", "say": "Dance!", "trick": 5},
+    {"text": "Speak!", "say": "Speak!", "trick": 6}
+   ]
+  },
+  {
    "text": "Yes",
    "say": "Yes",
    "emote": 17

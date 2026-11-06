@@ -1,0 +1,660 @@
+{
+ "AdoptReturnSell": [
+  {
+   "name": "Fish",
+   "file": "AdoptReturnSell_Fish_0.png",
+   "x": 4.0281,
+   "z": 6.2657,
+   "w": 2.4965,
+   "h": 2.2363
+  },
+  {
+   "name": "PawYellow",
+   "file": "AdoptReturnSell_PawYellow_1.png",
+   "x": 4.7027,
+   "z": 9.6358,
+   "w": 2.0962,
+   "h": 2.0963
+  },
+  {
+   "name": "PawPink",
+   "file": "AdoptReturnSell_PawPink_2.png",
+   "x": 4.3648,
+   "z": 12.7824,
+   "w": 2.0962,
+   "h": 2.0963
+  },
+  {
+   "name": "PannelUp",
+   "file": "AdoptReturnSell_PannelUp_3.png",
+   "x": -0.0201,
+   "z": 8.4825,
+   "w": 17.4815,
+   "h": 16.6026
+  },
+  {
+   "name": "AdoptButtonUp",
+   "file": "AdoptReturnSell_AdoptButtonUp_4.png",
+   "x": 0.0159,
+   "z": 12.6683,
+   "w": 10.9361,
+   "h": 2.4538
+  },
+  {
+   "name": "AdoptButtonDown",
+   "file": "AdoptReturnSell_AdoptButtonDown_5.png",
+   "x": 0.0121,
+   "z": 12.6825,
+   "w": 10.9502,
+   "h": 2.4537
+  },
+  {
+   "name": "AdoptButtonRollover",
+   "file": "AdoptReturnSell_AdoptButtonRollover_6.png",
+   "x": 0.0121,
+   "z": 12.6825,
+   "w": 10.9502,
+   "h": 2.4537
+  },
+  {
+   "name": "ReturnButtonUp",
+   "file": "AdoptReturnSell_ReturnButtonUp_7.png",
+   "x": 0.0962,
+   "z": 9.4726,
+   "w": 11.713,
+   "h": 2.5941
+  },
+  {
+   "name": "ReturnButtonDown",
+   "file": "AdoptReturnSell_ReturnButtonDown_8.png",
+   "x": 0.0843,
+   "z": 9.4707,
+   "w": 11.713,
+   "h": 2.5941
+  },
+  {
+   "name": "ReturnButtonRollover",
+   "file": "AdoptReturnSell_ReturnButtonRollover_9.png",
+   "x": 0.0962,
+   "z": 9.4726,
+   "w": 11.713,
+   "h": 2.5941
+  },
+  {
+   "name": "SellButtonDown",
+   "file": "AdoptReturnSell_SellButtonDown_10.png",
+   "x": 0.1403,
+   "z": 6.1905,
+   "w": 10.5794,
+   "h": 2.3728
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "AdoptReturnSell_CancelButtonUp_11.png",
+   "x": -5.522,
+   "z": 3.1951,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "cancelButtonDown",
+   "file": "AdoptReturnSell_cancelButtonDown_12.png",
+   "x": -5.522,
+   "z": 3.1951,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "AdoptReturnSell_CancelButtonRollover_13.png",
+   "x": -5.522,
+   "z": 3.1951,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelIcon",
+   "file": "AdoptReturnSell_CancelIcon_14.png",
+   "x": -5.522,
+   "z": 3.1951,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "SellButtonUp",
+   "file": "AdoptReturnSell_SellButtonUp_15.png",
+   "x": 0.1403,
+   "z": 6.1905,
+   "w": 10.5794,
+   "h": 2.3728
+  },
+  {
+   "name": "SellButtonRollover",
+   "file": "AdoptReturnSell_SellButtonRollover_16.png",
+   "x": 0.1403,
+   "z": 6.1905,
+   "w": 10.5794,
+   "h": 2.3728
+  }
+ ],
+ "AdoptPet": [
+  {
+   "name": "Jar",
+   "file": "AdoptPet_Jar_0.png",
+   "x": 4.0446,
+   "z": 6.6675,
+   "w": 2.965,
+   "h": 3.5617
+  },
+  {
+   "name": "PannelUP",
+   "file": "AdoptPet_PannelUP_1.png",
+   "x": 0.0302,
+   "z": 9.1868,
+   "w": 18.5889,
+   "h": 18.5889
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "AdoptPet_CancelButtonUp_2.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "AdoptPet_CancelButtonDown_3.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelRollover",
+   "file": "AdoptPet_CancelRollover_4.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelIcon",
+   "file": "AdoptPet_CancelIcon_5.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CheckIcon",
+   "file": "AdoptPet_CheckIcon_6.png",
+   "x": 5.8331,
+   "z": 3.1673,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CheckButtonRollover",
+   "file": "AdoptPet_CheckButtonRollover_7.png",
+   "x": 5.7908,
+   "z": 3.1673,
+   "w": 1.9014,
+   "h": 1.9014
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "AdoptPet_CheckButtonUp_8.png",
+   "x": 5.8039,
+   "z": 3.1673,
+   "w": 1.9014,
+   "h": 1.9014
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "AdoptPet_CheckButtonDown_9.png",
+   "x": 5.8039,
+   "z": 3.1673,
+   "w": 1.9014,
+   "h": 1.9014
+  }
+ ],
+ "ReturnPet": [
+  {
+   "name": "pannelUP",
+   "file": "ReturnPet_pannelUP_0.png",
+   "x": 0.0302,
+   "z": 9.1868,
+   "w": 18.5889,
+   "h": 18.5889
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "ReturnPet_CancelButtonUp_1.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "ReturnPet_CancelButtonDown_2.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelRollover",
+   "file": "ReturnPet_CancelRollover_3.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CancelIcon",
+   "file": "ReturnPet_CancelIcon_4.png",
+   "x": -5.7744,
+   "z": 3.1688,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "ReturnPet_CheckButtonUp_5.png",
+   "x": 5.8331,
+   "z": 3.1673,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "ReturnPet_CheckButtonDown_6.png",
+   "x": 5.8331,
+   "z": 3.1673,
+   "w": 1.8458,
+   "h": 1.8458
+  },
+  {
+   "name": "CheckRollover",
+   "file": "ReturnPet_CheckRollover_7.png",
+   "x": 5.8331,
+   "z": 3.1673,
+   "w": 1.8666,
+   "h": 1.8666
+  },
+  {
+   "name": "CheckIcon",
+   "file": "ReturnPet_CheckIcon_8.png",
+   "x": 5.8331,
+   "z": 3.1673,
+   "w": 1.8458,
+   "h": 1.8458
+  }
+ ],
+ "PetShopInterface": [
+  {
+   "name": "Jar",
+   "file": "PetShopInterface_Jar_0.png",
+   "x": 1.8507,
+   "z": 0.9285,
+   "w": 1.1632,
+   "h": 1.2981
+  },
+  {
+   "name": "MainPannel",
+   "file": "PetShopInterface_MainPannel_1.png",
+   "x": 0.0,
+   "z": 4.9848,
+   "w": 9.9928,
+   "h": 9.9711
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "PetShopInterface_CancelButtonDown_2.png",
+   "x": -1.953,
+   "z": 1.1185,
+   "w": 0.9437,
+   "h": 0.9437
+  },
+  {
+   "name": "Paw1Down",
+   "file": "PetShopInterface_Paw1Down_3.png",
+   "x": -1.9449,
+   "z": 5.6508,
+   "w": 1.5448,
+   "h": 2.2494
+  },
+  {
+   "name": "Arrow1",
+   "file": "PetShopInterface_Arrow1_4.png",
+   "x": -1.8568,
+   "z": 5.3973,
+   "w": 0.7339,
+   "h": 0.6413
+  },
+  {
+   "name": "Paw2Down",
+   "file": "PetShopInterface_Paw2Down_5.png",
+   "x": 1.813,
+   "z": 5.6557,
+   "w": 1.5908,
+   "h": 2.2445
+  },
+  {
+   "name": "Arrow2",
+   "file": "PetShopInterface_Arrow2_6.png",
+   "x": 1.7187,
+   "z": 5.3944,
+   "w": 0.7311,
+   "h": 0.6415
+  },
+  {
+   "name": "pPlane15",
+   "file": "PetShopInterface_pPlane15_7.png",
+   "x": 2.6912,
+   "z": 8.1812,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane14",
+   "file": "PetShopInterface_pPlane14_8.png",
+   "x": 2.6912,
+   "z": 8.8376,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane3",
+   "file": "PetShopInterface_pPlane3_9.png",
+   "x": 2.6912,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane4",
+   "file": "PetShopInterface_pPlane4_10.png",
+   "x": 2.0348,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane5",
+   "file": "PetShopInterface_pPlane5_11.png",
+   "x": 1.3662,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane6",
+   "file": "PetShopInterface_pPlane6_12.png",
+   "x": 0.6977,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane7",
+   "file": "PetShopInterface_pPlane7_13.png",
+   "x": 0.017,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane8",
+   "file": "PetShopInterface_pPlane8_14.png",
+   "x": -0.6516,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane9",
+   "file": "PetShopInterface_pPlane9_15.png",
+   "x": -1.2594,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane10",
+   "file": "PetShopInterface_pPlane10_16.png",
+   "x": -1.9401,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane11",
+   "file": "PetShopInterface_pPlane11_17.png",
+   "x": -2.6208,
+   "z": 9.5061,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane12",
+   "file": "PetShopInterface_pPlane12_18.png",
+   "x": -2.6208,
+   "z": 8.8376,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "pPlane13",
+   "file": "PetShopInterface_pPlane13_19.png",
+   "x": -2.6208,
+   "z": 8.169,
+   "w": 0.6578,
+   "h": 0.6578
+  },
+  {
+   "name": "Paw2Up",
+   "file": "PetShopInterface_Paw2Up_20.png",
+   "x": 1.813,
+   "z": 5.6557,
+   "w": 1.5908,
+   "h": 2.2445
+  },
+  {
+   "name": "Paw2Rollover",
+   "file": "PetShopInterface_Paw2Rollover_21.png",
+   "x": 1.813,
+   "z": 5.6557,
+   "w": 1.5908,
+   "h": 2.2445
+  },
+  {
+   "name": "Paw1Up",
+   "file": "PetShopInterface_Paw1Up_22.png",
+   "x": -1.9449,
+   "z": 5.6508,
+   "w": 1.5448,
+   "h": 2.2494
+  },
+  {
+   "name": "Paw1Rollover",
+   "file": "PetShopInterface_Paw1Rollover_23.png",
+   "x": -1.9449,
+   "z": 5.6508,
+   "w": 1.5448,
+   "h": 2.2494
+  },
+  {
+   "name": "AdoptButtonUp",
+   "file": "PetShopInterface_AdoptButtonUp_24.png",
+   "x": -0.0838,
+   "z": 1.1469,
+   "w": 2.0929,
+   "h": 0.9618
+  },
+  {
+   "name": "AdoptButtonDown",
+   "file": "PetShopInterface_AdoptButtonDown_25.png",
+   "x": -0.0838,
+   "z": 1.1469,
+   "w": 2.0929,
+   "h": 0.9618
+  },
+  {
+   "name": "AdoptButtonRollover",
+   "file": "PetShopInterface_AdoptButtonRollover_26.png",
+   "x": -0.0838,
+   "z": 1.1469,
+   "w": 2.0929,
+   "h": 0.9618
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "PetShopInterface_CancelButtonUp_27.png",
+   "x": -1.953,
+   "z": 1.1185,
+   "w": 0.9437,
+   "h": 0.9437
+  },
+  {
+   "name": "CancelIcon",
+   "file": "PetShopInterface_CancelIcon_28.png",
+   "x": -1.953,
+   "z": 1.1185,
+   "w": 0.9437,
+   "h": 0.9437
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "PetShopInterface_CancelButtonRollover_29.png",
+   "x": -1.953,
+   "z": 1.1185,
+   "w": 0.9437,
+   "h": 0.9437
+  }
+ ],
+ "PetNamePanel": [
+  {
+   "name": "PetNamePannel",
+   "file": "PetNamePanel_PetNamePannel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 15.9993,
+   "h": 15.9993
+  },
+  {
+   "name": "ArrowSmUpRollover",
+   "file": "PetNamePanel_ArrowSmUpRollover_1.png",
+   "x": 0.8937,
+   "z": 0.3081,
+   "w": 1.5371,
+   "h": 0.877
+  },
+  {
+   "name": "ArrowUpBigRollover",
+   "file": "PetNamePanel_ArrowUpBigRollover_2.png",
+   "x": 4.1094,
+   "z": 0.2838,
+   "w": 3.5715,
+   "h": 0.913
+  },
+  {
+   "name": "ArrowSmDownRollover",
+   "file": "PetNamePanel_ArrowSmDownRollover_3.png",
+   "x": 0.8799,
+   "z": -4.1342,
+   "w": 1.5464,
+   "h": 0.8812
+  },
+  {
+   "name": "ArrowDownBigRollover",
+   "file": "PetNamePanel_ArrowDownBigRollover_4.png",
+   "x": 4.114,
+   "z": -4.1341,
+   "w": 3.5623,
+   "h": 0.8811
+  },
+  {
+   "name": "RandomUpButton",
+   "file": "PetNamePanel_RandomUpButton_5.png",
+   "x": -0.747,
+   "z": -5.5631,
+   "w": 3.3883,
+   "h": 1.1437
+  },
+  {
+   "name": "RandomDownButton",
+   "file": "PetNamePanel_RandomDownButton_6.png",
+   "x": -0.747,
+   "z": -5.5631,
+   "w": 3.3883,
+   "h": 1.1437
+  },
+  {
+   "name": "RandomRolloverButton",
+   "file": "PetNamePanel_RandomRolloverButton_7.png",
+   "x": -0.747,
+   "z": -5.5631,
+   "w": 3.3883,
+   "h": 1.1437
+  },
+  {
+   "name": "SubmitUpButton",
+   "file": "PetNamePanel_SubmitUpButton_8.png",
+   "x": 3.4268,
+   "z": -5.5631,
+   "w": 3.3883,
+   "h": 1.1437
+  },
+  {
+   "name": "SubmitDownButton",
+   "file": "PetNamePanel_SubmitDownButton_9.png",
+   "x": 3.4268,
+   "z": -5.5631,
+   "w": 3.3883,
+   "h": 1.1437
+  },
+  {
+   "name": "SubmitRolloverButton",
+   "file": "PetNamePanel_SubmitRolloverButton_10.png",
+   "x": 3.4268,
+   "z": -5.5631,
+   "w": 3.3883,
+   "h": 1.1437
+  },
+  {
+   "name": "ArrowUpBigButton",
+   "file": "PetNamePanel_ArrowUpBigButton_11.png",
+   "x": 4.1094,
+   "z": 0.2838,
+   "w": 3.5715,
+   "h": 0.913
+  },
+  {
+   "name": "ArrowSmUpButton",
+   "file": "PetNamePanel_ArrowSmUpButton_12.png",
+   "x": 0.8937,
+   "z": 0.3081,
+   "w": 1.5371,
+   "h": 0.877
+  },
+  {
+   "name": "ArrowDownBigButton",
+   "file": "PetNamePanel_ArrowDownBigButton_13.png",
+   "x": 4.114,
+   "z": -4.1341,
+   "w": 3.5623,
+   "h": 0.8811
+  },
+  {
+   "name": "ArrowSmDownButton",
+   "file": "PetNamePanel_ArrowSmDownButton_14.png",
+   "x": 0.8799,
+   "z": -4.1342,
+   "w": 1.5464,
+   "h": 0.8812
+  }
+ ]
+}

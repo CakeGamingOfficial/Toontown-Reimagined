@@ -32,6 +32,9 @@ const _SELL := preload("res://scenes/fishing/fish_sell_gui.gd")
 const _CAST := preload("res://scenes/fishing/fishing_session.gd")
 const _MARGINS := preload("res://scenes/toons/margin_tags.gd")
 const _TROLLEY := preload("res://scenes/trolley/trolley.gd")
+const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
+const _DOODLE := preload("res://scenes/pets/doodle.gd")
+const _PET_GUI := preload("res://scenes/pets/pet_shop_gui.gd")
 const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
 const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
 const _PICK_SCENE := "res://scenes/toons/pick_a_toon.tscn"
@@ -154,6 +157,7 @@ var _casting := false
 var _cast_ready := false
 var _shore: Node3D
 var _clerk_ready := false
+var _pet_clerk_ready := false
 var _fish_ready := false
 var _clerk_mouth: Node3D
 var _clerk_line: PanelContainer
@@ -347,6 +351,7 @@ func _ready() -> void:
 	if _player != null and _is_sad():
 		_player.set_sad(true)
 	_ready_hud()
+	_bring_doodle()
 	_trolley = _TROLLEY.new()
 	_trolley.name = "Trolley"
 	add_child(_trolley)
@@ -493,6 +498,7 @@ func _physics_process(delta: float) -> void:
 	_try_closet()
 	_try_building_door()
 	_try_clerk()
+	_try_pet_clerk()
 	_try_officer()
 	_try_quest_npc()
 	_try_fisherman()
@@ -576,6 +582,11 @@ func _on_phrase(text: String) -> void:
 		_line_kind = "speed"
 	say_line(text)
 	_line_kind = ""
+	if chat != null and int(chat.get("said_trick")) >= 0:
+		var pet := get_parent().get_node_or_null("Doodle")
+		if pet != null:
+			pet.call("ask_trick", int(chat.get("said_trick")))
+		chat.set("said_trick", -1)
 
 
 func say_line(text: String, seconds: float = -1.0) -> void:
@@ -1662,6 +1673,87 @@ func _try_clerk() -> void:
 	if _player != null:
 		_player.set_locomotion(0.0, false, false, 0.016)
 	_shop_with(clerk)
+
+
+func _bring_doodle() -> void:
+	if _body == null or not _KENNEL.has_pet():
+		return
+	var path := _scene_path()
+	if not path.contains("/playgrounds/") and not path.contains("/streets/") and not _PLACES.is_estate(path):
+		return
+	var record := _KENNEL.current()
+	var pet = _DOODLE.new()
+	pet.name = "Doodle"
+	get_parent().add_child(pet)
+	pet.show_pet(record["dna"], String(record.get("name", "")))
+	pet.follow(_body)
+
+
+func _try_pet_clerk() -> void:
+	if _body == null or not _PLACES.is_pet_shop(_scene_path()):
+		_pet_clerk_ready = true
+		return
+	var clerk := _nearest_clerk()
+	if clerk == null:
+		_pet_clerk_ready = true
+		return
+	if _book != null and _book.is_open():
+		_pet_clerk_ready = false
+		return
+	if not _pet_clerk_ready or _locked:
+		return
+	_pet_clerk_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_shop_pets(clerk)
+
+
+func _shop_pets(clerk: Node3D) -> void:
+	var actor := _clerk_actor(clerk)
+	var toward := actor.global_position - _body.global_position
+	toward.y = 0.0
+	if toward.length_squared() > 0.0001:
+		_heading = _heading_toward(toward)
+		_face(_player, _heading)
+	_say_clerk(actor, "Hello! Welcome to the Pet Shop.", 1.0)
+	await get_tree().create_timer(1.0).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	var panel = _PET_GUI.new()
+	panel.name = "PetShop"
+	panel.zone = _hood
+	_hud().add_child(panel)
+	var reason: String = await panel.finished
+	if not is_inside_tree():
+		return
+	if _book != null:
+		_book.refresh_jar()
+	if not is_instance_valid(actor):
+		_locked = false
+		return
+	var goodbye := "Remember, if you see a Doodle you like, make sure to adopt him before someone else does!"
+	var hold := 3.2
+	if reason == "adopted":
+		goodbye = "Congratulations on purchasing a Doodle! You can play with your new friend at your estate."
+		hold = 4.0
+	elif reason == "returned":
+		goodbye = "Don't worry.  We'll find a good home for your Doodle."
+		hold = 3.2
+	elif reason == "fish":
+		goodbye = "These are some fine specimens! Thanks."
+		hold = 2.6
+	elif reason == "timeout":
+		goodbye = "Need more time to think?"
+		hold = 2.4
+	_say_clerk(actor, goodbye, hold)
+	await get_tree().create_timer(hold).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	_locked = false
 
 
 func _try_officer() -> void:

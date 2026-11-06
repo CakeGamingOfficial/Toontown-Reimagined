@@ -3,10 +3,13 @@ class_name RemoteToons
 
 ## Other players are DistributedToon copies. The owner walks a local toon.
 ## Everyone else is built with show_style from that toon's DNA and plays the
-## anim state the owner published. Poses arrive about five times a second,
-## the old smooth-node broadcast, and this fills in the frames between them.
+## anim state the owner published. The owner's doodle rides along on that
+## same pose. Poses arrive about five times a second, the old smooth-node
+## broadcast, and this fills in the frames between them.
 
 const _PERIOD := 0.2
+const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
+const _DOODLE := preload("res://scenes/pets/doodle.gd")
 
 var _world: Node
 var _body: Node3D
@@ -91,6 +94,25 @@ func _send() -> void:
 	_sent_gm = gm
 	_actor.set_meta("av", av)
 	_actor.set_meta("gm", gm)
+	var pet_dna: Array = []
+	var pet_name := ""
+	var pet_x := where.x
+	var pet_y := where.y
+	var pet_z := where.z
+	var pet_yaw := 0.0
+	var pet_anim := "neutral"
+	var record := _KENNEL.current()
+	var mine = _world.get_node_or_null("Doodle") if _world != null else null
+	if not record.is_empty() and mine is Node3D and is_instance_valid(mine):
+		var body := mine as Node3D
+		for number in record.get("dna", []):
+			pet_dna.append(int(number))
+		pet_name = String(record.get("name", ""))
+		pet_x = body.global_position.x
+		pet_y = body.global_position.y
+		pet_z = body.global_position.z
+		pet_yaw = body.rotation.y
+		pet_anim = String(body.call("clip_name"))
 	ToonNet.submit("toon:%d" % ToonNet.peer_id(), {
 		"district": ToonNet.district_id(),
 		"district_name": ToonNet.district_name(),
@@ -109,6 +131,13 @@ func _send() -> void:
 		"ghost": MagicWords.ghosting(),
 		"hidden": _hidden or not _actor.visible,
 		"style": style.to_dict(),
+		"pet_name": pet_name,
+		"pet_dna": pet_dna,
+		"pet_x": pet_x,
+		"pet_y": pet_y,
+		"pet_z": pet_z,
+		"pet_yaw": pet_yaw,
+		"pet_anim": pet_anim,
 	})
 
 
@@ -154,7 +183,9 @@ func _apply(channel: String) -> void:
 		var tag: Control = null
 		if _tags != null:
 			tag = _tags.add(actor, String(state.get("name", actor.name)), "toon")
-		puppet = {"actor": actor, "tag": tag, "style": style_key}
+		var kept_pet = puppet.get("pet")
+		var kept_key := String(puppet.get("pet_key", ""))
+		puppet = {"actor": actor, "tag": tag, "style": style_key, "pet": kept_pet, "pet_key": kept_key}
 	elif String(puppet.get("style", "")) != style_key:
 		var dressed := ToonStyle.from_dict(state.get("style", {}))
 		actor.show_style(dressed)
@@ -176,14 +207,18 @@ func _apply(channel: String) -> void:
 		var hidden_tag: Control = puppet.get("tag")
 		if hidden_tag != null:
 			hidden_tag.visible = false
+		var sad_pet = puppet.get("pet")
+		if sad_pet is Node3D and is_instance_valid(sad_pet):
+			(sad_pet as Node3D).visible = false
 		return
 	var dressed: Variant = state.get("style", {})
 	if dressed is Dictionary:
 		actor.set_meta("style", dressed)
 	actor.visible = true
-	var tag: Control = puppet.get("tag")
-	if tag != null:
-		tag.visible = true
+	var shown: Control = puppet.get("tag")
+	if shown != null:
+		shown.visible = true
+	_sync_pet(peer, puppet, state)
 
 
 func _create(state: Dictionary) -> ToonActor:
@@ -232,6 +267,7 @@ func actor_for(peer: int) -> ToonActor:
 func _move_puppets(delta: float) -> void:
 	for peer in _puppets.keys():
 		var puppet: Dictionary = _puppets[peer]
+		_move_pet(puppet, delta)
 		var actor: ToonActor = puppet.get("actor")
 		if actor == null or not is_instance_valid(actor) or not actor.visible:
 			continue
@@ -275,6 +311,9 @@ func _hide(peer: int) -> void:
 		actor.visible = false
 		actor.set_swimming(false)
 		actor.set_locomotion(0.0, false, false, 0.0)
+	var pet = puppet.get("pet")
+	if pet is Node3D and is_instance_valid(pet):
+		(pet as Node3D).visible = false
 
 
 func _drop(peer: int) -> void:
@@ -286,6 +325,7 @@ func _drop(peer: int) -> void:
 		_tags.release(actor)
 	if actor != null and is_instance_valid(actor):
 		actor.queue_free()
+	_free_pet(puppet)
 	_puppets.erase(peer)
 	_pins.erase(peer)
 
@@ -293,6 +333,102 @@ func _drop(peer: int) -> void:
 func _exit_tree() -> void:
 	for peer in _puppets.keys():
 		_drop(int(peer))
+
+
+func _sync_pet(peer: int, puppet: Dictionary, state: Dictionary) -> void:
+	var raw: Variant = state.get("pet_dna", [])
+	var pet = puppet.get("pet")
+	if not (raw is Array) or (raw as Array).size() < 9:
+		_free_pet(puppet)
+		return
+	var dna: Array = raw
+	var pet_name := String(state.get("pet_name", ""))
+	var key := _pet_key(dna, pet_name)
+	if pet == null or not is_instance_valid(pet):
+		pet = _DOODLE.new()
+		pet.name = "RemoteDoodle%d" % peer
+		pet.remote = true
+		if _world != null:
+			_world.add_child(pet)
+		else:
+			add_child(pet)
+		pet.show_pet(dna, pet_name)
+		puppet["pet"] = pet
+		puppet["pet_key"] = key
+	elif String(puppet.get("pet_key", "")) != key:
+		pet.show_pet(dna, pet_name)
+		puppet["pet_key"] = key
+	var node := pet as Node3D
+	if node == null:
+		return
+	node.visible = true
+	var point := Vector3(float(state.get("pet_x", 0.0)), float(state.get("pet_y", 0.0)), float(state.get("pet_z", 0.0)))
+	var anim := String(state.get("pet_anim", "neutral"))
+	var previous := String(puppet.get("shown_trick", ""))
+	puppet["pet_pos"] = point
+	puppet["pet_yaw"] = float(state.get("pet_yaw", 0.0))
+	puppet["pet_anim"] = anim
+	if anim != previous:
+		puppet["shown_trick"] = anim
+		_heal_from_trick(node, anim)
+	if node.global_position.distance_squared_to(point) > 144.0:
+		node.global_position = point
+		node.rotation.y = float(puppet["pet_yaw"])
+
+
+func _heal_from_trick(node: Node3D, anim: String) -> void:
+	var amount := 0
+	if anim == "jump":
+		amount = 5
+	elif anim == "toBeg":
+		amount = 6
+	elif anim == "playDead":
+		amount = 7
+	elif anim == "rollover":
+		amount = 8
+	elif anim == "backflip":
+		amount = 9
+	elif anim == "dance":
+		amount = 10
+	elif anim == "speak":
+		amount = 11
+	if amount <= 0 or _body == null or not is_instance_valid(_body):
+		return
+	if node.global_position.distance_to(_body.global_position) > 15.0:
+		return
+	var host := get_parent()
+	if host != null and host.has_method("heal"):
+		host.heal(amount)
+
+
+func _move_pet(puppet: Dictionary, delta: float) -> void:
+	var pet = puppet.get("pet")
+	if not (pet is Node3D) or not is_instance_valid(pet):
+		return
+	var node := pet as Node3D
+	if not node.visible:
+		return
+	var target: Vector3 = puppet.get("pet_pos", node.global_position)
+	var blend := clampf(delta / _PERIOD, 0.0, 1.0)
+	node.global_position = node.global_position.lerp(target, blend)
+	node.rotation.y = lerp_angle(node.rotation.y, float(puppet.get("pet_yaw", node.rotation.y)), blend)
+	node.call("use_remote", String(puppet.get("pet_anim", "neutral")))
+
+
+func _free_pet(puppet: Dictionary) -> void:
+	var pet = puppet.get("pet")
+	if pet != null and is_instance_valid(pet):
+		pet.queue_free()
+	puppet.erase("pet")
+	puppet.erase("pet_key")
+
+
+func _pet_key(dna: Array, pet_name: String) -> String:
+	var parts: PackedStringArray = []
+	for number in dna:
+		parts.append(str(int(number)))
+	parts.append(pet_name)
+	return "|".join(parts)
 
 
 func _anim_name(speed: float, turning: bool, jumping: bool) -> String:

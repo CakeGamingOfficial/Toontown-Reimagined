@@ -59,6 +59,7 @@ var _panel: PanelContainer
 var _subs: Array[Control] = []
 var _open_subs: Array[Control] = []
 var phrase_is_speedchat := true
+var said_trick := -1
 var _click: AudioStreamPlayer
 var _shown := false
 var _chat_live := false
@@ -360,7 +361,7 @@ func _add_phrase(rows: VBoxContainer, item: Dictionary) -> void:
 	var emote := int(item.get("emote", -1))
 	var button := _row(String(item.get("text", "")), false, emote)
 	var spoken := String(item.get("say", item.get("text", "")))
-	button.pressed.connect(_choose.bind(spoken))
+	button.pressed.connect(_choose.bind(spoken, int(item.get("trick", -1))))
 	button.mouse_entered.connect(_hover_line.bind(button))
 	rows.add_child(button)
 
@@ -460,10 +461,11 @@ func _keep_menu_chain(menu: Control) -> void:
 	_open_subs = still
 
 
-func _choose(raw: String) -> void:
+func _choose(raw: String, trick: int = -1) -> void:
 	if not _pinned:
 		_close_menu()
 	var spoken := _named(raw)
+	said_trick = trick
 	if _whisper_name != "":
 		_send_whisper(spoken, true)
 		return
