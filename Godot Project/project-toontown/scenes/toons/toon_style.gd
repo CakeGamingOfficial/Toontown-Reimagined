@@ -321,6 +321,9 @@ func to_dict() -> Dictionary:
 		"top_color": top_color,
 		"bot_tex": bot_tex,
 		"bot_color": bot_color,
+		"top_map": top_map,
+		"sleeve_map": sleeve_map,
+		"bottom_map": bottom_map,
 		"av_id": av_id,
 	}
 
@@ -341,6 +344,9 @@ static func from_dict(data: Dictionary) -> ToonStyle:
 	style.top_color = int(data.get("top_color", 4))
 	style.bot_tex = int(data.get("bot_tex", 0))
 	style.bot_color = int(data.get("bot_color", 8))
+	style.top_map = String(data.get("top_map", ""))
+	style.sleeve_map = String(data.get("sleeve_map", ""))
+	style.bottom_map = String(data.get("bottom_map", ""))
 	style.av_id = int(data.get("av_id", 0))
 	return style
 

@@ -74,13 +74,19 @@ func _build_preview() -> void:
 	var world := Node3D.new()
 	_view.add_child(world)
 	var camera := Camera3D.new()
-	camera.position = Vector3(1.15, 1.15, 2.7)
-	camera.look_at(Vector3(0.0, 0.75, 0.0), Vector3.UP)
+	# The posed body sits around (0.14, 1.05, -0.14). Look at that, from the
+	# heading-130 face, so the doodle is centered in the shop window.
+	var look := Vector3(0.14, 1.05, -0.14)
+	camera.fov = 40.0
+	camera.position = look + Vector3(-0.766, 0.12, 0.643) * 3.05
+	camera.look_at(look, Vector3.UP)
 	camera.current = true
 	world.add_child(camera)
 	_preview = _DOODLE.new()
 	_preview.gui = true
-	_preview.rotation_degrees.y = 28.0
+	# PetshopGUI sets the shop pet to heading 130, a front three-quarter view.
+	# The model faces -Z, so 130 turns that face toward this camera.
+	_preview.rotation_degrees.y = 130.0
 	world.add_child(_preview)
 	_picture = TextureRect.new()
 	_picture.texture = _view.get_texture()
@@ -275,6 +281,8 @@ func _show_page(page: String) -> void:
 		(_pages[key] as Control).visible = key == page
 	_picture.visible = page == "choose" or page == "name" or page == "confirm"
 	if _picture.visible:
+		# The name list uses heading 225. The chooser and the confirm use 130.
+		_preview.rotation_degrees.y = 225.0 if page == "name" else 130.0
 		var host: Control = _pages[page]
 		if _picture.get_parent() != host:
 			_picture.reparent(host)
@@ -594,10 +602,17 @@ func _layout() -> void:
 			elif child.has_meta("box"):
 				var box: Vector4 = child.get_meta("box")
 				_GUI.place(child, view, box.x, box.y, box.z, box.w)
-	if _picture.visible:
-		var spot := Vector4(0.0, 0.20, 0.52, 0.46)
-		if _page == "name":
-			spot = Vector4(-0.21, -0.04, 0.4, 0.4)
-		elif _page == "confirm":
-			spot = Vector4(-0.13, 0.5, 0.42, 0.42)
+	if _picture.visible and _page == "choose":
+		var board := (_pages["choose"] as Control).get_child(0) as Control
+		# Cream window inside PetShopInterface_MainPannel, measured on the card.
+		var left := 38.0 / 125.0
+		var top := 30.0 / 125.0
+		var wide := (87.0 - 38.0) / 125.0
+		var tall := (66.0 - 30.0) / 125.0
+		_picture.position = board.position + Vector2(board.size.x * left, board.size.y * top)
+		_picture.size = Vector2(board.size.x * wide, board.size.y * tall)
+	elif _picture.visible:
+		var spot := Vector4(-0.21, -0.04, 0.435, 0.435)
+		if _page == "confirm":
+			spot = Vector4(-0.13, 0.5, 0.395, 0.395)
 		_GUI.place(_picture, view, spot.x, spot.y, spot.z, spot.w)

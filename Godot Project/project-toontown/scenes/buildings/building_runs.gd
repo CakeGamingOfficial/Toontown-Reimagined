@@ -9,6 +9,9 @@ const BOARD_TIME := 15.0
 const CLOSE_TIME := 2.0
 ## getRideElevatorInterval is 4 seconds, then the doors take openTime.
 const RIDE_TIME := 6.0
+## ElevatorData openTime plus TOON_VICTORY_EXIT_TIME. Then animToToon.
+const EXIT_TIME := 3.0
+const LIBERATE_TIME := 8.0
 const MAX_TOONS := 4
 ## SuitBuildingGlobals.SuitBuildingInfo, street buildings only (index is difficulty).
 const _BLDG: Array = [
@@ -36,10 +39,10 @@ static func room_origin(block: int) -> Vector3:
 
 ## Floor 0 is suit_interior, the top floor is the boss office, and the
 ## floors between are the cubicle hall. Those models are the original rooms.
-static func room_kind(floor: int, floors: int) -> String:
-	if floor <= 0:
+static func room_kind(level: int, floors: int) -> String:
+	if level <= 0:
 		return "lobby"
-	if floor + 1 >= maxi(floors, 1):
+	if level + 1 >= maxi(floors, 1):
 		return "office"
 	return "hall"
 
@@ -162,7 +165,7 @@ func _tick(run: Dictionary, delta: float) -> void:
 	if state == "gone" or state == "":
 		return
 	_drop_missing(run)
-	if (run["toons"] as Array).is_empty():
+	if (run["toons"] as Array).is_empty() and state != "exit" and state != "liberating":
 		run["state"] = "gone"
 		_mark(run)
 		return
@@ -209,6 +212,13 @@ func _tick(run: Dictionary, delta: float) -> void:
 		run["left"] = RIDE_TIME
 	elif state == "riding":
 		_begin_floor(run)
+	elif state == "exit":
+		_begin_liberate(run)
+	elif state == "liberating":
+		var traffic := _traffic()
+		if traffic != null and traffic.has_method("retake_building"):
+			traffic.call("retake_building", int(run.get("district", 0)), String(run.get("slug", "")), int(run.get("block", 0)))
+		run["state"] = "gone"
 	elif state == "victory" or state == "failed":
 		run["state"] = "gone"
 	_mark(run)
@@ -264,14 +274,13 @@ func _after_floor(run: Dictionary) -> void:
 		run["left"] = 2.0
 		_mark(run)
 		return
-	var floor := int(run.get("floor", 0)) + 1
-	if floor >= int(run.get("floors", 1)):
-		var traffic := _traffic()
-		if traffic != null and traffic.has_method("retake_building"):
-			traffic.call("retake_building", int(run.get("district", 0)), String(run.get("slug", "")), int(run.get("block", 0)))
-		run["state"] = "victory"
-		run["left"] = 4.0
+	var story := int(run.get("floor", 0)) + 1
+	if story >= int(run.get("floors", 1)):
+		## The reward card has finished. The toons run out, then the shop returns.
+		run["state"] = "exit"
+		run["left"] = EXIT_TIME
 		run["cogs"] = []
+		run["fight"] = 0
 		_mark(run)
 		return
 	run["cogs"] = []
@@ -281,11 +290,21 @@ func _after_floor(run: Dictionary) -> void:
 	_mark(run)
 
 
+## animToToon. The suit tower gives the block back over TO_TOON_BLDG_TIME.
+func _begin_liberate(run: Dictionary) -> void:
+	var traffic := _traffic()
+	if traffic != null and traffic.has_method("begin_liberate"):
+		traffic.call("begin_liberate", int(run.get("district", 0)), String(run.get("slug", "")), int(run.get("block", 0)))
+	run["state"] = "liberating"
+	run["left"] = LIBERATE_TIME
+	_mark(run)
+
+
 ## The far elevator's countdown finished. The next floor's ride starts.
 func _ride_next(run: Dictionary) -> void:
-	var floor := int(run.get("floor", 0)) + 1
-	run["floor"] = floor
-	run["room"] = room_kind(floor, int(run.get("floors", 1)))
+	var story := int(run.get("floor", 0)) + 1
+	run["floor"] = story
+	run["room"] = room_kind(story, int(run.get("floors", 1)))
 	run["cogs"] = []
 	run["fight"] = 0
 	run["state"] = "riding"
@@ -327,8 +346,8 @@ func floor_hop(district: int, slug: String, block: int, peer: int) -> void:
 func _floor_cogs(run: Dictionary) -> Dictionary:
 	var info: Dictionary = _BLDG[clampi(int(run.get("difficulty", 0)), 0, _BLDG.size() - 1)]
 	var mults: Array = info.get("mult", [1.0])
-	var floor := int(run.get("floor", 0))
-	var mult := float(mults[mini(floor, mults.size() - 1)])
+	var story := int(run.get("floor", 0))
+	var mult := float(mults[mini(story, mults.size() - 1)])
 	var pool := randi_range(int(float(info["pool_min"]) * mult), int(float(info["pool_max"]) * mult))
 	var suit_min := int(info["suit_min"])
 	var suit_max := int(info["suit_max"])
@@ -337,7 +356,7 @@ func _floor_cogs(run: Dictionary) -> Dictionary:
 		var picked := randi_range(suit_min, mini(pool, suit_max))
 		levels.append(picked)
 		pool -= picked
-	var top := floor + 1 >= int(run.get("floors", 1))
+	var top := story + 1 >= int(run.get("floors", 1))
 	if top:
 		levels.append(randi_range(int(info["boss_min"]), int(info["boss_max"])))
 	levels.sort()
@@ -358,16 +377,16 @@ func _floor_cogs(run: Dictionary) -> Dictionary:
 	for _index in reserve_levels.size():
 		chances.append(randi_range(1, 100))
 	chances.sort()
-	var kind := room_kind(floor, int(run.get("floors", 1)))
+	var kind := room_kind(story, int(run.get("floors", 1)))
 	var origin := room_origin(int(run.get("block", 0)))
 	var active: Array = []
 	for index in active_levels.size():
-		var made := _suit(run, int(active_levels[index]), index, _stand(origin, kind, index), floor)
+		var made := _suit(run, int(active_levels[index]), index, _stand(origin, kind, index), story)
 		if not made.is_empty():
 			active.append(made)
 	var reserves: Array = []
 	for index in reserve_levels.size():
-		var made := _suit(run, int(reserve_levels[index]), active.size() + index, _out_seat(origin, kind, index), floor)
+		var made := _suit(run, int(reserve_levels[index]), active.size() + index, _out_seat(origin, kind, index), story)
 		if made.is_empty():
 			continue
 		made["join"] = int(chances[index])
@@ -376,12 +395,12 @@ func _floor_cogs(run: Dictionary) -> Dictionary:
 	return {"active": active, "reserves": reserves, "room": kind, "out": [out.x, out.y, out.z]}
 
 
-func _suit(run: Dictionary, level: int, index: int, spot: Vector3, floor: int) -> Dictionary:
+func _suit(run: Dictionary, level: int, index: int, spot: Vector3, story: int) -> Dictionary:
 	var cog := _pick_cog(String(run.get("track", "c")), level)
 	if cog.is_empty():
 		return {}
 	return {
-		"id": 700000 + int(run.get("block", 0)) * 16 + floor * 8 + index,
+		"id": 700000 + int(run.get("block", 0)) * 16 + story * 8 + index,
 		"code": String(cog.get("code", "f")),
 		"name": String(cog.get("name", "Cog")),
 		"dept": String(cog.get("dept", "c")),

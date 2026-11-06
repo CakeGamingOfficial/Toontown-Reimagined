@@ -11,6 +11,10 @@ const _COG := preload("res://assets/gui/tutorial/book/cog_icon.png")
 const _PACKAGE := preload("res://assets/gui/tutorial/book/package.png")
 const _FRIENDS := preload("res://assets/gui/friends/FriendsBox_Open.png")
 const _CLARA := preload("res://assets/gui/catalog/clarabelle.png")
+const _CORP := preload("res://assets/gui/cogs/CorpIcon.png")
+const _LEGAL := preload("res://assets/gui/cogs/LegalIcon.png")
+const _MONEY := preload("res://assets/gui/cogs/MoneyIcon.png")
+const _SALES := preload("res://assets/gui/cogs/SalesIcon.png")
 ## QuestPoster colors the picture square. Cog tasks are blue, the trolley is light blue.
 const _BLUE := Color(0.45, 0.45, 0.8)
 const _LIGHT_BLUE := Color(0.42, 0.671, 1.0)
@@ -262,6 +266,20 @@ func _show_activity(task: Dictionary) -> void:
 		_frame.modulate = _LIGHT_GREEN
 		_icon_fit = 0.8
 		_icon.texture = _CLARA
+	elif kind == "building":
+		_frame.modulate = _BLUE
+		_icon_fit = 0.85
+		var dept := String(task.get("track", "any"))
+		if dept == "l":
+			_icon.texture = _LEGAL
+		elif dept == "m":
+			_icon.texture = _MONEY
+		elif dept == "s":
+			_icon.texture = _SALES
+		elif dept == "c":
+			_icon.texture = _CORP
+		else:
+			_icon.texture = _COG
 	else:
 		_frame.visible = false
 		_icon.visible = false

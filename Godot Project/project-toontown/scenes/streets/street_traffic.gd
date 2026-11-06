@@ -297,6 +297,28 @@ func claim_takeover(district: int, slug: String) -> Dictionary:
 	return picked
 
 
+## DistributedBuilding.enterBecomingToon. The tower is still up while it shrinks.
+func begin_liberate(district: int, slug: String, block: int) -> void:
+	if not ToonNet.is_authority():
+		return
+	var rows: Array = []
+	var changed := false
+	for item in building_rows(district, slug):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = (item as Dictionary).duplicate()
+		if int(row.get("block", 0)) != block:
+			rows.append(row)
+			continue
+		if String(row.get("state", "")) != "liberating":
+			row["state"] = "liberating"
+			row["since"] = int(Time.get_unix_time_from_system() * 1000.0)
+			changed = true
+		rows.append(row)
+	if changed:
+		keep_buildings(district, slug, rows)
+
+
 ## The toons cleared the top floor. The shop comes back and another takeover can start.
 func retake_building(district: int, slug: String, block: int) -> void:
 	if not ToonNet.is_authority():

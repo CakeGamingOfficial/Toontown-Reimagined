@@ -10,6 +10,7 @@ class_name RemoteToons
 const _PERIOD := 0.2
 const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
 const _DOODLE := preload("res://scenes/pets/doodle.gd")
+const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 
 var _world: Node
 var _body: Node3D
@@ -113,6 +114,7 @@ func _send() -> void:
 		pet_z = body.global_position.z
 		pet_yaw = body.rotation.y
 		pet_anim = String(body.call("clip_name"))
+	var worn := _CLOSET.accessory_ids()
 	ToonNet.submit("toon:%d" % ToonNet.peer_id(), {
 		"district": ToonNet.district_id(),
 		"district_name": ToonNet.district_name(),
@@ -131,6 +133,7 @@ func _send() -> void:
 		"ghost": MagicWords.ghosting(),
 		"hidden": _hidden or not _actor.visible,
 		"style": style.to_dict(),
+		"accessories": worn,
 		"pet_name": pet_name,
 		"pet_dna": pet_dna,
 		"pet_x": pet_x,
@@ -175,7 +178,7 @@ func _apply(channel: String) -> void:
 		return
 	var puppet: Dictionary = _puppets.get(peer, {})
 	var actor: ToonActor = puppet.get("actor")
-	var style_key := _style_key(state.get("style", {}))
+	var style_key := _style_key(state.get("style", {})) + "|" + _worn_key(state.get("accessories", {}))
 	if actor == null or not is_instance_valid(actor):
 		actor = _create(state)
 		if actor == null:
@@ -189,6 +192,7 @@ func _apply(channel: String) -> void:
 	elif String(puppet.get("style", "")) != style_key:
 		var dressed := ToonStyle.from_dict(state.get("style", {}))
 		actor.show_style(dressed)
+		_wear(actor, state)
 		puppet["style"] = style_key
 	var target := Vector3(float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("z", 0.0)))
 	if actor.global_position.distance_squared_to(target) > 144.0:
@@ -233,6 +237,7 @@ func _create(state: Dictionary) -> ToonActor:
 	else:
 		add_child(actor)
 	actor.show_style(style)
+	_wear(actor, state)
 	actor.footsteps = true
 	actor.global_position = Vector3(float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("z", 0.0)))
 	_face(actor, float(state.get("heading", 0.0)))
@@ -461,15 +466,36 @@ func _place_of(world: Node) -> String:
 	return String(world.name)
 
 
+func _wear(actor: ToonActor, state: Dictionary) -> void:
+	var worn: Variant = state.get("accessories", {})
+	if worn is Dictionary:
+		actor.wear_accessories(worn)
+	else:
+		actor.wear_accessories({})
+
+
+func _worn_key(value: Variant) -> String:
+	if not (value is Dictionary):
+		return ""
+	var worn: Dictionary = value
+	var slots: Array = worn.keys()
+	slots.sort()
+	var bits := ""
+	for slot in slots:
+		bits += "%s=%s," % [slot, worn[slot]]
+	return bits
+
+
 func _style_key(value: Variant) -> String:
 	if not (value is Dictionary):
 		return ""
 	var data: Dictionary = value
-	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		data.get("head", ""), data.get("torso", ""), data.get("legs", ""),
 		data.get("gender", ""), data.get("head_color", 0), data.get("arm_color", 0),
 		data.get("leg_color", 0), data.get("top_tex", 0), data.get("top_color", 0),
-		data.get("bot_tex", 0), data.get("bot_color", 0), data.get("first_name", ""),
+		data.get("bot_tex", 0), data.get("bot_color", 0), data.get("top_map", ""),
+		data.get("sleeve_map", ""), data.get("bottom_map", ""), data.get("first_name", ""),
 		data.get("last_name", ""),
 	]
 

@@ -350,6 +350,16 @@ func _sync(rows: Array) -> void:
 			_drop_actor(block)
 			_active.erase(block)
 			continue
+		if state == "liberating":
+			_remember_scale(landmark)
+			landmark.visible = true
+			landmark.set_meta("cog_building", true)
+			_shown[block] = landmark
+			var tower := _ensure_actor(landmark as Node3D, row)
+			if tower != null:
+				_active[block] = row
+				_liberate(landmark as Node3D, tower, elapsed)
+			continue
 		landmark.remove_meta("suit_approaching")
 		if dropping:
 			_remember_scale(landmark)
@@ -383,6 +393,9 @@ func _animate() -> void:
 			finished.append(block)
 			continue
 		var elapsed := _elapsed(int(row.get("since", 0)))
+		if String(row.get("state", "")) == "liberating":
+			_liberate(landmark as Node3D, building as Node3D, elapsed)
+			continue
 		if elapsed >= _TOTAL_TIME:
 			_settle(landmark as Node3D, row)
 			finished.append(block)
@@ -739,6 +752,77 @@ func _pose(landmark: Node3D, building: Node3D, elapsed: float) -> void:
 
 
 func _bounce_scale(elapsed: float) -> float:
+	# createBounceTrack(node, 2, 0.65, 1.2, slowInitBounce=1) on the up axis.
+	var marks: Array[float] = [0.0, 0.4, 0.8, 1.2]
+	var heights: Array[float] = [1.0, 0.65, 1.175, 1.0]
+	if elapsed >= 1.2:
+		return 1.0
+	for index in 3:
+		if elapsed > marks[index + 1]:
+			continue
+		var blend := (elapsed - marks[index]) / 0.4
+		blend = blend * blend * (3.0 - 2.0 * blend)
+		return lerpf(heights[index], heights[index + 1], blend)
+	return 1.0
+
+
+## animToToon. The suit bounces and sinks. Halfway through, the shop grows back.
+func _liberate(landmark: Node3D, building: Node3D, elapsed: float) -> void:
+	_remember_block(landmark)
+	_remember_props(landmark, building)
+	var suit := 1.0
+	if elapsed < 0.4:
+		suit = _axis_scale(elapsed, 3, 1.2, 0.4, 0.0, 1.0)
+	elif elapsed < 1.2:
+		suit = _axis_scale(elapsed - 0.4, 5, 0.8, 0.8, 0.0, 1.0)
+	elif elapsed < 2.56:
+		suit = _axis_scale(elapsed - 1.2, 7, 1.2, 1.36, 0.0, 1.0)
+	elif elapsed < 4.0:
+		suit = _axis_scale(elapsed - 2.56, 9, 1.2, 1.44, 0.0, 1.0)
+	else:
+		suit = lerpf(1.0, 0.01, clampf((elapsed - 4.0) / 0.8, 0.0, 1.0))
+	if building.has_meta("rest"):
+		building.global_transform = building.get_meta("rest")
+	var rest_scale := Vector3.ONE
+	if building.has_meta("rest_scale"):
+		rest_scale = building.get_meta("rest_scale")
+	building.visible = suit > 0.02
+	building.scale = Vector3(rest_scale.x, rest_scale.y * suit, rest_scale.z)
+	if elapsed < 4.0:
+		_hide_taken(landmark)
+		return
+	var grown := _axis_scale(elapsed - 4.0, 11, 1.2, 4.0, 4.0, 0.01)
+	_squash_list(landmark, "block_nodes", grown, 0.0, false)
+	_squash_list(landmark, "door_props", grown, 0.0, false)
+
+
+## createBounceTrack. The last step of a growing shop settles at full height.
+func _axis_scale(elapsed: float, bounces: int, start_scale: float, total: float, slow: float, rest: float) -> float:
+	var count := bounces + 1
+	var bounce_time := total / float(count)
+	if slow > 0.0:
+		bounce_time = total / (float(count) + slow - 1.0)
+	var span := bounce_time * slow if slow > 0.0 else bounce_time
+	var diff := start_scale - rest
+	var cursor := 0.0
+	var from := rest
+	for step in count:
+		var dest := rest
+		if step == count - 1 and rest < 0.5:
+			dest = 1.0
+		elif step != count - 1 and step % 2 == 1:
+			dest = rest - diff
+		elif step != count - 1:
+			dest = rest + diff
+		if elapsed <= cursor + span:
+			var blend := clampf((elapsed - cursor) / maxf(span, 0.001), 0.0, 1.0)
+			blend = blend * blend * (3.0 - 2.0 * blend)
+			return lerpf(from, dest, blend)
+		from = dest
+		cursor += span
+		diff *= 0.5
+		span = bounce_time
+	return 1.0 if rest < 0.5 else rest
 	# createBounceTrack(node, 2, 0.65, 1.2, slowInitBounce=1) on the up axis.
 	var marks: Array[float] = [0.0, 0.4, 0.8, 1.2]
 	var heights: Array[float] = [1.0, 0.65, 1.175, 1.0]

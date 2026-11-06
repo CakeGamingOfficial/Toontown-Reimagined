@@ -48,6 +48,13 @@ const _OFF: Array[Vector3] = [
 	Vector3(-1.5, -5.0, 0.1), Vector3(1.5, -5.0, 0.1),
 	Vector3(-2.5, -7.0, 0.1), Vector3(2.5, -7.0, 0.1),
 ]
+## ElevatorOutPoints. The victory run stops facing the shop.
+const _OUT: Array[Vector3] = [
+	Vector3(-4.6, -5.2, 0.1), Vector3(4.6, -5.2, 0.1),
+	Vector3(-1.6, -6.2, 0.1), Vector3(1.6, -6.2, 0.1),
+]
+const _EXIT_OPEN := 2.0
+const _EXIT_RUN := 1.0
 
 var _room: Node3D
 var _car: Node3D
@@ -77,6 +84,16 @@ var _exit_heading := 0.0
 var _riders: Dictionary = {}
 var _remote_exits: Dictionary = {}
 var _timing: Dictionary = {}
+var _credited_run := 0
+var _planted := false
+var _plant := Vector3.ZERO
+var _plant_heading := 0.0
+var _victory_shot := ""
+var _victory_cam := Vector3.ZERO
+var _victory_look := Vector3.ZERO
+var _clock_key := ""
+var _clock_left := 0.0
+var _clock_age := 0.0
 ## Street boarding uses the panda elevator points. The far car uses the interior seats.
 var _spots: Array = _STAND
 var _floor_out := false
@@ -232,15 +249,26 @@ func _leave() -> void:
 	var toon := _toon()
 	if toon == null:
 		return
-	var back := _return
-	back.y += 0.2
-	toon.call("visit_friend", back, 0.0)
+	if _planted:
+		toon.call("visit_friend", _plant, _plant_heading)
+		_planted = false
+	else:
+		var back := _return
+		back.y += 0.2
+		toon.call("visit_friend", back, 0.0)
 	toon.call("hold_for_battle", false)
+	var camera := get_viewport().get_camera_3d()
+	if camera != null:
+		camera.fov = 52.0
+	_victory_shot = ""
 
 
 func _show(run: Dictionary, delta: float) -> void:
-	_ensure_room(run)
 	var state := String(run.get("state", ""))
+	if state == "exit" or state == "liberating":
+		_present_victory(run, delta)
+		return
+	_ensure_room(run)
 	var block := int(run.get("block", 0))
 	var buildings := _buildings()
 	var fight := _fight_of(run)
@@ -337,6 +365,143 @@ func _show(run: Dictionary, delta: float) -> void:
 		return
 	var seat := _seat(run)
 	toon.call("visit_friend", seat, 180.0)
+
+
+func _present_victory(run: Dictionary, delta: float) -> void:
+	_drop_floor()
+	_credit_building(run)
+	_banner.visible = false
+	_hide_board_gui()
+	var block := int(run.get("block", 0))
+	var buildings := _buildings()
+	var elevator := _street_elevator(block)
+	if buildings != null:
+		buildings.call("set_story", block, -1)
+	var state := String(run.get("state", ""))
+	var left := _smooth_left(run, delta)
+	var elapsed := (_EXIT_OPEN + _EXIT_RUN) - left
+	if state == "liberating":
+		elapsed = _EXIT_OPEN + _EXIT_RUN
+	var closed := 0.0
+	if elapsed < _EXIT_OPEN:
+		closed = 1.0 - clampf(elapsed / _EXIT_OPEN, 0.0, 1.0)
+		if elapsed > 0.05:
+			_once("victory-open", _OPEN_SFX)
+	if buildings != null:
+		buildings.call("set_doors", block, closed)
+	if elevator == null:
+		return
+	var face_out := _out_heading(elevator)
+	var face_in := wrapf(face_out + 180.0, 0.0, 360.0)
+	var run_age := clampf(elapsed - _EXIT_OPEN, 0.0, _EXIT_RUN)
+	var index := 0
+	for item in run.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var rider: Dictionary = item
+		var peer := int(rider.get("id", 0))
+		var seat := index
+		if rider.has("seat"):
+			seat = int(rider.get("seat", index))
+		var stand: Vector3 = _STAND[seat % _STAND.size()]
+		var out_point: Vector3 = _OUT[seat % _OUT.size()]
+		var mid := Vector3(stand.x, stand.y - 5.0, stand.z)
+		var local := stand
+		var heading := face_out
+		var running := false
+		if run_age <= 0.0:
+			local = stand
+		elif run_age < 0.25:
+			local = stand.lerp(mid, run_age / 0.25)
+			heading = _heading_of(elevator.global_transform.basis * (mid - stand))
+			running = true
+		elif run_age < 0.75:
+			local = mid.lerp(out_point, (run_age - 0.25) / 0.5)
+			heading = _heading_of(elevator.global_transform.basis * (out_point - mid))
+			running = true
+		else:
+			local = out_point
+			var turn := clampf((run_age - 0.75) / 0.25, 0.0, 1.0)
+			var traveled := _heading_of(elevator.global_transform.basis * (out_point - mid))
+			heading = rad_to_deg(lerp_angle(deg_to_rad(traveled), deg_to_rad(face_in), turn))
+		var pos: Vector3 = elevator.global_transform * local
+		if not _riders.has(peer):
+			_riders[peer] = {"pose": ""}
+		var info: Dictionary = _riders[peer]
+		_put_rider(peer, pos, heading, running, delta, info)
+		if peer == ToonNet.peer_id():
+			_planted = true
+			_plant = pos
+			_plant_heading = heading
+		index += 1
+	_aim_victory(elevator, state == "liberating")
+
+
+func _drop_floor() -> void:
+	if _room == null:
+		return
+	_room.queue_free()
+	_room = null
+	_car = null
+	_out = null
+	_clear_cogs()
+	_quiet()
+	_release_street()
+
+
+func _credit_building(run: Dictionary) -> void:
+	var run_id := int(run.get("id", 0))
+	if _credited_run == run_id:
+		return
+	var mine := false
+	for item in run.get("toons", []):
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == ToonNet.peer_id():
+			mine = int((item as Dictionary).get("hp", 0)) > 0
+	if not mine:
+		return
+	_credited_run = run_id
+	var tasks := ToonTasks.for_selected()
+	if tasks == null:
+		return
+	var host := get_parent()
+	var path := ""
+	if host != null:
+		path = host.scene_file_path
+	if path == "" and get_tree().current_scene != null:
+		path = get_tree().current_scene.scene_file_path
+	var zone := int(preload("res://scenes/interiors/shop_door.gd").street_zone(path))
+	tasks.note_building(String(run.get("track", "")), int(run.get("floors", 1)), zone)
+
+
+func _smooth_left(run: Dictionary, delta: float) -> float:
+	var key := "%s:%s" % [run.get("id", 0), run.get("state", "")]
+	var posted := float(run.get("left", 0.0))
+	if key != _clock_key:
+		_clock_key = key
+		_clock_left = posted
+		_clock_age = 0.0
+	elif absf(posted - (_clock_left - _clock_age)) > 0.45:
+		_clock_left = posted
+		_clock_age = 0.0
+	else:
+		_clock_age += delta
+	return maxf(_clock_left - _clock_age, 0.0)
+
+
+func _aim_victory(elevator: Node3D, high: bool) -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or elevator == null:
+		return
+	var shot := "high" if high else "low"
+	if _victory_shot != shot:
+		_victory_shot = shot
+		var height := 17.0 if high else 9.4
+		_victory_cam = elevator.global_transform * Vector3(0.0, -32.5, height)
+		_victory_look = elevator.global_transform * Vector3(0.0, 0.0, 5.0)
+	camera.global_position = _victory_cam
+	camera.fov = 75.0 if high else 52.0
+	if camera.global_position.distance_squared_to(_victory_look) > 0.04:
+		camera.look_at(_victory_look, Vector3.UP)
 
 
 func _ensure_room(run: Dictionary) -> void:

@@ -5,8 +5,9 @@ extends RefCounted
 ## Central chain continues 110, 145, the friend and phone tasks, then Flippy's
 ## gag training. After that, HQ and the shopkeepers offer the original Central
 ## quests from ttc_quests.json. The last of those is the gag-training finale.
-## Battle code reports a defeat with note_cog_defeat. Fishing reports a catch
-## with note_fish. Turning a finished task in assigns whatever it points at next.
+## Battle code reports a defeat with note_cog_defeat. A cleared cog building
+## reports note_building. Fishing reports a catch with note_fish. Turning a
+## finished task in assigns whatever it points at next.
 
 const COG := "cog"
 const TROLLEY := "trolley"
@@ -15,6 +16,7 @@ const VISIT := "visit"
 const TRACK := "track"
 const FRIEND := "friend"
 const PHONE := "phone"
+const BUILDING := "building"
 
 # NPCToons ids the Toontown Central chain visits, and the interior zone the
 # quest map uses for that building.
@@ -432,6 +434,30 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			if _recover_roll(entry, int(info.get("chance", 100))):
 				entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
 			changed = true
+	if changed:
+		save()
+
+
+## QuestManagerAI.toonKilledBuilding. One building, of this department and height.
+func note_building(track: String, floors: int, zone: int) -> void:
+	var dept := track.to_lower()
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != BUILDING:
+			continue
+		if not _place_ok(info, zone):
+			continue
+		var need := String(info.get("track", "any"))
+		if need != "" and need != "any" and need != dept:
+			continue
+		if floors < int(info.get("floors", 1)):
+			continue
+		entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+		changed = true
 	if changed:
 		save()
 
@@ -1029,7 +1055,7 @@ func _giver_ok(info: Dictionary, npc_id: int) -> bool:
 	if dest > 1000 and not _npc_live(dest):
 		return false
 	var kind := String(info.get("kind", ""))
-	return kind == COG or kind == RECOVER or kind == VISIT
+	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING
 
 
 func _npc_live(npc_id: int) -> bool:
