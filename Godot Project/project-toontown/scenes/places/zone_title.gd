@@ -130,6 +130,8 @@ static func zone_of(scene_path: String) -> int:
 
 
 static func caption(scene_path: String) -> Dictionary:
+	if scene_path.ends_with("minigolf_round.tscn"):
+		return {"text": "Chip 'n Dale's MiniGolf\nOn the Course", "color": Color(0.2, 0.55, 0.28)}
 	if scene_path.ends_with("shop_interior.tscn"):
 		var shop_title := String(_SHOP_DOOR.title)
 		if shop_title.is_empty():

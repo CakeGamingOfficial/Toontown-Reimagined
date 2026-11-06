@@ -18,7 +18,7 @@ script = ExtResource("4_acres")
 environment = SubResource("Environment_day")
 
 [node name="Geometry" parent="." instance=ExtResource("1_geom")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, -20)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 20, 0)
 script = ExtResource("2_collision")
 
 [node name="Camera" type="Camera3D" parent="."]

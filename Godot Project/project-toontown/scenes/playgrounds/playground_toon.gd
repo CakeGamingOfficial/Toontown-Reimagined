@@ -32,6 +32,7 @@ const _SELL := preload("res://scenes/fishing/fish_sell_gui.gd")
 const _CAST := preload("res://scenes/fishing/fishing_session.gd")
 const _MARGINS := preload("res://scenes/toons/margin_tags.gd")
 const _TROLLEY := preload("res://scenes/trolley/trolley.gd")
+const _MINIGOLF := preload("res://scenes/golf/minigolf_karts.gd")
 const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
 const _DOODLE := preload("res://scenes/pets/doodle.gd")
 const _PET_GUI := preload("res://scenes/pets/pet_shop_gui.gd")
@@ -164,6 +165,7 @@ var _clerk_line: PanelContainer
 var _clerk_label: Label
 var _clerk_left := 0.0
 var _trolley: Node
+var _minigolf: Node
 var _jar_beans: Node3D
 var _bean_rest := Basis.IDENTITY
 # Walk up to the jellybean bank. The sphere opens the counter, the way
@@ -357,6 +359,11 @@ func _ready() -> void:
 	add_child(_trolley)
 	if not _trolley.setup(self):
 		_trolley = null
+	_minigolf = _MINIGOLF.new()
+	_minigolf.name = "MiniGolf"
+	add_child(_minigolf)
+	if not _minigolf.setup(self):
+		_minigolf = null
 	# setFactoryInteriorZone. The exterior doors close, then enterTeleportIn
 	# plays on the factory floor. The toon does not ride the interior car.
 	if from_factory == "in":
@@ -440,6 +447,8 @@ func _process(delta: float) -> void:
 		_release_camera_mouse(true)
 	if _trolley != null:
 		_trolley.tick(delta)
+	if _minigolf != null:
+		_minigolf.tick(delta)
 	if _portaling:
 		_place_camera()
 		_place_line(delta)
@@ -744,6 +753,9 @@ func plant(point: Vector3, heading: float) -> void:
 
 
 func _arrival_spot() -> Dictionary:
+	var golf: Dictionary = _MINIGOLF.take_drop()
+	if not golf.is_empty() and _scene_path().contains("minigolf"):
+		return {"point": _snap_drop(golf["point"]), "heading": float(golf["heading"])}
 	if ToonSocial.visit_on and ToonSocial.visit_scene == _scene_path():
 		ToonSocial.visit_on = false
 		return {"point": ToonSocial.visit_point, "heading": ToonSocial.visit_heading}

@@ -188,6 +188,17 @@ static func submit(channel: String, state: Dictionary) -> void:
 	net._store(channel, packed)
 
 
+static func minigolf_act(kind: String, a: int, b: float, c: float) -> void:
+	var net := live()
+	if net == null:
+		return
+	if is_authority():
+		MiniGolf.act(peer_id(), kind, a, b, c)
+		return
+	if net._role == "client":
+		net._minigolf_act.rpc_id(1, kind, a, b, c)
+
+
 static func channels(prefix: String) -> PackedStringArray:
 	var found := PackedStringArray()
 	var net := live()
@@ -1177,6 +1188,7 @@ func _on_peer_gone(id: int) -> void:
 	_broadcast()
 	districts_changed.emit()
 	_drop_toon(id)
+	MiniGolf.drop_peer(id)
 
 
 func _peer_label(id: int) -> String:
@@ -1449,6 +1461,13 @@ func _request_summon(district: int, slug: String, query: String, level: int, x: 
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_ask_summon(district, slug, query, level, Vector3(x, y, z))
+
+
+@rpc("any_peer", "reliable")
+func _minigolf_act(kind: String, a: int, b: float, c: float) -> void:
+	if not is_authority():
+		return
+	MiniGolf.act(multiplayer.get_remote_sender_id(), kind, a, b, c)
 
 
 @rpc("any_peer", "unreliable_ordered")
