@@ -12678,5 +12678,61 @@
     ]
    }
   ]
+ },
+ "2516": {
+  "street": 2000,
+  "block": 16,
+  "title": "Toontown School House",
+  "npcs": [
+   {
+    "id": 2003,
+    "name": "Professor Pete",
+    "gender": "m",
+    "dna": [
+     "cll",
+     "ms",
+     "l",
+     "m",
+     18,
+     0,
+     18,
+     18,
+     0,
+     4,
+     0,
+     4,
+     1,
+     15
+    ]
+   }
+  ]
+ },
+ "2521": {
+  "street": 2000,
+  "block": 21,
+  "title": "Clothing Shop",
+  "npcs": [
+   {
+    "id": 2004,
+    "name": "Tammy the Tailor",
+    "gender": "f",
+    "dna": [
+     "rll",
+     "md",
+     "m",
+     "f",
+     15,
+     0,
+     5,
+     7,
+     3,
+     5,
+     3,
+     5,
+     0,
+     3
+    ]
+   }
+  ]
  }
 }

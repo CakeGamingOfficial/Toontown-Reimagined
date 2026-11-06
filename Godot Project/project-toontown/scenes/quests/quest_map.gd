@@ -120,6 +120,7 @@ const _SUIT := {
 
 var _tasks: ToonTasks
 var _zone := 0
+var _span := PackedFloat32Array()
 var _ready := false
 var _open := false
 var _where := Vector3.ZERO
@@ -150,7 +151,12 @@ func setup(tasks: ToonTasks, zone: int) -> bool:
 	var try_close := _texture("tt_t_gui_qst_mapTryToClose.png")
 	var arrow := _texture("tt_t_gui_qst_arrow.png")
 	var pin := _texture("startPartyButton_inactive.png")
-	if card == null or closed == null or opened == null or try_open == null or try_close == null or arrow == null or pin == null:
+	if zone == 2000:
+		_span = _playground_span()
+	if closed == null or opened == null or try_open == null or try_close == null or arrow == null or pin == null:
+		visible = false
+		return false
+	if card == null and _span.size() < 4:
 		visible = false
 		return false
 	_ready = true
@@ -159,15 +165,29 @@ func setup(tasks: ToonTasks, zone: int) -> bool:
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.visible = false
 	add_child(_panel)
-	var image := TextureRect.new()
-	image.set_anchors_preset(Control.PRESET_FULL_RECT)
-	image.offset_right = 0.0
-	image.offset_bottom = 0.0
-	image.texture = card
-	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	image.stretch_mode = TextureRect.STRETCH_SCALE
-	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.add_child(image)
+	if card != null:
+		var image := TextureRect.new()
+		image.set_anchors_preset(Control.PRESET_FULL_RECT)
+		image.offset_right = 0.0
+		image.offset_bottom = 0.0
+		image.texture = card
+		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		image.stretch_mode = TextureRect.STRETCH_SCALE
+		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_panel.add_child(image)
+	else:
+		var grass := ColorRect.new()
+		grass.color = Color(0.56, 0.82, 0.48, 1.0)
+		grass.set_anchors_preset(Control.PRESET_FULL_RECT)
+		grass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_panel.add_child(grass)
+		var caption := Label.new()
+		caption.text = "Toontown Central"
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_GUI.style_label(caption, Color(0.1, 0.25, 0.12, 1.0), 22, Color(0, 0, 0, 0), 0)
+		grass.add_child(caption)
+		caption.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_cog = ColorRect.new()
 	_cog.color = Color(0.5, 0.5, 0.5, 0.5)
 	_cog.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -342,6 +362,8 @@ func _marker_rel(card: Dictionary) -> Vector2:
 
 func _building_rel(interior_zone: int) -> Vector2:
 	var building := _BLDG.find_for_zone(interior_zone)
+	if building == null:
+		building = _landmark(interior_zone)
 	if building == null or not building.is_inside_tree():
 		return _NONE
 	var where := building.global_position
@@ -360,7 +382,7 @@ func _table_rel(table: Dictionary) -> Vector2:
 
 func _relative(panda_x: float, panda_y: float) -> Vector2:
 	# QuestMap.transformAvPos. Panda X is Godot X. Panda Y is Godot -Z.
-	var row := _floats(_CORNER, _zone)
+	var row := _span if _zone == 2000 and _span.size() >= 4 else _floats(_CORNER, _zone)
 	if row.size() < 4:
 		return Vector2.ZERO
 	var span_x := row[0] - row[2]
@@ -459,6 +481,79 @@ func _texture(file_name: String) -> Texture2D:
 	if not ResourceLoader.exists(path):
 		return null
 	return load(path) as Texture2D
+
+
+func _landmark(interior_zone: int) -> Node3D:
+	var suffix := ""
+	if interior_zone == 2513:
+		suffix = "toon_landmark_TT_toonhall"
+	elif interior_zone == 2518:
+		suffix = "library_DNARoot"
+	elif interior_zone == 2516:
+		suffix = "school_house_DNARoot"
+	elif interior_zone == 2521:
+		suffix = "clothes_shop_DNARoot"
+	else:
+		return null
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+	return _find_suffix(scene, suffix)
+
+
+func _find_suffix(node: Node, suffix: String) -> Node3D:
+	if node is Node3D and str(node.name).ends_with(suffix):
+		return node as Node3D
+	for child in node.get_children():
+		var found := _find_suffix(child, suffix)
+		if found != null:
+			return found
+	return null
+
+
+func _playground_span() -> PackedFloat32Array:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return PackedFloat32Array()
+	var found := {"ok": false, "minx": 0.0, "maxx": 0.0, "miny": 0.0, "maxy": 0.0}
+	_span_walk(scene, found)
+	if not bool(found["ok"]):
+		return PackedFloat32Array()
+	var pad := 30.0
+	return PackedFloat32Array([
+		float(found["maxx"]) + pad,
+		float(found["maxy"]) + pad,
+		float(found["minx"]) - pad,
+		float(found["miny"]) - pad,
+	])
+
+
+func _span_walk(node: Node, found: Dictionary) -> void:
+	var label := str(node.name).to_lower()
+	if "sky" in label or "cloud" in label:
+		return
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null and mesh.is_inside_tree():
+			var box := mesh.global_transform * mesh.get_aabb()
+			if box.size.x < 2000.0 and box.size.y < 400.0 and box.size.z < 2000.0:
+				var min_x := box.position.x
+				var max_x := min_x + box.size.x
+				var panda_min := -box.position.z - box.size.z
+				var panda_max := -box.position.z
+				if not bool(found["ok"]):
+					found["ok"] = true
+					found["minx"] = min_x
+					found["maxx"] = max_x
+					found["miny"] = panda_min
+					found["maxy"] = panda_max
+				else:
+					found["minx"] = minf(float(found["minx"]), min_x)
+					found["maxx"] = maxf(float(found["maxx"]), max_x)
+					found["miny"] = minf(float(found["miny"]), panda_min)
+					found["maxy"] = maxf(float(found["maxy"]), panda_max)
+	for child in node.get_children():
+		_span_walk(child, found)
 
 
 func _dna(zone: int) -> String:

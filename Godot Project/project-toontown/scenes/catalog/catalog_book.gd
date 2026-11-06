@@ -43,7 +43,7 @@ const _SHOE_LEGS := "res://assets/toons/parts/legs_s.glb"
 ## once every 10 seconds, from heading 90 to -270.
 const _SPIN_SECONDS := 10.0
 const _GREETING := "Hello! Thanks for calling Clarabelle's Cattlelog. Can I help you?"
-const _BOUGHT := "Congratulations on your new purchase!  You can start using it right away."
+const _BOUGHT := "Your order has been placed. Check your mailbox!"
 const _BROKE := "You don't have enough jellybeans for that."
 const _OWNED := "You already have that."
 
@@ -373,15 +373,21 @@ func _purchase(item: Dictionary) -> void:
 		_say(_OWNED)
 		return
 	var price := int(item.get("price", 0))
-	if not _BEANS.take_beans(price):
+	var ticket := false
+	if String(item.get("kind", "")) == "clothing":
+		var tasks := ToonTasks.for_selected()
+		if tasks != null and tasks.clothing_tickets > 0:
+			ticket = tasks.use_clothing_ticket()
+	if not ticket and not _BEANS.take_beans(price):
 		_say(_BROKE)
 		return
-	_CLOSET.buy(_style, item)
-	if _actor != null and is_instance_valid(_actor):
-		_actor.recolor(_style)
-		_actor.wear_accessories(_CLOSET.accessory_ids())
-	_refresh_chat()
-	_refresh_nametag()
+	var posted := item.duplicate(true)
+	if String(posted.get("name", "")) == "":
+		if String(posted.get("kind", "")) == "accessory":
+			posted["name"] = String(_accessory_record(posted).get("name", "Accessory"))
+		else:
+			posted["name"] = _kind_name(String(posted.get("kind", "")))
+	_CLOSET.order(posted)
 	_say(_BOUGHT)
 	_show_page()
 

@@ -293,6 +293,7 @@ var reward_tier := 0
 var reward_history: Array[int] = []
 ## MaxQuestCarry starts at 1. Reward 500 raises it to 2.
 var quest_carry := 1
+var clothing_tickets := 0
 var teleport: Array[int] = []
 var in_playground := false
 ## Hood id from DistributedToonAI.setLocation. 2000 is Toontown Central.
@@ -301,6 +302,7 @@ var visited: Array[int] = []
 
 var _slot := -1
 var _active: Array[Dictionary] = []
+var _battle_notes: PackedStringArray = PackedStringArray()
 var _done: Array[int] = []
 
 
@@ -431,8 +433,13 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 				continue
 			if not _holder_ok(info, code, dept, level):
 				continue
-			if _recover_roll(entry, int(info.get("chance", 100))):
+			var found := _recover_roll(entry, int(info.get("chance", 100)))
+			var item_name := String(info.get("caption", "item"))
+			if found:
 				entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+				_battle_notes.append("Items Recovered: %s" % item_name)
+			else:
+				_battle_notes.append("Items Not Recovered: %s" % item_name)
 			changed = true
 	if changed:
 		save()
@@ -498,6 +505,32 @@ func ready_hq() -> Dictionary:
 			continue
 		return card
 	return {}
+
+
+## RewardPanel shows these once, after the gag experience, then clears them.
+func take_battle_notes() -> String:
+	if _battle_notes.is_empty():
+		return ""
+	var text := "\n".join(_battle_notes)
+	_battle_notes = PackedStringArray()
+	return text
+
+
+func use_clothing_ticket() -> bool:
+	if clothing_tickets <= 0:
+		return false
+	clothing_tickets -= 1
+	save()
+	return true
+
+
+## DeliverItemQuest is carried from the moment it is given until the NPC takes it.
+func carrying_delivery() -> bool:
+	for entry in _active:
+		var info: Dictionary = _info(int(entry["id"]))
+		if String(info.get("headline", "")) == "DELIVER":
+			return true
+	return false
 
 
 ## Finishing a trolley ride calls this. Nothing else marks quest 110 complete.
@@ -841,6 +874,7 @@ func apply_dict(record: Dictionary) -> void:
 	track_progress = int(record.get("track_progress", track_progress))
 	reward_tier = int(record.get("reward_tier", reward_tier))
 	quest_carry = maxi(int(record.get("quest_carry", quest_carry)), 1)
+	clothing_tickets = maxi(int(record.get("clothing_tickets", clothing_tickets)), 0)
 	reward_history.clear()
 	for reward_id in record.get("reward_history", []):
 		reward_history.append(int(reward_id))
@@ -891,6 +925,7 @@ func save() -> void:
 		"reward_tier": reward_tier,
 		"reward_history": reward_history.duplicate(),
 		"quest_carry": quest_carry,
+		"clothing_tickets": clothing_tickets,
 		"teleport": teleport.duplicate(),
 		"in_playground": in_playground,
 		"last_hood": last_hood,
@@ -1178,6 +1213,8 @@ func _collect(info: Dictionary) -> void:
 		track_progress = track_progress | (1 << (reward_id - 801))
 	if reward_id == 500:
 		quest_carry = maxi(quest_carry, 2)
+	if reward_id == 1000:
+		clothing_tickets += 1
 	if reward_id == 300 and not teleport.has(2000):
 		teleport.append(2000)
 	var guard := 0
@@ -1243,6 +1280,7 @@ func _load() -> void:
 	track_progress = int(stored.get("track_progress", 0))
 	reward_tier = maxi(int(stored.get("reward_tier", 0)), 0)
 	quest_carry = maxi(int(stored.get("quest_carry", 1)), 1)
+	clothing_tickets = maxi(int(stored.get("clothing_tickets", 0)), 0)
 	reward_history.clear()
 	for reward_id in stored.get("reward_history", []):
 		reward_history.append(int(reward_id))

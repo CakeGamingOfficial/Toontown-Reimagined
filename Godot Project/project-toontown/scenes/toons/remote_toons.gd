@@ -141,6 +141,7 @@ func _send() -> void:
 		"pet_z": pet_z,
 		"pet_yaw": pet_yaw,
 		"pet_anim": pet_anim,
+		"parcel": _actor.carrying_parcel(),
 	})
 
 
@@ -219,6 +220,7 @@ func _apply(channel: String) -> void:
 	if dressed is Dictionary:
 		actor.set_meta("style", dressed)
 	actor.visible = true
+	actor.hold_parcel(bool(state.get("parcel", false)))
 	var shown: Control = puppet.get("tag")
 	if shown != null:
 		shown.visible = true
@@ -238,6 +240,7 @@ func _create(state: Dictionary) -> ToonActor:
 		add_child(actor)
 	actor.show_style(style)
 	_wear(actor, state)
+	actor.hold_parcel(bool(state.get("parcel", false)))
 	actor.footsteps = true
 	actor.global_position = Vector3(float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("z", 0.0)))
 	_face(actor, float(state.get("heading", 0.0)))

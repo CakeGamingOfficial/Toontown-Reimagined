@@ -1,10 +1,12 @@
 class_name CatalogCloset
 extends RefCounted
 
-## What this toon has bought from Clarabelle. Clothes are worn immediately.
+## What this toon has bought from Clarabelle. An order waits in the mailbox
+## until it is accepted, and accepting it wears the clothes.
 ## The toon slot file is left alone, because writing it clears jellybeans and tasks.
 
 const _PATH := "user://catalog.json"
+const _MAIL := "user://mailbox.json"
 const _TANK := preload("res://scenes/fishing/fish_tank.gd")
 const _EMOTE := [
 	"Wave", "Happy", "Sad", "Angry", "Sleepy", "Shrug", "Dance", "Think", "Bored",
@@ -23,9 +25,13 @@ const _EMOTE_SAY := [
 
 static var _loaded := false
 static var _book: Dictionary = {}
+static var _mail_loaded := false
+static var _mail: Dictionary = {}
 
 
 static func owns(item: Dictionary) -> bool:
+	if _pending(item):
+		return true
 	var row := _row()
 	var kind := String(item.get("kind", ""))
 	var item_id := int(item.get("id", -1))
@@ -44,6 +50,48 @@ static func owns(item: Dictionary) -> bool:
 	if _kept(kind):
 		return _list(row, "catalog").has(_token(item))
 	return false
+
+
+## Catalog purchases land in the mailbox. The closet changes when the mail is accepted.
+static func order(item: Dictionary) -> void:
+	var rows := _slot_rows()
+	var posted := item.duplicate(true)
+	posted["due"] = int(Time.get_unix_time_from_system()) + _delivery_seconds(String(item.get("kind", "")))
+	rows.append(posted)
+	_mail[str(_slot())] = rows
+	_write_mail()
+
+
+static func mail_count() -> int:
+	return mail_rows().size()
+
+
+static func mail_waiting() -> int:
+	return _slot_rows().size() - mail_rows().size()
+
+
+static func mail_rows() -> Array:
+	var ready: Array = []
+	for row in _slot_rows():
+		if row is Dictionary and _arrived(row):
+			ready.append(row)
+	return ready
+
+
+static func take_mail(style: ToonStyle) -> int:
+	var kept: Array = []
+	var taken: Array = []
+	for row in _slot_rows():
+		if row is Dictionary and _arrived(row):
+			taken.append(row)
+		else:
+			kept.append(row)
+	_mail[str(_slot())] = kept
+	_write_mail()
+	for item in taken:
+		if item is Dictionary:
+			buy(style, item)
+	return taken.size()
 
 
 static func buy(style: ToonStyle, item: Dictionary) -> void:
@@ -194,6 +242,64 @@ static func _list(row: Dictionary, key: String) -> Array:
 static func _dict(row: Dictionary, key: String) -> Dictionary:
 	var value: Variant = row.get(key, {})
 	return value as Dictionary if value is Dictionary else {}
+
+
+static func _slot_rows() -> Array:
+	_ensure_mail()
+	var value: Variant = _mail.get(str(_slot()), [])
+	if value is Array:
+		return value
+	return []
+
+
+static func _arrived(item: Dictionary) -> bool:
+	return int(item.get("due", 0)) <= int(Time.get_unix_time_from_system())
+
+
+## getDeliveryTime is in minutes. Clothes and wallpaper take an hour.
+## Furniture and fishing poles take a day. SpeedChat phrases are ready now.
+static func _delivery_seconds(kind: String) -> int:
+	if kind == "furniture" or kind == "pole":
+		return 24 * 60 * 60
+	if kind == "emote" or kind == "phrase" or kind == "nametag":
+		return 0
+	return 60 * 60
+
+
+static func _pending(item: Dictionary) -> bool:
+	var token := _token(item)
+	var piece := String(item.get("piece", ""))
+	var worn := String(item.get("slot", ""))
+	for row in _slot_rows():
+		if not (row is Dictionary):
+			continue
+		var other: Dictionary = row
+		if _token(other) != token:
+			continue
+		if String(other.get("piece", "")) != piece:
+			continue
+		if String(other.get("slot", "")) != worn:
+			continue
+		return true
+	return false
+
+
+static func _ensure_mail() -> void:
+	if _mail_loaded:
+		return
+	_mail_loaded = true
+	if not FileAccess.file_exists(_MAIL):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_MAIL))
+	if parsed is Dictionary:
+		_mail = parsed
+
+
+static func _write_mail() -> void:
+	var file := FileAccess.open(_MAIL, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify(_mail))
 
 
 static func _token(item: Dictionary) -> String:

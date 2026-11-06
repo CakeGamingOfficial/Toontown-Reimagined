@@ -23,6 +23,7 @@ const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
+const _MAILBOX := preload("res://scenes/estate/mailbox.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
 const _TRACK_CHOICE := preload("res://scenes/quests/track_choice.gd")
@@ -112,6 +113,15 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
+var _quest_npc: Node3D
+var _quest_choice := false
+var _quest_cam_age := 0.0
+var _quest_cam_from := Vector3.ZERO
+var _quest_cam_look := Vector3.ZERO
+var _quest_cam_on := false
+var _deliver_hold := false
+var _mail_ready := true
+var _mail_box = null
 var _battle_hold := false
 var _filming := false
 var _portaling := false
@@ -340,11 +350,14 @@ func _ready() -> void:
 	_PET.prepare(get_parent(), _hood)
 	_HALL.prepare(get_parent())
 	_LIB.prepare(get_parent())
+	_place_mailbox()
 	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	var window := get_tree().root
 	if _BLDG.street_zone(_scene_path()) != 0:
 		_BLDG.prepare(get_parent())
+	else:
+		_BLDG.prepare_landmarks(get_parent())
 	if not window.close_requested.is_connected(_keep_quests):
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
@@ -443,6 +456,12 @@ func _process(delta: float) -> void:
 		return
 	if _map != null and _body != null:
 		_map.call("follow", _body.global_position, _heading)
+	if _player != null:
+		var reading := _book != null and _book.is_open()
+		var carry := _tasks != null and (_tasks.carrying_delivery() or _deliver_hold) and not _battle_hold and not reading
+		_player.hold_parcel(carry)
+	if not _locked:
+		_quest_npc = null
 	if _locked or _filming or _portaling or _bank_open or _battle_hold or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
 	if _trolley != null:
@@ -471,6 +490,8 @@ func _process(delta: float) -> void:
 		_trolley.aim(_camera)
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
+	elif _quest_npc != null and is_instance_valid(_quest_npc):
+		_aim_quest_camera(delta)
 	else:
 		_place_camera()
 	_place_line(delta)
@@ -504,6 +525,7 @@ func _physics_process(delta: float) -> void:
 	_try_hq_door()
 	_try_bank()
 	_try_phone()
+	_try_mailbox()
 	_try_closet()
 	_try_building_door()
 	_try_clerk()
@@ -1791,6 +1813,7 @@ func _try_officer() -> void:
 	if _player != null:
 		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(officer)
+	_begin_quest_shot(actor, false)
 	if not card.is_empty():
 		_tasks.turn_in(int(card.get("id", 0)))
 		_grant_task_reward(card)
@@ -1806,6 +1829,7 @@ func _try_officer() -> void:
 		_locked = false
 		return
 	# QuestMovieQuestChoice. The posters stay up until Choose, Cancel, or 20 seconds.
+	_begin_quest_shot(actor, true)
 	_say_clerk(actor, "Choose a ToonTask.", 30.0)
 	var panel := _QUEST_CHOICE.new() as QuestChoice
 	panel.name = "QuestChoice"
@@ -1856,6 +1880,8 @@ func _try_quest_npc() -> void:
 	if card.is_empty():
 		shop_offers = _tasks.offers_for(npc_id)
 		if shop_offers.is_empty():
+			if npc_id == 2004:
+				await _meet_tailor(npc)
 			return
 	_npc_ready = false
 	_locked = true
@@ -1868,6 +1894,7 @@ func _try_quest_npc() -> void:
 	if toward.length_squared() > 0.0001:
 		_heading = _heading_toward(toward)
 		_face(_player, _heading)
+	_begin_quest_shot(actor, card.is_empty())
 	if card.is_empty():
 		await _offer_from_npc(actor, shop_offers, npc_id)
 		return
@@ -1877,6 +1904,7 @@ func _try_quest_npc() -> void:
 		_locked = false
 		return
 	if String(card.get("kind", "")) == "track":
+		_begin_quest_shot(actor, true)
 		await _speak_pages(actor, _tasks.choice_pages(quest_id))
 		if not is_inside_tree():
 			return
@@ -1903,17 +1931,38 @@ func _try_quest_npc() -> void:
 		_locked = false
 		return
 	var finished := _tasks.after_pages(quest_id)
+	_deliver_hold = String(card.get("headline", "")) == "DELIVER"
 	var given := _tasks.turn_in(quest_id, npc_id)
 	_grant_task_reward(card)
 	if _book != null:
 		_book.refresh_tasks()
 	await _speak_pages(actor, finished)
+	_deliver_hold = false
 	if not is_inside_tree():
 		return
 	if given != 0:
 		await _speak_pages(actor, _tasks.quest_pages(given))
 	_locked = false
 	return
+
+
+func _meet_tailor(clerk: Node3D) -> void:
+	_npc_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	var actor := _clerk_actor(clerk)
+	_begin_quest_shot(actor, false)
+	var line := "Welcome to the Clothing Shop!"
+	if _tasks != null and _tasks.clothing_tickets > 0:
+		line = "You have a clothing ticket! Call Clarabelle and pick one outfit. It's on me."
+	_say_clerk(actor, line, 4.0)
+	await get_tree().create_timer(4.0).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	_locked = false
 
 
 func _offer_from_npc(actor: Node3D, shop_offers: Array[Dictionary], npc_id: int) -> void:
@@ -2904,7 +2953,7 @@ func _try_building_door() -> void:
 			return
 		trigger = _DOORS.inside_trigger(origin)
 	else:
-		if _BLDG.street_zone(scene_path) == 0:
+		if _BLDG.street_zone(scene_path) == 0 and _BLDG.named_doors().is_empty():
 			return
 		var near: Dictionary = _BLDG.closest(_body.global_position)
 		if near.is_empty():
@@ -3517,6 +3566,8 @@ func _ready_hud() -> void:
 	# The open book covers the street map. The map stays above the laff meter.
 	_book.z_index = 20
 	var street_zone := _BLDG.street_zone(_scene_path())
+	if street_zone == 0 and _scene_path().ends_with("toontown_central.tscn"):
+		street_zone = 2000
 	if street_zone != 0:
 		# Loaded by path so the street script and the map script do not preload each other.
 		var map_script := load("res://scenes/quests/quest_map.gd") as GDScript
@@ -3653,6 +3704,111 @@ func _walk(delta: float) -> void:
 	_player.set_locomotion(speed, turning, _jumping or jumped, delta)
 	if _remotes != null:
 		_remotes.note(face_heading, speed, turning, _jumping or jumped, not _player.visible)
+
+
+func _place_mailbox() -> void:
+	if not _PLACES.is_estate(_scene_path()):
+		return
+	var slot := 0
+	var host := get_parent()
+	if host != null and "estate_slot" in host:
+		slot = clampi(int(host.get("estate_slot")), 0, 5)
+	var house := _find_house(host, "esHouse_%d" % slot)
+	if house == null:
+		return
+	var box = _MAILBOX.new()
+	box.name = "Mailbox"
+	house.add_child(box)
+	# phase_5.5 mailboxHouse sits at house-local (19, -4, 0), heading 90.
+	# Y-up turns that into (19, 0, 4).
+	box.position = Vector3(19.0, 0.0, 4.0)
+	box.rotation_degrees = Vector3(0.0, 90.0, 0.0)
+	box.build()
+	_mail_box = box
+
+
+func _try_mailbox() -> void:
+	if _mail_box == null or not is_instance_valid(_mail_box) or _body == null:
+		_mail_ready = true
+		return
+	if _body.global_position.distance_to(_mail_box.global_position) > 4.0:
+		_mail_ready = true
+		return
+	if not _mail_ready or _locked or _is_sad():
+		return
+	if _book != null and _book.is_open():
+		_mail_ready = false
+		return
+	_mail_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_mail_box.open_screen(_hud())
+	await _mail_box.done
+	if not is_inside_tree():
+		return
+	_refresh_from_closet()
+	_locked = false
+
+
+func _refresh_from_closet() -> void:
+	var style := ToonRoster.selected_style()
+	if style != null and _player != null:
+		_player.recolor(style)
+		_player.wear_accessories(_CLOSET.accessory_ids())
+	var host := get_tree().root
+	for node in host.find_children("*", "SpeedChat", true, false):
+		if node.has_method("apply_catalog"):
+			node.call("apply_catalog")
+	var font := _CLOSET.font_path()
+	if font == "":
+		return
+	for node in host.find_children("*", "Nametags", true, false):
+		if node.has_method("apply_font"):
+			node.call("apply_font", font)
+
+
+func _begin_quest_shot(actor: Node3D, choice: bool) -> void:
+	if actor == null:
+		return
+	_quest_npc = actor
+	_quest_choice = choice
+	_quest_cam_age = 0.0
+	_quest_cam_on = false
+
+
+func _aim_quest_camera(delta: float) -> void:
+	if _camera == null or _quest_npc == null or not is_instance_valid(_quest_npc):
+		return
+	if not _quest_cam_on:
+		_quest_cam_from = _camera.global_position
+		_quest_cam_look = _camera.global_position - _camera.global_basis.z
+		_quest_cam_on = true
+	_quest_cam_age += delta
+	var along := clampf(_quest_cam_age, 0.0, 1.0)
+	var ease := 1.0 - pow(1.0 - along, 2.0)
+	var height := _npc_height(_quest_npc)
+	var forward := -_quest_npc.global_basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		forward = Vector3(0.0, 0.0, -1.0)
+	forward = forward.normalized()
+	var right := forward.cross(Vector3.UP).normalized()
+	var side := 5.0 if _quest_choice else -5.0
+	var dest := _quest_npc.global_position + right * side + forward * 9.0 + Vector3.UP * (height - 0.5)
+	var look := _quest_npc.global_position + Vector3.UP * (height * 0.5)
+	var where := _quest_cam_from.lerp(dest, ease)
+	var look_at := _quest_cam_look.lerp(look, ease)
+	_camera.global_position = where
+	if where.distance_squared_to(look_at) > 0.04:
+		_camera.look_at(look_at, Vector3.UP)
+
+
+func _npc_height(actor: Node3D) -> float:
+	if actor.has_method("clamped_height"):
+		return float(actor.call("clamped_height"))
+	return 3.0
 
 
 func _place_camera() -> void:

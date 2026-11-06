@@ -1070,6 +1070,10 @@ func _seconds(fight: Dictionary, delta: float) -> int:
 func _show_reward(fight: Dictionary, token: int) -> void:
 	var rows: Array = fight.get("reward_rows", [])
 	_apply_my_reward(fight)
+	var recovered := ""
+	var tasks := ToonTasks.for_selected()
+	if tasks != null:
+		recovered = tasks.take_battle_notes()
 	for item in rows:
 		if token != _reward_token or not is_inside_tree():
 			return
@@ -1083,7 +1087,10 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 			display = _display_loadout(row.get("before", []), row.get("earned", []))
 		if display == null:
 			continue
-		await _reward.present(String(row.get("name", "Toon")), display, before, earned, "", false)
+		var quest_line := ""
+		if int(row.get("id", 0)) == ToonNet.peer_id():
+			quest_line = recovered
+		await _reward.present(String(row.get("name", "Toon")), display, before, earned, quest_line, false)
 	if token != _reward_token or not is_inside_tree():
 		return
 	if not _any_earned(rows, ToonNet.peer_id()):

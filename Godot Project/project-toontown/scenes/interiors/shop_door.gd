@@ -116,6 +116,46 @@ static func prepare(host: Node) -> void:
 	preload("res://scenes/streets/joke_doors.gd").attach(host)
 
 
+## Playground landmarks that use a normal toon interior: the school house
+## (Professor Pete, zone 2516) and the clothing shop (Tammy, zone 2521).
+## The neighborhood export left each door slab at the building origin, so the
+## swinging panels take the door-origin point from the landmark bam.
+static func prepare_landmarks(host: Node) -> void:
+	_buildings.clear()
+	_entries.clear()
+	_hang_landmark(host, "school_house_DNARoot", 2516, "door_double_square_ur", Vector3(12.637, -7.208, 0.741))
+	_hang_landmark(host, "clothes_shop_DNARoot", 2521, "door_double_clothesshop_ur", Vector3(-4.672, -0.77, 3.827))
+
+
+static func _hang_landmark(host: Node, suffix: String, zone_id: int, door_code: String, pivot: Vector3) -> void:
+	var building := _find_suffix(host, suffix)
+	if building == null:
+		return
+	building.set_meta("shop_zone", zone_id)
+	var door := Node3D.new()
+	door.name = door_code
+	building.add_child(door)
+	door.position = pivot
+	_add_panels(door)
+	_tint_tree(door, Color(0.88, 0.45, 0.38, 1.0))
+	_buildings.append(building)
+	_entries.append({
+		"building": building,
+		"door": door,
+		"point": outside_trigger(building, door),
+	})
+
+
+static func _find_suffix(node: Node, suffix: String) -> Node3D:
+	if node is Node3D and str(node.name).ends_with(suffix):
+		return node as Node3D
+	for child in node.get_children():
+		var found := _find_suffix(child, suffix)
+		if found != null:
+			return found
+	return null
+
+
 static func find_for_zone(zone_id: int) -> Node3D:
 	for building in _buildings:
 		if is_instance_valid(building) and interior_zone(building) == zone_id:
@@ -124,6 +164,8 @@ static func find_for_zone(zone_id: int) -> Node3D:
 
 
 static func interior_zone(building: Node) -> int:
+	if building.has_meta("shop_zone"):
+		return int(building.get_meta("shop_zone"))
 	var block := block_of(str(building.name))
 	if block < 0:
 		return 0

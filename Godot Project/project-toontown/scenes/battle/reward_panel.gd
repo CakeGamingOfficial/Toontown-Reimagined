@@ -201,6 +201,7 @@ func _build() -> void:
 	_quest_title.text = "ToonTasks"
 	_quest_title.visible = false
 	_quest_line = _ink_label(HORIZONTAL_ALIGNMENT_LEFT)
+	_quest_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_quest_line.add_theme_color_override("font_color", _DONE)
 	_quest_line.visible = false
 	for track in ToonLoadout.TRACK_COUNT:
@@ -300,7 +301,7 @@ func _layout() -> void:
 	_put(_dialog, _DIALOG_AT, _DIALOG_SIZE)
 	_style(_name, 0.0, _PANEL_Z + 0.3, 1.5, 0.08, HORIZONTAL_ALIGNMENT_CENTER)
 	_style(_quest_title, 0.0, _PANEL_Z + 0.2, 1.2, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
-	_style(_quest_line, -0.1, _PANEL_Z - 0.1, 1.5, 0.05, HORIZONTAL_ALIGNMENT_LEFT)
+	_style(_quest_line, -0.1, _PANEL_Z - 0.15, 1.5, 0.22, HORIZONTAL_ALIGNMENT_LEFT)
 	for track in ToonLoadout.TRACK_COUNT:
 		var row_z := _FRAME_Z - _ROW * float(track)
 		_put(_frames[track], Vector2(_BAR_AT.x, row_z), _BAR_SIZE)

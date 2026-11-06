@@ -101,6 +101,7 @@ var _book_clock := 0.0
 var _book_hold := 0.0
 var _book_prop: Node3D
 var _book_joints: Array = []
+var _parcel: MeshInstance3D
 var _swimming := false
 var _mood := "normal"
 var _mood_open: Texture2D
@@ -339,6 +340,40 @@ func species() -> String:
 	if _style == null:
 		return ""
 	return _style.species()
+
+
+## DeliverItemQuest puts the package in the right hand until it is handed over.
+func hold_parcel(carry: bool) -> void:
+	if not carry:
+		if _parcel != null and is_instance_valid(_parcel):
+			_parcel.visible = false
+		return
+	if _parcel != null and is_instance_valid(_parcel) and _parcel.visible and _parcel.get_parent() != null:
+		return
+	var hand := find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		return
+	if _parcel == null or not is_instance_valid(_parcel):
+		var mesh := MeshInstance3D.new()
+		mesh.name = "Parcel"
+		var box := BoxMesh.new()
+		box.size = Vector3(0.42, 0.32, 0.36)
+		mesh.mesh = box
+		var mat := StandardMaterial3D.new()
+		var picture := load("res://assets/gui/tutorial/book/package.png") as Texture2D
+		if picture != null:
+			mat.albedo_texture = picture
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+		mesh.material_override = mat
+		_parcel = mesh
+	if _parcel.get_parent() != hand:
+		hand.add_child(_parcel)
+	_parcel.position = Vector3(0.0, 0.12, 0.08)
+	_parcel.visible = true
+
+
+func carrying_parcel() -> bool:
+	return _parcel != null and is_instance_valid(_parcel) and _parcel.visible
 
 
 ## LocalAvatar.getClampedAvatarHeight. Toons shorter than 3 share that camera.
