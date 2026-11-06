@@ -155,10 +155,10 @@ func aim_camera(camera: Camera3D, basis: Dictionary) -> void:
 	var right: Vector3 = basis.get("right", Vector3.RIGHT)
 	var anchor := origin
 	var height := 3.5
-	if on == "toon" and _aim_actor != null:
+	if on == "toon" and _live(_aim_actor):
 		anchor = _aim_actor.global_position
 		height = 3.5
-	elif on == "cog" and _aim_cog != null:
+	elif on == "cog" and _live(_aim_cog):
 		anchor = _aim_cog.global_position
 		height = maxf(float(_aim_cog.get("height")), _HEIGHT)
 	elif on == "cog":
@@ -283,7 +283,7 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 			pie.set_meta("splats", splats)
 		if pie.has_meta("splats"):
 			for shown in pie.get_meta("splats"):
-				if shown is Node3D:
+				if _live(shown) and shown is Node3D:
 					_face_camera(shown)
 		_react_marks(marks, elapsed, 3.0, "pie-small", 2.45)
 		_once("throw", elapsed, 2.6, "AA_pie_throw_only.ogg")
@@ -648,13 +648,13 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 	var victims: Array = lead.get("victims", [])
 	var gate := {}
 	var title := String(lead.get("attack", ""))
-	if cog != null and title != "":
+	if _live(cog) and title != "":
 		cog.set_meta("chat_line", title)
 		cog.set_meta("chat_until", Time.get_ticks_msec() + 3800)
 		ToonSpeech.cog(title)
 	# A fatal hit keeps the round open for the shrink. This clip is only the attack.
 	await _run(3.8, still, func(elapsed: float) -> void:
-		if cog != null:
+		if _live(cog):
 			_react_one(cog, key, elapsed)
 		if prop != null and elapsed < 0.4:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, elapsed / 0.4)
@@ -693,7 +693,7 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 			continue
 		var react := "cringe" if bool((item as Dictionary).get("hit", false)) else "sidestep-left"
 		actor.end_action(react)
-	if cog != null:
+	if _live(cog):
 		cog.set_meta("chat_line", "")
 		cog.set_meta("chat_until", 0)
 
@@ -756,7 +756,7 @@ func _cog_death(marks: Array, still: Callable) -> void:
 			if int(row.get("hp", 1)) > 0:
 				continue
 			var cog: Variant = row.get("cog")
-			if cog is Node and (cog as Node).has_method("play_lose"):
+			if _live(cog) and cog is Node and (cog as Node).has_method("play_lose"):
 				(cog as Node).call("play_lose", elapsed)
 		# MovieUtil deathSoundTrack. Cog_Death is the spin, then the crash.
 		if elapsed >= 0.8 and _latch(gate, "spin"):
@@ -767,7 +767,7 @@ func _cog_death(marks: Array, still: Callable) -> void:
 
 
 func _react_one(cog: Variant, key: String, elapsed: float) -> void:
-	if cog is Node and (cog as Node).has_method("begin_react"):
+	if _live(cog) and cog is Node and (cog as Node).has_method("begin_react"):
 		(cog as Node).call("begin_react", key, elapsed)
 
 
@@ -775,7 +775,7 @@ func _rest(actor: ToonActor, marks: Array) -> void:
 	for mark in marks:
 		var row: Dictionary = mark
 		var cog: Variant = row.get("cog")
-		if cog is Node and (cog as Node).has_method("begin_react") and int(row.get("hp", 1)) > 0:
+		if _live(cog) and cog is Node and (cog as Node).has_method("begin_react") and int(row.get("hp", 1)) > 0:
 			(cog as Node).call("begin_react", "", 0.0)
 	if actor != null:
 		actor.set_locomotion(0.0, false, false, 0.0)
@@ -1028,10 +1028,14 @@ func _tint(node: Node, color: Color) -> void:
 		mesh_node.material_override = tint
 
 
+func _live(node: Variant) -> bool:
+	return node != null and is_instance_valid(node)
+
+
 func _first_cog(marks: Array) -> Node3D:
 	for mark in marks:
 		var cog: Variant = (mark as Dictionary).get("cog")
-		if cog is Node3D:
+		if _live(cog) and cog is Node3D:
 			return cog
 	return null
 

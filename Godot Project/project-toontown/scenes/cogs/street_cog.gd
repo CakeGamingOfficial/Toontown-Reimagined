@@ -154,6 +154,10 @@ static var _health_mesh: ArrayMesh
 const LOSE_SECONDS := 6.0
 var _lose_on := false
 var _lose_tried := false
+var _lose_age := 0.0
+## The server drops a defeated cog when its movie timer ends. A client is
+## still playing the lose-mod, so the body stays until that clip finishes.
+var _dismissed := false
 var _lose_bank: Dictionary = {}
 var _fight_time := 0.0
 var _take: Dictionary = {}
@@ -624,6 +628,7 @@ func play_lose(elapsed: float) -> void:
 
 func _start_lose() -> void:
 	_lose_tried = true
+	_lose_age = 0.0
 	var packed := load("res://assets/cogs/lose/%s.glb" % body) as PackedScene
 	if packed == null:
 		return
@@ -876,6 +881,11 @@ func set_walking(moving: bool) -> void:
 func _process(delta: float) -> void:
 	# The death actor is posed by the battle movie. Idle would put the suit back.
 	if _lose_on:
+		_lose_age += delta
+	if _dismissed and _can_depart():
+		_drop_defeated()
+		return
+	if _lose_on:
 		return
 	if bool(get_meta("in_fight", false)):
 		_tick_health(delta)
@@ -1109,7 +1119,7 @@ func _lane_blocked() -> bool:
 	var reach := toward.length()
 	var mine := get_instance_id()
 	for child in parent.get_children():
-		if child == self or not (child is StreetCog):
+		if child == self or not is_instance_valid(child) or not (child is StreetCog):
 			continue
 		var other := child as StreetCog
 		if not other.on_lane():
@@ -1186,12 +1196,31 @@ func _enter_building(delta: float) -> void:
 ## The suit is leaving the street. Rise on the propeller instead of popping out.
 func fly_away() -> bool:
 	if bool(get_meta("in_fight", false)) or _lose_on:
-		return false
+		_dismissed = true
+		return true
 	if _phase == 2 or _phase == 3:
 		return true
 	set_meta("flying", true)
 	_begin_fly_out()
 	return true
+
+
+func _can_depart() -> bool:
+	if _lose_on:
+		return _lose_age >= LOSE_SECONDS
+	return not bool(get_meta("in_fight", false))
+
+
+func _drop_defeated() -> void:
+	_dismissed = false
+	set_meta("in_fight", false)
+	departed.emit()
+	if bool(get_meta("pooled", false)):
+		set_meta("pooled", false)
+		visible = false
+		set_process(false)
+		return
+	queue_free()
 
 
 func _fly_out_alpha() -> float:
