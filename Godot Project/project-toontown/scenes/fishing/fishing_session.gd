@@ -366,6 +366,9 @@ func _catch() -> void:
 	var code := int(caught["code"])
 	var text := _MISSED
 	if code == 2:
+		var tasks := ToonTasks.for_selected()
+		if tasks != null:
+			tasks.note_fish(_zone)
 		var genus := int(caught["genus"])
 		var species := int(caught["species"])
 		var weight := int(caught["weight"])

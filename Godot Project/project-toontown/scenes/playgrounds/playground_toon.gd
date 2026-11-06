@@ -1688,18 +1688,8 @@ func _try_officer() -> void:
 		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(officer)
 	if not card.is_empty():
-		var laff := int(card.get("laff", 0))
-		var carry := int(card.get("carry", 0))
-		var beans := int(card.get("beans", 0))
 		_tasks.turn_in(int(card.get("id", 0)))
-		if laff > 0 and _loadout != null:
-			_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
-			_loadout.save()
-		if carry > 0 and _loadout != null and _loadout.max_carry < carry:
-			_loadout.max_carry = carry
-			_loadout.save()
-		if beans > 0 and _BEANS.pouch_limit() < beans:
-			_BEANS.set_pouch_limit(beans)
+		_grant_task_reward(card)
 		if _book != null:
 			_book.refresh_tasks()
 		_say_clerk(actor, "Nice work! Here is your reward...", 3.2)
@@ -1724,9 +1714,12 @@ func _try_officer() -> void:
 	if not is_inside_tree():
 		return
 	if picked != 0:
-		_tasks.assign(picked)
+		_tasks.assign(picked, 0, _pay_of(offers, picked))
 		if _book != null:
 			_book.refresh_tasks()
+		await _speak_pages(actor, _tasks.quest_pages(picked))
+		if not is_inside_tree():
+			return
 	else:
 		_say_clerk(actor, "Come back later if you need a ToonTask! Bye!", 3.2)
 		await get_tree().create_timer(3.2).timeout
@@ -1755,8 +1748,11 @@ func _try_quest_npc() -> void:
 		return
 	var npc_id := int(npc.get_meta("npc_id", 0))
 	var card := _tasks.for_npc(npc_id)
+	var shop_offers: Array[Dictionary] = []
 	if card.is_empty():
-		return
+		shop_offers = _tasks.offers_for(npc_id)
+		if shop_offers.is_empty():
+			return
 	_npc_ready = false
 	_locked = true
 	_body.velocity = Vector3.ZERO
@@ -1768,6 +1764,9 @@ func _try_quest_npc() -> void:
 	if toward.length_squared() > 0.0001:
 		_heading = _heading_toward(toward)
 		_face(_player, _heading)
+	if card.is_empty():
+		await _offer_from_npc(actor, shop_offers, npc_id)
+		return
 	var quest_id := int(card.get("id", 0))
 	if not bool(card.get("ready", false)):
 		await _speak_pages(actor, _tasks.busy_pages(quest_id))
@@ -1799,12 +1798,64 @@ func _try_quest_npc() -> void:
 		await _speak_pages(actor, _tasks.after_pages(quest_id))
 		_locked = false
 		return
+	var finished := _tasks.after_pages(quest_id)
 	var given := _tasks.turn_in(quest_id, npc_id)
+	_grant_task_reward(card)
 	if _book != null:
 		_book.refresh_tasks()
+	await _speak_pages(actor, finished)
+	if not is_inside_tree():
+		return
 	if given != 0:
 		await _speak_pages(actor, _tasks.quest_pages(given))
 	_locked = false
+	return
+
+
+func _offer_from_npc(actor: Node3D, shop_offers: Array[Dictionary], npc_id: int) -> void:
+	_say_clerk(actor, "Choose a ToonTask.", 30.0)
+	var panel := _QUEST_CHOICE.new() as QuestChoice
+	panel.name = "QuestChoice"
+	_hud().add_child(panel)
+	panel.show_quests(shop_offers)
+	var picked: int = await panel.chosen
+	if is_instance_valid(panel):
+		panel.queue_free()
+	_say_clerk(null, "", 0.0)
+	if not is_inside_tree():
+		return
+	if picked != 0:
+		_tasks.assign(picked, npc_id, _pay_of(shop_offers, picked))
+		if _book != null:
+			_book.refresh_tasks()
+		await _speak_pages(actor, _tasks.quest_pages(picked))
+	_locked = false
+
+
+func _pay_of(offers: Array, picked: int) -> int:
+	for offer in offers:
+		if offer is Dictionary and int((offer as Dictionary).get("id", 0)) == picked:
+			return int((offer as Dictionary).get("pay", 0))
+	return 0
+
+
+func _grant_task_reward(card: Dictionary) -> void:
+	var laff := int(card.get("laff", 0))
+	var carry := int(card.get("carry", 0))
+	var beans := int(card.get("beans", 0))
+	if laff > 0 and _loadout != null:
+		_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
+		_loadout.save()
+	if carry > 0 and _loadout != null and _loadout.max_carry < carry:
+		_loadout.max_carry = carry
+		_loadout.save()
+	if beans > 0 and _BEANS.pouch_limit() < beans:
+		_BEANS.set_pouch_limit(beans)
+	if bool(card.get("unlock_track", false)) and _loadout != null and _tasks != null:
+		var track := _tasks.training_track()
+		if track >= 0:
+			_loadout.set_gag(track, 0, _loadout.count_of(track, 0), true)
+			_loadout.save()
 
 
 func _nearest_quest_npc() -> Node3D:

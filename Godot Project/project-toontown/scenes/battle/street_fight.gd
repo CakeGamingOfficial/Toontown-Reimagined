@@ -624,14 +624,16 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 	_credited[cog_id] = true
 	var code := ""
 	var dept := ""
+	var level := -1
 	for item in fight.get("cogs", []):
 		if item is Dictionary and int((item as Dictionary).get("id", 0)) == cog_id:
 			code = String((item as Dictionary).get("code", ""))
 			dept = String((item as Dictionary).get("dept", ""))
+			level = int((item as Dictionary).get("level", -1))
 			break
 	var tasks := ToonTasks.for_selected()
 	if tasks != null:
-		tasks.note_cog_defeat(code, _battle_hood(), dept)
+		tasks.note_cog_defeat(code, _battle_hood(), dept, level)
 
 
 ## DistributedToon.died starts Toon.getDiedInterval at the hit. Every client

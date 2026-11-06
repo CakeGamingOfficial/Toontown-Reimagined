@@ -246,12 +246,13 @@ func _show_activity(task: Dictionary) -> void:
 			_split = true
 			_aux.text = "from:"
 			_aux.visible = true
-			_right_name.text = "The Cogs"
+			var holder_name := String(task.get("holder_name", "The Cogs"))
+			_right_name.text = holder_name if holder_name != "" else "The Cogs"
 			_right_name.visible = true
 			_right_frame.visible = true
 			_right_frame.modulate = _LIGHT_GREEN
 			_right_icon.texture = _COG
-			_right_icon.visible = true
+			_right_icon.visible = String(task.get("holder", "")) != "fish"
 			_right_fit = 1.0
 	elif kind == "friend":
 		_frame.modulate = _LIGHT_BLUE

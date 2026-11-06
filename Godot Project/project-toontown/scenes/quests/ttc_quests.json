@@ -1,0 +1,3122 @@
+{
+ "quests": {
+  "900": {
+   "headline": "VISIT",
+   "caption": "Postmaster Pete",
+   "where": "Toontown Post Office\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Postmaster Pete.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2201,
+   "reward": 0,
+   "final": 900,
+   "next": 1063,
+   "lines": [
+    "I hear Postmaster Pete needs help with a package."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1001": {
+   "headline": "WANTED",
+   "caption": "3 Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat some Cogs in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1002": {
+   "headline": "WANTED",
+   "caption": "4 Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to defeat some Cogs in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1003": {
+   "headline": "WANTED",
+   "caption": "5 Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to defeat some Cogs in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1004": {
+   "headline": "WANTED",
+   "caption": "6 Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat some Cogs in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1005": {
+   "headline": "WANTED",
+   "caption": "2 Flunkies",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "f",
+   "goal": 2,
+   "speech": "I need to defeat some Flunkies.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Flunkies."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1006": {
+   "headline": "WANTED",
+   "caption": "2 Pencil Pushers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "p",
+   "goal": 2,
+   "speech": "I need to defeat some Pencil Pushers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Pencil Pushers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1007": {
+   "headline": "WANTED",
+   "caption": "2 Bottom Feeders",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bf",
+   "goal": 2,
+   "speech": "I need to defeat some Bottom Feeders.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bottom Feeders."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1008": {
+   "headline": "WANTED",
+   "caption": "2 Bloodsuckers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "b",
+   "goal": 2,
+   "speech": "I need to defeat some Bloodsuckers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bloodsuckers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1009": {
+   "headline": "WANTED",
+   "caption": "2 Short Changes",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "sc",
+   "goal": 2,
+   "speech": "I need to defeat some Short Changes.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Short Changes."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1010": {
+   "headline": "WANTED",
+   "caption": "2 Penny Pinchers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "pp",
+   "goal": 2,
+   "speech": "I need to defeat some Penny Pinchers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Penny Pinchers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1011": {
+   "headline": "WANTED",
+   "caption": "2 Cold Callers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "cc",
+   "goal": 2,
+   "speech": "I need to defeat some Cold Callers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cold Callers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1012": {
+   "headline": "WANTED",
+   "caption": "2 Telemarketers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tm",
+   "goal": 2,
+   "speech": "I need to defeat some Telemarketers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Telemarketers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1013": {
+   "headline": "WANTED",
+   "caption": "4 Flunkies",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "f",
+   "goal": 4,
+   "speech": "I need to defeat some Flunkies.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Flunkies."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1014": {
+   "headline": "WANTED",
+   "caption": "4 Pencil Pushers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "p",
+   "goal": 4,
+   "speech": "I need to defeat some Pencil Pushers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Pencil Pushers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1015": {
+   "headline": "WANTED",
+   "caption": "4 Bottom Feeders",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bf",
+   "goal": 4,
+   "speech": "I need to defeat some Bottom Feeders.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bottom Feeders."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1016": {
+   "headline": "WANTED",
+   "caption": "4 Bloodsuckers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "b",
+   "goal": 4,
+   "speech": "I need to defeat some Bloodsuckers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bloodsuckers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1017": {
+   "headline": "WANTED",
+   "caption": "A Yesman",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "ym",
+   "goal": 1,
+   "speech": "I need to defeat a Yesman.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Yesman."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1018": {
+   "headline": "WANTED",
+   "caption": "A Name Dropper",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "nd",
+   "goal": 1,
+   "speech": "I need to defeat a Name Dropper.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Name Dropper."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1019": {
+   "headline": "WANTED",
+   "caption": "A Tightwad",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tw",
+   "goal": 1,
+   "speech": "I need to defeat a Tightwad.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Tightwad."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1020": {
+   "headline": "WANTED",
+   "caption": "A Double Talker",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "dt",
+   "goal": 1,
+   "speech": "I need to defeat a Double Talker.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Double Talker."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1021": {
+   "headline": "WANTED",
+   "caption": "2 Level 2+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 2,
+   "speech": "I need to defeat 2 Level 2+ Cogs in Toontown Central.",
+   "level": 2,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 2 Level 2+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1022": {
+   "headline": "WANTED",
+   "caption": "6 Level 2+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat 6 Level 2+ Cogs in Toontown Central.",
+   "level": 2,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 6 Level 2+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1023": {
+   "headline": "WANTED",
+   "caption": "3 Level 2+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 Level 2+ Cogs in Toontown Central.",
+   "level": 2,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 Level 2+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1024": {
+   "headline": "WANTED",
+   "caption": "4 Level 2+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to defeat 4 Level 2+ Cogs in Toontown Central.",
+   "level": 2,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 4 Level 2+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1025": {
+   "headline": "WANTED",
+   "caption": "4 Level 3+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to defeat 4 Level 3+ Cogs in Toontown Central.",
+   "level": 3,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 4 Level 3+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1026": {
+   "headline": "WANTED",
+   "caption": "6 Level 3+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat 6 Level 3+ Cogs in Toontown Central.",
+   "level": 3,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 6 Level 3+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1027": {
+   "headline": "WANTED",
+   "caption": "2 Cashbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 2,
+   "speech": "I need to defeat some Cashbots in Toontown Central.",
+   "dept": "m",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cashbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1028": {
+   "headline": "WANTED",
+   "caption": "2 Sellbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 2,
+   "speech": "I need to defeat some Sellbots in Toontown Central.",
+   "dept": "s",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Sellbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1029": {
+   "headline": "WANTED",
+   "caption": "2 Bossbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 2,
+   "speech": "I need to defeat some Bossbots in Toontown Central.",
+   "dept": "c",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bossbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1030": {
+   "headline": "WANTED",
+   "caption": "2 Lawbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 2,
+   "speech": "I need to defeat some Lawbots in Toontown Central.",
+   "dept": "l",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Lawbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1031": {
+   "headline": "WANTED",
+   "caption": "3 Cashbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat some Cashbots in Toontown Central.",
+   "dept": "m",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cashbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1032": {
+   "headline": "WANTED",
+   "caption": "3 Sellbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat some Sellbots in Toontown Central.",
+   "dept": "s",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Sellbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1033": {
+   "headline": "WANTED",
+   "caption": "3 Bossbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat some Bossbots in Toontown Central.",
+   "dept": "c",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bossbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1034": {
+   "headline": "WANTED",
+   "caption": "3 Lawbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat some Lawbots in Toontown Central.",
+   "dept": "l",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Lawbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1035": {
+   "headline": "WANTED",
+   "caption": "5 Cashbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to defeat some Cashbots in Toontown Central.",
+   "dept": "m",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cashbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1036": {
+   "headline": "WANTED",
+   "caption": "5 Sellbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to defeat some Sellbots in Toontown Central.",
+   "dept": "s",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Sellbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1037": {
+   "headline": "WANTED",
+   "caption": "5 Bossbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to defeat some Bossbots in Toontown Central.",
+   "dept": "c",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bossbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1038": {
+   "headline": "WANTED",
+   "caption": "5 Lawbots",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to defeat some Lawbots in Toontown Central.",
+   "dept": "l",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Lawbots in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1039": {
+   "headline": "VISIT",
+   "caption": "Mary",
+   "where": "Mary's Go Around Travel Company\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Mary.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2135,
+   "reward": 0,
+   "final": 300,
+   "next": [
+    1041,
+    1042,
+    1043
+   ],
+   "lines": [
+    "Visit Mary if you want to get around town more easily."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1040": {
+   "headline": "VISIT",
+   "caption": "Will Wiseacre",
+   "where": "Wiseacre's Noisemakers\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Will Wiseacre.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2207,
+   "reward": 0,
+   "final": 300,
+   "next": [
+    1041,
+    1042,
+    1043
+   ],
+   "lines": [
+    "Visit Will Wiseacre if you want to get around town more easily."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1041": {
+   "headline": "VISIT",
+   "caption": "Sally Spittake",
+   "where": "Soup and Crack Ups\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Sally Spittake.",
+   "show_count": false,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2211,
+   "reward": 0,
+   "final": 300,
+   "next": 1044,
+   "lines": [
+    "Hi! What brings you here?",
+    "Everybody uses their portable hole to travel around Toontown.",
+    "Why, you can teleport to your friends using the Friends List, or to any neighborhood using the map in the Shticker Book.",
+    "Of course, you have to earn that!",
+    "Say, I can turn on your teleport access to Toontown Central if you help out a friend of mine.",
+    "Seems the Cogs are causing trouble over on Loopy Lane. Go visit Sally Spittake."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1042": {
+   "headline": "VISIT",
+   "caption": "Charlie Chortle",
+   "where": "Chortle Cafe\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Charlie Chortle.",
+   "show_count": false,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2209,
+   "reward": 0,
+   "final": 300,
+   "next": 1044,
+   "lines": [
+    "Hi! What brings you here?",
+    "Everybody uses their portable hole to travel around Toontown.",
+    "Why, you can teleport to your friends using the Friends List, or to any neighborhood using the map in the Shticker Book.",
+    "Of course, you have to earn that!",
+    "Say, I can turn on your teleport access to Toontown Central if you help out a friend of mine.",
+    "Seems the Cogs are causing trouble over on Loopy Lane. Go visit Charlie Chortle."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1043": {
+   "headline": "VISIT",
+   "caption": "Tee Hee",
+   "where": "Laughter Hours Cafe\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tee Hee.",
+   "show_count": false,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2210,
+   "reward": 0,
+   "final": 300,
+   "next": 1044,
+   "lines": [
+    "Hi! What brings you here?",
+    "Everybody uses their portable hole to travel around Toontown.",
+    "Why, you can teleport to your friends using the Friends List, or to any neighborhood using the map in the Shticker Book.",
+    "Of course, you have to earn that!",
+    "Say, I can turn on your teleport access to Toontown Central if you help out a friend of mine.",
+    "Seems the Cogs are causing trouble over on Loopy Lane. Go visit Tee Hee."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1044": {
+   "headline": "RECOVER",
+   "caption": "4 Recipes",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to recover 4 Recipes from The Cogs.",
+   "chance": 100,
+   "hood": 0,
+   "zone": 0,
+   "holder": "any",
+   "holder_name": "The Cogs",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 300,
+   "next": 1045,
+   "lines": [
+    "Oh, thanks for stopping by. I really need some help.",
+    "As you can see, I have no customers.",
+    "My secret recipe book is lost and nobody comes to my restaurant anymore.",
+    "I last saw it just before those Cogs took over my building.",
+    "Can you help me by recovering four of my famous recipes?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1045": {
+   "headline": "DELIVER",
+   "caption": "A Note",
+   "where": "Anywhere",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to deliver a Note.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 1000,
+   "reward": 300,
+   "final": 300,
+   "next": 0,
+   "lines": [
+    "Thank you so much!",
+    "Before long I will have the entire collection and can reopen my restaurant.",
+    "Oh, I have a note here for you - something about teleport access?",
+    "It says thanks for helping my friend and to deliver this to Toon Headquarters.",
+    "Well, thanks indeed - bye!"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1046": {
+   "headline": "VISIT",
+   "caption": "Woody Nickel",
+   "where": "Funny Money Savings & Loan\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Woody Nickel.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2127,
+   "reward": 0,
+   "final": 700,
+   "next": 1047,
+   "lines": [
+    "The Cashbots have really been bothering the Funny Money Savings and Loan.",
+    "Stop by there and see if there is anything you can do."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1047": {
+   "headline": "RECOVER",
+   "caption": "5 Adding machines",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to recover 5 Adding machines from Cashbots.",
+   "chance": 100,
+   "hood": 0,
+   "zone": 0,
+   "holder": "m",
+   "holder_type": "track",
+   "holder_name": "Cashbots",
+   "start": true,
+   "from": 2127,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 700,
+   "next": 1048,
+   "lines": [
+    "Cashbots have been sneaking into the bank and stealing our machines.",
+    "Please recover 5 adding machines from Cashbots.",
+    "To save you from running back and forth, just bring them all back at once."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1048": {
+   "headline": "DELIVER",
+   "caption": "Feather Duster",
+   "where": "Tickle Machines\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Feather Duster.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2131,
+   "reward": 0,
+   "final": 700,
+   "next": 1049,
+   "lines": [
+    "Wow! Thanks for finding our adding machines.",
+    "Hm... They look a little damaged.",
+    "Say, could you take them over to Feather Duster over at her shop, \"Tickle Machines\" on this street?",
+    "See if she can fix them."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1049": {
+   "headline": "RECOVER",
+   "caption": "10 Cog Gears",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to recover 10 Cog Gears from Level 3+ Cogs.",
+   "chance": 100,
+   "hood": 0,
+   "zone": 0,
+   "holder": "3",
+   "holder_type": "level",
+   "holder_name": "Level 3+ Cogs",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 700,
+   "next": 1053,
+   "lines": [
+    "What's that? Broken adding machines?",
+    "Cashbots you say?",
+    "Well, let's have a look see...",
+    "Yep, gears are stripped, but I'm out of that part...",
+    "You know what might work - some Cog gears, large ones, from larger Cogs...",
+    "Level 3 Cog gears should do the trick. I'll need 2 for each machine, so 10 total.",
+    "Bring them back all at once and I'll fix em up!"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1053": {
+   "headline": "DELIVER",
+   "caption": "Woody Nickel",
+   "where": "Funny Money Savings & Loan\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Woody Nickel.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2127,
+   "reward": 700,
+   "final": 700,
+   "next": 0,
+   "lines": [
+    "Ah yes, that should do the trick indeedy.",
+    "All fixed now, free of charge.",
+    "Take these back to Funny Money, and tell 'im I said howdy."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1054": {
+   "headline": "VISIT",
+   "caption": "Loony Louis",
+   "where": "Used Clown Cars\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Loony Louis.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2128,
+   "reward": 0,
+   "final": 200,
+   "next": 1055,
+   "lines": [
+    "Loony Louis needs some help with his clown cars."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1055": {
+   "headline": "RECOVER",
+   "caption": "4 Clown car tires",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to recover 4 Clown car tires from a fish.",
+   "chance": 75,
+   "hood": 0,
+   "zone": 0,
+   "holder": "fish",
+   "holder_name": "a fish",
+   "start": true,
+   "from": 2128,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 200,
+   "next": 1056,
+   "lines": [
+    "Yowza! I can't find the tires to this here clown car anywhere!",
+    "Do ya think you could help me out?",
+    "I think Loopy Bob may have tossed them in the pond in the Toontown Central playground.",
+    "If you stand on one of the docks there you can try and fish out the tires for me."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1056": {
+   "headline": "VISIT",
+   "caption": "Lucy Tires",
+   "where": "Crack Up Auto Repair\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Lucy Tires.",
+   "show_count": false,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2213,
+   "reward": 0,
+   "final": 200,
+   "next": 1057,
+   "lines": [
+    "Fan-flying-tastic! Now I can get this old clown car on the road again!",
+    "Hey, I thought I had an air pump around here to inflate these tires...",
+    "Maybe Lucy Tires borrowed it?",
+    "Could you go ask for it back for me?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1057": {
+   "headline": "WANTED",
+   "caption": "6 Level 3+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat 6 Level 3+ Cogs in Toontown Central.",
+   "level": 3,
+   "hood": 2000,
+   "zone": 0,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 200,
+   "next": 1058,
+   "lines": [
+    "Hi there.",
+    "A tire pump you say?",
+    "I'll tell you what - you help clean up the streets of some of those high level Cogs for me...",
+    "And I'll let you have the tire pump."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1058": {
+   "headline": "DELIVER",
+   "caption": "Loony Louis",
+   "where": "Used Clown Cars\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Loony Louis.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2128,
+   "reward": 200,
+   "final": 200,
+   "next": 0,
+   "lines": [
+    "Good job - I knew you could do it.",
+    "Here's the pump. I'm sure Loony Louis will be glad to get it back."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1059": {
+   "headline": "VISIT",
+   "caption": "Professor Wiggle",
+   "where": "Professor Wiggle's House of Giggles\nPunchline Place",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Professor Wiggle.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2302,
+   "reward": 0,
+   "final": 101,
+   "next": 1060,
+   "lines": [
+    "Professor Wiggle is running low on supplies. Maybe you can give him a hand?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1060": {
+   "headline": "RECOVER",
+   "caption": "Some Octopus ink",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover some Octopus ink from a fish.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "fish",
+   "holder_name": "a fish",
+   "start": true,
+   "from": 2302,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 101,
+   "next": 1062,
+   "lines": [
+    "Thanks for stopping by!",
+    "Those Cogs have been stealing my ink, so I'm running very low.",
+    "Could you fish some octopus ink out of the pond for me?",
+    "Just stand on a dock near the pond to fish."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1061": {
+   "headline": "WANTED",
+   "caption": "6 Pencil Pushers",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "p",
+   "goal": 6,
+   "speech": "I need to defeat some Pencil Pushers in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 101,
+   "final": 101,
+   "next": 0,
+   "lines": [
+    "Great - thanks for the ink!",
+    "You know what, maybe if you cleared away some of those Pencil Pushers...",
+    "I wouldn't run out of ink again so quickly.",
+    "Defeat 6 Pencil Pushers in Toontown Central for your reward."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": true
+  },
+  "1062": {
+   "headline": "WANTED",
+   "caption": "6 Bloodsuckers",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "b",
+   "goal": 6,
+   "speech": "I need to defeat some Bloodsuckers in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 101,
+   "final": 101,
+   "next": 0,
+   "lines": [
+    "Great - thanks for the ink!",
+    "You know what, maybe if you cleared away some of those Bloodsuckers...",
+    "I wouldn't run out of ink again so quickly.",
+    "Defeat 6 Bloodsuckers in Toontown Central for your reward."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": true
+  },
+  "1063": {
+   "headline": "RECOVER",
+   "caption": "A Package",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover a Package from Level 3+ Cogs.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "3",
+   "holder_type": "level",
+   "holder_name": "Level 3+ Cogs",
+   "start": true,
+   "from": 2201,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 1067,
+   "lines": [
+    "Hi - thanks for coming in.",
+    "A Cog stole a very important package from right under my nose.",
+    "Please see if you can get it back. I think he was a level 3...",
+    "So, defeat level 3 Cogs until you find my package."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1067": {
+   "headline": "DELIVER",
+   "caption": "Dr. Tom",
+   "where": "Dr. Tom Foolery\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Dr. Tom.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2112,
+   "reward": 0,
+   "final": 900,
+   "next": 1068,
+   "lines": [
+    "That's it, all right!",
+    "Hey, the address is smudged...",
+    "All I can read is that it's for a Dr. - the rest is all blurry.",
+    "Maybe it's for Dr. Tom? Could you take it to him?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1068": {
+   "headline": "WANTED",
+   "caption": "10 Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat some Cogs in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": [
+    1069,
+    1070,
+    1071
+   ],
+   "lines": [
+    "I wasn't expecting a package. Maybe it's for Dr. I.M. Euphoric?",
+    "My assistant was going over there today anyway, so I'll have him check for you.",
+    "In the meantime, would you mind getting rid of some of the Cogs on my street?",
+    "Defeat 10 Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1069": {
+   "headline": "RECOVER",
+   "caption": "A Package",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover a Package from Cashbots.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "m",
+   "holder_type": "track",
+   "holder_name": "Cashbots",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 1072,
+   "lines": [
+    "Dr. Euphoric says he wasn't expecting a package either.",
+    "Unfortunately, a Cashbot stole it from my assistant on the way back.",
+    "Could you try and get it back?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1070": {
+   "headline": "RECOVER",
+   "caption": "A Package",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover a Package from Sellbots.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "s",
+   "holder_type": "track",
+   "holder_name": "Sellbots",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 1072,
+   "lines": [
+    "Dr. Euphoric says he wasn't expecting a package either.",
+    "Unfortunately, a Sellbot stole the package from my assistant on the way back.",
+    "I'm sorry, but you'll have to find that Sellbot and get it back."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1071": {
+   "headline": "RECOVER",
+   "caption": "A Package",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover a Package from Bossbots.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "c",
+   "holder_type": "track",
+   "holder_name": "Bossbots",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 1072,
+   "lines": [
+    "Dr. Euphoric says he wasn't expecting a package either.",
+    "Unfortunately, a Bossbot stole it from my assistant on the way back.",
+    "Could you try and get it back?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1072": {
+   "headline": "DELIVER",
+   "caption": "Dr. Pulyurleg",
+   "where": "Dr. Pulyurleg, Chiropractor\nPunchline Place",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Dr. Pulyurleg.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2301,
+   "reward": 0,
+   "final": 900,
+   "next": 1073,
+   "lines": [
+    "Great - you got it back!",
+    "Maybe you should try Dr. Pulyurleg, it could be for him."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1073": {
+   "headline": "VISIT",
+   "caption": "Postmaster Pete",
+   "where": "Toontown Post Office\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Postmaster Pete.",
+   "show_count": false,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 2201,
+   "reward": 0,
+   "final": 900,
+   "next": 1074,
+   "lines": [
+    "Oh, thanks for bringing me my packages.",
+    "Wait a second, I was expecting two. Could you check with Postmaster Pete and see if he has the other one?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1074": {
+   "headline": "RECOVER",
+   "caption": "A Package",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover a Package from The Cogs.",
+   "chance": 25,
+   "hood": 0,
+   "zone": 0,
+   "holder": "any",
+   "holder_name": "The Cogs",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 1075,
+   "lines": [
+    "He said there was another package? Maybe the Cogs stole it too.",
+    "Defeat Cogs until you find the second package."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1075": {
+   "headline": "DELIVER",
+   "caption": "Dr. Pulyurleg",
+   "where": "Dr. Pulyurleg, Chiropractor\nPunchline Place",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Dr. Pulyurleg.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2301,
+   "reward": 900,
+   "final": 900,
+   "next": 0,
+   "lines": [
+    "I guess there was a second package after all!",
+    "Hurry and take it over to Dr. Pulyurleg with my apologies."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1076": {
+   "headline": "VISIT",
+   "caption": "Sharky Jones",
+   "where": "14 Karat Goldfish\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Sharky Jones.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2217,
+   "reward": 0,
+   "final": 500,
+   "next": 1077,
+   "lines": [
+    "There's been some trouble over at 14 Karat Goldfish.",
+    "Sharky Jones could probably use a hand."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1077": {
+   "headline": "RECOVER",
+   "caption": "A Goldfish receipt",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover a Goldfish receipt from The Cogs.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "any",
+   "holder_name": "The Cogs",
+   "start": true,
+   "from": 2217,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 500,
+   "next": 1078,
+   "lines": [
+    "Thanks for coming - the Cogs stole all my goldfish.",
+    "I think the Cogs want to sell them to make a quick buck.",
+    "Those 5 fish have been my only companions in this tiny store for so many years...",
+    "If you could get them back for me I'd really appreciate it.",
+    "I'm sure one of the Cogs has my fish.",
+    "Defeat Cogs until you find my goldfish."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1078": {
+   "headline": "DELIVER",
+   "caption": "Professor Wiggle",
+   "where": "Professor Wiggle's House of Giggles\nPunchline Place",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Professor Wiggle.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2302,
+   "reward": 0,
+   "final": 500,
+   "next": 1079,
+   "lines": [
+    "Oh, you have my fish!",
+    "Huh? What's this - a receipt?",
+    "Sigh, I guess they are Cogs, after all.",
+    "I can't make heads or tails out of this receipt. Could you take it to Professor Wiggle and see if he can read it?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1079": {
+   "headline": "RECOVER",
+   "caption": "A Goldfish",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "f",
+   "goal": 1,
+   "speech": "I need to recover a Goldfish from Flunkies.",
+   "chance": 75,
+   "hood": 0,
+   "zone": 0,
+   "holder": "f",
+   "holder_name": "Flunkies",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2217,
+   "reward": 0,
+   "final": 500,
+   "next": 1080,
+   "lines": [
+    "Mmm, let me see that receipt.",
+    "...Ah Yes, it says that 1 goldfish was sold to a Flunky.",
+    "It doesn't seem to mention what happened to the other 4 fish.",
+    "Maybe you should try and find that Flunky."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1080": {
+   "headline": "RECOVER",
+   "caption": "4 Goldfish",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to recover 4 Goldfish from a fish.",
+   "chance": 75,
+   "hood": 0,
+   "zone": 0,
+   "holder": "fish",
+   "holder_name": "a fish",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 500,
+   "final": 500,
+   "next": 0,
+   "lines": [
+    "Oh thank heavens! You found Oscar - he's my favorite.",
+    "What's that, Oscar? Uh huh... they did? ... they are?",
+    "Oscar says the other 4 escaped into the pond in the playground.",
+    "Could you go round them up for me?",
+    "Just fish them out of the pond."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": true
+  },
+  "1081": {
+   "headline": "VISIT",
+   "caption": "Sticky Lou",
+   "where": "Blue Glue\nLoopy Lane",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Sticky Lou.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2208,
+   "reward": 0,
+   "final": 102,
+   "next": 1082,
+   "lines": [
+    "Sticky Lou appears to be in a sticky situation. He sure could use a hand."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1082": {
+   "headline": "RECOVER",
+   "caption": "Some Oil",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover some Oil from Sellbots.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "s",
+   "holder_type": "track",
+   "holder_name": "Sellbots",
+   "start": true,
+   "from": 2208,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 102,
+   "next": 1083,
+   "lines": [
+    "I spilled quick dry glue and I'm stuck - stuck cold!",
+    "If there were a way out, I sure would be sold.",
+    "That gives me an idea, if you are feeling loyal.",
+    "Defeat some Sellbots and bring back some oil."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1083": {
+   "headline": "RECOVER",
+   "caption": "Some Grease",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover some Grease from Lawbots.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "l",
+   "holder_type": "track",
+   "holder_name": "Lawbots",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 102,
+   "next": 1084,
+   "lines": [
+    "Well, oil helped a little, but I still cannot budge,",
+    "What else would help? It's hard to judge.",
+    "That gives me an idea; it's worth a try at least.",
+    "Defeat some Lawbots and bring back some grease."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1084": {
+   "headline": "RECOVER",
+   "caption": "Some Water",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover some Water from Cashbots.",
+   "chance": 50,
+   "hood": 0,
+   "zone": 0,
+   "holder": "m",
+   "holder_type": "track",
+   "holder_name": "Cashbots",
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 102,
+   "final": 102,
+   "next": 0,
+   "lines": [
+    "Nope, that didn't help. This is really not funny.",
+    "I put the grease right there on the money,",
+    "That gives me an idea, before I forget it.",
+    "Defeat some Cashbots; bring back water to wet it."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1085": {
+   "headline": "VISIT",
+   "caption": "Professor Pete",
+   "where": "Playground",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Professor Pete.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2003,
+   "reward": 0,
+   "final": 100,
+   "next": 1086,
+   "lines": [
+    "Professor Pete is conducting some research on the Cogs.",
+    "Go talk to him if you want to help out."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1086": {
+   "headline": "RECOVER",
+   "caption": "5 Cog Gears",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to recover 5 Cog Gears from Level 2+ Cogs.",
+   "chance": 75,
+   "hood": 0,
+   "zone": 0,
+   "holder": "2",
+   "holder_type": "level",
+   "holder_name": "Level 2+ Cogs",
+   "start": true,
+   "from": 2003,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 100,
+   "next": 1089,
+   "lines": [
+    "That's right, I'm conducting a study of the Cogs.",
+    "I want to know what makes them tick.",
+    "It sure would help me if you could gather some gears from Cogs.",
+    "Make sure they're from at least level 2 Cogs so they're big enough to examine."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1089": {
+   "headline": "DELIVER",
+   "caption": "A Gear report",
+   "where": "Anywhere",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to deliver a Gear report.",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 1000,
+   "reward": 100,
+   "final": 100,
+   "next": 0,
+   "lines": [
+    "Okay, let's take a look. These are excellent specimens!",
+    "Mmmm...",
+    "Okay, here's my report. Take this back to Toon Headquarters right away."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1090": {
+   "headline": "VISIT",
+   "caption": "Honey Haha",
+   "where": "The Laughin' Place\nSilly Street",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Honey Haha.",
+   "show_count": false,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 2119,
+   "reward": 0,
+   "final": 101,
+   "next": 1091,
+   "lines": [
+    "Honey Haha has some useful information for you."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "1091": {
+   "headline": "WANTED",
+   "caption": "8 Level 2+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 8,
+   "speech": "I need to defeat 8 Level 2+ Cogs in Toontown Central.",
+   "level": 2,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 2119,
+   "same": false,
+   "npc": 1000,
+   "reward": 101,
+   "final": 101,
+   "next": 0,
+   "lines": [
+    "I hear that Toon Headquarters is working on a sort of Cog Radar.",
+    "It will let you see where the Cogs are so that it will be easier to find them.",
+    "That Cog Page in your Shticker Book is the key.",
+    "By defeating enough Cogs, you can tune in to their signals and actually track where they are.",
+    "Keep defeating Cogs, so you will be ready."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": true
+  },
+  "1092": {
+   "headline": "RECOVER",
+   "caption": "A Goldfish",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "sc",
+   "goal": 1,
+   "speech": "I need to recover a Goldfish from Short Changes.",
+   "chance": 75,
+   "hood": 0,
+   "zone": 0,
+   "holder": "sc",
+   "holder_name": "Short Changes",
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 2217,
+   "reward": 0,
+   "final": 500,
+   "next": 1080,
+   "lines": [
+    "Mmm, let me see that receipt.",
+    "...Ah Yes, it says that 1 goldfish was sold to a Short Change.",
+    "It doesn't seem to mention what happened to the other 4 fish.",
+    "Maybe you should try and find that Short Change."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "1100": {
+   "headline": "WANTED",
+   "caption": "10 Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat some Cogs in Toontown Central.",
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": 1000,
+   "next": 1101,
+   "lines": [
+    "I need to defeat some Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1101": {
+   "headline": "DELIVER",
+   "caption": "Tammy the Tailor",
+   "where": "Playground",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tammy the Tailor.",
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 2004,
+   "reward": 1000,
+   "final": 1000,
+   "next": 0,
+   "lines": [
+    "I need to see Tammy the Tailor."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1102": {
+   "headline": "WANTED",
+   "caption": "8 Level 3+ Cogs",
+   "where": "In Toontown Central",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 8,
+   "speech": "I need to defeat 8 Level 3+ Cogs in Toontown Central.",
+   "level": 3,
+   "hood": 2000,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": 1000,
+   "next": 1103,
+   "lines": [
+    "I need to defeat 8 Level 3+ Cogs in Toontown Central."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1103": {
+   "headline": "DELIVER",
+   "caption": "Tammy the Tailor",
+   "where": "Playground",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tammy the Tailor.",
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 2004,
+   "reward": 1000,
+   "final": 1000,
+   "next": 0,
+   "lines": [
+    "I need to see Tammy the Tailor."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "1105": {
+   "headline": "WANTED",
+   "caption": "2 Flunkies",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "f",
+   "goal": 2,
+   "speech": "I need to defeat some Flunkies.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Flunkies."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1106": {
+   "headline": "WANTED",
+   "caption": "2 Pencil Pushers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "p",
+   "goal": 2,
+   "speech": "I need to defeat some Pencil Pushers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Pencil Pushers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1107": {
+   "headline": "WANTED",
+   "caption": "2 Bottom Feeders",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bf",
+   "goal": 2,
+   "speech": "I need to defeat some Bottom Feeders.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bottom Feeders."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1108": {
+   "headline": "WANTED",
+   "caption": "2 Bloodsuckers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "b",
+   "goal": 2,
+   "speech": "I need to defeat some Bloodsuckers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bloodsuckers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1109": {
+   "headline": "WANTED",
+   "caption": "2 Short Changes",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "sc",
+   "goal": 2,
+   "speech": "I need to defeat some Short Changes.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Short Changes."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1110": {
+   "headline": "WANTED",
+   "caption": "2 Penny Pinchers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "pp",
+   "goal": 2,
+   "speech": "I need to defeat some Penny Pinchers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Penny Pinchers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1111": {
+   "headline": "WANTED",
+   "caption": "2 Cold Callers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "cc",
+   "goal": 2,
+   "speech": "I need to defeat some Cold Callers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cold Callers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1112": {
+   "headline": "WANTED",
+   "caption": "2 Telemarketers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tm",
+   "goal": 2,
+   "speech": "I need to defeat some Telemarketers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Telemarketers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1205": {
+   "headline": "WANTED",
+   "caption": "4 Flunkies",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "f",
+   "goal": 4,
+   "speech": "I need to defeat some Flunkies.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Flunkies."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1206": {
+   "headline": "WANTED",
+   "caption": "4 Pencil Pushers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "p",
+   "goal": 4,
+   "speech": "I need to defeat some Pencil Pushers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Pencil Pushers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1207": {
+   "headline": "WANTED",
+   "caption": "4 Bottom Feeders",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bf",
+   "goal": 4,
+   "speech": "I need to defeat some Bottom Feeders.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bottom Feeders."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1208": {
+   "headline": "WANTED",
+   "caption": "4 Bloodsuckers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "b",
+   "goal": 4,
+   "speech": "I need to defeat some Bloodsuckers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bloodsuckers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1209": {
+   "headline": "WANTED",
+   "caption": "4 Short Changes",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "sc",
+   "goal": 4,
+   "speech": "I need to defeat some Short Changes.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Short Changes."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1210": {
+   "headline": "WANTED",
+   "caption": "4 Penny Pinchers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "pp",
+   "goal": 4,
+   "speech": "I need to defeat some Penny Pinchers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Penny Pinchers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1211": {
+   "headline": "WANTED",
+   "caption": "4 Cold Callers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "cc",
+   "goal": 4,
+   "speech": "I need to defeat some Cold Callers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cold Callers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "1212": {
+   "headline": "WANTED",
+   "caption": "4 Telemarketers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tm",
+   "goal": 4,
+   "speech": "I need to defeat some Telemarketers.",
+   "hood": 0,
+   "zone": 0,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Telemarketers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  }
+ },
+ "npcs": {
+  "2201": {
+   "name": "Postmaster Pete",
+   "where": "Toontown Post Office\nLoopy Lane",
+   "zone": 2711,
+   "live": true
+  },
+  "2135": {
+   "name": "Mary",
+   "where": "Mary's Go Around Travel Company\nSilly Street",
+   "zone": 2665,
+   "live": true
+  },
+  "2207": {
+   "name": "Will Wiseacre",
+   "where": "Wiseacre's Noisemakers\nLoopy Lane",
+   "zone": 2705,
+   "live": true
+  },
+  "2211": {
+   "name": "Sally Spittake",
+   "where": "Soup and Crack Ups\nLoopy Lane",
+   "zone": 2716,
+   "live": true
+  },
+  "2209": {
+   "name": "Charlie Chortle",
+   "where": "Chortle Cafe\nLoopy Lane",
+   "zone": 2712,
+   "live": true
+  },
+  "2210": {
+   "name": "Tee Hee",
+   "where": "Laughter Hours Cafe\nLoopy Lane",
+   "zone": 2713,
+   "live": true
+  },
+  "2127": {
+   "name": "Woody Nickel",
+   "where": "Funny Money Savings & Loan\nSilly Street",
+   "zone": 2655,
+   "live": true
+  },
+  "2131": {
+   "name": "Feather Duster",
+   "where": "Tickle Machines\nSilly Street",
+   "zone": 2660,
+   "live": true
+  },
+  "2128": {
+   "name": "Loony Louis",
+   "where": "Used Clown Cars\nSilly Street",
+   "zone": 2656,
+   "live": true
+  },
+  "2213": {
+   "name": "Lucy Tires",
+   "where": "Crack Up Auto Repair\nLoopy Lane",
+   "zone": 2720,
+   "live": true
+  },
+  "2302": {
+   "name": "Professor Wiggle",
+   "where": "Professor Wiggle's House of Giggles\nPunchline Place",
+   "zone": 2831,
+   "live": true
+  },
+  "2112": {
+   "name": "Dr. Tom",
+   "where": "Dr. Tom Foolery\nSilly Street",
+   "zone": 2610,
+   "live": true
+  },
+  "2301": {
+   "name": "Dr. Pulyurleg",
+   "where": "Dr. Pulyurleg, Chiropractor\nPunchline Place",
+   "zone": 2804,
+   "live": true
+  },
+  "2217": {
+   "name": "Sharky Jones",
+   "where": "14 Karat Goldfish\nLoopy Lane",
+   "zone": 2729,
+   "live": true
+  },
+  "2208": {
+   "name": "Sticky Lou",
+   "where": "Blue Glue\nLoopy Lane",
+   "zone": 2708,
+   "live": true
+  },
+  "2003": {
+   "name": "Professor Pete",
+   "where": "Playground",
+   "zone": 2516,
+   "live": false
+  },
+  "2119": {
+   "name": "Honey Haha",
+   "where": "The Laughin' Place\nSilly Street",
+   "zone": 2629,
+   "live": true
+  },
+  "2004": {
+   "name": "Tammy the Tailor",
+   "where": "Playground",
+   "zone": 2521,
+   "live": false
+  }
+ },
+ "by_reward": {
+  "900": [
+   900,
+   1063
+  ],
+  "any": [
+   1001,
+   1002,
+   1003,
+   1004,
+   1005,
+   1006,
+   1007,
+   1008,
+   1009,
+   1010,
+   1011,
+   1012,
+   1013,
+   1014,
+   1015,
+   1016,
+   1017,
+   1018,
+   1019,
+   1020,
+   1021,
+   1022,
+   1023,
+   1024,
+   1025,
+   1026,
+   1027,
+   1028,
+   1029,
+   1030,
+   1031,
+   1032,
+   1033,
+   1034,
+   1035,
+   1036,
+   1037,
+   1038,
+   1105,
+   1106,
+   1107,
+   1108,
+   1109,
+   1110,
+   1111,
+   1112,
+   1205,
+   1206,
+   1207,
+   1208,
+   1209,
+   1210,
+   1211,
+   1212
+  ],
+  "300": [
+   1039,
+   1040
+  ],
+  "700": [
+   1046,
+   1047
+  ],
+  "200": [
+   1054,
+   1055
+  ],
+  "101": [
+   1059,
+   1060,
+   1090,
+   1091
+  ],
+  "500": [
+   1076,
+   1077
+  ],
+  "102": [
+   1081,
+   1082
+  ],
+  "100": [
+   1085,
+   1086
+  ],
+  "1000": [
+   1100,
+   1102
+  ]
+ }
+}

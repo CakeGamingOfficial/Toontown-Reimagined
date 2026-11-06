@@ -3,9 +3,10 @@ extends RefCounted
 
 ## The ToonTask journal. Quest 101 is Tutorial Tom's Flunky. The Toontown
 ## Central chain continues 110, 145, the friend and phone tasks, then Flippy's
-## gag training. After that, HQ offers the Central reward track. Battle code
-## reports a defeat with note_cog_defeat. Turning a finished task in assigns
-## whatever it points at next.
+## gag training. After that, HQ and the shopkeepers offer the original Central
+## quests from ttc_quests.json. The last of those is the gag-training finale.
+## Battle code reports a defeat with note_cog_defeat. Fishing reports a catch
+## with note_fish. Turning a finished task in assigns whatever it points at next.
 
 const COG := "cog"
 const TROLLEY := "trolley"
@@ -262,9 +263,17 @@ const CATALOG := {
 const _TIER0: Array[int] = [100]
 const _TIER1: Array[int] = [400]
 const _TIER2: Array[int] = [100, 801, 200, 802, 803, 101, 804, 805, 102, 806, 807, 100, 808, 809, 101, 810, 811, 500, 812, 813, 700, 814, 815, 300]
-const _TIER2_BASE := 3000
-const _DEPTS: PackedStringArray = ["c", "l", "s", "m"]
-const _DEPT_NAMES: PackedStringArray = ["Bossbots", "Lawbots", "Sellbots", "Cashbots"]
+## TT_TIER + 3. Reward 900 is the final frame of the gag track.
+const _TIER3: Array[int] = [900]
+const _QUEST_FILE := "res://scenes/quests/ttc_quests.json"
+## Quests the toontorial hands out itself. One of these in the journal means
+## HQ is still waiting, even when the id is below the Central reward quests.
+const _SCRIPTED: Array[int] = [101, 110, 145, 150, 175, 164, 165, 166, 167, 168, 169, 170, 171, 172, 400]
+
+static var _pool: Dictionary = {}
+static var _extra_npcs: Dictionary = {}
+static var _by_reward: Dictionary = {}
+static var _pool_ready := false
 
 ## The playground journal. Friend and phone progress write through this, so a
 ## second copy loaded from disk cannot overwrite them.
@@ -337,10 +346,21 @@ func offers() -> Array[Dictionary]:
 		return []
 	if reward_tier < 2:
 		return []
-	return _tier2_offers()
+	return _reward_offers(0)
 
 
-func assign(quest_id: int, from_npc: int = 0) -> void:
+## A shopkeeper's choice list. Same pool as HQ, limited to quests that toon gives.
+func offers_for(npc_id: int) -> Array[Dictionary]:
+	if npc_id == 0:
+		return offers()
+	if _active.size() >= quest_carry or not _done.has(400) or reward_tier < 2:
+		return []
+	if _chain_active():
+		return []
+	return _reward_offers(npc_id)
+
+
+func assign(quest_id: int, from_npc: int = 0, pay: int = 0) -> void:
 	if not _known(quest_id) or _is_active(quest_id) or _done.has(quest_id):
 		return
 	if bool(_info(quest_id).get("hold", false)):
@@ -352,7 +372,12 @@ func assign(quest_id: int, from_npc: int = 0) -> void:
 	var progress := 0
 	if String(info.get("kind", "")) == FRIEND and FriendsBook.toon_friend_count() > 0:
 		progress = int(info["goal"])
-	_active.append({"id": quest_id, "progress": progress, "to_npc": to_npc})
+	if pay == 0:
+		pay = int(info.get("reward", 0))
+	var row := {"id": quest_id, "progress": progress, "to_npc": to_npc}
+	if pay > 0:
+		row["pay"] = pay
+	_active.append(row)
 	save()
 
 
@@ -373,10 +398,9 @@ func note_phone() -> void:
 	_fill_kind(PHONE)
 
 
-func note_cog_defeat(cog: String, hood: int = 0, dept: String = "") -> void:
+func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1) -> void:
 	var code := cog.to_lower()
 	CogGallery.note(code)
-	var playground := hood - posmod(hood, 1000)
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
@@ -384,29 +408,55 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "") -> void:
 			continue
 		var info: Dictionary = _info(quest_id)
 		var kind := String(info["kind"])
+		if not _place_ok(info, hood):
+			continue
 		if kind == COG:
-			var wanted := String(info["cog"])
+			var wanted := String(info.get("cog", "any"))
 			var want_dept := String(info.get("dept", ""))
 			if want_dept != "" and want_dept != dept:
 				continue
-			if wanted != code and wanted != "any":
+			if wanted != code and wanted != "any" and wanted != "":
 				continue
-			var need_hood := int(info.get("hood", 0))
-			if need_hood != 0 and playground != need_hood:
+			var min_level := int(info.get("level", 0))
+			if min_level > 0 and level < min_level:
 				continue
 			entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
 			changed = true
 		elif kind == RECOVER:
-			var need_hood := int(info.get("hood", 0))
-			if need_hood != 0 and playground != need_hood:
+			if String(info.get("holder", "any")) == "fish":
 				continue
 			if int(entry["progress"]) >= int(info["goal"]):
 				continue
-			var chance := int(info.get("chance", 100))
-			if randi_range(1, 100) > chance:
+			if not _holder_ok(info, code, dept, level):
 				continue
-			entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+			if _recover_roll(entry, int(info.get("chance", 100))):
+				entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
 			changed = true
+	if changed:
+		save()
+
+
+## RecoverItemQuest from a fish. The pond calls this when a fish is reeled in.
+func note_fish(zone: int = 0) -> void:
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != RECOVER:
+			continue
+		if String(info.get("holder", "")) != "fish":
+			continue
+		if not _place_ok(info, zone):
+			continue
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		var chance := int(info.get("chance", 100))
+		if randf() * 100.0 > float(chance):
+			continue
+		entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+		changed = true
 	if changed:
 		save()
 
@@ -417,11 +467,9 @@ func ready_hq() -> Dictionary:
 		var quest_id := int(entry["id"])
 		if not _known(quest_id) or not is_complete(quest_id):
 			continue
-		var info: Dictionary = _info(quest_id)
-		if String(info.get("turn_in", "")) != "hq":
+		var card := _card(entry)
+		if String(card.get("turn_in", "")) != "hq":
 			continue
-		var card: Dictionary = info.duplicate()
-		card["id"] = quest_id
 		return card
 	return {}
 
@@ -447,12 +495,17 @@ func turn_in(quest_id: int, npc_id: int = 0) -> int:
 	if String(info["kind"]) == TRACK:
 		return 0
 	var dest := _dest(entry)
-	if dest != 0 and npc_id != dest:
+	# HQ calls with npc 0. QuestDict stores that destination as ToonHQ, 1000.
+	var hq_turn_in := npc_id == 0 and (dest == 0 or dest == 1000)
+	if not hq_turn_in and dest != 0 and npc_id != dest:
 		return 0
 	var kind := String(info["kind"])
 	var finished := kind == VISIT or _kind_done(entry, info)
 	if not finished:
 		return 0
+	var pay := int(entry.get("pay", 0))
+	if pay == 0:
+		pay = int(info.get("reward", 0))
 	var next_id := _follow(info)
 	# A list pick, or a task already turned in at HQ, is skipped so the chain
 	# still reaches the toon who gives the next part.
@@ -467,11 +520,12 @@ func turn_in(quest_id: int, npc_id: int = 0) -> int:
 	if not _done.has(quest_id):
 		_done.append(quest_id)
 	# A reward is paid when the task does not point at another one.
-	if next_id == 0:
-		_collect(info)
+	# The id chosen at HQ is what a generic Central quest pays.
+	if next_id == 0 and pay > 0:
+		_collect({"reward": pay})
 	save()
 	if next_id != 0:
-		assign(next_id, npc_id)
+		assign(next_id, npc_id, pay)
 	return next_id
 
 
@@ -562,12 +616,27 @@ func _card(entry: Dictionary) -> Dictionary:
 	card["ready"] = _kind_done(entry, info)
 	if bool(card["ready"]):
 		card["progress"] = goal
+	var pay := int(entry.get("pay", 0))
+	if pay == 0:
+		pay = int(info.get("reward", 0))
+	# The reward chosen at the start of a chain is paid by its last step.
+	var nxt: Variant = info.get("next", 0)
+	var finishes := typeof(nxt) != TYPE_ARRAY and int(nxt) == 0
+	if pay > 0 and finishes:
+		card["pay"] = pay
+		_stamp_reward(card, pay)
 	var dest := _dest(entry)
-	if dest != 0 and _NPC_ZONE.has(dest):
-		card["turn_in"] = str(_NPC_ZONE[dest])
-		card["return_name"] = String(_NPC_NAME[dest])
-		card["return_where"] = String(_NPC_WHERE[dest])
-		card["where"] = String(_NPC_WHERE[dest]) if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK else String(info.get("where", ""))
+	if dest == 0 or dest == 1000:
+		if String(info.get("kind", "")) != VISIT or int(info.get("npc", 0)) in [0, 1000]:
+			card["turn_in"] = "hq"
+	elif dest > 0:
+		var npc := _npc_row(dest)
+		if not npc.is_empty():
+			card["turn_in"] = str(int(npc.get("zone", dest)))
+			card["return_name"] = String(npc.get("name", ""))
+			card["return_where"] = String(npc.get("where", ""))
+			if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK:
+				card["where"] = String(npc.get("where", card.get("where", "")))
 	return card
 
 
@@ -597,10 +666,15 @@ func _follow(info: Dictionary) -> int:
 	return int(nxt)
 
 
-func _kept(quest_id: int, progress: int, to_npc: int) -> Dictionary:
+func _kept(quest_id: int, progress: int, to_npc: int, pay: int = 0, misses: int = 0) -> Dictionary:
 	if to_npc == 0 and _known(quest_id):
 		to_npc = int(_info(quest_id).get("npc", 0))
-	return {"id": quest_id, "progress": progress, "to_npc": to_npc}
+	var row := {"id": quest_id, "progress": progress, "to_npc": to_npc}
+	if pay > 0:
+		row["pay"] = pay
+	if misses > 0:
+		row["misses"] = misses
+	return row
 
 
 func _pages(quest_id: int, key: String) -> PackedStringArray:
@@ -722,6 +796,11 @@ func training_step(index: int) -> bool:
 	return (track_progress & (1 << index)) != 0
 
 
+## Reward 900 is the sixteenth training frame. The track can be used after it.
+func training_done() -> bool:
+	return reward_history.has(900)
+
+
 func finished_ids() -> Array:
 	var rows: Array = []
 	for quest_id in _done:
@@ -756,7 +835,7 @@ func apply_dict(record: Dictionary) -> void:
 			continue
 		var quest_num := int(entry.get("id", 0))
 		if _known(quest_num):
-			_active.append(_kept(quest_num, int(entry.get("progress", 0)), int(entry.get("to_npc", 0))))
+			_active.append(_kept(quest_num, int(entry.get("progress", 0)), int(entry.get("to_npc", 0)), int(entry.get("pay", 0)), int(entry.get("misses", 0))))
 
 
 func save() -> void:
@@ -768,11 +847,16 @@ func save() -> void:
 		return
 	var active: Array = []
 	for entry in _active:
-		active.append({
+		var row := {
 			"id": int(entry["id"]),
 			"progress": int(entry["progress"]),
 			"to_npc": int(entry.get("to_npc", 0)),
-		})
+		}
+		if int(entry.get("pay", 0)) > 0:
+			row["pay"] = int(entry["pay"])
+		if int(entry.get("misses", 0)) > 0:
+			row["misses"] = int(entry["misses"])
+		active.append(row)
 	slots[_slot] = {
 		"has_book": has_book,
 		"met_flippy": met_flippy,
@@ -800,13 +884,17 @@ func save() -> void:
 
 
 func _known(quest_id: int) -> bool:
-	return CATALOG.has(quest_id) or _tier2_step(quest_id) >= 0
+	_load_pool()
+	return CATALOG.has(quest_id) or _pool.has(quest_id)
 
 
 func _info(quest_id: int) -> Dictionary:
+	_load_pool()
 	if CATALOG.has(quest_id):
 		return CATALOG[quest_id]
-	return _tier2_info(quest_id)
+	if _pool.has(quest_id):
+		return _pool[quest_id]
+	return {}
 
 
 func _kind_done(entry: Dictionary, info: Dictionary) -> bool:
@@ -832,18 +920,23 @@ func _fill_kind(kind: String) -> void:
 
 func _chain_active() -> bool:
 	for entry in _active:
-		if int(entry["id"]) < _TIER2_BASE:
+		if _SCRIPTED.has(int(entry["id"])):
 			return true
 	return false
 
 
-func _offer_card(quest_id: int) -> Dictionary:
+func _offer_card(quest_id: int, pay: int = -1) -> Dictionary:
 	var info: Dictionary = _info(quest_id)
 	var card: Dictionary = info.duplicate()
 	card["id"] = quest_id
 	card["progress"] = 0
 	card["goal"] = int(info.get("goal", 1))
 	card["ready"] = false
+	if pay < 0:
+		pay = int(info.get("reward", 0))
+	if pay > 0:
+		card["pay"] = pay
+		_stamp_reward(card, pay)
 	return card
 
 
@@ -854,81 +947,183 @@ func _required(tier: int) -> Array[int]:
 		return _TIER1.duplicate()
 	if tier == 2:
 		return _TIER2.duplicate()
+	if tier == 3:
+		return _TIER3.duplicate()
 	return []
 
 
-## The next Central reward that is neither recorded nor already in the journal.
-func _tier2_offers() -> Array[Dictionary]:
-	var taken: Dictionary = {}
-	for entry in _active:
-		var step := _tier2_step(int(entry["id"]))
-		if step >= 0:
-			taken[step] = true
+## chooseBestQuests. Up to three tasks, one for each of the next rewards still due.
+func _reward_offers(npc_id: int) -> Array[Dictionary]:
+	_load_pool()
+	var used: Dictionary = {}
+	var shown: Array[Dictionary] = []
+	for reward_id in _next_rewards():
+		var quest_id := _pick_quest(reward_id, npc_id, used)
+		if quest_id == 0:
+			continue
+		used[quest_id] = true
+		shown.append(_offer_card(quest_id, reward_id))
+	return shown
+
+
+func _next_rewards() -> Array[int]:
 	var pending: Array[int] = []
 	for reward_id in reward_history:
 		pending.append(reward_id)
-	for step in _TIER2.size():
-		var reward_id := _TIER2[step]
-		if bool(taken.get(step, false)):
-			continue
+	var left: Array[int] = []
+	for reward_id in _required(reward_tier):
 		var found := pending.find(reward_id)
 		if found >= 0:
 			pending.remove_at(found)
 			continue
-		var shown: Array[Dictionary] = []
-		for variant in 3:
-			shown.append(_offer_card(_TIER2_BASE + step * 3 + variant))
-		return shown
-	return []
+		left.append(reward_id)
+	var picked: Array[int] = []
+	for index in mini(3, left.size()):
+		picked.append(left[index])
+	return picked
 
 
-func _tier2_step(quest_id: int) -> int:
-	if quest_id < _TIER2_BASE:
-		return -1
-	var step := int((quest_id - _TIER2_BASE) / 3)
-	if step < 0 or step >= _TIER2.size():
-		return -1
-	return step
+func _pick_quest(reward_id: int, npc_id: int, used: Dictionary) -> int:
+	var specific := _candidates(str(reward_id), npc_id, used, false)
+	if not specific.is_empty():
+		return specific[randi() % specific.size()]
+	var generic := _candidates("any", npc_id, used, false)
+	if generic.is_empty():
+		generic = _candidates("any", npc_id, used, true)
+	if generic.is_empty():
+		return 0
+	return generic[randi() % generic.size()]
 
 
-func _tier2_info(quest_id: int) -> Dictionary:
-	var step := _tier2_step(quest_id)
-	if step < 0:
-		return {}
-	var variant := (quest_id - _TIER2_BASE) % 3
-	var reward_id := _TIER2[step]
-	var goal := 2 + (step % 4)
-	var dept := _DEPTS[step % _DEPTS.size()]
-	var info := {
-		"headline": "WANTED",
-		"kind": COG,
-		"goal": goal,
-		"show_count": true,
-		"next": 0,
-		"turn_in": "hq",
-		"reward": reward_id,
-	}
-	if variant == 0:
-		info["caption"] = "%d Cogs" % goal
-		info["where"] = "In Toontown Central"
-		info["cog"] = "any"
-		info["hood"] = 2000
-		info["speech"] = "I need to defeat %d Cogs in Toontown Central." % goal
-	elif variant == 1:
-		var more := goal + 1
-		info["goal"] = more
-		info["caption"] = "%d Cogs" % more
-		info["where"] = "Anywhere"
-		info["cog"] = "any"
-		info["speech"] = "I need to defeat %d Cogs." % more
-	else:
-		info["caption"] = "%d %s" % [goal, _DEPT_NAMES[step % _DEPT_NAMES.size()]]
-		info["where"] = "Anywhere"
-		info["cog"] = "any"
-		info["dept"] = dept
-		info["speech"] = "I need to defeat %d %s." % [goal, _DEPT_NAMES[step % _DEPT_NAMES.size()]]
-	_stamp_reward(info, reward_id)
-	return info
+func _candidates(key: String, npc_id: int, used: Dictionary, reuse: bool) -> Array[int]:
+	var found: Array[int] = []
+	var raw: Variant = _by_reward.get(key, [])
+	if typeof(raw) != TYPE_ARRAY:
+		return found
+	for item in raw:
+		var quest_id := int(item)
+		if bool(used.get(quest_id, false)) or _is_active(quest_id):
+			continue
+		if not reuse and _done.has(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if info.is_empty() or not bool(info.get("start", false)):
+			continue
+		if not _giver_ok(info, npc_id):
+			continue
+		found.append(quest_id)
+	return found
+
+
+func _giver_ok(info: Dictionary, npc_id: int) -> bool:
+	var src := int(info.get("from", 0))
+	if src == -1:
+		return false
+	if src == 1000 and npc_id != 0:
+		return false
+	if src > 1000 and src != npc_id:
+		return false
+	var dest := int(info.get("npc", 0))
+	if dest != 0 and dest == npc_id:
+		return false
+	if dest > 1000 and not _npc_live(dest):
+		return false
+	var kind := String(info.get("kind", ""))
+	return kind == COG or kind == RECOVER or kind == VISIT
+
+
+func _npc_live(npc_id: int) -> bool:
+	if npc_id in [2001, 2005]:
+		return true
+	var row := _npc_row(npc_id)
+	return bool(row.get("live", false))
+
+
+func _npc_row(npc_id: int) -> Dictionary:
+	_load_pool()
+	if _extra_npcs.has(npc_id):
+		return _extra_npcs[npc_id]
+	if _NPC_NAME.has(npc_id):
+		return {
+			"name": String(_NPC_NAME[npc_id]),
+			"where": String(_NPC_WHERE[npc_id]),
+			"zone": int(_NPC_ZONE[npc_id]),
+			"live": true,
+		}
+	return {}
+
+
+func _place_ok(info: Dictionary, zone: int) -> bool:
+	var need_zone := int(info.get("zone", 0))
+	var need_hood := int(info.get("hood", 0))
+	if need_zone == 0 and need_hood == 0:
+		return true
+	var playground := zone - posmod(zone, 1000)
+	if need_zone != 0:
+		var street := zone - posmod(zone, 100)
+		return zone == need_zone or street == need_zone
+	return playground == need_hood
+
+
+func _holder_ok(info: Dictionary, code: String, dept: String, level: int) -> bool:
+	var holder := String(info.get("holder", "any"))
+	if holder == "" or holder == "any":
+		return true
+	if holder == "fish":
+		return false
+	var holder_type := String(info.get("holder_type", "type"))
+	if holder_type == "track":
+		return holder == dept
+	if holder_type == "level":
+		return level >= int(holder)
+	return holder == code
+
+
+## RecoverItemQuest.testRecover. A long dry streak raises the chance to 100.
+func _recover_roll(entry: Dictionary, chance: int) -> bool:
+	var misses := int(entry.get("misses", 0))
+	var roll := float(chance)
+	if roll <= 0.0:
+		roll = 100.0
+	var average := 100.0 / roll
+	if float(misses) >= average * 1.5:
+		roll = 100.0
+	elif float(misses) > average * 0.5:
+		var diff := float(misses) - average * 0.5
+		var luck := 1.0 + absf(diff / (average * 0.5))
+		roll *= luck
+	if randf() * 100.0 <= roll:
+		entry["misses"] = 0
+		return true
+	entry["misses"] = misses + 1
+	return false
+
+
+static func _load_pool() -> void:
+	if _pool_ready:
+		return
+	_pool_ready = true
+	if not FileAccess.file_exists(_QUEST_FILE):
+		return
+	var file := FileAccess.open(_QUEST_FILE, FileAccess.READ)
+	if file == null:
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var root: Dictionary = parsed
+	var quests: Dictionary = root.get("quests", {})
+	for key in quests.keys():
+		var raw: Variant = quests[key]
+		if typeof(raw) == TYPE_DICTIONARY:
+			_pool[int(key)] = raw
+	var people: Dictionary = root.get("npcs", {})
+	for key in people.keys():
+		var raw: Variant = people[key]
+		if typeof(raw) == TYPE_DICTIONARY:
+			_extra_npcs[int(key)] = raw
+	var rewards: Dictionary = root.get("by_reward", {})
+	_by_reward = rewards
 
 
 func _stamp_reward(info: Dictionary, reward_id: int) -> void:
@@ -944,6 +1139,8 @@ func _stamp_reward(info: Dictionary, reward_id: int) -> void:
 		info["beans"] = 50
 	elif reward_id >= 801 and reward_id <= 815:
 		info["frame"] = reward_id - 800
+	elif reward_id == 900:
+		info["unlock_track"] = true
 
 
 func _collect(info: Dictionary) -> void:
@@ -1042,7 +1239,7 @@ func _load() -> void:
 		var quest_id := int(entry.get("id", 0))
 		if not _known(quest_id) or _done.has(quest_id):
 			continue
-		_active.append(_kept(quest_id, int(entry.get("progress", 0)), int(entry.get("to_npc", 0))))
+		_active.append(_kept(quest_id, int(entry.get("progress", 0)), int(entry.get("to_npc", 0)), int(entry.get("pay", 0)), int(entry.get("misses", 0))))
 	var repaired := false
 	# Finishing the Flunky task is what ends the toontorial. A save that kept
 	# that and lost the playground flag must not start Tom's lesson over.

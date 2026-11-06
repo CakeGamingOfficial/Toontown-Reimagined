@@ -124,7 +124,10 @@ func refresh() -> void:
 	var training := track >= 0 and track < ToonLoadout.TRACK_COUNT
 	if training:
 		var track_name := ToonLoadout.TRACK_NAMES[track]
-		_status.text = "You are training to use %s gags.\nWhen you complete all 16 tasks you\nwill be able to use %s gags in battle." % [track_name, track_name]
+		if tasks.training_done():
+			_status.text = "You can now use %s gags in battle." % track_name
+		else:
+			_status.text = "You are training to use %s gags.\nWhen you complete all 16 tasks you\nwill be able to use %s gags in battle." % [track_name, track_name]
 	else:
 		_status.text = "You are not training any Gag Tracks now."
 	for index in _MAX:
@@ -150,7 +153,11 @@ func refresh() -> void:
 		# Frames 1 through 16. The last of those stays a question mark while
 		# the track is still in progress, the way TrackPage.updatePage leaves it.
 		var step := index - 1
-		var done := training and step < 15 and tasks.training_step(step)
+		var done := false
+		if training and step < 15:
+			done = tasks.training_step(step)
+		elif training and step == 15:
+			done = tasks.training_done()
 		var tint := Color(0.7, 0.7, 0.7) if not training else ToonLoadout.TRACK_COLORS[track]
 		if done:
 			film.modulate = tint
