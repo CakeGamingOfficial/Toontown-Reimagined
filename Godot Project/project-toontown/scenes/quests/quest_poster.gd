@@ -9,6 +9,8 @@ const _TROLLEY := preload("res://assets/gui/tutorial/book/trolley.png")
 const _COG := preload("res://assets/gui/tutorial/book/cog_icon.png")
 ## RecoverItemQuest uses the stickerbook package, scaled to 0.12 inside the 0.15 frame.
 const _PACKAGE := preload("res://assets/gui/tutorial/book/package.png")
+const _FRIENDS := preload("res://assets/gui/friends/FriendsBox_Open.png")
+const _CLARA := preload("res://assets/gui/catalog/clarabelle.png")
 ## QuestPoster colors the picture square. Cog tasks are blue, the trolley is light blue.
 const _BLUE := Color(0.45, 0.45, 0.8)
 const _LIGHT_BLUE := Color(0.42, 0.671, 1.0)
@@ -251,6 +253,14 @@ func _show_activity(task: Dictionary) -> void:
 			_right_icon.texture = _COG
 			_right_icon.visible = true
 			_right_fit = 1.0
+	elif kind == "friend":
+		_frame.modulate = _LIGHT_BLUE
+		_icon_fit = 0.72
+		_icon.texture = _FRIENDS
+	elif kind == "phone":
+		_frame.modulate = _LIGHT_GREEN
+		_icon_fit = 0.8
+		_icon.texture = _CLARA
 	else:
 		_frame.visible = false
 		_icon.visible = false

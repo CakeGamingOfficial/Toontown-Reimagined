@@ -49,9 +49,6 @@ static func place(host: Node) -> void:
 			# The cast stands on the exported pier, facing along its planks.
 			spot.global_transform = pier.global_transform
 			heading = _heading_of(pier)
-			var deck := _deck_span(pier)
-			spot.set_meta("deck_min", deck.position)
-			spot.set_meta("deck_max", deck.position + deck.size)
 		else:
 			spot.global_basis = _basis(heading)
 		spot.set_meta("heading", heading)
@@ -81,25 +78,6 @@ static func _heading_of(pier: Node3D) -> float:
 	if forward.length_squared() < 0.0001:
 		return 0.0
 	return rad_to_deg(atan2(-forward.x, -forward.z))
-
-
-## piers_tt board is a flat plate in the pier's local XY. Local Y runs from
-## the bank out over the water. The cast trigger is that plate.
-static func _deck_span(pier: Node3D) -> Rect2:
-	var board := pier.find_child("board", true, false) as MeshInstance3D
-	if board == null or board.mesh == null:
-		return Rect2(-2.04, -6.08, 4.03, 8.31)
-	var box := board.mesh.get_aabb()
-	var into_pier := pier.global_transform.affine_inverse() * board.global_transform
-	var low := Vector2(INF, INF)
-	var high := Vector2(-INF, -INF)
-	for index in 8:
-		var corner: Vector3 = into_pier * box.get_endpoint(index)
-		low.x = minf(low.x, corner.x)
-		low.y = minf(low.y, corner.y)
-		high.x = maxf(high.x, corner.x)
-		high.y = maxf(high.y, corner.y)
-	return Rect2(low, high - low)
 
 
 static func _basis(heading: float) -> Basis:

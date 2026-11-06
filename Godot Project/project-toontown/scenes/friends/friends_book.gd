@@ -23,6 +23,16 @@ static func count() -> int:
 	return _mine().size()
 
 
+## FriendQuest counts a toon on the list. A cog who said yes does not.
+static func toon_friend_count() -> int:
+	var total := 0
+	for item in _mine():
+		var record: Dictionary = item
+		if String(record.get("id", "")).begins_with("av:"):
+			total += 1
+	return total
+
+
 ## A whisper addressed to another toon on this machine waits until that toon plays.
 static func leave_whisper(slot: int, from_name: String, text: String) -> void:
 	if slot < 0:
@@ -139,6 +149,7 @@ static func add_avatar(av: int, friend_name: String, true_friend: bool) -> bool:
 			record["true_friend"] = true
 		_slots[_key()] = rows
 		_save()
+		ToonTasks.notify_friend()
 		return true
 	if rows.size() >= MAX_FRIENDS:
 		return false
@@ -152,6 +163,7 @@ static func add_avatar(av: int, friend_name: String, true_friend: bool) -> bool:
 	})
 	_slots[_key()] = rows
 	_save()
+	ToonTasks.notify_friend()
 	return true
 
 

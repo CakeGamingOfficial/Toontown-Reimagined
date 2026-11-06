@@ -282,6 +282,7 @@ func squish(damage: int) -> void:
 
 func _ready() -> void:
 	_tasks = ToonTasks.for_selected()
+	ToonTasks.bind(_tasks)
 	var arriving := from_toontorial
 	var logging_in := teleport_in
 	var from_portal := portal_in
@@ -1182,6 +1183,10 @@ func _use_phone(phone: Node3D) -> void:
 		_player.end_action("phoneNeutral")
 	_player.set_look_enabled(true)
 	_reset_phone()
+	if _phone_done and _tasks != null:
+		_tasks.note_phone()
+		if _book != null:
+			_book.refresh_tasks()
 	_finish_phone()
 
 
@@ -1437,11 +1442,9 @@ const _TROPHY_FISH := "Wow! You collected %d of %d fish. That deserves a trophy 
 const _FISH_SLOW := "Need more time to think?"
 
 
-## DistributedFishingSpot sphere is 1.5 at the outer end of the pier. A toon
-## standing on the planks is still on that dock, so the plate counts too.
-## Spots with no plate keep the old point test.
+## DistributedFishingSpot.getSphereRadius. The sphere sits on the spot, at the
+## outer end of the pier. The planks behind it are not part of the trigger.
 const _DOCK_MARGIN := 1.5
-const _SHORE_REACH := 6.5
 
 
 func aim_fishing(heading: float) -> void:
@@ -1504,26 +1507,16 @@ func _nearest_shore() -> Node3D:
 		var spot := node as Node3D
 		if spot == null or not spot.is_visible_in_tree():
 			continue
-		var margin := _DOCK_MARGIN if spot.has_meta("deck_min") else _SHORE_REACH
 		var gap := _shore_gap(spot)
-		if gap <= margin and gap < best_gap:
+		if gap <= _DOCK_MARGIN and gap < best_gap:
 			best_gap = gap
 			best = spot
 	return best
 
 
 func _shore_gap(spot: Node3D) -> float:
-	if not spot.has_meta("deck_min"):
-		var offset := spot.global_position - _body.global_position
-		return Vector2(offset.x, offset.z).length()
-	var local: Vector3 = spot.global_transform.affine_inverse() * _body.global_position
-	var deck_min: Vector2 = spot.get_meta("deck_min")
-	var deck_max: Vector2 = spot.get_meta("deck_max")
-	var clamped := Vector2(
-		clampf(local.x, deck_min.x, deck_max.x),
-		clampf(local.y, deck_min.y, deck_max.y)
-	)
-	return Vector2(local.x, local.y).distance_to(clamped)
+	var offset := spot.global_position - _body.global_position
+	return Vector2(offset.x, offset.z).length()
 
 
 func _try_fisherman() -> void:
@@ -1696,10 +1689,17 @@ func _try_officer() -> void:
 	var actor := _clerk_actor(officer)
 	if not card.is_empty():
 		var laff := int(card.get("laff", 0))
+		var carry := int(card.get("carry", 0))
+		var beans := int(card.get("beans", 0))
 		_tasks.turn_in(int(card.get("id", 0)))
 		if laff > 0 and _loadout != null:
 			_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
 			_loadout.save()
+		if carry > 0 and _loadout != null and _loadout.max_carry < carry:
+			_loadout.max_carry = carry
+			_loadout.save()
+		if beans > 0 and _BEANS.pouch_limit() < beans:
+			_BEANS.set_pouch_limit(beans)
 		if _book != null:
 			_book.refresh_tasks()
 		_say_clerk(actor, "Nice work! Here is your reward...", 3.2)

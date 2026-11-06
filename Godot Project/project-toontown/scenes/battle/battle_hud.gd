@@ -114,6 +114,9 @@ func _ready() -> void:
 
 ## TownBattle.__enterPanels plus the clock. Choices already made stay on the cards.
 func show_battle(toons: Array, state: String, seconds: int) -> void:
+	if state != "input":
+		hide_all()
+		return
 	_toons = toons
 	_state = state
 	_seconds = seconds
@@ -127,6 +130,17 @@ func hide_all() -> void:
 	_seconds = -1
 	_choosing = false
 	visible = false
+	for card in _cards:
+		card.visible = false
+	if _clock != null:
+		_clock.visible = false
+	if _clock_num != null:
+		_clock_num.visible = false
+	if _wait != null:
+		_wait.visible = false
+	if _wait_text != null:
+		_wait_text.visible = false
+	_set_choose_visible(false)
 
 
 ## TownBattleChooseAvatarPanel. Slot 0 is the rightmost body, matching the cards.
@@ -142,6 +156,9 @@ func show_choose(toon_targets: bool, count: int, invalid: PackedInt32Array, skip
 
 func hide_choose() -> void:
 	_choosing = false
+	if _state != "input":
+		_set_choose_visible(false)
+		return
 	_layout()
 
 
@@ -258,10 +275,7 @@ func _dress_meter(index: int, peer: int, hp: int, maximum: int, unit: float) -> 
 	var kind := _species(peer)
 	if _meter_kind[index] != kind or meter.get_child_count() == 0:
 		_meter_kind[index] = kind
-		var style := _style(peer)
-		for child in meter.get_children():
-			child.free()
-		meter.setup(style)
+		meter.setup(_style(peer))
 	var pixels := unit * 0.12
 	meter.place(Vector2(_cards[index].size.x * 0.5 - 0.048 * unit, _cards[index].size.y * 0.5 - 0.04 * unit), pixels)
 	meter.set_hp(hp, maximum, true)
@@ -296,14 +310,27 @@ func _place_wait(view: Vector2, count: int) -> void:
 	ToonGui.style_label(_wait_text, _INK, _px(view.y * 0.5, 0.1 * 0.65), Color(0, 0, 0, 0), 0)
 
 
+func _set_choose_visible(on: bool) -> void:
+	if _pick != null:
+		_pick.visible = on
+	if _pick_status != null:
+		_pick_status.visible = on
+	if _tab != null:
+		_tab.visible = on
+	if _tab_text != null:
+		_tab_text.visible = on
+	if _back != null:
+		_back.visible = on
+	if _back_text != null:
+		_back_text.visible = on
+	if not on:
+		for arrow in _arrows:
+			arrow.visible = false
+
+
 func _place_choose(view: Vector2) -> void:
 	var on := _choosing and _state == "input"
-	_pick.visible = on
-	_pick_status.visible = on
-	_tab.visible = on
-	_tab_text.visible = on
-	_back.visible = on
-	_back_text.visible = on
+	_set_choose_visible(on)
 	if not on:
 		for arrow in _arrows:
 			arrow.visible = false

@@ -2,16 +2,18 @@ class_name ToonTasks
 extends RefCounted
 
 ## The ToonTask journal. Quest 101 is Tutorial Tom's Flunky. The Toontown
-## Central chain continues 110, 145, then the friend and phone tasks. A task
-## marked hold stays in the chain and is not handed out until its feature exists.
-## Battle code reports a defeat with note_cog_defeat. Turning a finished task
-## in assigns whatever it points at next.
+## Central chain continues 110, 145, the friend and phone tasks, then Flippy's
+## gag training. After that, HQ offers the Central reward track. Battle code
+## reports a defeat with note_cog_defeat. Turning a finished task in assigns
+## whatever it points at next.
 
 const COG := "cog"
 const TROLLEY := "trolley"
 const RECOVER := "recover"
 const VISIT := "visit"
 const TRACK := "track"
+const FRIEND := "friend"
+const PHONE := "phone"
 
 # NPCToons ids the Toontown Central chain visits, and the interior zone the
 # quest map uses for that building.
@@ -69,35 +71,36 @@ const CATALOG := {
 		"speech": "I need to recover a blackboard eraser from the Cogs.",
 		"next": 150,
 		"turn_in": "hq",
-		"laff": 1,
 	},
 	150: {
 		"headline": "FRIEND",
 		"caption": "Make a friend",
 		"where": "Anywhere",
-		"kind": "friend",
+		"kind": FRIEND,
 		"cog": "",
 		"goal": 1,
 		"show_count": false,
 		"speech": "I need to make a friend.",
+		"lines": ["You have been doing great work.", "I think you are ready to make a friend.", "Go make a friend and come back to me."],
+		"busy": ["Come back after you have made a friend."],
 		"next": 175,
 		"turn_in": "hq",
-		"laff": 1,
-		"hold": true,
 	},
 	175: {
 		"headline": "CLARABELLE",
 		"caption": "Call Clarabelle",
 		"where": "Anywhere",
-		"kind": "phone",
+		"kind": PHONE,
 		"cog": "",
 		"goal": 1,
 		"show_count": false,
 		"speech": "I need to call Clarabelle.",
+		"lines": ["Nice work.", "Now you should call Clarabelle on the phone in your house.", "She will send you your first catalog."],
+		"busy": ["Come back after you have called Clarabelle."],
 		"next": 0,
 		"turn_in": "hq",
 		"laff": 1,
-		"hold": true,
+		"reward": 100,
 	},
 	# Tier 1 has one starting task. HQ sends the toon to Flippy. He and the
 	# shopkeepers hand out the rest. A list of next ids is random.choice.
@@ -254,9 +257,18 @@ const CATALOG := {
 	},
 }
 
-## Once the forced chain is finished, HQ offers the visit to Flippy.
-## Tier 1's only starting task is quest 164. He assigns the rest.
-const PICKS := [164]
+## RequiredRewardTrackDict. Tier 0 is the phone's +1 Laff. Tier 1 is the gag
+## track choice. Tier 2 is the rest of Toontown Central, in this order.
+const _TIER0: Array[int] = [100]
+const _TIER1: Array[int] = [400]
+const _TIER2: Array[int] = [100, 801, 200, 802, 803, 101, 804, 805, 102, 806, 807, 100, 808, 809, 101, 810, 811, 500, 812, 813, 700, 814, 815, 300]
+const _TIER2_BASE := 3000
+const _DEPTS: PackedStringArray = ["c", "l", "s", "m"]
+const _DEPT_NAMES: PackedStringArray = ["Bossbots", "Lawbots", "Sellbots", "Cashbots"]
+
+## The playground journal. Friend and phone progress write through this, so a
+## second copy loaded from disk cannot overwrite them.
+static var _live: ToonTasks
 
 var has_book := false
 var met_flippy := false
@@ -264,6 +276,13 @@ var met_flippy := false
 # trackProgress is the bit field getTrackProgressAsArray reads, lowest bit first.
 var track_id := -1
 var track_progress := 0
+## QuestRewardCounter. Tier 0 until the phone's +1 Laff, then 1 until the gag
+## track is chosen, then 2 for the rest of Toontown Central.
+var reward_tier := 0
+var reward_history: Array[int] = []
+## MaxQuestCarry starts at 1. Reward 500 raises it to 2.
+var quest_carry := 1
+var teleport: Array[int] = []
 var in_playground := false
 ## Hood id from DistributedToonAI.setLocation. 2000 is Toontown Central.
 var last_hood := 0
@@ -272,6 +291,11 @@ var visited: Array[int] = []
 var _slot := -1
 var _active: Array[Dictionary] = []
 var _done: Array[int] = []
+
+
+## The playground journal receives friend and phone progress.
+static func bind(tasks: ToonTasks) -> void:
+	_live = tasks
 
 
 static func for_selected() -> ToonTasks:
@@ -295,39 +319,58 @@ func has_laff_meter() -> bool:
 	return has_book or not _active.is_empty() or not _done.is_empty()
 
 
-## After the eraser, HQ offers quest 164. Friend and phone stay held, so
-## this is the visit to Flippy rather than a two-task choice.
+## HQ's choice list. The forced chain fills the journal by itself. An empty
+## journal after the phone offers Flippy. An empty journal after the gag
+## choice offers the next Central reward, three tasks when the pool has them.
 func offers() -> Array[Dictionary]:
-	if not _active.is_empty() or not _done.has(145):
+	if _active.size() >= quest_carry or not _done.has(145):
 		return []
-	var shown: Array[Dictionary] = []
-	for quest_id in PICKS:
-		if _done.has(quest_id) or _is_active(quest_id) or not CATALOG.has(quest_id):
-			continue
-		var info: Dictionary = CATALOG[quest_id]
-		if bool(info.get("hold", false)):
-			continue
-		var card: Dictionary = info.duplicate()
-		card["id"] = quest_id
-		card["progress"] = 0
-		card["goal"] = int(info["goal"])
-		card["ready"] = false
-		shown.append(card)
-	return shown
+	if _chain_active():
+		return []
+	if not _done.has(400) and reward_tier < 2:
+		if not _done.has(150):
+			return [_offer_card(150)]
+		if not _done.has(175):
+			return [_offer_card(175)]
+		if not _done.has(164):
+			return [_offer_card(164)]
+		return []
+	if reward_tier < 2:
+		return []
+	return _tier2_offers()
 
 
 func assign(quest_id: int, from_npc: int = 0) -> void:
-	if not CATALOG.has(quest_id) or _is_active(quest_id) or _done.has(quest_id):
+	if not _known(quest_id) or _is_active(quest_id) or _done.has(quest_id):
 		return
-	# Friend and phone tasks stay in the chain until those features can finish them.
-	if bool(CATALOG[quest_id].get("hold", false)):
+	if bool(_info(quest_id).get("hold", false)):
 		return
-	var info: Dictionary = CATALOG[quest_id]
+	var info: Dictionary = _info(quest_id)
 	var to_npc := int(info.get("npc", 0))
 	if bool(info.get("same", false)):
 		to_npc = from_npc
-	_active.append({"id": quest_id, "progress": 0, "to_npc": to_npc})
+	var progress := 0
+	if String(info.get("kind", "")) == FRIEND and FriendsBook.toon_friend_count() > 0:
+		progress = int(info["goal"])
+	_active.append({"id": quest_id, "progress": progress, "to_npc": to_npc})
 	save()
+
+
+## FriendQuest is done once a toon is on the friends list.
+static func notify_friend() -> void:
+	if _live != null and is_instance_valid(_live):
+		_live.note_friend()
+
+
+func note_friend() -> void:
+	if FriendsBook.toon_friend_count() <= 0:
+		return
+	_fill_kind(FRIEND)
+
+
+## PhoneQuest finishes when Clarabelle's catalog closes.
+func note_phone() -> void:
+	_fill_kind(PHONE)
 
 
 func note_cog_defeat(cog: String, hood: int = 0, dept: String = "") -> void:
@@ -337,7 +380,9 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "") -> void:
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
-		var info: Dictionary = CATALOG[quest_id]
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
 		var kind := String(info["kind"])
 		if kind == COG:
 			var wanted := String(info["cog"])
@@ -370,9 +415,9 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "") -> void:
 func ready_hq() -> Dictionary:
 	for entry in _active:
 		var quest_id := int(entry["id"])
-		if not CATALOG.has(quest_id) or not is_complete(quest_id):
+		if not _known(quest_id) or not is_complete(quest_id):
 			continue
-		var info: Dictionary = CATALOG[quest_id]
+		var info: Dictionary = _info(quest_id)
 		if String(info.get("turn_in", "")) != "hq":
 			continue
 		var card: Dictionary = info.duplicate()
@@ -384,8 +429,8 @@ func ready_hq() -> Dictionary:
 ## Finishing a trolley ride calls this. Nothing else marks quest 110 complete.
 func note_trolley() -> void:
 	for entry in _active:
-		var info: Dictionary = CATALOG[int(entry["id"])]
-		if String(info["kind"]) != TROLLEY:
+		var info: Dictionary = _info(int(entry["id"]))
+		if info.is_empty() or String(info["kind"]) != TROLLEY:
 			continue
 		entry["progress"] = int(info["goal"])
 	save()
@@ -396,16 +441,16 @@ func note_trolley() -> void:
 ## The returned id is the task this NPC just handed out.
 func turn_in(quest_id: int, npc_id: int = 0) -> int:
 	var entry := _entry(quest_id)
-	if entry.is_empty() or not CATALOG.has(quest_id):
+	if entry.is_empty() or not _known(quest_id):
 		return 0
-	var info: Dictionary = CATALOG[quest_id]
+	var info: Dictionary = _info(quest_id)
 	if String(info["kind"]) == TRACK:
 		return 0
 	var dest := _dest(entry)
 	if dest != 0 and npc_id != dest:
 		return 0
 	var kind := String(info["kind"])
-	var finished := kind == VISIT or int(entry["progress"]) >= int(info["goal"])
+	var finished := kind == VISIT or _kind_done(entry, info)
 	if not finished:
 		return 0
 	var next_id := _follow(info)
@@ -414,13 +459,16 @@ func turn_in(quest_id: int, npc_id: int = 0) -> int:
 	var guard := 0
 	while next_id != 0 and _done.has(next_id) and guard < 8:
 		guard += 1
-		if not CATALOG.has(next_id):
+		if not _known(next_id):
 			next_id = 0
 			break
-		next_id = _follow(CATALOG[next_id])
+		next_id = _follow(_info(next_id))
 	_remove(quest_id)
 	if not _done.has(quest_id):
 		_done.append(quest_id)
+	# A reward is paid when the task does not point at another one.
+	if next_id == 0:
+		_collect(info)
 	save()
 	if next_id != 0:
 		assign(next_id, npc_id)
@@ -430,9 +478,10 @@ func turn_in(quest_id: int, npc_id: int = 0) -> int:
 ## Quest 400. The NPC presents Sound and Toon-up, then the training film starts.
 func choose_track(quest_id: int, track: int) -> void:
 	var entry := _entry(quest_id)
-	if entry.is_empty() or not CATALOG.has(quest_id):
+	if entry.is_empty() or not _known(quest_id):
 		return
-	if String(CATALOG[quest_id]["kind"]) != TRACK:
+	var info: Dictionary = _info(quest_id)
+	if String(info["kind"]) != TRACK:
 		return
 	if track < 0 or track >= ToonLoadout.TRACK_COUNT:
 		return
@@ -441,6 +490,7 @@ func choose_track(quest_id: int, track: int) -> void:
 	_remove(quest_id)
 	if not _done.has(quest_id):
 		_done.append(quest_id)
+	_collect({"reward": 400})
 	save()
 
 
@@ -453,10 +503,12 @@ func for_npc(npc_id: int) -> Dictionary:
 		if _dest(entry) != npc_id:
 			continue
 		var quest_id := int(entry["id"])
-		var info: Dictionary = CATALOG[quest_id]
+		var info: Dictionary = _info(quest_id)
+		if info.is_empty():
+			continue
 		var kind := String(info["kind"])
 		var card := _card(entry)
-		card["ready"] = kind == VISIT or kind == TRACK or int(entry["progress"]) >= int(info["goal"])
+		card["ready"] = kind == VISIT or kind == TRACK or _kind_done(entry, info)
 		if bool(card["ready"]):
 			return card
 		waiting = card
@@ -480,19 +532,19 @@ func after_pages(quest_id: int) -> PackedStringArray:
 
 
 func is_complete(quest_id: int) -> bool:
-	if not CATALOG.has(quest_id):
+	if not _known(quest_id):
 		return false
 	for entry in _active:
 		if int(entry["id"]) != quest_id:
 			continue
-		return int(entry["progress"]) >= int(CATALOG[quest_id]["goal"])
+		return _kind_done(entry, _info(quest_id))
 	return false
 
 
 func entries() -> Array[Dictionary]:
 	var shown: Array[Dictionary] = []
 	for entry in _active:
-		if not CATALOG.has(int(entry["id"])):
+		if not _known(int(entry["id"])):
 			continue
 		shown.append(_card(entry))
 	return shown
@@ -500,14 +552,16 @@ func entries() -> Array[Dictionary]:
 
 func _card(entry: Dictionary) -> Dictionary:
 	var quest_id := int(entry["id"])
-	var info: Dictionary = CATALOG[quest_id]
+	var info: Dictionary = _info(quest_id)
 	var progress := int(entry["progress"])
 	var goal := int(info["goal"])
 	var card: Dictionary = info.duplicate()
 	card["id"] = quest_id
 	card["progress"] = progress
 	card["goal"] = goal
-	card["ready"] = progress >= goal
+	card["ready"] = _kind_done(entry, info)
+	if bool(card["ready"]):
+		card["progress"] = goal
 	var dest := _dest(entry)
 	if dest != 0 and _NPC_ZONE.has(dest):
 		card["turn_in"] = str(_NPC_ZONE[dest])
@@ -528,9 +582,9 @@ func _dest(entry: Dictionary) -> int:
 	var stored := int(entry.get("to_npc", 0))
 	if stored != 0:
 		return stored
-	if not CATALOG.has(int(entry.get("id", 0))):
+	if not _known(int(entry.get("id", 0))):
 		return 0
-	return int(CATALOG[int(entry["id"])].get("npc", 0))
+	return int(_info(int(entry["id"])).get("npc", 0))
 
 
 func _follow(info: Dictionary) -> int:
@@ -544,16 +598,16 @@ func _follow(info: Dictionary) -> int:
 
 
 func _kept(quest_id: int, progress: int, to_npc: int) -> Dictionary:
-	if to_npc == 0 and CATALOG.has(quest_id):
-		to_npc = int(CATALOG[quest_id].get("npc", 0))
+	if to_npc == 0 and _known(quest_id):
+		to_npc = int(_info(quest_id).get("npc", 0))
 	return {"id": quest_id, "progress": progress, "to_npc": to_npc}
 
 
 func _pages(quest_id: int, key: String) -> PackedStringArray:
 	var lines := PackedStringArray()
-	if not CATALOG.has(quest_id):
+	if not _known(quest_id):
 		return lines
-	var raw: Variant = CATALOG[quest_id].get(key, [])
+	var raw: Variant = _info(quest_id).get(key, [])
 	if typeof(raw) != TYPE_ARRAY:
 		return lines
 	for line in raw:
@@ -638,9 +692,9 @@ func task_lines() -> PackedStringArray:
 	var lines := PackedStringArray()
 	for entry in _active:
 		var quest_id := int(entry["id"])
-		if not CATALOG.has(quest_id):
+		if not _known(quest_id):
 			continue
-		var info: Dictionary = CATALOG[quest_id]
+		var info: Dictionary = _info(quest_id)
 		var speech := String(info.get("speech", ""))
 		if speech != "" and not lines.has(speech):
 			lines.append(speech)
@@ -680,6 +734,14 @@ func apply_dict(record: Dictionary) -> void:
 	met_flippy = bool(record.get("met_flippy", met_flippy))
 	track_id = int(record.get("track_id", track_id))
 	track_progress = int(record.get("track_progress", track_progress))
+	reward_tier = int(record.get("reward_tier", reward_tier))
+	quest_carry = maxi(int(record.get("quest_carry", quest_carry)), 1)
+	reward_history.clear()
+	for reward_id in record.get("reward_history", []):
+		reward_history.append(int(reward_id))
+	teleport.clear()
+	for zone_id in record.get("teleport", []):
+		teleport.append(int(zone_id))
 	in_playground = bool(record.get("in_playground", in_playground))
 	last_hood = int(record.get("last_hood", last_hood))
 	visited.clear()
@@ -693,7 +755,7 @@ func apply_dict(record: Dictionary) -> void:
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var quest_num := int(entry.get("id", 0))
-		if CATALOG.has(quest_num):
+		if _known(quest_num):
 			_active.append(_kept(quest_num, int(entry.get("progress", 0)), int(entry.get("to_npc", 0))))
 
 
@@ -716,6 +778,10 @@ func save() -> void:
 		"met_flippy": met_flippy,
 		"track_id": track_id,
 		"track_progress": track_progress,
+		"reward_tier": reward_tier,
+		"reward_history": reward_history.duplicate(),
+		"quest_carry": quest_carry,
+		"teleport": teleport.duplicate(),
 		"in_playground": in_playground,
 		"last_hood": last_hood,
 		"visited": visited.duplicate(),
@@ -731,6 +797,185 @@ func save() -> void:
 	# the write is still open comes back empty and would store a blank journal.
 	file.close()
 	ToonNet.keep_toon()
+
+
+func _known(quest_id: int) -> bool:
+	return CATALOG.has(quest_id) or _tier2_step(quest_id) >= 0
+
+
+func _info(quest_id: int) -> Dictionary:
+	if CATALOG.has(quest_id):
+		return CATALOG[quest_id]
+	return _tier2_info(quest_id)
+
+
+func _kind_done(entry: Dictionary, info: Dictionary) -> bool:
+	if String(info.get("kind", "")) == FRIEND and FriendsBook.toon_friend_count() > 0:
+		return true
+	return int(entry.get("progress", 0)) >= int(info.get("goal", 1))
+
+
+func _fill_kind(kind: String) -> void:
+	var changed := false
+	for entry in _active:
+		var info := _info(int(entry["id"]))
+		if info.is_empty() or String(info.get("kind", "")) != kind:
+			continue
+		var goal := int(info["goal"])
+		if int(entry["progress"]) >= goal:
+			continue
+		entry["progress"] = goal
+		changed = true
+	if changed:
+		save()
+
+
+func _chain_active() -> bool:
+	for entry in _active:
+		if int(entry["id"]) < _TIER2_BASE:
+			return true
+	return false
+
+
+func _offer_card(quest_id: int) -> Dictionary:
+	var info: Dictionary = _info(quest_id)
+	var card: Dictionary = info.duplicate()
+	card["id"] = quest_id
+	card["progress"] = 0
+	card["goal"] = int(info.get("goal", 1))
+	card["ready"] = false
+	return card
+
+
+func _required(tier: int) -> Array[int]:
+	if tier == 0:
+		return _TIER0.duplicate()
+	if tier == 1:
+		return _TIER1.duplicate()
+	if tier == 2:
+		return _TIER2.duplicate()
+	return []
+
+
+## The next Central reward that is neither recorded nor already in the journal.
+func _tier2_offers() -> Array[Dictionary]:
+	var taken: Dictionary = {}
+	for entry in _active:
+		var step := _tier2_step(int(entry["id"]))
+		if step >= 0:
+			taken[step] = true
+	var pending: Array[int] = []
+	for reward_id in reward_history:
+		pending.append(reward_id)
+	for step in _TIER2.size():
+		var reward_id := _TIER2[step]
+		if bool(taken.get(step, false)):
+			continue
+		var found := pending.find(reward_id)
+		if found >= 0:
+			pending.remove_at(found)
+			continue
+		var shown: Array[Dictionary] = []
+		for variant in 3:
+			shown.append(_offer_card(_TIER2_BASE + step * 3 + variant))
+		return shown
+	return []
+
+
+func _tier2_step(quest_id: int) -> int:
+	if quest_id < _TIER2_BASE:
+		return -1
+	var step := int((quest_id - _TIER2_BASE) / 3)
+	if step < 0 or step >= _TIER2.size():
+		return -1
+	return step
+
+
+func _tier2_info(quest_id: int) -> Dictionary:
+	var step := _tier2_step(quest_id)
+	if step < 0:
+		return {}
+	var variant := (quest_id - _TIER2_BASE) % 3
+	var reward_id := _TIER2[step]
+	var goal := 2 + (step % 4)
+	var dept := _DEPTS[step % _DEPTS.size()]
+	var info := {
+		"headline": "WANTED",
+		"kind": COG,
+		"goal": goal,
+		"show_count": true,
+		"next": 0,
+		"turn_in": "hq",
+		"reward": reward_id,
+	}
+	if variant == 0:
+		info["caption"] = "%d Cogs" % goal
+		info["where"] = "In Toontown Central"
+		info["cog"] = "any"
+		info["hood"] = 2000
+		info["speech"] = "I need to defeat %d Cogs in Toontown Central." % goal
+	elif variant == 1:
+		var more := goal + 1
+		info["goal"] = more
+		info["caption"] = "%d Cogs" % more
+		info["where"] = "Anywhere"
+		info["cog"] = "any"
+		info["speech"] = "I need to defeat %d Cogs." % more
+	else:
+		info["caption"] = "%d %s" % [goal, _DEPT_NAMES[step % _DEPT_NAMES.size()]]
+		info["where"] = "Anywhere"
+		info["cog"] = "any"
+		info["dept"] = dept
+		info["speech"] = "I need to defeat %d %s." % [goal, _DEPT_NAMES[step % _DEPT_NAMES.size()]]
+	_stamp_reward(info, reward_id)
+	return info
+
+
+func _stamp_reward(info: Dictionary, reward_id: int) -> void:
+	if reward_id == 100:
+		info["laff"] = 1
+	elif reward_id == 101:
+		info["laff"] = 2
+	elif reward_id == 102:
+		info["laff"] = 3
+	elif reward_id == 200:
+		info["carry"] = 25
+	elif reward_id == 700:
+		info["beans"] = 50
+	elif reward_id >= 801 and reward_id <= 815:
+		info["frame"] = reward_id - 800
+
+
+func _collect(info: Dictionary) -> void:
+	var reward_id := int(info.get("reward", 0))
+	if reward_id == 0:
+		return
+	reward_history.append(reward_id)
+	if reward_id >= 801 and reward_id <= 815 and track_id >= 0:
+		track_progress = track_progress | (1 << (reward_id - 801))
+	if reward_id == 500:
+		quest_carry = maxi(quest_carry, 2)
+	if reward_id == 300 and not teleport.has(2000):
+		teleport.append(2000)
+	var guard := 0
+	while guard < 4:
+		guard += 1
+		var need := _required(reward_tier)
+		if need.is_empty():
+			return
+		var pending: Array[int] = []
+		for owned in reward_history:
+			pending.append(owned)
+		var finished := true
+		for needed in need:
+			var found := pending.find(needed)
+			if found < 0:
+				finished = false
+				break
+			pending.remove_at(found)
+		if not finished:
+			return
+		reward_tier += 1
 
 
 func _is_active(quest_id: int) -> bool:
@@ -756,6 +1001,10 @@ func _load() -> void:
 	met_flippy = false
 	track_id = -1
 	track_progress = 0
+	reward_tier = 0
+	reward_history = []
+	quest_carry = 1
+	teleport = []
 	in_playground = false
 	last_hood = 0
 	if _slot < 0:
@@ -769,6 +1018,14 @@ func _load() -> void:
 	met_flippy = bool(stored.get("met_flippy", false))
 	track_id = int(stored.get("track_id", -1))
 	track_progress = int(stored.get("track_progress", 0))
+	reward_tier = maxi(int(stored.get("reward_tier", 0)), 0)
+	quest_carry = maxi(int(stored.get("quest_carry", 1)), 1)
+	reward_history.clear()
+	for reward_id in stored.get("reward_history", []):
+		reward_history.append(int(reward_id))
+	teleport.clear()
+	for zone_id in stored.get("teleport", []):
+		teleport.append(int(zone_id))
 	in_playground = bool(stored.get("in_playground", false))
 	last_hood = int(stored.get("last_hood", 0))
 	if in_playground and last_hood == 0:
@@ -783,7 +1040,7 @@ func _load() -> void:
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var quest_id := int(entry.get("id", 0))
-		if not CATALOG.has(quest_id) or _done.has(quest_id):
+		if not _known(quest_id) or _done.has(quest_id):
 			continue
 		_active.append(_kept(quest_id, int(entry.get("progress", 0)), int(entry.get("to_npc", 0))))
 	var repaired := false
@@ -799,6 +1056,24 @@ func _load() -> void:
 		repaired = true
 	if _done.has(110) and not _done.has(145) and not _is_active(145):
 		_active.append({"id": 145, "progress": 0})
+		repaired = true
+	# Saves from before the friend and phone tasks were handed out.
+	if _done.has(145) and not _done.has(164) and not _done.has(400) and not _chain_active():
+		if not _done.has(150) and not _is_active(150):
+			var progress := 1 if FriendsBook.toon_friend_count() > 0 else 0
+			_active.append({"id": 150, "progress": progress, "to_npc": 0})
+			repaired = true
+		elif _done.has(150) and not _done.has(175) and not _is_active(175):
+			_active.append({"id": 175, "progress": 0, "to_npc": 0})
+			repaired = true
+	if reward_history.is_empty() and _done.has(400) and reward_tier < 2:
+		reward_tier = 2
+		reward_history.append(100)
+		reward_history.append(400)
+		repaired = true
+	elif reward_history.is_empty() and _done.has(175) and reward_tier < 1:
+		reward_tier = 1
+		reward_history.append(100)
 		repaired = true
 	if repaired:
 		save()

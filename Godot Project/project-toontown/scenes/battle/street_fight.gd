@@ -136,23 +136,22 @@ func _process(delta: float) -> void:
 	if int(fight.get("building", 0)) == 0:
 		_start_music()
 	if battle_state == "reward":
-		_hud.hide_all()
+		_hide_gag_gui()
 		_banner.text = ""
-		if _asking and _menu != null:
-			_menu.cancel()
-			_asking = false
 		_start_win()
 		_play(fight, delta)
 		return
 	_stop_win()
 	if battle_state == "faceoff" or battle_state == "reserves":
-		_hud.hide_all()
+		_hide_gag_gui()
 		_banner.text = "More Cogs are coming!" if battle_state == "reserves" else ""
-		if _asking and _menu != null:
-			_menu.cancel()
-			_asking = false
 		return
-	_show_hud(fight, delta)
+	# TownBattle and the which-toon / which-cog panel exist only while a gag
+	# is being chosen. The movie, the reward, and a joined round leave them down.
+	if battle_state != "input":
+		_hide_gag_gui()
+	else:
+		_show_hud(fight, delta)
 	_spend(fight)
 	# Close the inventory before the movie starts. The timer runs out while
 	# choose() is still waiting, and cancelling that wait in the same call
@@ -186,11 +185,8 @@ func _joined(rows: Array) -> Dictionary:
 ## A bystander keeps the follow camera and never gets the gag menu. The
 ## face-off, the movies, and the victory dance still play in the world.
 func _watch(rows: Array, delta: float) -> void:
-	_hud.hide_all()
+	_hide_gag_gui()
 	_stop_music()
-	if _asking and _menu != null:
-		_menu.cancel()
-		_asking = false
 	var watching := _watchable(rows)
 	var watching_id := int(watching.get("id", -1))
 	var current_id := int(_fight.get("id", -2))
@@ -985,6 +981,18 @@ func _clear_taunt(cog: Node, fight: Dictionary) -> void:
 	cog.set_meta("chat_line", "")
 	cog.set_meta("chat_until", 0)
 	cog.set_meta("faceoff_chat", -1)
+
+
+func _hide_gag_gui() -> void:
+	if _hud != null:
+		_hud.hide_all()
+	if _menu == null:
+		return
+	if _asking:
+		_menu.cancel()
+		_asking = false
+		return
+	_menu.tuck()
 
 
 func _show_hud(fight: Dictionary, delta: float) -> void:

@@ -73,6 +73,9 @@ var _boing_ready := false
 
 
 func setup(style: ToonStyle) -> void:
+	for child in get_children():
+		child.free()
+	_teeth.clear()
 	mouse_filter = MOUSE_FILTER_IGNORE
 	var species := "d"
 	_fur = Color(0.996, 0.695, 0.512)
@@ -186,11 +189,16 @@ func _apply_size(pixels: float) -> void:
 	_place_card(_whites, _EYE_CARD)
 	_place_number(_hp_label, _HP_EYE)
 	_place_number(_max_label, _MAX_EYE)
-	for index in _teeth.size():
-		_place_card(_teeth[index], _TOOTH_BOUNDS[index])
+	for index in mini(_teeth.size(), _TOOTH_BOUNDS.size()):
+		var tooth := _teeth[index]
+		if not is_instance_valid(tooth):
+			continue
+		_place_card(tooth, _TOOTH_BOUNDS[index])
 
 
 func _place_card(card: TextureRect, bounds: Vector4) -> void:
+	if not is_instance_valid(card):
+		return
 	var rect := _map_rect(bounds)
 	card.position = rect.position
 	card.size = rect.size
