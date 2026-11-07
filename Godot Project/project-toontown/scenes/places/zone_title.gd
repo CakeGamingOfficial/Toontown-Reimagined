@@ -115,6 +115,7 @@ const _PLACE_BY_SCENE: Dictionary = {
 	"res://scenes/cog_hq/sellbot_side_factory.tscn": "Side Entrance",
 	"res://scenes/interiors/gag_shop.tscn": "Gag Shop",
 	"res://scenes/interiors/pet_shop.tscn": "Pet Shop",
+	"res://scenes/interiors/kart_shop.tscn": "Kart Shop",
 	"res://scenes/interiors/toon_hall.tscn": "Toon Hall",
 	"res://scenes/interiors/library.tscn": "Toontown Library",
 	"res://scenes/interiors/bank.tscn": "Toontown Bank",

@@ -14,6 +14,7 @@ const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _PET := preload("res://scenes/interiors/pet_shop_door.gd")
+const _KART := preload("res://scenes/interiors/kart_shop_door.gd")
 const _HALL := preload("res://scenes/interiors/toon_hall_door.gd")
 const _LIB := preload("res://scenes/interiors/library_door.gd")
 const _TELLER := preload("res://scenes/interiors/bank_door.gd")
@@ -139,6 +140,10 @@ var _pet_sought := false
 var _pet_building: Node3D
 var _pet_door: Node3D
 var _pet_trip := ""
+var _kart_ready := false
+var _kart_sought := false
+var _kart_building: Node3D
+var _kart_trip := ""
 var _hall_ready := false
 var _hall_sought := false
 var _hall_building: Node3D
@@ -311,6 +316,7 @@ func _ready() -> void:
 	var from_door := door_trip
 	var from_shop := String(_SHOP.trip)
 	var from_pet := String(_PET.trip)
+	var from_kart := String(_KART.trip)
 	var from_hall := String(_HALL.trip)
 	var from_lib := String(_LIB.trip)
 	var from_teller := String(_TELLER.trip)
@@ -319,13 +325,14 @@ func _ready() -> void:
 	var from_tunnel := _LINKS.arriving()
 	var from_factory := _FACTORY.trip
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
 	door_trip = ""
 	_SHOP.trip = ""
 	_PET.trip = ""
+	_KART.trip = ""
 	_HALL.trip = ""
 	_LIB.trip = ""
 	_TELLER.trip = ""
@@ -334,6 +341,7 @@ func _ready() -> void:
 	_from_door = from_door
 	_shop_trip = from_shop
 	_pet_trip = from_pet
+	_kart_trip = from_kart
 	_hall_trip = from_hall
 	_lib_trip = from_lib
 	_teller_trip = from_teller
@@ -352,6 +360,7 @@ func _ready() -> void:
 	_hood = _current_hood()
 	_SHOP.prepare(get_parent(), _hood)
 	_PET.prepare(get_parent(), _hood)
+	_KART.prepare(get_parent())
 	_HALL.prepare(get_parent())
 	_LIB.prepare(get_parent())
 	_place_mailbox()
@@ -392,7 +401,7 @@ func _ready() -> void:
 		_locked = false
 		_place_camera()
 		return
-	if from_door != "" or from_shop != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "":
+	if from_door != "" or from_shop != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "":
 		_tasks.note_hood(_hood)
 		if from_hall == "out":
 			await _settle_hall_exit()
@@ -400,6 +409,8 @@ func _ready() -> void:
 			await _settle_library_exit()
 		if from_teller == "out":
 			await _settle_teller_exit()
+		if from_kart == "out":
+			await _settle_kart_exit()
 		if from_hq == "out":
 			await _settle_hq_exit()
 		_fade_in()
@@ -528,6 +539,7 @@ func _physics_process(delta: float) -> void:
 	_try_house_door()
 	_try_gag_door()
 	_try_pet_door()
+	_try_kart_door()
 	_try_hall_door()
 	_try_library_door()
 	_try_teller_door()
@@ -807,6 +819,8 @@ func _arrival_spot() -> Dictionary:
 		return _shop_outside_drop()
 	if _pet_trip == "out":
 		return _pet_outside_drop()
+	if _kart_trip == "out":
+		return _kart_outside_drop()
 	if _hall_trip == "out":
 		return _hall_outside_drop()
 	if _lib_trip == "out":
@@ -821,6 +835,8 @@ func _arrival_spot() -> Dictionary:
 		return _shop_inside_drop()
 	if _PLACES.is_pet_shop(scene_path):
 		return _pet_inside_drop()
+	if _PLACES.is_kart_shop(scene_path):
+		return _kart_inside_drop()
 	if _PLACES.is_toon_hall(scene_path):
 		return _hall_inside_drop()
 	if _PLACES.is_library(scene_path):
@@ -2664,6 +2680,124 @@ func _pet_outside_drop() -> Dictionary:
 	var drop: Dictionary = _PET.outside_drop(building, door)
 	var point: Vector3 = drop["point"]
 	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _try_kart_door() -> void:
+	if _player == null or _body == null:
+		return
+	var scene_path := _scene_path()
+	var inside := _PLACES.is_kart_shop(scene_path)
+	var trigger := Vector3.ZERO
+	var reach := 2.8
+	var index := 1
+	if inside:
+		var nearest := 1000.0
+		var found := false
+		for door_index in [1, 2]:
+			var origin := _KART.find_interior_origin(get_parent(), door_index)
+			if origin == null:
+				continue
+			var there := origin.global_position
+			var distance := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(there.x, there.z))
+			if distance < nearest:
+				nearest = distance
+				trigger = there
+				index = door_index
+				found = true
+		if not found:
+			return
+	else:
+		if not _kart_sought:
+			_kart_sought = true
+			_kart_building = _KART.find_building(get_parent())
+		elif _kart_building != null and not is_instance_valid(_kart_building):
+			_kart_sought = false
+			return
+		if _kart_building == null:
+			return
+		var nearest := 1000.0
+		var found := false
+		for door_index in [1, 2]:
+			if _KART.find_exterior_door(_kart_building, door_index) == null:
+				continue
+			var there := _KART.outside_trigger(_kart_building, door_index)
+			var distance := Vector2(_body.global_position.x, _body.global_position.z).distance_to(Vector2(there.x, there.z))
+			if distance < nearest:
+				nearest = distance
+				trigger = there
+				index = door_index
+				found = true
+		if not found:
+			return
+		reach = 2.4
+	var here := Vector2(_body.global_position.x, _body.global_position.z)
+	if here.distance_to(Vector2(trigger.x, trigger.z)) > reach:
+		_kart_ready = true
+		return
+	if not _kart_ready or not _KEYS.held("forward"):
+		return
+	_kart_ready = false
+	if inside:
+		_leave_kart(index)
+	else:
+		_enter_kart(index)
+
+
+func _enter_kart(index: int) -> void:
+	_locked = true
+	var building := _KART.find_building(get_parent())
+	var door: Node3D = null
+	if building != null:
+		door = _KART.find_exterior_door(building, index)
+	_KART.open(self, door)
+	var goal := _body.global_position
+	if building != null and door != null:
+		goal = _into_door(_KART.enter_frame(building, index))
+	await _walk_into_door(goal)
+	_KART.door_index = index
+	_KART.trip = "in"
+	ToonLoading.change_to(_PLACES.kart_shop_scene())
+
+
+func _leave_kart(index: int) -> void:
+	_locked = true
+	_KART.open(self, _KART.find_interior_door(get_parent(), index))
+	var goal := _body.global_position
+	if _KART.find_interior_origin(get_parent(), index) != null:
+		goal = _KART.interior_enter_point(get_parent(), index)
+		goal.y = _body.global_position.y
+	await _walk_into_door(goal)
+	_KART.door_index = index
+	_KART.trip = "out"
+	ToonLoading.change_to(_PLACES.scene_for(_KART.hood))
+
+
+func _kart_inside_drop() -> Dictionary:
+	var drop: Dictionary = _KART.inside_drop(get_parent(), _KART.door_index)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _kart_outside_drop() -> Dictionary:
+	var building := _KART.find_building(get_parent())
+	if building == null:
+		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
+	var drop: Dictionary = _KART.outside_drop(building, _KART.door_index)
+	var point: Vector3 = drop["point"]
+	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+
+
+func _settle_kart_exit() -> void:
+	await get_tree().physics_frame
+	var drop := _kart_outside_drop()
+	var point: Vector3 = drop["point"]
+	_body.global_position = point
+	_heading = float(drop["heading"])
+	_home = point
+	_home_heading = _heading
+	if _player != null:
+		_face(_player, _heading)
+	_place_camera()
 
 
 func _try_hall_door() -> void:

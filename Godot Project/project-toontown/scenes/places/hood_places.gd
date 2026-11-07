@@ -12,6 +12,7 @@ extends RefCounted
 const TTC := 2000
 const GAG_SHOP := "res://scenes/interiors/gag_shop.tscn"
 const PET_SHOP := "res://scenes/interiors/pet_shop.tscn"
+const KART_SHOP := "res://scenes/interiors/kart_shop.tscn"
 const TOON_HALL := "res://scenes/interiors/toon_hall.tscn"
 const LIBRARY := "res://scenes/interiors/library.tscn"
 const BANK := "res://scenes/interiors/bank.tscn"
@@ -19,6 +20,7 @@ const TOON_HQ := "res://scenes/interiors/toon_hq.tscn"
 const SHOP := "res://scenes/interiors/shop_interior.tscn"
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
 const _PET := preload("res://scenes/interiors/pet_shop_door.gd")
+const _KART := preload("res://scenes/interiors/kart_shop_door.gd")
 const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 
 const _SCENES: Dictionary = {
@@ -85,6 +87,14 @@ static func is_pet_shop(path: String) -> bool:
 	return path.ends_with("pet_shop.tscn")
 
 
+static func kart_shop_scene() -> String:
+	return KART_SHOP
+
+
+static func is_kart_shop(path: String) -> bool:
+	return path.ends_with("kart_shop.tscn")
+
+
 static func toon_hall_scene() -> String:
 	return TOON_HALL
 
@@ -130,6 +140,8 @@ static func hood_for_scene(path: String) -> int:
 		return int(_SHOP.hood)
 	if is_pet_shop(path):
 		return int(_PET.hood)
+	if is_kart_shop(path):
+		return int(_KART.hood)
 	if is_toon_hall(path) or is_library(path) or is_bank(path):
 		return TTC
 	if is_toon_hq(path):
