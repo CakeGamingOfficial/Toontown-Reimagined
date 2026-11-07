@@ -3,9 +3,10 @@ extends RefCounted
 ## DistributedHouse and DistributedHouseInterior hang door_double_round_ur on
 ## door_origin. House A has no door in the exported model, so that door is
 ## instanced here. Catalog houses already include theirs.
-## Walking into the door uses DistributedDoor: the right panel swings +100
-## and the left panel swings -100, then the other side of the door loads.
+## Walking into the door uses DistributedDoor: the right panel swings +100.
+## The flat frame stays up and the opening is black.
 
+const _MOTION := preload("res://scenes/interiors/door_motion.gd")
 const DOOR_GLB := "res://assets/interiors/estate/house_door.glb"
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
 const CLOSE_SFX := "res://assets/interiors/hq/Door_Close_1.ogg"
@@ -120,16 +121,8 @@ static func seal(root: Node) -> void:
 static func open(host: Node, door: Node3D) -> void:
 	if door == null:
 		return
-	_sound(host, OPEN_SFX)
-	var flat := _find_exact(door, "door_flat")
-	if flat != null:
-		flat.visible = false
-	for part_name in _PANELS:
-		var part := _find_exact(door, part_name)
-		if part != null:
-			part.visible = true
-	_swing(host, _find_exact(door, "rightDoor"), 100.0)
-	_swing(host, _find_exact(door, "leftDoor"), -100.0)
+	# The right leaf swings. The flat frame stays, and the opening is black.
+	_MOTION.open_in(host, door)
 
 
 static func play_close(host: Node) -> void:

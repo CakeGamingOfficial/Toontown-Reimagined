@@ -11,9 +11,13 @@ const _PANELS: Array[String] = ["leftDoor", "rightDoor", "doorFrameHoleRight", "
 # phase_4 toonhall.bam node toonhall_door_origin, in the landmark's own space.
 # The neighborhood export baked the slab's vertices and left this node at the
 # building origin, so the panels take the marker's placement.
-const _PIVOT := Vector3(23.324, -3.0, 0.55)
-# DNA color on sz13:toon_landmark_TT_toonhall.
-const _COLOR := Color(0.88, 0.45, 0.38, 1.0)
+# The painted flat is nudged 0.28 toward the street. The leaves have to sit
+# in front of that card or the frame hides the opening.
+const _PIVOT := Vector3(23.324, -3.36, 0.55)
+# DNA color on sz13:toon_landmark_TT_toonhall. The landmark stores these
+# numbers as a linear baseColorFactor, and the closed cutout shows that
+# import. Color() reads sRGB, so the panels use the converted color.
+const _DNA := Color(0.87988, 0.4502, 0.37988, 1.0)
 
 # "in" arrives inside the hall. "out" returns to the sidewalk.
 static var trip := ""
@@ -65,23 +69,72 @@ static func seal(door: Node3D) -> void:
 		flat.visible = true
 	for part_name in _PANELS:
 		var part := _find_exact(door, part_name)
-		if part != null:
-			part.visible = false
+		if part == null:
+			continue
+		if part_name.contains("Hole"):
+			_blacken(part)
+		part.visible = false
 
 
+## DistributedDoor.enterOpening. Going through uses the right door: the open
+## sound starts, the panel waits 0.4s, then eases to heading 100 over 0.6s.
+## rightSwing is set, which is the default swing of 3.
 static func open(host: Node, door: Node3D) -> void:
-	if door == null:
-		return
-	_sound(host, OPEN_SFX)
-	var flat := _flat(door)
-	if flat != null:
-		flat.visible = false
-	for part_name in _PANELS:
-		var part := _find_exact(door, part_name)
-		if part != null:
-			part.visible = true
-	_swing(host, _find_exact(door, "rightDoor"), 100.0)
-	_swing(host, _find_exact(door, "leftDoor"), -100.0)
+	_swing_named(host, door, "rightDoor", "doorFrameHoleRight", 100.0, 0.4)
+
+
+## exitDoorEnterOpening. Coming out of a doorway uses the left door, and that
+## swing starts immediately. leftSwing makes the heading -100.
+static func open_out(host: Node, door: Node3D) -> void:
+	_swing_named(host, door, "leftDoor", "doorFrameHoleLeft", -100.0, 0.0)
+
+
+## enterClosing / exitDoorEnterClosing. One second back to shut, then the close
+## sound, and the flat slab takes the place of the panel.
+static func close_out(host: Node, door: Node3D) -> void:
+	_close_named(host, door, "leftDoor", "doorFrameHoleLeft", -100.0)
+
+
+static func door_point(building: Node3D, door: Node3D, door_x: float, door_y: float) -> Vector3:
+	# Door space matches DistributedDoor: +X is the right jamb, +Y is into the
+	# building. door_y below zero stands out on the sidewalk.
+	var outward := _forward(building, door)
+	var side := Vector3.UP.cross(outward)
+	side.y = 0.0
+	if side.length_squared() < 0.0001:
+		side = Vector3.RIGHT
+	else:
+		side = side.normalized()
+	var origin := _doorway(door)
+	var shell := 0.0
+	if door_y < 0.0:
+		_approach(building, door, 0.0)
+		if door.has_meta("hall_shell"):
+			shell = float(door.get_meta("hall_shell"))
+	var out_dist := -door_y
+	if out_dist > 0.0:
+		out_dist += shell
+	var point := origin + outward * out_dist + side * door_x
+	point.y = door.global_position.y
+	return point
+
+
+static func face_heading(building: Node3D, door: Node3D, into: bool) -> float:
+	var outward := _forward(building, door)
+	if into:
+		outward = -outward
+	return _heading(outward)
+
+
+## avatarExitTrack. The camera snaps inside the doorway at (-doorX, 5, height)
+## with heading 180, so it looks back out while the toon walks to -6.
+static func exit_camera(building: Node3D, door: Node3D, feet_y: float, height: float) -> Dictionary:
+	var outward := _forward(building, door)
+	var cam := door_point(building, door, -1.5, 5.0)
+	cam.y = feet_y + height
+	var look := cam + outward * 8.0
+	look.y = cam.y
+	return {"pos": cam, "look": look}
 
 
 static func _add_panels(door: Node3D) -> void:
@@ -112,14 +165,61 @@ static func _add_panels(door: Node3D) -> void:
 		part.name = part_name
 		part.transform = kept
 	root.free()
-	_tint(door, _COLOR)
+	_tint(door, _DNA.linear_to_srgb())
 
 
 static func _tint(door: Node3D, color: Color) -> void:
-	for part_name in _PANELS:
+	for part_name in ["leftDoor", "rightDoor"]:
 		var part := _find_exact(door, part_name)
 		if part != null:
 			_tint_tree(part, color)
+
+
+## doorFrameHole is the black opening behind the swinging panel. The exterior
+## copy was taking the door color, and the interior copy was exported pale
+## yellow. Either one sits on the wall plane and shimmers through the doorway.
+static func _blacken(hole: Node3D) -> void:
+	if hole.has_meta("hall_black"):
+		return
+	hole.set_meta("hall_black", true)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0, 0, 0, 1)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var meshes: Array[MeshInstance3D] = []
+	_collect_meshes(hole, meshes)
+	for mesh in meshes:
+		mesh.material_override = mat
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Door skins are near -0.09 and +0.29. The flat frame is the plane
+		# between them. The black card stays behind the skin the viewer sees.
+		var street := _under_pivot(hole)
+		mesh.position.y += -0.03 if street else 0.03
+		if street:
+			continue
+		var parent := mesh.get_parent()
+		if parent == null:
+			continue
+		var back := mesh.duplicate() as MeshInstance3D
+		back.position.y = -0.03
+		back.name = str(mesh.name) + "Back"
+		parent.add_child(back)
+
+
+static func _under_pivot(node: Node) -> bool:
+	var cursor := node
+	while cursor != null:
+		if str(cursor.name) == "DoorPivot":
+			return true
+		cursor = cursor.get_parent()
+	return false
+
+
+static func _collect_meshes(node: Node, meshes: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D:
+		meshes.append(node as MeshInstance3D)
+	for child in node.get_children():
+		_collect_meshes(child, meshes)
 
 
 static func _tint_tree(node: Node, color: Color) -> void:
@@ -272,14 +372,89 @@ static func _flat(door: Node3D) -> Node3D:
 	return null
 
 
-static func _swing(host: Node, panel: Node3D, degrees: float) -> void:
+static func _swing_named(host: Node, door: Node3D, panel_name: String, hole_name: String, degrees: float, delay: float) -> void:
+	if door == null:
+		return
+	var panel := _find_exact(door, panel_name)
 	if panel == null:
 		return
-	panel.visible = true
+	_sound(host, OPEN_SFX)
 	if not panel.has_meta("closed_basis"):
 		panel.set_meta("closed_basis", panel.transform.basis)
+	var hole := _find_exact(door, hole_name)
 	var tween := host.create_tween()
+	if delay > 0.0:
+		tween.tween_interval(delay)
+	tween.tween_callback(_show_panel.bind(door, panel, hole))
 	tween.tween_method(_set_swing.bind(panel), 0.0, degrees, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+static func _close_named(host: Node, door: Node3D, panel_name: String, hole_name: String, degrees: float) -> void:
+	if door == null:
+		return
+	var panel := _find_exact(door, panel_name)
+	if panel == null or not panel.has_meta("closed_basis"):
+		return
+	var hole := _find_exact(door, hole_name)
+	var tween := host.create_tween()
+	tween.tween_method(_set_swing.bind(panel), degrees, 0.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_callback(_hide_panel.bind(door, panel, hole))
+	tween.tween_callback(_sound.bind(host, CLOSE_SFX))
+
+
+static func _show_panel(door: Node3D, panel: Node3D, hole: Node3D) -> void:
+	if not is_instance_valid(panel):
+		return
+	# Both leaves stay on screen for the whole swing. The flat frame stays too.
+	var shown := 0
+	for part_name in ["leftDoor", "rightDoor"]:
+		var part := _find_exact(door, part_name)
+		if part == null:
+			continue
+		_keep_door_texture(part)
+		part.visible = true
+		shown += 1
+	if shown == 0:
+		return
+	# door_flat is the frame around the leaves. It stays up for the whole swing.
+	if hole != null:
+		hole.visible = true
+
+
+static func _keep_door_texture(panel: Node3D) -> void:
+	if panel.has_meta("hall_paint"):
+		return
+	panel.set_meta("hall_paint", true)
+	var meshes: Array[MeshInstance3D] = []
+	_collect_meshes(panel, meshes)
+	for mesh in meshes:
+		var source := mesh.get_active_material(0) as StandardMaterial3D
+		if source == null:
+			continue
+		var copy := source.duplicate() as StandardMaterial3D
+		copy.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if _under_pivot(panel):
+			# The closed cutout is an unshaded card. A lit panel in front of it
+			# reads as a redder door the moment the swing starts.
+			copy.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			copy.vertex_color_use_as_albedo = false
+			copy.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+			copy.alpha_scissor_threshold = 0.5
+		else:
+			copy.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		mesh.material_override = copy
+
+
+static func _hide_panel(door: Node3D, _panel: Node3D, hole: Node3D) -> void:
+	for part_name in ["leftDoor", "rightDoor"]:
+		var part := _find_exact(door, part_name)
+		if part != null and is_instance_valid(part):
+			part.visible = false
+	if hole != null and is_instance_valid(hole):
+		hole.visible = false
+	var flat := _flat(door)
+	if flat != null and is_instance_valid(flat):
+		flat.visible = true
 
 
 static func _set_swing(degrees: float, panel: Node3D) -> void:

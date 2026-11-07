@@ -37,6 +37,7 @@ func _ready() -> void:
 	_add_collision(self)
 	_place_recorded_solids()
 	_place_shells()
+	_place_detail_solids()
 
 
 func build_street(flat: bool) -> void:
@@ -214,6 +215,199 @@ func _place_shells() -> void:
 	if _on_street():
 		return
 	_walk_shells(self)
+
+
+## The bank column capsules are round, so the corners of the green bases stay
+## open. The gag shop record is a flat wall, so the facade, the weight, the
+## broken tent, and the crates are not in it. Those pieces are solid here,
+## from the model itself. Door flats and paper signs stay open.
+func _place_detail_solids() -> void:
+	if _on_street():
+		return
+	_walk_detail_solids(self)
+
+
+func _walk_detail_solids(node: Node) -> void:
+	if node is Node3D and _detail_landmark(String(node.name)):
+		_add_detail_solid(node as Node3D)
+		return
+	for child in node.get_children():
+		_walk_detail_solids(child)
+
+
+func _detail_landmark(node_name: String) -> bool:
+	var low := node_name.to_lower()
+	if not low.contains("toon_landmark"):
+		return false
+	return low.contains("_bank") or low.contains("gag_shop")
+
+
+func _add_detail_solid(landmark: Node3D) -> void:
+	if landmark.get_node_or_null("DetailSolid") != null:
+		return
+	var body := StaticBody3D.new()
+	body.name = "DetailSolid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var into := landmark.global_transform.affine_inverse()
+	var bank := String(landmark.name).to_lower().contains("_bank")
+	var bag := {"faces": PackedVector3Array()}
+	_collect_detail(landmark, landmark, into, into.basis * Vector3.UP, bank, body, bag)
+	var faces: PackedVector3Array = bag["faces"]
+	if faces.size() >= 3:
+		var shape := ConcavePolygonShape3D.new()
+		# Winding on the shop trim faces the street or the wall. Either side stops a toon.
+		shape.backface_collision = true
+		shape.set_faces(faces)
+		var collision := CollisionShape3D.new()
+		collision.shape = shape
+		body.add_child(collision)
+	if body.get_child_count() == 0:
+		return
+	landmark.add_child(body)
+
+
+## decal_base on the gag shop is the building front, not a paper picture.
+## Door flats, signs, and billboards still stay open.
+func _blocked_detail(node: Node) -> bool:
+	if String(node.name).to_lower().contains("decal"):
+		return false
+	return _skip_shell(node)
+
+
+func _collect_detail(node: Node, landmark: Node3D, into: Transform3D, local_up: Vector3, bank: bool, body: StaticBody3D, bag: Dictionary) -> void:
+	if node != landmark and _blocked_detail(node):
+		return
+	if node is MeshInstance3D and node != landmark:
+		var mesh := node as MeshInstance3D
+		if mesh.visible and mesh.mesh != null:
+			var to_local := into * mesh.global_transform
+			for surface in mesh.mesh.get_surface_count():
+				_detail_surface(mesh, surface, to_local, local_up, bank, body, bag)
+	for child in node.get_children():
+		_collect_detail(child, landmark, into, local_up, bank, body, bag)
+
+
+func _detail_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, local_up: Vector3, bank: bool, body: StaticBody3D, bag: Dictionary) -> void:
+	if _cutout_surface(mesh, surface):
+		return
+	var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+	var source: Variant = arrays[Mesh.ARRAY_VERTEX]
+	if not (source is PackedVector3Array):
+		return
+	var verts := source as PackedVector3Array
+	if verts.is_empty():
+		return
+	var ids := PackedInt32Array()
+	if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
+		ids = arrays[Mesh.ARRAY_INDEX]
+	var box := _world_bounds(mesh, verts)
+	var size := box.size
+	if bank:
+		if _column_piece(size):
+			_append_surface(bag, verts, ids, to_local)
+		return
+	var thin := minf(size.x, minf(size.y, size.z))
+	# A closed piece (the weight, the tent, a crate, a support) keeps its shape.
+	if thin >= 0.18:
+		_append_surface(bag, verts, ids, to_local)
+		return
+	# The storefront is one flat wall. A floor card or a small picture is not.
+	if size.y <= thin + 0.001:
+		return
+	var wide_a := size.x
+	var wide_b := size.z
+	if size.x <= thin + 0.001:
+		wide_a = size.y
+		wide_b = size.z
+	elif size.z <= thin + 0.001:
+		wide_a = size.x
+		wide_b = size.y
+	if wide_a < 2.0 or wide_b < 2.0:
+		return
+	_thicken_surface(body, verts, ids, to_local, local_up)
+
+
+## Green bases are wider than the column shaft. A round capsule leaves the
+## corners of that base open. The cap is the flat top of the same base.
+func _column_piece(size: Vector3) -> bool:
+	if size.x < 2.0 or size.z < 2.0 or size.x > 8.0 or size.z > 8.0:
+		return false
+	if size.y > 6.0:
+		return true
+	return size.y < 0.3
+
+
+func _cutout_surface(mesh: MeshInstance3D, surface: int) -> bool:
+	var material: Material = mesh.get_active_material(surface)
+	if material == null and mesh.mesh != null:
+		material = mesh.mesh.surface_get_material(surface)
+	if material is BaseMaterial3D:
+		var mode := (material as BaseMaterial3D).transparency
+		return mode != BaseMaterial3D.TRANSPARENCY_DISABLED and mode != BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+	return false
+
+
+func _world_bounds(mesh: MeshInstance3D, verts: PackedVector3Array) -> AABB:
+	var low := Vector3(INF, INF, INF)
+	var high := Vector3(-INF, -INF, -INF)
+	for point in verts:
+		var world: Vector3 = mesh.global_transform * point
+		low = low.min(world)
+		high = high.max(world)
+	return AABB(low, high - low)
+
+
+func _append_surface(bag: Dictionary, verts: PackedVector3Array, ids: PackedInt32Array, to_local: Transform3D) -> void:
+	var faces: PackedVector3Array = bag["faces"]
+	var cursor := 0
+	var limit := verts.size()
+	if ids.size() >= 3:
+		limit = ids.size()
+	while cursor + 2 < limit:
+		var i0 := cursor
+		var i1 := cursor + 1
+		var i2 := cursor + 2
+		if ids.size() >= 3:
+			i0 = ids[cursor]
+			i1 = ids[cursor + 1]
+			i2 = ids[cursor + 2]
+		cursor += 3
+		if i0 < 0 or i1 < 0 or i2 < 0 or i0 >= verts.size() or i1 >= verts.size() or i2 >= verts.size():
+			continue
+		faces.append(to_local * verts[i0])
+		faces.append(to_local * verts[i1])
+		faces.append(to_local * verts[i2])
+	bag["faces"] = faces
+
+
+func _thicken_surface(body: StaticBody3D, verts: PackedVector3Array, ids: PackedInt32Array, to_local: Transform3D, local_up: Vector3) -> void:
+	var cursor := 0
+	var limit := verts.size()
+	if ids.size() >= 3:
+		limit = ids.size()
+	while cursor + 2 < limit:
+		var i0 := cursor
+		var i1 := cursor + 1
+		var i2 := cursor + 2
+		if ids.size() >= 3:
+			i0 = ids[cursor]
+			i1 = ids[cursor + 1]
+			i2 = ids[cursor + 2]
+		cursor += 3
+		if i0 < 0 or i1 < 0 or i2 < 0 or i0 >= verts.size() or i1 >= verts.size() or i2 >= verts.size():
+			continue
+		var a := to_local * verts[i0]
+		var b := to_local * verts[i1]
+		var c := to_local * verts[i2]
+		var cross := (b - a).cross(c - a)
+		var span := cross.length()
+		if span < 1.0:
+			continue
+		var normal := cross / span
+		if absf(normal.dot(local_up)) > 0.72:
+			continue
+		_add_slab(body, a, b, c, normal)
 
 
 func _walk_shells(node: Node) -> void:

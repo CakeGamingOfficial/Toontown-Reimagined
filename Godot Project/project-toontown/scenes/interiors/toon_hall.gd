@@ -8,7 +8,7 @@ const _DOOR := preload("res://scenes/interiors/toon_hall_door.gd")
 const _COLLISION := preload("res://scenes/playgrounds/playground_collision.gd")
 const _TOON := preload("res://scenes/playgrounds/playground_toon.gd")
 const _ROOM := "res://assets/interiors/toon_hall/toon_hall.glb"
-const _MUSIC := "res://assets/neighborhoods/toontown_central/audio/TC_nbrhood.ogg"
+const _MUSIC := "res://assets/neighborhoods/toontown_central/audio/TC_SZ_activity.mp3"
 const MUSIC_VOLUME := 0.8
 
 # NPCToons 2001. head, torso, legs, gender, arm, glove, leg, head,
@@ -91,13 +91,14 @@ func _face(actor: Node3D, origin: Node3D) -> void:
 func _play_music() -> void:
 	if not FileAccess.file_exists(_MUSIC):
 		return
-	var stream := AudioStreamOggVorbis.load_from_file(_MUSIC)
+	var stream := load(_MUSIC) as AudioStreamMP3
 	if stream == null:
 		return
-	stream.loop = true
+	var copy := stream.duplicate() as AudioStreamMP3
+	copy.loop = true
 	var player := ToonAudio.music_player()
 	player.name = "NeighborhoodMusic"
-	player.stream = stream
+	player.stream = copy
 	player.volume_db = linear_to_db(MUSIC_VOLUME)
 	add_child(player)
 	player.play()

@@ -172,6 +172,22 @@ static func button_sounds(button: BaseButton) -> void:
 	)
 
 
+## A pressed handler that hides or frees its control lets that same click
+## land on whatever is behind it. Wait until the click has finished.
+static func dismiss_after_click(control: Node) -> void:
+	if control == null or not is_instance_valid(control):
+		return
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		control.queue_free()
+		return
+	var pending := control
+	tree.process_frame.connect(func() -> void:
+		if is_instance_valid(pending):
+			pending.queue_free()
+	, CONNECT_ONE_SHOT)
+
+
 static func play_sfx(host: Node, path: String) -> void:
 	if path.is_empty():
 		return

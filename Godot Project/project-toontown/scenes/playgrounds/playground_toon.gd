@@ -228,6 +228,7 @@ var _line_kind := ""
 var _cam_yaw := 0.0
 var _cam_pitch := 0.0
 var _cam_distance := 1.0
+var _door_cam := false
 var _cam_steering := false
 var _right_yaw := 0.0
 var _running := false
@@ -402,10 +403,16 @@ func _ready() -> void:
 		_locked = false
 		_place_camera()
 		return
-	if from_door != "" or from_shop != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "":
+	if from_hall == "in" or from_hall == "out":
 		_tasks.note_hood(_hood)
-		if from_hall == "out":
-			await _settle_hall_exit()
+		await _hall_step_out(from_hall)
+		if sad_arrival:
+			await _death_ack()
+		_locked = false
+		_place_camera()
+		return
+	if from_door != "" or from_shop != "" or from_kart != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "":
+		_tasks.note_hood(_hood)
 		if from_lib == "out":
 			await _settle_library_exit()
 		if from_teller == "out":
@@ -511,6 +518,8 @@ func _process(delta: float) -> void:
 		_minigolf.call("aim", _camera)
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
+	elif _door_cam:
+		pass
 	elif _quest_npc != null and is_instance_valid(_quest_npc):
 		_aim_quest_camera(delta)
 	else:
@@ -1659,7 +1668,7 @@ func _talk_fisherman(fisher: Node3D) -> void:
 		return
 	var panel := _SELL.new()
 	panel.name = "FishSell"
-	panel.set("toon_name", _player.name if _player != null else "Toon")
+	panel.set("toon_name", str(_player.name) if _player != null else "Toon")
 	_hud().add_child(panel)
 	var reason := "cancel"
 	if panel.has_signal("finished"):
@@ -2602,10 +2611,12 @@ func _enter_shop() -> void:
 	if building != null:
 		door = _SHOP.find_exterior_door(building)
 	_SHOP.open(self, door)
-	var goal := _body.global_position
 	if building != null and door != null:
-		goal = _into_door(_SHOP.enter_frame(building, door))
-	await _walk_into_door(goal)
+		var frame: Dictionary = _SHOP.enter_frame(building, door)
+		await _line_up_at_frame(frame)
+		await _walk_into_door(_into_door(frame))
+	else:
+		await _walk_into_door(_body.global_position)
 	_SHOP.hood = _hood
 	_SHOP.trip = "in"
 	ToonLoading.change_to(_PLACES.gag_shop_scene())
@@ -2613,8 +2624,10 @@ func _enter_shop() -> void:
 
 func _leave_shop() -> void:
 	_locked = true
+	var origin := _DOORS.find_origin(get_parent())
 	_SHOP.open(self, _SHOP.find_interior_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	await _line_up_at_origin(origin)
+	await _walk_into_door(_interior_door_goal(origin))
 	_SHOP.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_SHOP.hood))
 
@@ -2664,10 +2677,12 @@ func _enter_pet() -> void:
 	if building != null:
 		door = _PET.find_exterior_door(building)
 	_PET.open(self, door)
-	var goal := _body.global_position
 	if building != null and door != null:
-		goal = _into_door(_PET.enter_frame(building, door))
-	await _walk_into_door(goal)
+		var frame: Dictionary = _PET.enter_frame(building, door)
+		await _line_up_at_frame(frame)
+		await _walk_into_door(_into_door(frame))
+	else:
+		await _walk_into_door(_body.global_position)
 	_PET.hood = _hood
 	_PET.trip = "in"
 	ToonLoading.change_to(_PLACES.pet_shop_scene())
@@ -2675,8 +2690,10 @@ func _enter_pet() -> void:
 
 func _leave_pet() -> void:
 	_locked = true
+	var origin := _DOORS.find_origin(get_parent())
 	_PET.open(self, _PET.find_interior_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	await _line_up_at_origin(origin)
+	await _walk_into_door(_interior_door_goal(origin))
 	_PET.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_PET.hood))
 
@@ -2864,30 +2881,48 @@ func _enter_hall() -> void:
 	var door: Node3D = null
 	if building != null:
 		door = _HALL.find_exterior_door(building)
-	_HALL.open(self, door)
-	var goal := _body.global_position
 	if building != null and door != null:
-		goal = _into_door(_HALL.enter_frame(building, door))
-	await _walk_into_door(goal)
+		# avatarEnqueueTrack, then the right door, then avatarEnterDoorTrack.
+		_HALL.open(self, door)
+		var facing := _HALL.face_heading(building, door, true)
+		await _hall_stride(_HALL.door_point(building, door, 1.5, -5.0), 0.5, facing)
+		_player.set_locomotion(0.0, false, false, 0.0)
+		if _remotes != null:
+			_remotes.note(_heading, 0.0, false, false, false)
+		await get_tree().create_timer(0.5).timeout
+		await _walk_into_door(_HALL.door_point(building, door, 1.5, 2.0), true)
+	else:
+		await _walk_into_door(_body.global_position)
 	_HALL.trip = "in"
 	ToonLoading.change_to(_PLACES.toon_hall_scene())
 
 
 func _leave_hall() -> void:
 	_locked = true
-	_HALL.open(self, _HALL.find_interior_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	var origin := _DOORS.find_origin(get_parent())
+	var door := _HALL.find_interior_door(get_parent())
+	if origin != null and door != null:
+		_HALL.open(self, door)
+		var facing := _origin_heading(origin, true)
+		await _hall_stride(_origin_point(origin, 1.5, -5.0), 0.5, facing)
+		_player.set_locomotion(0.0, false, false, 0.0)
+		if _remotes != null:
+			_remotes.note(_heading, 0.0, false, false, false)
+		await get_tree().create_timer(0.5).timeout
+		await _walk_into_door(_origin_point(origin, 1.5, 2.0), true)
+	else:
+		await _walk_into_door(_interior_door_goal(origin))
 	_HALL.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
 
 
 func _hall_inside_drop() -> Dictionary:
+	# avatarExitTrack starts on the left jamb, facing into the room.
 	var origin := _DOORS.find_origin(get_parent())
 	if origin == null:
 		return {"point": Vector3(0.0, 0.05, 0.0), "heading": 0.0}
-	var drop: Dictionary = _DOORS.inside_drop(origin)
-	var point: Vector3 = drop["point"]
-	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+	var point := _origin_point(origin, -1.5, 0.0)
+	return {"point": _shop_floor(point), "heading": _origin_heading(origin, false)}
 
 
 func _settle_hall_exit() -> void:
@@ -2917,6 +2952,157 @@ func _settle_hall_exit() -> void:
 		return
 
 
+## avatarExitTrack. The left door is already the way out: wait out the one
+## second opening, step to (-doorX, -6), then the door eases shut.
+func _hall_step_out(which: String) -> void:
+	if _player == null or _body == null:
+		_fade_in()
+		return
+	var door: Node3D = null
+	var start := Vector3.ZERO
+	var goal := Vector3.ZERO
+	var facing := _heading
+	if which == "in":
+		var origin := _DOORS.find_origin(get_parent())
+		door = _HALL.find_interior_door(get_parent())
+		if origin == null or door == null:
+			_fade_in()
+			return
+		start = _origin_point(origin, -1.5, 0.0)
+		goal = _origin_point(origin, -1.5, -6.0)
+		facing = _origin_heading(origin, false)
+	else:
+		for _i in 8:
+			await get_tree().physics_frame
+			var building := _HALL.find_building(get_parent())
+			if building == null:
+				_fade_in()
+				return
+			door = _HALL.find_exterior_door(building)
+			if door == null:
+				_fade_in()
+				return
+			start = _HALL.door_point(building, door, -1.5, 0.0)
+			var landed := _HALL.door_point(building, door, -1.5, -6.0)
+			if door.has_meta("hall_shell"):
+				goal = landed
+				facing = _HALL.face_heading(building, door, false)
+				break
+		if door == null or not door.has_meta("hall_shell"):
+			_fade_in()
+			return
+	start.y = _body.global_position.y
+	goal.y = start.y
+	_body.global_position = start
+	_heading = facing
+	_face(_player, facing)
+	_snap_exit_camera(which)
+	var cover := _blackout()
+	cover.color.a = 1.0
+	_HALL.open_out(self, door)
+	await get_tree().create_timer(0.4).timeout
+	var fade := create_tween()
+	fade.tween_property(cover, "color:a", 0.0, 0.4)
+	await get_tree().create_timer(0.6).timeout
+	await _hall_stride(goal, 0.2, facing)
+	cover.queue_free()
+	_home = goal
+	_home_heading = _heading
+	_door_cam = false
+	_place_camera()
+	_HALL.close_out(self, door)
+
+
+## avatarExitTrack. Snap once, then hold through the walk out. Heading 180 looks
+## the way the toon walks, from 5 units back at (-doorX, 5, height).
+func _snap_exit_camera(which: String) -> void:
+	if _camera == null or _player == null or _body == null:
+		return
+	var height := _npc_height(_player)
+	var cam := Vector3.ZERO
+	var look := Vector3.ZERO
+	if which == "in":
+		var origin := _DOORS.find_origin(get_parent())
+		if origin == null:
+			return
+		cam = _origin_point(origin, -1.5, 5.0)
+		var dir := origin.to_global(Vector3(0.0, -1.0, 0.0)) - origin.global_position
+		dir.y = 0.0
+		if dir.length_squared() < 0.0001:
+			return
+		dir = dir.normalized()
+		cam.y = _body.global_position.y + height
+		look = cam + dir * 8.0
+		look.y = cam.y
+	else:
+		var building := _HALL.find_building(get_parent())
+		if building == null:
+			return
+		var door := _HALL.find_exterior_door(building)
+		if door == null:
+			return
+		var shot: Dictionary = _HALL.exit_camera(building, door, _body.global_position.y, height)
+		var placed: Vector3 = shot["pos"]
+		var focus: Vector3 = shot["look"]
+		cam = placed
+		look = focus
+	_door_cam = true
+	_camera.global_position = cam
+	if cam.distance_squared_to(look) > 0.04:
+		_camera.look_at(look, Vector3.UP)
+
+
+func _into_avatar(world: Vector3) -> Vector3:
+	return _avatar_axes().inverse() * (world - _player.global_position)
+
+
+func _from_avatar(local: Vector3) -> Vector3:
+	return _player.global_position + _avatar_axes() * local
+
+
+func _avatar_axes() -> Basis:
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	return upright.rotated(Vector3.UP, deg_to_rad(_heading))
+
+
+func _hall_stride(goal: Vector3, duration: float, facing: float) -> void:
+	if _player == null or _body == null:
+		return
+	var start := _body.global_position
+	_heading = facing
+	_face(_player, facing)
+	_body.velocity = Vector3.ZERO
+	var clock := 0.0
+	while clock < duration:
+		var delta := minf(get_process_delta_time(), 0.05)
+		if delta <= 0.0:
+			delta = 0.016
+		clock += delta
+		var along := _ease_in_out(clampf(clock / duration, 0.0, 1.0))
+		var next := start.lerp(goal, along)
+		next.y = start.y
+		_body.global_position = next
+		_player.set_locomotion(4.0, false, false, delta)
+		if _remotes != null:
+			_remotes.note(_heading, 4.0, false, false, false)
+		await get_tree().process_frame
+	_player.set_locomotion(0.0, false, false, 0.0)
+
+
+func _origin_point(origin: Node3D, door_x: float, door_y: float) -> Vector3:
+	return origin.to_global(Vector3(door_x, door_y, 0.025))
+
+
+func _origin_heading(origin: Node3D, through: bool) -> float:
+	var dir := origin.to_global(Vector3(0.0, 1.0, 0.0)) - origin.global_position
+	if not through:
+		dir = -dir
+	dir.y = 0.0
+	if dir.length_squared() < 0.0001:
+		return _heading
+	return rad_to_deg(atan2(-dir.x, -dir.z))
+
+
 func _hall_outside_drop() -> Dictionary:
 	var building := _HALL.find_building(get_parent())
 	if building == null:
@@ -2924,9 +3110,8 @@ func _hall_outside_drop() -> Dictionary:
 	var door := _HALL.find_exterior_door(building)
 	if door == null:
 		return {"point": _snap_drop(_PLACES.drop_for(_hood)), "heading": _PLACES.heading_for(_hood)}
-	var drop: Dictionary = _HALL.outside_drop(building, door)
-	var point: Vector3 = drop["point"]
-	return {"point": _shop_floor(point), "heading": float(drop["heading"])}
+	var point := _HALL.door_point(building, door, -1.5, 0.0)
+	return {"point": _shop_floor(point), "heading": _HALL.face_heading(building, door, false)}
 
 
 func _try_library_door() -> void:
@@ -2974,18 +3159,22 @@ func _enter_library() -> void:
 	if building != null:
 		door = _LIB.find_exterior_door(building)
 	_LIB.open(self, door)
-	var goal := _body.global_position
 	if building != null and door != null:
-		goal = _into_door(_LIB.enter_frame(building, door))
-	await _walk_into_door(goal)
+		var frame: Dictionary = _LIB.enter_frame(building, door)
+		await _line_up_at_frame(frame)
+		await _walk_into_door(_into_door(frame))
+	else:
+		await _walk_into_door(_body.global_position)
 	_LIB.trip = "in"
 	ToonLoading.change_to(_PLACES.library_scene())
 
 
 func _leave_library() -> void:
 	_locked = true
+	var origin := _DOORS.find_origin(get_parent())
 	_LIB.open(self, _LIB.find_interior_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	await _line_up_at_origin(origin)
+	await _walk_into_door(_interior_door_goal(origin))
 	_LIB.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
 
@@ -3080,18 +3269,22 @@ func _enter_bank() -> void:
 	if building != null:
 		door = _TELLER.find_exterior_door(building)
 	_TELLER.open(self, door)
-	var goal := _body.global_position
 	if building != null and door != null:
-		goal = _into_door(_TELLER.enter_frame(building, door))
-	await _walk_into_door(goal)
+		var frame: Dictionary = _TELLER.enter_frame(building, door)
+		await _line_up_at_frame(frame)
+		await _walk_into_door(_into_door(frame))
+	else:
+		await _walk_into_door(_body.global_position)
 	_TELLER.trip = "in"
 	ToonLoading.change_to(_PLACES.bank_scene())
 
 
 func _leave_bank() -> void:
 	_locked = true
+	var origin := _DOORS.find_origin(get_parent())
 	_TELLER.open(self, _TELLER.find_interior_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	await _line_up_at_origin(origin)
+	await _walk_into_door(_interior_door_goal(origin))
 	_TELLER.trip = "out"
 	ToonLoading.change_to(_PLACES.scene_for(_PLACES.TTC))
 
@@ -3201,10 +3394,12 @@ func _enter_hq(index: int) -> void:
 	if building != null:
 		door = _HQ.find_exterior_door(building, index)
 	_HQ.open(self, door)
-	var goal := _body.global_position
 	if building != null and door != null:
-		goal = _into_door(_HQ.enter_frame(building, index))
-	await _walk_into_door(goal)
+		var frame: Dictionary = _HQ.enter_frame(building, index)
+		await _line_up_at_frame(frame)
+		await _walk_into_door(_into_door(frame))
+	else:
+		await _walk_into_door(_body.global_position)
 	_HQ.return_scene = _scene_path()
 	_HQ.zone_id = _HQ.zone_for(_HQ.return_scene)
 	_HQ.door_index = index
@@ -3217,8 +3412,21 @@ func _leave_hq(index: int) -> void:
 	_HQ.open(self, _HQ.find_interior_door(get_parent(), index))
 	var goal := _body.global_position
 	if _HQ.find_interior_origin(get_parent(), index) != null:
+		var lineup := _HQ.interior_lineup_point(get_parent(), index)
+		lineup.y = _body.global_position.y
 		goal = _HQ.interior_enter_point(get_parent(), index)
 		goal.y = _body.global_position.y
+		var into := goal - lineup
+		into.y = 0.0
+		var facing := _heading
+		if into.length_squared() > 0.0001:
+			facing = rad_to_deg(atan2(-into.x, -into.z))
+		await _hall_stride(lineup, 0.5, facing)
+		if _player != null:
+			_player.set_locomotion(0.0, false, false, 0.0)
+		if _remotes != null:
+			_remotes.note(_heading, 0.0, false, false, false)
+		await get_tree().create_timer(0.5).timeout
 	await _walk_into_door(goal)
 	_HQ.door_index = index
 	_HQ.trip = "out"
@@ -3345,7 +3553,9 @@ func _enter_building() -> void:
 	var zone_id := _BLDG.interior_zone(building)
 	var street_path := _scene_path()
 	_BLDG.open(self, door)
-	await _walk_into_door(_into_door(_BLDG.enter_frame(building, door)))
+	var frame: Dictionary = _BLDG.enter_frame(building, door)
+	await _line_up_at_frame(frame)
+	await _walk_into_door(_into_door(frame))
 	if zone_id == 0:
 		_locked = false
 		_lift_blackout()
@@ -3357,8 +3567,10 @@ func _enter_building() -> void:
 
 func _leave_building() -> void:
 	_locked = true
+	var origin := _DOORS.find_origin(get_parent())
 	_DOORS.open(self, _DOORS.find_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	await _line_up_at_origin(origin)
+	await _walk_into_door(_interior_door_goal(origin))
 	_BLDG.trip = "out"
 	var back := _BLDG.street
 	if back.is_empty():
@@ -3394,27 +3606,34 @@ func _enter_house(slot: int) -> void:
 	if door == null and house != null:
 		door = _DOORS.find_anchor(house)
 	_DOORS.open(self, door)
-	var goal := _body.global_position
 	if house != null and door != null:
 		var anchor := _DOORS.find_anchor(house)
 		if anchor != null:
-			goal = _into_door(_DOORS.enter_frame(house, anchor))
-	await _walk_into_door(goal)
+			var frame: Dictionary = _DOORS.enter_frame(house, anchor)
+			await _line_up_at_frame(frame)
+			await _walk_into_door(_into_door(frame))
+		else:
+			await _walk_into_door(_body.global_position)
+	else:
+		await _walk_into_door(_body.global_position)
 	door_trip = "in"
 	ToonLoading.change_to(_PLACES.house_scene(slot))
 
 
 func _leave_house(slot: int) -> void:
 	_locked = true
+	var origin := _DOORS.find_origin(get_parent())
 	_DOORS.open(self, _DOORS.find_door(get_parent()))
-	await _walk_into_door(_interior_door_goal(_DOORS.find_origin(get_parent())))
+	await _line_up_at_origin(origin)
+	await _walk_into_door(_interior_door_goal(origin))
 	door_trip = "out"
 	ToonLoading.change_to(_PLACES.estate_scene(slot))
 
 
 ## DistributedDoor.avatarEnterDoorTrack. Walk loops for one second while the
 ## toon eases through the doorway. The iris starts halfway through that step.
-func _walk_into_door(goal: Vector3) -> void:
+## hall_cam eases the camera to (0, -8, height) on the toon, the local enter shot.
+func _walk_into_door(goal: Vector3, hall_cam := true) -> void:
 	if _player == null or _body == null:
 		await _fade_black()
 		return
@@ -3427,7 +3646,15 @@ func _walk_into_door(goal: Vector3) -> void:
 		_face(_player, _heading)
 	_body.velocity = Vector3.ZERO
 	var clock := 0.0
-	var cover: ColorRect
+	var cover: ColorRect = null
+	var cam_from := Vector3.ZERO
+	var look_from := Vector3.ZERO
+	var cam_height := 3.0
+	if hall_cam and _camera != null:
+		_door_cam = true
+		cam_height = _npc_height(_player)
+		cam_from = _into_avatar(_camera.global_position)
+		look_from = _into_avatar(_camera.global_position - _camera.global_transform.basis.z * 8.0)
 	while clock < duration:
 		var delta := minf(get_process_delta_time(), 0.05)
 		if delta <= 0.0:
@@ -3443,11 +3670,20 @@ func _walk_into_door(goal: Vector3) -> void:
 		# The iris follows this clock. A separate tween runs on real time, so a
 		# hitch finishes it early and the scene change waits on a signal that
 		# already fired. The screen stays black and the building never loads.
+		if hall_cam and _door_cam and _camera != null:
+			var blend := _ease_in_out(clampf(clock / duration, 0.0, 1.0))
+			var local := cam_from.lerp(Vector3(0.0, -8.0, cam_height), blend)
+			_camera.global_position = _from_avatar(local)
+			var look := _from_avatar(look_from.lerp(Vector3(0.0, 0.0, cam_height), blend))
+			if _camera.global_position.distance_squared_to(look) > 0.04:
+				_camera.look_at(look, Vector3.UP)
 		if clock >= duration * 0.5:
 			if cover == null:
 				cover = _blackout()
 			cover.color.a = clampf((clock - duration * 0.5) / (duration * 0.5), 0.0, 1.0)
 		await get_tree().process_frame
+	if hall_cam:
+		_door_cam = false
 	_player.set_locomotion(0.0, false, false, 0.0)
 	if _remotes != null:
 		_remotes.note(_heading, 0.0, false, false, false)
@@ -3456,21 +3692,66 @@ func _walk_into_door(goal: Vector3) -> void:
 	cover.color.a = 1.0
 
 
+## avatarEnqueueTrack. Stand on the right jamb, five units out, before the
+## one-second walk through the door. Toon Hall does this in _enter_hall.
+func _line_up_at_frame(frame: Dictionary) -> void:
+	if _body == null or frame.is_empty():
+		return
+	var spot := _right_jamb(frame)
+	spot.y = _body.global_position.y
+	await _hall_stride(spot, 0.5, _frame_into_heading(frame))
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.0)
+	if _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
+	await get_tree().create_timer(0.5).timeout
+
+
+func _line_up_at_origin(origin: Node3D) -> void:
+	if _body == null or origin == null:
+		return
+	var spot := _origin_point(origin, 1.5, -5.0)
+	spot.y = _body.global_position.y
+	await _hall_stride(spot, 0.5, _origin_heading(origin, true))
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.0)
+	if _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
+	await get_tree().create_timer(0.5).timeout
+
+
+func _right_jamb(frame: Dictionary) -> Vector3:
+	var mouth: Vector3 = frame.get("mouth", _body.global_position)
+	var outward: Vector3 = frame.get("outward", Vector3.ZERO)
+	var side := _door_side(outward)
+	return mouth + side * 1.5 + _flat_out(outward) * 5.0
+
+
+func _frame_into_heading(frame: Dictionary) -> float:
+	var outward := _flat_out(frame.get("outward", Vector3.ZERO))
+	return rad_to_deg(atan2(outward.x, outward.z))
+
+
+func _flat_out(outward: Vector3) -> Vector3:
+	outward.y = 0.0
+	if outward.length_squared() < 0.0001:
+		return Vector3(0.0, 0.0, 1.0)
+	return outward.normalized()
+
+
+func _door_side(outward: Vector3) -> Vector3:
+	var side := Vector3.UP.cross(_flat_out(outward))
+	side.y = 0.0
+	if side.length_squared() < 0.0001:
+		return Vector3.RIGHT
+	return side.normalized()
+
+
 ## doorX is 1.5 and the enter point sits two units through the doorway.
 func _into_door(frame: Dictionary) -> Vector3:
 	var mouth: Vector3 = frame.get("mouth", _body.global_position)
 	var outward: Vector3 = frame.get("outward", Vector3.ZERO)
-	outward.y = 0.0
-	if outward.length_squared() < 0.0001:
-		outward = Vector3(0.0, 0.0, 1.0)
-	else:
-		outward = outward.normalized()
-	var side := Vector3.UP.cross(outward)
-	if side.length_squared() < 0.0001:
-		side = Vector3.RIGHT
-	else:
-		side = side.normalized()
-	var point := mouth - outward * 2.0 + side * 1.5
+	var point := mouth - _flat_out(outward) * 2.0 + _door_side(outward) * 1.5
 	point.y = _body.global_position.y
 	return point
 

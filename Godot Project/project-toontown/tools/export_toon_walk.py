@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from panda3d.core import GeomNode, GeomVertexReader, GeomVertexRewriter, Point3
 
 import export_make_a_toon as toon_export
+import export_toon_idle as idle
 import export_toontown_central as exporter
 
 OUT = Path(__file__).resolve().parents[1] / "assets" / "toons" / "anims"
@@ -176,9 +177,10 @@ def bind_anim(root, relative: str):
 def joint_names(part: str) -> tuple[str, ...]:
     # The torso is parented to the hip joint and the head to def_head.
     # Those nodes have to follow the walk or the baked meshes leave them behind.
+    # Far torsos also hang the neck on def_neck or def_cageA.
     if part.startswith("legs_"):
         return ("joint_hips",)
-    return ("def_head",)
+    return ("def_head",) + idle._neck_joints(part)
 
 
 def joint_matrices(root, names: tuple[str, ...]) -> list[tuple[str, list[float]]]:

@@ -1651,27 +1651,21 @@ func _find_named(node: Node, tail: String) -> MeshInstance3D:
 			return found
 	return null
 
-## The loose suit mesh keeps a shirt card on the right wrist. Posed, that card
-## sticks out of the sleeve. Both wrists also carry a flat gray lining that
-## sits on the pinstripe. The left shirt cuff stays in the sleeve opening, and
-## the black ring at the neck stays. Clips for these bodies drop the same
+## Both wrists carry a white shirt cuff into the sleeve, and a flat gray
+## lining that sits on the pinstripe. The cuffs stay. The linings go. The
+## black ring at the neck stays. Clips for these bodies drop the same
 ## surfaces, so the pose swap still lines materials up with the standing mesh.
 func _hide_sleeve_pop(actor: Node) -> void:
 	var suit := _find(actor, "node") as MeshInstance3D
 	if suit == null or suit.mesh == null:
 		return
 	var drop: Array[int] = []
-	var shirt_cards := 0
 	for index in suit.mesh.get_surface_count():
 		var arrays := suit.mesh.surface_get_arrays(index)
 		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		var material := suit.mesh.surface_get_material(index) as BaseMaterial3D
 		var textured := material != null and material.albedo_texture != null
-		if textured and verts.size() == 24:
-			shirt_cards += 1
-			if shirt_cards == 2:
-				drop.append(index)
-		elif not textured and verts.size() > 9:
+		if not textured and verts.size() > 9:
 			drop.append(index)
 	if drop.is_empty():
 		return
@@ -1994,7 +1988,6 @@ static func _parse_clip(path: String) -> Dictionary:
 		at += name_len
 		var surface_count := bytes.decode_u32(at)
 		at += 4
-		var shirt_cards := 0
 		var drop_pop := _drops_sleeve_pop(path) and node_name == "node"
 		var surfaces: Array = []
 		for _surface_index in surface_count:
@@ -2013,12 +2006,7 @@ static func _parse_clip(path: String) -> Dictionary:
 					uvs[index] = Vector2(u, v)
 			var base := at
 			at += frame_count * vertex_count * 12
-			var drop := false
-			if drop_pop and has_uv != 0 and vertex_count == 24:
-				shirt_cards += 1
-				drop = shirt_cards == 2
-			elif drop_pop and has_uv == 0 and vertex_count > 9:
-				drop = true
+			var drop := drop_pop and has_uv == 0 and vertex_count > 9
 			if drop:
 				continue
 			if vertex_count >= 1 and base + frame_count * vertex_count * 12 <= bytes.size():

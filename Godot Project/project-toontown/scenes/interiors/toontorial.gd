@@ -8,6 +8,8 @@ const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _MOTION := preload("res://scenes/interiors/door_motion.gd")
+const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 const MUSIC_PATH := "res://assets/neighborhoods/tutorial_zone/audio/TC_SZ.ogg"
@@ -80,6 +82,9 @@ var _cam_yaw := 0.0
 var _cam_pitch := 0.0
 var _cam_distance := 1.0
 var _camera_held := false
+var _exit_cam := false
+var _exit_shot_pos := Vector3.ZERO
+var _exit_shot_look := Vector3.ZERO
 var _cam_steering := false
 var _right_yaw := 0.0
 var _running := false
@@ -153,6 +158,8 @@ func _process(delta: float) -> void:
 	var book_open := _book != null and _book.is_open()
 	if MagicWords.detached_camera() and not _cutscene and not _camera_held and not book_open:
 		MagicWords.fly_camera(_camera, delta)
+	elif _exit_cam:
+		_frame_shop_exit()
 	elif not _camera_held and (not _cutscene or (_hq != null and _hq.inside())):
 		_place_camera()
 	_face_billboards()
@@ -536,8 +543,18 @@ func _place_camera() -> void:
 	var distance := 9.0 * (height / 3.0) * _cam_distance
 	var pitch := deg_to_rad(_cam_pitch)
 	var horizontal := distance * cos(pitch)
-	_camera.global_position = target - forward * horizontal + Vector3(0.0, distance * sin(pitch), 0.0)
-	if _camera.global_position.distance_squared_to(target) > 0.04:
+	var cam := target - forward * horizontal + Vector3(0.0, distance * sin(pitch), 0.0)
+	# Behind the toon here is the shop wall. Stay on the sidewalk and keep the
+	# toon in the middle of the picture.
+	if not _in_toms_shop() and not _plaza and cam.x > -20.6:
+		cam.x = -20.6
+		var dx := cam.x - target.x
+		var spare := horizontal * horizontal - dx * dx
+		if spare < 1.0:
+			spare = 1.0
+		cam.z = target.z - sqrt(spare)
+	_camera.global_position = cam
+	if cam.distance_squared_to(target) > 0.04:
 		_camera.look_at(target, Vector3.UP)
 
 
@@ -1106,29 +1123,339 @@ func _try_door() -> void:
 		return
 	if here.distance_to(_DOOR) > 4.5 or _body.position.x < -16.5:
 		return
+	_leave_toms_shop()
+
+
+## The same leave as every other toon door: stand on the right jamb, the right
+## panel swings, then the walk through irises out. The street is already in
+## this scene, so the iris lifts on that shop's outside door as the toon steps out.
+func _leave_toms_shop() -> void:
 	_fading = true
 	_locked = true
+	if _body:
+		_body.velocity = Vector3.ZERO
+	var origin := _find(self, "door_origin")
+	var door := _shop_door(origin)
+	if origin != null and door != null and _style_shop_door(door):
+		# The player is on the +X side of this door, inside the shop.
+		_ready_shop_door(door, Vector3(1.0, 0.0, 0.0))
+		if _MOTION.open_in(self, door):
+			await _line_up_shop(origin)
+			await _walk_out_shop(origin)
+			_shut_shop_door(door)
+		else:
+			await _cover_shop()
+	else:
+		await _cover_shop()
+	await _step_out_of_shop()
+	_locked = false
+	_fading = false
+
+
+func _shop_door(origin: Node3D) -> Node3D:
+	if origin == null:
+		return null
+	for child in origin.get_children():
+		if child is Node3D and str(child.name).begins_with("door_double_"):
+			return child as Node3D
+	return null
+
+
+func _style_shop_door(door: Node3D) -> bool:
+	for child in door.get_children():
+		var piece := str(child.name)
+		var renamed := ""
+		if piece.ends_with("_hole_left"):
+			renamed = "doorFrameHoleLeft"
+		elif piece.ends_with("_hole_right"):
+			renamed = "doorFrameHoleRight"
+		elif piece.ends_with("_left"):
+			renamed = "leftDoor"
+		elif piece.ends_with("_right"):
+			renamed = "rightDoor"
+		elif piece.ends_with("_flat"):
+			renamed = "door_flat"
+		if not renamed.is_empty():
+			child.name = renamed
+	return _MOTION.find_part(door, "rightDoor") != null
+
+
+func _line_up_shop(origin: Node3D) -> void:
+	var spot := origin.to_global(Vector3(1.5, -5.0, 0.025))
+	spot.y = _body.global_position.y
+	await _shop_stride(spot, 0.5, _shop_heading(origin))
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.0)
+	if _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
+	await get_tree().create_timer(0.5).timeout
+
+
+func _walk_out_shop(origin: Node3D) -> void:
+	var goal := origin.to_global(Vector3(1.5, 2.0, 0.025))
+	goal.y = _body.global_position.y
+	_camera_held = true
+	var start := _body.global_position
+	var flat := goal - start
+	flat.y = 0.0
+	if flat.length_squared() > 0.04:
+		_heading = rad_to_deg(atan2(-flat.x, -flat.z))
+		_face(_player, _heading)
+	var duration := 1.0
+	var clock := 0.0
+	var cover: ColorRect = null
+	var cam_from := Vector3.ZERO
+	var look_from := Vector3.ZERO
+	var cam_height := _eye_height
+	if _camera != null and _player != null:
+		cam_from = _into_toon(_camera.global_position)
+		look_from = _into_toon(_camera.global_position - _camera.global_transform.basis.z * 8.0)
+	while clock < duration:
+		var delta := minf(get_process_delta_time(), 0.05)
+		if delta <= 0.0:
+			delta = 0.016
+		clock += delta
+		var next := start.lerp(goal, _ease_in(clampf(clock / duration, 0.0, 1.0)))
+		next.y = start.y
+		_body.global_position = next
+		if _player != null:
+			_player.set_locomotion(4.0, false, false, delta)
+		if _remotes != null:
+			_remotes.note(_heading, 4.0, false, false, false)
+		if _camera != null and _player != null:
+			var blend := _ease_in_out(clampf(clock / duration, 0.0, 1.0))
+			var local := cam_from.lerp(Vector3(0.0, -8.0, cam_height), blend)
+			_camera.global_position = _from_toon(local)
+			var look := _from_toon(look_from.lerp(Vector3(0.0, 0.0, cam_height), blend))
+			if _camera.global_position.distance_squared_to(look) > 0.04:
+				_camera.look_at(look, Vector3.UP)
+		if clock >= duration * 0.5:
+			if cover == null:
+				cover = _shop_cover()
+			cover.color.a = clampf((clock - duration * 0.5) / (duration * 0.5), 0.0, 1.0)
+		await get_tree().process_frame
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.0)
+	if _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
+	if cover == null:
+		cover = _shop_cover()
+	cover.color.a = 1.0
+
+
+func _shop_stride(goal: Vector3, duration: float, facing: float) -> void:
+	if _player == null or _body == null:
+		return
+	var start := _body.global_position
+	_heading = facing
+	_face(_player, facing)
+	var clock := 0.0
+	while clock < duration:
+		var delta := minf(get_process_delta_time(), 0.05)
+		if delta <= 0.0:
+			delta = 0.016
+		clock += delta
+		var next := start.lerp(goal, _ease_in_out(clampf(clock / duration, 0.0, 1.0)))
+		next.y = start.y
+		_body.global_position = next
+		_player.set_locomotion(4.0, false, false, delta)
+		if _remotes != null:
+			_remotes.note(_heading, 4.0, false, false, false)
+		await get_tree().process_frame
+	_player.set_locomotion(0.0, false, false, 0.0)
+
+
+func _shop_heading(origin: Node3D) -> float:
+	var dir := origin.global_transform.basis.y
+	dir.y = 0.0
+	if dir.length_squared() < 0.0001:
+		return _heading
+	return rad_to_deg(atan2(-dir.x, -dir.z))
+
+
+func _cover_shop() -> void:
+	var cover := _shop_cover()
+	var tween := create_tween()
+	tween.tween_property(cover, "color:a", 1.0, 0.3)
+	await tween.finished
+
+
+## avatarExitTrack on the street door. The iris is already down. The shop
+## shell comes back, the left panel opens, and the toon walks out of it.
+func _step_out_of_shop() -> void:
+	var ext := _exterior_shop_door()
+	var outward := Vector3(-1.0, 0.0, 0.0)
+	# One step out of the doorway, then stop on the sidewalk in front of the shop.
+	var start := Vector3(-21.0, -0.4, _return_spot.z)
+	var goal := _return_spot
+	if ext != null:
+		# Same kit the street shops swing. This shell only baked the flat.
+		_BLDG._add_panels(ext)
+		_ready_shop_door(ext, outward)
+	start.y = -0.4
+	goal.y = -0.4
+	_body.global_position = start
+	_heading = rad_to_deg(atan2(-outward.x, -outward.z))
+	_face(_player, _heading)
+	_show_shop_shell()
+	_camera_held = true
+	_hold_shop_exit(goal)
+	if ext != null:
+		_MOTION._swing_named(self, ext, "leftDoor", "doorFrameHoleLeft", -100.0, 0.0)
+	# The window pace is only the cutscene. He is on the street when it lifts.
+	if _flunky:
+		_flunky.walk_street()
+	var cover := _shop_cover()
+	cover.color.a = 1.0
+	await get_tree().create_timer(0.4).timeout
+	var fade := create_tween()
+	fade.tween_property(cover, "color:a", 0.0, 0.4)
+	await get_tree().create_timer(0.6).timeout
+	await _shop_stride(goal, 0.5, _heading)
+	if ext != null:
+		_MOTION._close_named(self, ext, "leftDoor", "doorFrameHoleLeft", -100.0, true)
+	cover.queue_free()
+	_exit_cam = false
+	_camera_held = false
+	_place_camera()
+
+
+func _exterior_shop_door() -> Node3D:
+	if _shop == null:
+		return null
+	return _find(_shop, "door_double_round_ur")
+
+
+## One still frame in front of the face. The distance matches the player camera,
+## and the point is taken from the sidewalk spot, not the moving head.
+func _hold_shop_exit(stand: Vector3) -> void:
+	var distance := 9.0 * (_eye_height / 3.0)
+	if distance < 8.0:
+		distance = 8.0
+	_exit_shot_look = stand + Vector3(0.0, _eye_height, 0.0)
+	_exit_shot_pos = _exit_shot_look + Vector3(-distance, 0.0, 0.0)
+	_exit_cam = true
+	_frame_shop_exit()
+
+
+func _frame_shop_exit() -> void:
+	if _camera == null:
+		return
+	_camera.global_position = _exit_shot_pos
+	if _exit_shot_pos.distance_squared_to(_exit_shot_look) > 0.04:
+		_camera.look_at(_exit_shot_look, Vector3.UP)
+
+
+## Keep the painted flat as the closed door. Only the right opening comes
+## forward, and both leaves stay hidden until the swing shows one of them.
+func _ready_shop_door(door: Node3D, toward: Vector3) -> void:
+	_seat_open_leaves(door, toward)
+	for hole_name in ["doorFrameHoleLeft", "doorFrameHoleRight"]:
+		var hole := _MOTION.find_part(door, hole_name)
+		if hole == null:
+			continue
+		hole.visible = false
+		if hole_name != "doorFrameHoleRight" or hole.has_meta("shop_hole"):
+			continue
+		hole.set_meta("shop_hole", true)
+		var axis := hole.global_transform.basis.y
+		var along := 0.12
+		if axis.dot(toward) < 0.0:
+			along = -0.12
+		hole.position.y += along
+
+
+## The swinging leaf is built through the painted card. Pull it toward the
+## side the toon is standing on and cut the texture, or the open door
+## flickers against the frame.
+func _seat_open_leaves(door: Node3D, toward: Vector3) -> void:
+	for part_name in ["leftDoor", "rightDoor"]:
+		var panel := _MOTION.find_part(door, part_name)
+		if panel == null:
+			continue
+		panel.visible = false
+		if panel.has_meta("door_paint"):
+			continue
+		panel.set_meta("door_paint", true)
+		var meshes: Array[MeshInstance3D] = []
+		_leaf_meshes(panel, meshes)
+		for mesh in meshes:
+			var axis := mesh.global_transform.basis.y
+			var along := 0.2
+			if axis.dot(toward) < 0.0:
+				along = -0.2
+			mesh.position.y += along
+			var source := mesh.get_active_material(0) as StandardMaterial3D
+			if source == null:
+				continue
+			var copy := source.duplicate() as StandardMaterial3D
+			copy.cull_mode = BaseMaterial3D.CULL_DISABLED
+			copy.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+			copy.alpha_scissor_threshold = 0.5
+			copy.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
+			mesh.material_override = copy
+
+
+func _leaf_meshes(node: Node, meshes: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		meshes.append(node as MeshInstance3D)
+	for child in node.get_children():
+		_leaf_meshes(child, meshes)
+
+
+func _shut_shop_door(door: Node3D) -> void:
+	var right := _MOTION.find_part(door, "rightDoor")
+	if right != null and right.has_meta("closed_basis"):
+		right.transform.basis = right.get_meta("closed_basis")
+		right.visible = false
+	var left := _MOTION.find_part(door, "leftDoor")
+	if left != null:
+		left.visible = false
+	for hole_name in ["doorFrameHoleRight", "doorFrameHoleLeft"]:
+		var hole := _MOTION.find_part(door, hole_name)
+		if hole != null:
+			hole.visible = false
+	var flat := _MOTION.find_part(door, "door_flat")
+	if flat != null:
+		flat.visible = true
+
+
+func _shop_cover() -> ColorRect:
+	var existing := _hud().get_node_or_null("ShopFade") as ColorRect
+	if existing != null:
+		return existing
 	var fade := ColorRect.new()
+	fade.name = "ShopFade"
 	fade.color = Color(0, 0, 0, 0)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_hud().add_child(fade)
-	var tween := create_tween()
-	tween.tween_property(fade, "color:a", 1.0, 0.3)
-	tween.tween_callback(func() -> void:
-		_body.position = Vector3(-22.0, -0.4, -24.5)
-		_heading = 180.0
-		_face(_player, _heading)
-		# The window pace is only the cutscene. Move him while the screen is black.
-		if _flunky:
-			_flunky.walk_street()
-	)
-	tween.tween_property(fade, "color:a", 0.0, 0.4)
-	tween.tween_callback(func() -> void:
-		fade.queue_free()
-		_locked = false
-		_fading = false
-	)
+	return fade
+
+
+func _into_toon(world: Vector3) -> Vector3:
+	return _toon_axes().inverse() * (world - _player.global_position)
+
+
+func _from_toon(local: Vector3) -> Vector3:
+	return _player.global_position + _toon_axes() * local
+
+
+func _toon_axes() -> Basis:
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	return upright.rotated(Vector3.UP, deg_to_rad(_heading))
+
+
+func _ease_in(t: float) -> float:
+	var c := clampf(t, 0.0, 1.0)
+	return c * c
+
+
+func _ease_in_out(t: float) -> float:
+	var c := clampf(t, 0.0, 1.0)
+	if c < 0.5:
+		return 2.0 * c * c
+	return -2.0 * c * c + 4.0 * c - 1.0
 
 
 func _try_locked_door(here: Vector2) -> void:

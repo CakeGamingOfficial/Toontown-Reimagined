@@ -919,6 +919,11 @@ func _clear_dialog_buttons() -> void:
 
 
 func _hide_dialog() -> void:
+	# Hiding the shade inside the click lets that click hit a name behind it.
+	call_deferred("_hide_dialog_now")
+
+
+func _hide_dialog_now() -> void:
 	if _dialog != null and _dialog.visible:
 		_cog_token += 1
 	_picking = false

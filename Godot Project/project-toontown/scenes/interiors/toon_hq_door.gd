@@ -4,6 +4,7 @@ extends RefCounted
 ## and door_origin_1. The playground landmark already has both closed slabs
 ## and their swinging panels. door_index is which of those two you used.
 
+const _MOTION := preload("res://scenes/interiors/door_motion.gd")
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
 const CLOSE_SFX := "res://assets/interiors/hq/Door_Close_1.ogg"
 const _PANELS: Array[String] = ["leftDoor", "rightDoor", "doorFrameHoleRight", "doorFrameHoleLeft"]
@@ -136,12 +137,35 @@ static func interior_enter_point(host: Node, index: int) -> Vector3:
 		into = Vector3(0.0, 0.0, 1.0)
 	else:
 		into = into.normalized()
-	var side := Vector3.UP.cross(into)
+	# into is the way the toon faces. Their right is into.cross(up), the right jamb.
+	var side := into.cross(Vector3.UP)
 	if side.length_squared() < 0.0001:
 		side = Vector3.RIGHT
 	else:
 		side = side.normalized()
 	return origin.global_position + into * 2.0 + side * 1.5
+
+
+## avatarEnqueueTrack stands at (doorX, -5), in front of the right jamb.
+static func interior_lineup_point(host: Node, index: int) -> Vector3:
+	var origin := find_interior_origin(host, index)
+	if origin == null:
+		return Vector3.ZERO
+	var other := find_interior_origin(host, 1 - index)
+	var into := Vector3(0.0, 0.0, 1.0)
+	if other != null:
+		into = origin.global_position - other.global_position
+		into.y = 0.0
+	if into.length_squared() < 0.0001:
+		into = Vector3(0.0, 0.0, 1.0)
+	else:
+		into = into.normalized()
+	var side := into.cross(Vector3.UP)
+	if side.length_squared() < 0.0001:
+		side = Vector3.RIGHT
+	else:
+		side = side.normalized()
+	return origin.global_position - into * 5.0 + side * 1.5
 
 
 static func outside_drop(building: Node3D, index: int) -> Dictionary:
@@ -186,7 +210,6 @@ static func seal(door: Node3D) -> void:
 static func open(host: Node, door: Node3D) -> void:
 	if door == null:
 		return
-	_sound(host, OPEN_SFX)
 	var flat := _flat(door)
 	for part_name in ["doorFrameHoleRight", "doorFrameHoleLeft"]:
 		var hole := _find_starting(door, part_name)
@@ -194,14 +217,8 @@ static func open(host: Node, door: Node3D) -> void:
 			var kept := hole.global_transform
 			hole.reparent(door)
 			hole.global_transform = kept
-	if flat != null:
-		flat.visible = false
-	for part_name in _PANELS:
-		var part := _find_starting(door, part_name)
-		if part != null:
-			part.visible = true
-	_swing(host, _find_starting(door, "rightDoor"), 100.0)
-	_swing(host, _find_starting(door, "leftDoor"), -100.0)
+	# The right leaf swings. The flat frame stays, and the opening is black.
+	_MOTION.open_in(host, door)
 
 
 static func _approach(building: Node3D, index: int, gap: float) -> Vector3:
@@ -313,9 +330,13 @@ static func _find_exact(node: Node, wanted: String) -> Node3D:
 
 
 static func tint_interior(host: Node) -> void:
-	var color := door_color()
+	var color := _MOTION.shown_color(door_color())
 	for index in 2:
-		_tint_tree(find_interior_door(host, index), color)
+		var door := find_interior_door(host, index)
+		if door == null:
+			continue
+		for part_name in ["leftDoor", "rightDoor"]:
+			_tint_tree(_find_starting(door, part_name), color)
 
 
 static func _tint_tree(node: Node, color: Color) -> void:

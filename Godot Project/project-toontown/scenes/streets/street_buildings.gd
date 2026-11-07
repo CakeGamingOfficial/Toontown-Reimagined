@@ -837,18 +837,6 @@ func _axis_scale(elapsed: float, bounces: int, start_scale: float, total: float,
 		diff *= 0.5
 		span = bounce_time
 	return 1.0 if rest < 0.5 else rest
-	# createBounceTrack(node, 2, 0.65, 1.2, slowInitBounce=1) on the up axis.
-	var marks: Array[float] = [0.0, 0.4, 0.8, 1.2]
-	var heights: Array[float] = [1.0, 0.65, 1.175, 1.0]
-	if elapsed >= 1.2:
-		return 1.0
-	for index in 3:
-		if elapsed > marks[index + 1]:
-			continue
-		var blend := (elapsed - marks[index]) / 0.4
-		blend = blend * blend * (3.0 - 2.0 * blend)
-		return lerpf(heights[index], heights[index + 1], blend)
-	return 1.0
 
 
 func _darken(landmark: Node, amount: float) -> void:

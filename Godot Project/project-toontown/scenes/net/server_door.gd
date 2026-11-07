@@ -190,12 +190,8 @@ func _enter() -> void:
 	_closing = true
 	if not _press_locked:
 		_lock_press()
-	for widget in _widgets:
-		if is_instance_valid(widget):
-			widget.hide()
-			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			if widget is BaseButton:
-				widget.disabled = true
+	# Hiding the pill inside this click gives the click to the slot behind it.
+	call_deferred("_retire_widgets", _widgets.duplicate())
 
 
 func _press(action: Callable) -> void:
@@ -305,16 +301,24 @@ func _clear_widgets() -> void:
 	# Same click-through as closing the dialog. A freed Host or Connect
 	# button would otherwise activate the slot underneath it.
 	_guard_slots()
-	for widget in _widgets:
-		if is_instance_valid(widget):
-			widget.hide()
-			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			if widget is BaseButton:
-				widget.disabled = true
-			widget.call_deferred("queue_free")
+	var retiring := _widgets.duplicate()
 	_widgets.clear()
 	_address = null
 	_port_edit = null
+	call_deferred("_retire_widgets", retiring)
+
+
+func _retire_widgets(widgets: Array) -> void:
+	for widget in widgets:
+		var control := widget as Node
+		if control == null or not is_instance_valid(control):
+			continue
+		control.hide()
+		if control is Control:
+			control.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if control is BaseButton:
+			control.disabled = true
+		control.queue_free()
 
 
 func _layout() -> void:

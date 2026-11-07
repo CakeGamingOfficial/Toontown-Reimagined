@@ -210,10 +210,31 @@ def bind_anim(root, relative: str):
     return control, bundle.getBaseFrameRate()
 
 
+def _neck_joints(part: str) -> tuple[str, ...]:
+    # 500 and 250 torsos parent the neck mesh to a joint instead of skinning it.
+    # The clip has to move that joint with def_head or the head leaves the neck.
+    path = PARTS_DIR / f"{part}.glb"
+    if not path.exists():
+        return ()
+    data = path.read_bytes()
+    length = struct.unpack_from("<I", data, 12)[0]
+    document = json.loads(data[20:20 + length])
+    nodes = document["nodes"]
+    found = []
+    for node in nodes:
+        if node.get("name") not in ("def_neck", "def_cageA"):
+            continue
+        for child in node.get("children", []):
+            if "mesh" in nodes[child]:
+                found.append(node["name"])
+                break
+    return tuple(found)
+
+
 def joint_names(part: str) -> tuple[str, ...]:
     if part.startswith("legs_"):
         return ("joint_hips",)
-    return ("def_head",)
+    return ("def_head",) + _neck_joints(part)
 
 
 def joint_matrices(root, names: tuple[str, ...]) -> list[tuple[str, list[float]]]:

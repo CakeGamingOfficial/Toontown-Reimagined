@@ -32,8 +32,9 @@ const THEME_VOLUME := 0.9
 var _confirm: Control
 var _confirm_slot := -1
 var _leaving := false
+var _shield: Control
 ## A click that dismisses a dialog can be offered to the slot underneath it.
-## Slots stay inert until that mouse button has been up for a few frames.
+## The shield stays above the slots until that mouse button has been up.
 var _guard_left := 0
 static var arrive_from_black := false
 
@@ -47,6 +48,7 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_layout()
 	_play_theme()
+	_refresh_shield()
 	if not multiplayer.server_disconnected.is_connected(_server_closed):
 		multiplayer.server_disconnected.connect(_server_closed)
 	# The head shader compiles on the first draw. Welcome buttons stay hidden
@@ -108,6 +110,7 @@ func _offer_server() -> void:
 	door.offset_right = 0.0
 	door.offset_bottom = 0.0
 	add_child(door)
+	_refresh_shield()
 
 
 func _play_theme() -> void:
@@ -163,6 +166,7 @@ func _build() -> void:
 	quit.pressed.connect(func() -> void:
 		get_tree().quit()
 	)
+	quit.z_index = 35
 	quit.button_down.connect(_swallow_click)
 	ToonGui.button_sounds(quit)
 	add_child(quit)
@@ -183,9 +187,18 @@ func _build() -> void:
 	options.stretch_mode = TextureButton.STRETCH_SCALE
 	options.clip_contents = true
 	options.pressed.connect(_toggle_options)
+	options.z_index = 35
 	options.button_down.connect(_swallow_click)
 	ToonGui.button_sounds(options)
 	add_child(options)
+	var shield := ColorRect.new()
+	shield.name = "ClickShield"
+	shield.color = Color(0, 0, 0, 0)
+	shield.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shield.z_index = 30
+	shield.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(shield)
+	_shield = shield
 	var options_label := Label.new()
 	options_label.name = "OptionsLabel"
 	options_label.text = "OPTIONS"
@@ -442,22 +455,41 @@ func _fade_in() -> void:
 
 func _swallow_click() -> void:
 	_guard_left = 8
-	_set_slots_asleep(true)
+	_refresh_shield()
 	set_process(true)
+	# Changing a slot's filter inside this click makes Godot offer the click
+	# to that slot. The shield is already up. The slots change next frame.
+	call_deferred("_apply_guard")
+
+
+func _apply_guard() -> void:
+	if _guard_left > 0:
+		_set_slots_asleep(true)
 
 
 func _process(_delta: float) -> void:
 	if _guard_left <= 0:
+		_refresh_shield()
 		set_process(false)
 		return
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		_guard_left = 8
+		_refresh_shield()
 		return
 	_guard_left -= 1
 	if _guard_left > 0:
+		_refresh_shield()
 		return
 	_set_slots_asleep(false)
+	_refresh_shield()
 	set_process(false)
+
+
+func _refresh_shield() -> void:
+	if _shield == null or not is_instance_valid(_shield):
+		return
+	var covered := _guard_left > 0 or _confirm != null or get_node_or_null("ServerDoor") != null or get_node_or_null("OptionsPanel") != null
+	_shield.mouse_filter = Control.MOUSE_FILTER_STOP if covered else Control.MOUSE_FILTER_IGNORE
 
 
 func _click_swallowed() -> bool:
@@ -523,8 +555,10 @@ func _ask_delete(index: int) -> void:
 	_confirm_slot = index
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.35)
+	dim.z_index = 70
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	_refresh_shield()
 	_confirm = dim
 	var card := TextureRect.new()
 	card.texture = preload("res://assets/toons/gui/g1.png")
@@ -590,14 +624,22 @@ func _confirm_delete() -> void:
 	if _confirm_slot >= 0:
 		ToonRoster.clear_slot(_confirm_slot)
 	_confirm_slot = -1
-	_rebuild()
+	_swallow_click()
+	_dismiss_confirm()
+	call_deferred("_rebuild")
 
 
 func _close_confirm() -> void:
 	_confirm_slot = -1
-	if _confirm:
-		_confirm.queue_free()
-		_confirm = null
+	_swallow_click()
+	_dismiss_confirm()
+
+
+func _dismiss_confirm() -> void:
+	var closing := _confirm
+	_confirm = null
+	_refresh_shield()
+	ToonGui.dismiss_after_click(closing)
 
 
 func _rebuild() -> void:
@@ -607,6 +649,7 @@ func _rebuild() -> void:
 		child.queue_free()
 	_build()
 	_layout()
+	_refresh_shield()
 	if _guard_left > 0:
 		_set_slots_asleep(true)
 

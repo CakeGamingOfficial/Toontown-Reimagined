@@ -13,7 +13,7 @@ const _WALLS := "res://assets/interiors/hq/solid_collision.json"
 const MUSIC_VOLUME := 0.8
 const _MUSIC: Dictionary = {
 	1000: "res://assets/neighborhoods/donalds_dock/audio/DD_nbrhood.ogg",
-	2000: "res://assets/neighborhoods/toontown_central/audio/TC_nbrhood.ogg",
+	2000: "res://assets/neighborhoods/toontown_central/audio/TC_SZ_activity.mp3",
 	3000: "res://assets/neighborhoods/the_burrrgh/audio/TB_nbrhood.ogg",
 	4000: "res://assets/neighborhoods/minnies_melodyland/audio/MM_nbrhood.ogg",
 	5000: "res://assets/neighborhoods/daisy_gardens/audio/DG_nbrhood.ogg",
@@ -391,13 +391,21 @@ func _play_music() -> void:
 	var path := String(_MUSIC.get(_DOOR.hood(), _MUSIC[2000]))
 	if not FileAccess.file_exists(path):
 		return
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream: AudioStream = null
+	if path.ends_with(".mp3"):
+		stream = load(path) as AudioStreamMP3
+	else:
+		stream = AudioStreamOggVorbis.load_from_file(path)
 	if stream == null:
 		return
-	stream.loop = true
+	var copy: AudioStream = stream.duplicate() as AudioStream
+	if copy is AudioStreamMP3:
+		(copy as AudioStreamMP3).loop = true
+	elif copy is AudioStreamOggVorbis:
+		(copy as AudioStreamOggVorbis).loop = true
 	var player := ToonAudio.music_player()
 	player.name = "NeighborhoodMusic"
-	player.stream = stream
+	player.stream = copy
 	player.volume_db = linear_to_db(MUSIC_VOLUME)
 	add_child(player)
 	player.play()

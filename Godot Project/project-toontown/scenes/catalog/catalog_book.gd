@@ -422,6 +422,10 @@ func _turn(step: int) -> void:
 
 
 func _hang_up() -> void:
+	call_deferred("_finish_hang_up")
+
+
+func _finish_hang_up() -> void:
 	finished.emit()
 	queue_free()
 

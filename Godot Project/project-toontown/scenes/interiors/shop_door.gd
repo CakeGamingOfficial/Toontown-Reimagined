@@ -9,6 +9,7 @@ extends RefCounted
 const _TRIGGER_ACROSS := 3.0
 const _TRIGGER_OUT := 1.0
 const _TRIGGER_IN := 0.35
+const _MOTION := preload("res://scenes/interiors/door_motion.gd")
 const DOORS := "res://assets/interiors/shops/doors.glb"
 const CATALOG := "res://assets/interiors/shops/shops.json"
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
@@ -155,6 +156,14 @@ static func _hang_landmark(host: Node, suffix: String, zone_id: int, door_code: 
 	if building == null:
 		return
 	_place_landmark(building, zone_id, door_code, pivot, tint)
+	# The export already drew this door on the wall. The swinging leaves sit
+	# on that same plane, so they stay hidden until the door opens.
+	seal(_find_exact(building, door_code))
+	# The closed door is a card a fraction of a foot off the siding. On the
+	# compatibility renderer that gap z-fights, the same way Toon Hall's did.
+	var flat := _find_base(building, "door_double_square_ur_flat") as MeshInstance3D
+	if flat != null:
+		preload("res://scenes/playgrounds/toon_hall_facade.gd")._cover(flat)
 
 
 static func _place_landmark(building: Node3D, zone_id: int, door_code: String, pivot: Vector3, tint: Color) -> void:
@@ -267,24 +276,9 @@ static func open(host: Node, door: Node3D) -> void:
 	# Swinging leaves stay off the street until this door opens. A copy on
 	# every building is a few hundred extra meshes in the blocks you walk past.
 	_add_panels(door)
-	_sound(host, OPEN_SFX)
-	var flat := _flat(door)
-	if flat != null:
-		flat.visible = false
-	var swung := false
-	for part_name in ["rightDoor", "leftDoor"]:
-		var part := _find_exact(door, part_name)
-		if part == null:
-			continue
-		part.visible = true
-		_swing(host, part, 100.0 if part_name == "rightDoor" else -100.0)
-		swung = true
-	for part_name in ["doorFrameHoleRight", "doorFrameHoleLeft"]:
-		var part := _find_exact(door, part_name)
-		if part != null:
-			part.visible = true
-	if swung:
+	if _MOTION.open_in(host, door):
 		return
+	_sound(host, OPEN_SFX)
 	var host_node: Node = door
 	var guard := 0
 	while host_node != null and guard < 6:
@@ -343,6 +337,10 @@ static func _add_panels(door: Node3D) -> void:
 	var source := _door_model(_strip_digits(str(door.name)))
 	if source == null:
 		return
+	# The street export baked the 9 by 9 card onto the facade and left this
+	# node at the building origin. The panels are built around a card whose
+	# corner is (-4.5, 0, 0), so they have to take the same shift as the card.
+	var shift := _panel_shift(door)
 	var tint := _flat_color(door)
 	for part_name in _PANELS:
 		var part := _find_base(source, part_name)
@@ -354,8 +352,20 @@ static func _add_panels(door: Node3D) -> void:
 		copy.name = part_name
 		door.add_child(copy)
 		copy.transform = part.transform
-		if tint.a > 0.0:
+		copy.position += shift
+		copy.visible = false
+		if tint.a > 0.0 and (part_name == "leftDoor" or part_name == "rightDoor"):
 			_tint_tree(copy, tint)
+
+
+static func _panel_shift(door: Node3D) -> Vector3:
+	var flat := _flat(door) as MeshInstance3D
+	if flat == null or flat.mesh == null:
+		return Vector3.ZERO
+	var box: AABB = flat.transform * flat.get_aabb()
+	if box.size.y > 0.2 or box.size.x < 8.0 or box.size.z < 8.0:
+		return Vector3.ZERO
+	return box.position - Vector3(-4.5, 0.0, 0.0)
 
 
 static func _door_model(code: String) -> Node3D:

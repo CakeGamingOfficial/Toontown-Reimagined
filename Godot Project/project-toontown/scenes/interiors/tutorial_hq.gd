@@ -8,6 +8,7 @@ extends Node
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const INTERIOR_PATH := "res://assets/interiors/hq/hq_interior.glb"
 const COLLISION_PATH := "res://assets/interiors/hq/collision.json"
+const _MOTION := preload("res://scenes/interiors/door_motion.gd")
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
 const CLOSE_SFX := "res://assets/interiors/hq/Door_Close_1.ogg"
 const ROOM_SHIFT := Vector3(0.0, 0.0, 240.0)
@@ -257,12 +258,10 @@ func _seal_front_door() -> void:
 
 
 func _play_open() -> void:
-	_play_sound(OPEN_SFX)
-	if _flat:
-		_flat.visible = false
-	if _right_hole:
-		_right_hole.visible = true
-	_swing_panel(_right_door)
+	if _ext_doors.is_empty():
+		return
+	# Same open as every other toon door: the frame stays, the hole is black.
+	_MOTION.open_in(self, _ext_doors[0])
 
 
 func _swing_door(door: Node3D) -> void:
@@ -274,15 +273,7 @@ func _swing_door(door: Node3D) -> void:
 		var kept := hole.global_transform
 		hole.reparent(door)
 		hole.global_transform = kept
-		_blacken(hole)
-	if flat:
-		flat.visible = false
-	if hole:
-		hole.visible = true
-	var left := _find_starting(door, "leftDoor")
-	if left:
-		left.visible = true
-	_swing_panel(_find_starting(door, "rightDoor"))
+	_MOTION.open_in(self, door)
 
 
 func _play_sound(path: String) -> void:
@@ -312,12 +303,7 @@ func _swing_panel(panel: Node3D) -> void:
 func _close_swung_door(door: Node3D, play_sound: bool) -> void:
 	if door == null:
 		return
-	var panel := _find_starting(door, "rightDoor")
-	if panel != null and bool(panel.get_meta("door_open", false)):
-		var tween := create_tween()
-		# enterClosing lerps the open heading back to 0 over one second.
-		tween.tween_method(_set_panel_swing.bind(panel), 100.0, 0.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		tween.finished.connect(_finish_door_close.bind(door, panel, play_sound))
+	if _MOTION.close_in(self, door, play_sound):
 		return
 	_show_closed_door(door)
 	if play_sound:

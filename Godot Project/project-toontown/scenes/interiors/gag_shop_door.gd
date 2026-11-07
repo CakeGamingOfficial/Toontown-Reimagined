@@ -6,6 +6,7 @@ extends RefCounted
 ## did not keep, so those are instanced from doors.glb the first time the
 ## playground loads.
 
+const _MOTION := preload("res://scenes/interiors/door_motion.gd")
 const DOORS := "res://assets/interiors/gag_shop/doors.glb"
 const OPEN_SFX := "res://assets/interiors/hq/Door_Open_1.ogg"
 const CLOSE_SFX := "res://assets/interiors/hq/Door_Close_1.ogg"
@@ -72,16 +73,8 @@ static func seal(door: Node3D) -> void:
 static func open(host: Node, door: Node3D) -> void:
 	if door == null:
 		return
-	_sound(host, OPEN_SFX)
-	var flat := _flat(door)
-	if flat != null:
-		flat.visible = false
-	for part_name in _PANELS:
-		var part := _find_exact(door, part_name)
-		if part != null:
-			part.visible = true
-	_swing(host, _find_exact(door, "rightDoor"), 100.0)
-	_swing(host, _find_exact(door, "leftDoor"), -100.0)
+	# The right leaf swings. The flat frame stays, and the opening is black.
+	_MOTION.open_in(host, door)
 
 
 static func _add_panels(door: Node3D, playground: int) -> void:
@@ -118,7 +111,7 @@ static func _add_panels(door: Node3D, playground: int) -> void:
 		part.name = part_name
 		part.transform = kept
 	root.free()
-	_tint(door, _color(playground))
+	_tint(door, _MOTION.shown_color(_color(playground)))
 
 
 static func _color(playground: int) -> Color:
@@ -137,7 +130,7 @@ static func _color(playground: int) -> Color:
 
 
 static func _tint(door: Node3D, color: Color) -> void:
-	for part_name in _PANELS:
+	for part_name in ["leftDoor", "rightDoor"]:
 		var part := _find_exact(door, part_name)
 		if part != null:
 			_tint_tree(part, color)

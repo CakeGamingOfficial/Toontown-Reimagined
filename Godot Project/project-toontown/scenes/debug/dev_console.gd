@@ -204,7 +204,7 @@ func _position_text() -> String:
 	var heading := "—"
 	var speed := "—"
 	var body := _player_body()
-	if body != null:
+	if body != null and body.is_inside_tree():
 		var at := body.global_position
 		where = "X %.2f   Y %.2f   Z %.2f" % [at.x, at.y, at.z]
 		heading = "%.1f°" % _heading_of(body)

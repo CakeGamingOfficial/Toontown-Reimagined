@@ -473,7 +473,7 @@ func _tint_marker(marker: Control) -> void:
 	var icon := marker.get_child(0) as CanvasItem
 	if icon == null:
 		return
-	var building: Variant = marker.get_meta("building", null)
+	var building: Variant = marker.get_meta("building") if marker.has_meta("building") else null
 	var taken := is_instance_valid(building) and building is Node and (building as Node).has_meta("cog_building")
 	icon.modulate = Color(0.55, 0.55, 0.55, 1) if taken else Color(1, 0, 0, 1)
 

@@ -36,6 +36,10 @@ const _FACE_GHOST := preload("res://scenes/toons/toon_face_ghost.gdshader")
 ## multiplayer adds one, leaves this bit out of its cull mask.
 const LOCAL_GHOST_LAYER := 1 << 19
 const _GHOST_ALPHA := 0.4
+## Eight steps between baked frames. Each step is built once and then reused.
+const _BLEND_STEPS := 8
+## A bigger move than this is a cut in the clip. Stretching it smears the body.
+const _BLEND_HOLD := 0.7
 
 ## World NPCs fall onto collision the way the player does. The player's own
 ## toon stays off, because his CharacterBody already carries him.
@@ -425,7 +429,7 @@ func play_run(delta: float) -> void:
 	_locomotion_msec = Time.get_ticks_msec()
 	_ensure_clips()
 	if _play_bank("run", 1.0, delta):
-			return
+		return
 	_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
 
 
@@ -1076,7 +1080,7 @@ func _play_cycle(clip_name: String, clips: Array, joints: Array, frame_count: in
 	time += delta * 24.0 * direction
 	if loop:
 		time = fposmod(time, float(frame_count))
-	# fposmod can return the modulus itself. That index does not exist.
+		# fposmod can return the modulus itself. That index does not exist.
 		if time >= float(frame_count):
 			time = 0.0
 	else:
@@ -1436,24 +1440,36 @@ func _kept_node(value: Variant) -> Node3D:
 
 
 func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: float) -> void:
-	# These clips are 24 discrete frames. Building a new mesh and smoothing its
-	# normals on every tick, for the toon and again for a street fisherman,
-	# then uploading that mesh, is what pegs a street.
+	# The baked frames are the original poses. In between, the mesh and the
+	# joints use the same step, so the torso stays on the legs. A cut in the
+	# landing clip is held instead of stretched, which is what shook the body.
+	var shown := _shown_blend(joints, frame, following, blend)
+	var step_frame := frame
+	if shown >= 0.999:
+		step_frame = following
+		shown = 0.0
+	var blending := shown > 0.001
 	var posed_head: MeshInstance3D = null
 	var built := false
 	for clip in clips:
 		var instance := _kept_mesh(clip.get("instance"))
 		if instance == null:
 			continue
-		var cache: Dictionary = clip.get("posed_meshes", {})
-		var posed: ArrayMesh = cache.get(frame) as ArrayMesh
-		if posed == null:
-			posed = _mesh_for_frame(clip, frame)
+		var posed: ArrayMesh = null
+		if blending:
+			posed = _blended_mesh(clip, frame, following, shown)
+		else:
+			var cache: Dictionary = clip.get("posed_meshes", {})
+			posed = cache.get(step_frame) as ArrayMesh
 			if posed == null:
-				continue
-			cache[frame] = posed
-			clip["posed_meshes"] = cache
-			built = true
+				posed = _mesh_for_frame(clip, step_frame)
+				if posed == null:
+					continue
+				cache[step_frame] = posed
+				clip["posed_meshes"] = cache
+				built = true
+		if posed == null:
+			continue
 		if instance.mesh != posed:
 			instance.mesh = posed
 		if String(instance.name).begins_with("head"):
@@ -1469,7 +1485,7 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 			if instance == null or not is_instance_valid(instance.mesh) or not (instance.mesh is ArrayMesh):
 				continue
 			var cache: Dictionary = clip.get("posed_meshes", {})
-			cache[frame] = instance.mesh
+			cache[step_frame] = instance.mesh
 			clip["posed_meshes"] = cache
 	for joint in joints:
 		var node := _kept_node(joint.get("node"))
@@ -1479,8 +1495,35 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 		if frames.is_empty():
 			continue
 		var count := frames.size()
-		node.transform = _joint_pose(joint, frame % count, following % count, blend)
+		var joint_frame := frame
+		var joint_next := following
+		var joint_blend := shown
+		if not blending:
+			joint_frame = step_frame
+			joint_next = step_frame
+			joint_blend = 0.0
+		node.transform = _joint_pose(joint, joint_frame % count, joint_next % count, joint_blend)
 	_seat_hands(joints)
+
+
+func _shown_blend(joints: Array, frame: int, following: int, blend: float) -> float:
+	if blend <= 0.001 or following == frame or _step_is_large(joints, frame, following):
+		return 0.0
+	var slice := clampi(int(round(blend * float(_BLEND_STEPS))), 0, _BLEND_STEPS)
+	return float(slice) / float(_BLEND_STEPS)
+
+
+func _step_is_large(joints: Array, frame: int, following: int) -> bool:
+	for joint in joints:
+		var frames: Array = joint["frames"]
+		if frames.is_empty():
+			continue
+		var count := frames.size()
+		var from_pose: Transform3D = frames[frame % count]
+		var to_pose: Transform3D = frames[following % count]
+		if from_pose.origin.distance_to(to_pose.origin) > _BLEND_HOLD:
+			return true
+	return false
 
 
 func _mesh_for_frame(clip: Dictionary, frame: int) -> ArrayMesh:
@@ -1497,14 +1540,12 @@ func _mesh_for_frame(clip: Dictionary, frame: int) -> ArrayMesh:
 		var frames: Array = surface["frames"]
 		if frames.is_empty():
 			continue
-		var positions: PackedVector3Array = frames[frame % frames.size()]
+		var frame_index := frame % frames.size()
+		var positions: PackedVector3Array = frames[frame_index]
 		var arrays: Array = []
 		arrays.resize(Mesh.ARRAY_MAX)
 		arrays[Mesh.ARRAY_VERTEX] = positions
-		if part.begins_with("ears"):
-			arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions, true)
-		else:
-			arrays[Mesh.ARRAY_NORMAL] = _smooth_normals(positions)
+		arrays[Mesh.ARRAY_NORMAL] = _frame_normals(surface, frame_index, part)
 		var uvs: PackedVector2Array = surface["uv"]
 		if uvs.size() == positions.size():
 			arrays[Mesh.ARRAY_TEX_UV] = uvs
@@ -1519,8 +1560,9 @@ func _mesh_for_frame(clip: Dictionary, frame: int) -> ArrayMesh:
 		return null
 	return posed
 
-
 func _joint_pose(joint: Dictionary, frame: int, following: int, blend: float) -> Transform3D:
+	# Same fraction as the body meshes. The hip and the head stay on the frame
+	# the legs and torso are showing.
 	var frames: Array = joint["frames"]
 	var posed: Transform3D = frames[frame]
 	if blend > 0.001:
@@ -1532,6 +1574,78 @@ func _joint_pose(joint: Dictionary, frame: int, following: int, blend: float) ->
 	var bind: Transform3D = joint["bind"]
 	var rest: Transform3D = joint["rest"]
 	return rest * bind.affine_inverse() * posed
+
+
+func _frame_normals(surface: Dictionary, frame: int, part: String) -> PackedVector3Array:
+	var frames: Array = surface["frames"]
+	var cached: Array = surface.get("normals", [])
+	if cached.size() != frames.size():
+		cached = []
+		cached.resize(frames.size())
+		surface["normals"] = cached
+	var found: Variant = cached[frame]
+	if found is PackedVector3Array:
+		return found
+	var positions: PackedVector3Array = frames[frame]
+	var normals := _smooth_normals(positions, part.begins_with("ears"))
+	cached[frame] = normals
+	return normals
+
+
+func _blended_mesh(clip: Dictionary, frame: int, following: int, blend: float) -> ArrayMesh:
+	var cache: Dictionary = clip.get("blend_meshes", {})
+	var key := "%d:%d:%.3f" % [frame, following, blend]
+	var cached: ArrayMesh = cache.get(key) as ArrayMesh
+	if cached != null:
+		return cached
+	var instance := _kept_mesh(clip.get("instance"))
+	var source: Variant = clip.get("original")
+	if instance == null or not is_instance_valid(source) or not (source is Mesh):
+		return null
+	var original := source as Mesh
+	var surfaces: Array = clip["surfaces"]
+	var mesh := ArrayMesh.new()
+	var part := String(instance.name)
+	for surface_index in surfaces.size():
+		var surface: Dictionary = surfaces[surface_index]
+		var frames: Array = surface["frames"]
+		if frames.is_empty():
+			continue
+		var from_frame := frame % frames.size()
+		var to_frame := following % frames.size()
+		var from_pos: PackedVector3Array = frames[from_frame]
+		var to_pos: PackedVector3Array = frames[to_frame]
+		if from_pos.size() != to_pos.size():
+			continue
+		var from_normals := _frame_normals(surface, from_frame, part)
+		var to_normals := _frame_normals(surface, to_frame, part)
+		var positions := PackedVector3Array()
+		var normals := PackedVector3Array()
+		positions.resize(from_pos.size())
+		normals.resize(from_pos.size())
+		for index in from_pos.size():
+			positions[index] = from_pos[index].lerp(to_pos[index], blend)
+			var normal := from_normals[index].lerp(to_normals[index], blend)
+			normals[index] = normal.normalized() if normal.length_squared() > 0.0000001 else from_normals[index]
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		var uvs: PackedVector2Array = surface["uv"]
+		if uvs.size() == positions.size():
+			arrays[Mesh.ARRAY_TEX_UV] = uvs
+		if surface_index < original.get_surface_count():
+			var colors := _corner_colors(original, surface_index, positions.size())
+			if colors.size() == positions.size():
+				arrays[Mesh.ARRAY_COLOR] = colors
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		if surface_index < original.get_surface_count():
+			mesh.surface_set_material(surface_index, original.surface_get_material(surface_index))
+	if mesh.get_surface_count() == 0:
+		return null
+	cache[key] = mesh
+	clip["blend_meshes"] = cache
+	return mesh
 
 
 func _restore_posed_meshes() -> void:

@@ -1226,17 +1226,20 @@ func _place_exit_choice(box: Node, view: Vector2, x: float) -> void:
 
 
 func _close_exit() -> void:
-	_exit_accept = Callable()
-	if _exit_dialog != null and is_instance_valid(_exit_dialog):
-		_exit_dialog.queue_free()
+	var dialog := _exit_dialog
 	_exit_dialog = null
+	_exit_accept = Callable()
+	ToonGui.dismiss_after_click(dialog)
 
 
 func _accept_exit() -> void:
 	var action := _exit_accept
-	_close_exit()
+	var dialog := _exit_dialog
+	_exit_dialog = null
+	_exit_accept = Callable()
+	ToonGui.dismiss_after_click(dialog)
 	if action.is_valid():
-		action.call()
+		action.call_deferred()
 
 
 func _leave_for_chooser() -> void:
@@ -1610,7 +1613,7 @@ func _play(player: AudioStreamPlayer) -> void:
 		player.play()
 
 
-func _click_hood(index: int, event: InputEvent) -> void:
+func _click_hood(event: InputEvent, index: int) -> void:
 	if _guided or _tasks == null or index < 0 or index >= _HOODS.size():
 		return
 	var mouse := event as InputEventMouseButton
@@ -1632,7 +1635,7 @@ func _hover_hood(index: int, inside: bool) -> void:
 	var seen := int(label.get_meta("seen", 0)) == 1
 	var going := _tasks != null and _tasks.has_teleport(hood)
 	label.text = "Go To\n%s" % _HOOD_NAMES[index] if going else _HOOD_NAMES[index]
-	label.add_theme_color_override("font_color", Color(0, 0, 0, 1 if seen else 0.65))
+	label.add_theme_color_override("font_color", Color(0, 0, 0, 1.0 if seen else 0.65))
 	var cloud := _hood_clouds[index]
 	if cloud.visible:
 		cloud.modulate = Color(1, 1, 1, 0.25 if inside else 1.0)

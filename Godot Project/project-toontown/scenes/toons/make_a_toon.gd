@@ -1028,7 +1028,7 @@ func _layout() -> void:
 func _toggle_options() -> void:
 	var open := get_node_or_null("OptionsPanel") as OptionsPanel
 	if open != null:
-		open.queue_free()
+		open.call("_request_close")
 		return
 	var focused := get_viewport().gui_get_focus_owner()
 	if focused != null:
