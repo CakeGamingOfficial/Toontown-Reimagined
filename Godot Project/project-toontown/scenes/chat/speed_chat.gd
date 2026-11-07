@@ -16,6 +16,7 @@ const _ARROW := preload("res://assets/gui/speedchat/chatArrow.png")
 const _EMOTE := preload("res://assets/gui/speedchat/emotionIcon.png")
 const _MENU := "res://assets/gui/speedchat/menu.json"
 const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _Style := preload("res://scenes/chat/speed_chat_style.gd")
 const _CLICK := "res://assets/gui/speedchat/GUI_quicktalker.mp3"
 var _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
@@ -90,6 +91,10 @@ var _header: HBoxContainer
 var _gear: Button
 var _settings: PanelContainer
 var _settings_open := false
+var _alert_box: PanelContainer
+var _alert_label: Label
+var _alert_queue: PackedStringArray = PackedStringArray()
+var _alert_left := 0.0
 
 
 func setup(tasks: ToonTasks) -> void:
@@ -221,7 +226,8 @@ func present_chat_button() -> void:
 	_layout_buttons()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_poll_alerts(delta)
 	if _flying or _speed_btn == null:
 		return
 	_layout_buttons()
@@ -502,6 +508,7 @@ func _fit(panel: Control, floor_y: float = -1.0) -> void:
 		return
 	panel.reset_size()
 	var view := get_viewport().get_visible_rect().size
+	@warning_ignore("shadowed_global_identifier")
 	var floor := 8.0 if floor_y < 0.0 else floor_y
 	if panel.global_position.y + panel.size.y > view.y - 12.0:
 		panel.global_position.y = maxf(floor, view.y - 12.0 - panel.size.y)
@@ -583,10 +590,12 @@ func _apply_rect(button: TextureButton, rect: Rect2) -> void:
 	button.size = rect.size
 
 
+@warning_ignore("shadowed_variable_base_class")
 func _put(button: TextureButton, x: float, z: float, scale: float) -> void:
 	_apply_rect(button, _aspect_rect(x, z, scale))
 
 
+@warning_ignore("shadowed_variable_base_class")
 func _aspect_rect(x: float, z: float, scale: float) -> Rect2:
 	var view := get_viewport().get_visible_rect().size
 	var unit := view.y * 0.5
@@ -1139,7 +1148,7 @@ func _refresh_log() -> void:
 
 
 func _clock() -> String:
-	var now: Dictionary = Time.get_datetime_dict_from_system()
+	var now: Dictionary = ToonNet.clock()
 	var hour := int(now.get("hour", 0))
 	var minute := int(now.get("minute", 0))
 	var shown := hour % 12
@@ -1159,7 +1168,7 @@ func _speaker_color() -> Color:
 	var style := ToonRoster.selected_style()
 	var color := Color(0.12, 0.35, 0.75)
 	if style != null:
-		color = ToonStyle.fur_color(style.head_color)
+		color = style.painted_color("head")
 	if color.get_luminance() > 0.72:
 		color = color.darkened(0.4)
 	return color
@@ -1172,6 +1181,7 @@ func _bb(text: String) -> String:
 func _typing_blocked() -> bool:
 	if is_open():
 		return true
+	@warning_ignore("shadowed_variable_base_class")
 	var owner := get_viewport().gui_get_focus_owner()
 	if owner != null and owner != _entry:
 		return true
@@ -1282,6 +1292,84 @@ func _append(channel: String, text: String, tab: int) -> void:
 		_select_tab(tab)
 		return
 	_refresh_log()
+
+
+## Holiday and invasion changes. The line stays in the System tab, and a
+## Toon HQ box shows it without pulling the chat onto that tab.
+func _poll_alerts(delta: float) -> void:
+	if not _restored:
+		return
+	for line in _HOLIDAYS.take_alerts():
+		_queue_alert(String(line))
+	if _alert_box == null or not _alert_box.visible:
+		return
+	_alert_left -= delta
+	_place_alert()
+	if _alert_left > 0.0:
+		return
+	_present_alert()
+
+
+func _queue_alert(text: String) -> void:
+	var clean := text.replace("\n", " ").strip_edges()
+	if clean == "":
+		return
+	var line := "[color=#7a5a3a]%s[/color] %s" % [_clock(), _bb(clean)]
+	_append("system", line, -1)
+	_alert_queue.append(clean)
+	if _alert_box == null or not _alert_box.visible:
+		_present_alert()
+
+
+func _present_alert() -> void:
+	if _alert_queue.is_empty():
+		if _alert_box != null:
+			_alert_box.visible = false
+		return
+	var text := _alert_queue[0]
+	_alert_queue.remove_at(0)
+	_ensure_alert()
+	_alert_label.text = text
+	_alert_box.visible = true
+	_alert_left = 5.0
+	_place_alert()
+
+
+func _ensure_alert() -> void:
+	if _alert_box != null:
+		return
+	_alert_box = PanelContainer.new()
+	_alert_box.name = "SystemAlert"
+	_alert_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_alert_box.z_index = 40
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(1, 1, 1, 0.98)
+	box.border_color = Color(0.05, 0.05, 0.05)
+	box.set_border_width_all(3)
+	box.set_corner_radius_all(16)
+	box.content_margin_left = 16
+	box.content_margin_right = 16
+	box.content_margin_top = 8
+	box.content_margin_bottom = 8
+	_alert_box.add_theme_stylebox_override("panel", box)
+	_alert_label = Label.new()
+	_alert_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_alert_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_alert_label.custom_minimum_size = Vector2(560, 0)
+	_alert_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(_alert_label, Color(0.05, 0.05, 0.08), 22, Color(0, 0, 0, 0), 0)
+	_alert_box.add_child(_alert_label)
+	add_child(_alert_box)
+
+
+func _place_alert() -> void:
+	if _alert_box == null or not _alert_box.visible:
+		return
+	_alert_box.reset_size()
+	var view := size
+	if view.x < 32.0:
+		view = get_viewport_rect().size
+	_alert_box.position = Vector2(maxf((view.x - _alert_box.size.x) * 0.5, 8.0), 28.0)
 
 
 ## Boarding groups, guilds, and system notices can drop a line in later.
@@ -1515,6 +1603,7 @@ func _place_settings() -> void:
 
 
 func _gear_icon() -> Texture2D:
+	@warning_ignore("shadowed_variable_base_class")
 	var size := 22
 	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	image.fill(Color(0, 0, 0, 0))

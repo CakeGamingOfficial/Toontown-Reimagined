@@ -2,6 +2,7 @@ extends Node
 class_name StreetSuits
 
 const _COG := preload("res://scenes/cogs/street_cog.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 ## DistributedSuitPlannerAI for one street. The street wants the average of its
 ## min and max, then drifts inside that range. An upkeep every 10 seconds
@@ -83,6 +84,8 @@ var _desired := 1
 var _adjust := 0
 var _upkeep := 10.0
 var _adjust_left := 300.0
+var _invasion_sig := ""
+var _refilling := false
 var _queue: Array[Dictionary] = []
 var _pool: Dictionary = {}
 var _tracks: Array = []
@@ -148,6 +151,7 @@ func _ready() -> void:
 			for item in raw_rows as Array:
 				if item is Dictionary:
 					_queue.append(item)
+		_invasion_sig = String(saved.get("invasion", ""))
 	else:
 		# initTasks waits POP_UPKEEP_DELAY plus up to two seconds. The street
 		# does not dump its whole population on the first frame.
@@ -173,6 +177,7 @@ func _process(delta: float) -> void:
 		_apply_net()
 		StreetCog.bake_one()
 		return
+	_watch_invasion()
 	if not _queue.is_empty():
 		var job: Dictionary = _queue.pop_front()
 		_spawn_state(job)
@@ -867,11 +872,18 @@ func _authorize() -> void:
 	var deficit := _desired - (_living + _queue.size())
 	var burst := int((deficit + 3) / 4)
 	burst = mini(burst, room)
-	while burst > 0:
+	var county_take := 1 if _HOLIDAYS.is_county(district_id) else 0
+	while burst > 0 or county_take > 0:
 		var traffic := get_node_or_null("/root/StreetTraffic")
 		var plan := {}
 		if traffic != null and traffic.has_method("claim_takeover"):
 			plan = traffic.call("claim_takeover", district_id, street_slug)
+		if plan.is_empty():
+			county_take = 0
+		else:
+			county_take = 0
+		if plan.is_empty() and burst <= 0:
+			break
 		var cog := _pick_cog() if plan.is_empty() else _pick_planned(plan)
 		if cog.is_empty():
 			if not plan.is_empty() and traffic != null:
@@ -892,7 +904,10 @@ func _authorize() -> void:
 			job["takeover"] = plan
 			job["take_stage"] = "lane"
 		_queue.append(job)
-		burst -= 1
+		if burst > 0:
+			burst -= 1
+	if _living + _queue.size() >= _desired:
+		_refilling = false
 	_queue_building_suits()
 
 
@@ -928,7 +943,7 @@ func _queue_building_suits() -> void:
 			return
 		var door: Dictionary = doors[randi() % doors.size()]
 		var dest := _return_door(String(row.get("track", "c")), door)
-		var cog := _pick_track(String(row.get("track", "c")))
+		var cog := _apply_invasion(_pick_track(String(row.get("track", "c"))))
 		if cog.is_empty():
 			return
 		var exit := _as_vec(door.get("exit", []))
@@ -1145,8 +1160,80 @@ func _open_slot(route: PackedInt32Array, route_id: int) -> int:
 	return best
 
 
+func _watch_invasion() -> void:
+	if district_id < 0:
+		return
+	var sig := _HOLIDAYS.invasion_sig(district_id)
+	var first := _invasion_sig == ""
+	if sig == _invasion_sig and not first:
+		return
+	_invasion_sig = sig
+	if first and not _stale_cogs(sig):
+		return
+	_clear_for_invasion()
+
+
+func _stale_cogs(sig: String) -> bool:
+	var parts := sig.split("|")
+	var code := parts[0] if not parts.is_empty() else ""
+	var dept := parts[2] if parts.size() > 2 else ""
+	if code == "" and dept == "":
+		return false
+	for job in _queue:
+		var cog: Variant = job.get("cog", {})
+		if cog is Dictionary and _cog_differs(cog as Dictionary, code, dept):
+			return true
+	for child in get_children():
+		if not child.has_method("fly_away"):
+			continue
+		var child_code := str(child.get("cog_code"))
+		if code != "" and child_code != code:
+			return true
+		if code == "" and dept != "" and _dept_of_code(child_code) != dept:
+			return true
+	return false
+
+
+func _cog_differs(cog: Dictionary, code: String, dept: String) -> bool:
+	if code != "":
+		return String(cog.get("code", "")) != code
+	return dept != "" and String(cog.get("dept", "")) != dept
+
+
+func _dept_of_code(code: String) -> String:
+	for item in _catalog:
+		if item is Dictionary and String((item as Dictionary).get("code", "")) == code:
+			return String((item as Dictionary).get("dept", ""))
+	return ""
+
+
+func _clear_for_invasion() -> void:
+	_refilling = true
+	_upkeep = 0.0
+	_queue.clear()
+	for child in get_children():
+		if not child.has_method("fly_away"):
+			continue
+		if _cog_in_battle(child):
+			continue
+		if bool(child.get_meta("flying", false)):
+			continue
+		child.call("fly_away")
+
+
+func _cog_in_battle(suit: Node) -> bool:
+	if bool(suit.get_meta("in_fight", false)):
+		return true
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights != null and fights.has_method("cog_paused"):
+		return bool(fights.call("cog_paused", int(suit.get_meta("do_id", 0))))
+	return false
+
+
 func _on_departed(suit: Node) -> void:
 	_living = maxi(_living - 1, 0)
+	if _refilling and _living + _queue.size() < _desired:
+		_upkeep = 0.0
 	if not is_instance_valid(suit) or bool(suit.get_meta("discard", false)):
 		return
 	if suit.has_method("retire"):
@@ -1243,6 +1330,7 @@ func _record(cogs: Array) -> Dictionary:
 		"cogs": cogs,
 		"waits": [],
 		"district": district_id,
+		"invasion": _HOLIDAYS.invasion_sig(district_id),
 	}
 
 
@@ -1399,7 +1487,7 @@ func _apply_net() -> void:
 			continue
 		seen[net_id] = true
 		var have: Variant = _net_actors.get(net_id)
-		if have is Node3D and is_instance_valid(have):
+		if is_instance_valid(have) and have is Node3D:
 			if (have as Node).has_method("follow_net"):
 				(have as Node).call("follow_net", row)
 			continue
@@ -1416,7 +1504,7 @@ func _apply_net() -> void:
 	for net_id in gone:
 		var actor: Variant = _net_actors[net_id]
 		_net_actors.erase(net_id)
-		if actor is Node and is_instance_valid(actor):
+		if is_instance_valid(actor) and actor is Node:
 			if (actor as Node).has_method("fly_away") and bool((actor as Node).call("fly_away")):
 				continue
 			if (actor as Node).has_method("retire"):
@@ -1440,7 +1528,7 @@ func _pick_cog() -> Dictionary:
 	var source: Dictionary = _catalog[index]
 	var cog := source.duplicate() as Dictionary
 	cog["level"] = level
-	return cog
+	return _apply_invasion(cog)
 
 
 func _pick_planned(plan: Dictionary) -> Dictionary:
@@ -1461,7 +1549,95 @@ func _pick_planned(plan: Dictionary) -> Dictionary:
 	var source: Dictionary = _catalog[index]
 	var cog := source.duplicate() as Dictionary
 	cog["level"] = level
-	return cog
+	return _apply_invasion(cog)
+
+
+## SuitInvasionManager. New street cogs are the invading cog. Cogs already
+## walking stay until they leave.
+func _apply_invasion(cog: Dictionary) -> Dictionary:
+	if cog.is_empty():
+		return cog
+	var plan: Dictionary = _HOLIDAYS.plan_for(district_id)
+	if plan.is_empty():
+		return cog
+	var code := String(plan.get("code", ""))
+	var dept := String(plan.get("dept", ""))
+	var forced := cog
+	if code != "":
+		forced = _cog_by_code(code)
+		if forced.is_empty():
+			return cog
+		var cog_type := int(forced.get("type", 1))
+		forced["level"] = clampi(int(cog.get("level", cog_type)), cog_type, cog_type + 4)
+	elif dept != "":
+		forced = _pick_track(dept)
+		if forced.is_empty():
+			return cog
+	if bool(plan.get("skeleton", false)):
+		dress_skeleton(forced)
+	return forced
+
+
+## The invading cog for this district. Corporate County uses its own cycle.
+static func invade(cog: Dictionary, district: int, catalog: Array) -> Dictionary:
+	if cog.is_empty():
+		return cog
+	var plan: Dictionary = _HOLIDAYS.plan_for(district)
+	if plan.is_empty():
+		return cog
+	var code := String(plan.get("code", ""))
+	if code == "":
+		var dept := String(plan.get("dept", ""))
+		if dept != "":
+			var picked := _from_dept(catalog, cog, dept)
+			if not picked.is_empty():
+				cog = picked
+		if bool(plan.get("skeleton", false)):
+			dress_skeleton(cog)
+		return cog
+	var forced := {}
+	for item in catalog:
+		if item is Dictionary and String((item as Dictionary).get("code", "")) == code:
+			forced = (item as Dictionary).duplicate()
+			break
+	if forced.is_empty():
+		return cog
+	var cog_type := int(forced.get("type", 1))
+	forced["level"] = clampi(int(cog.get("level", cog_type)), cog_type, cog_type + 4)
+	if bool(plan.get("skeleton", false)):
+		dress_skeleton(forced)
+	return forced
+
+
+static func _from_dept(catalog: Array, cog: Dictionary, dept: String) -> Dictionary:
+	var cog_type := clampi(int(cog.get("type", 1)), 1, 8)
+	var fallback := {}
+	for item in catalog:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if String(row.get("dept", "")) != dept:
+			continue
+		if fallback.is_empty():
+			fallback = row
+		if int(row.get("type", 0)) != cog_type:
+			continue
+		var forced := row.duplicate() as Dictionary
+		forced["level"] = clampi(int(cog.get("level", cog_type)), cog_type, cog_type + 4)
+		return forced
+	if fallback.is_empty():
+		return {}
+	var picked := (fallback as Dictionary).duplicate() as Dictionary
+	var picked_type := int(picked.get("type", 1))
+	picked["level"] = clampi(int(cog.get("level", picked_type)), picked_type, picked_type + 4)
+	return picked
+
+
+func _cog_by_code(code: String) -> Dictionary:
+	for item in _catalog:
+		if item is Dictionary and String((item as Dictionary).get("code", "")) == code:
+			return (item as Dictionary).duplicate()
+	return {}
 
 
 func _pick_dept() -> int:

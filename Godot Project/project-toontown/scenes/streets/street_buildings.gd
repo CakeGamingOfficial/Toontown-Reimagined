@@ -19,6 +19,7 @@ const _LEGAL_ICON := preload("res://assets/gui/cogs/LegalIcon.png")
 const _MONEY_ICON := preload("res://assets/gui/cogs/MoneyIcon.png")
 const _SALES_ICON := preload("res://assets/gui/cogs/SalesIcon.png")
 const _SUITS := preload("res://scenes/streets/street_suits.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 const _DEPTS: PackedStringArray = ["c", "l", "m", "s"]
 const _PCT := 18
@@ -229,7 +230,7 @@ func _signature(rows: Array) -> String:
 			continue
 		var row: Dictionary = item
 		parts.append("%s:%s:%s:%s:%s" % [row.get("block", 0), row.get("state", ""), row.get("since", 0), row.get("floors", 0), row.get("track", "")])
-	return "|".join(parts)
+	return "|".join(parts) + "#" + _HOLIDAYS.invasion_sig(district_id)
 
 
 func _load() -> bool:
@@ -463,12 +464,22 @@ func _settle(landmark: Node3D, row: Dictionary) -> void:
 		building.global_transform = building.get_meta("rest")
 
 
+func _face_track(row: Dictionary) -> String:
+	var forced := _HOLIDAYS.building_track(district_id)
+	if forced != "":
+		return forced
+	return String(row.get("track", "c"))
+
+
 func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	var block := int(row.get("block", 0))
+	var track := _face_track(row)
 	var have: Variant = _actors.get(block)
-	if have is Node3D and is_instance_valid(have):
+	if have is Node3D and is_instance_valid(have) and String((have as Node).get_meta("dept", "")) == track:
 		return have
-	var model := _model(String(row.get("track", "c")))
+	if have != null:
+		_drop_actor(block)
+	var model := _model(track)
 	if model == null:
 		return null
 	var building := model.instantiate() as Node3D
@@ -490,7 +501,10 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 		building.scale = squeezed
 	building.set_meta("rest", building.global_transform)
 	building.set_meta("rest_scale", building.scale)
-	_dress(building, row)
+	building.set_meta("dept", track)
+	var faced := row.duplicate()
+	faced["track"] = track
+	_dress(building, faced)
 	_use_vertex_colors(building)
 	_quiet(building)
 	# One surface per texture. The elevator alone was a dozen separate draws,

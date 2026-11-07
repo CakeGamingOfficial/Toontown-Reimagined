@@ -6,6 +6,7 @@ extends Node
 ## Clients only play the elevator and the floor.
 
 const BOARD_TIME := 15.0
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const CLOSE_TIME := 2.0
 ## getRideElevatorInterval is 4 seconds, then the doors take openTime.
 const RIDE_TIME := 6.0
@@ -384,19 +385,23 @@ func _floor_cogs(run: Dictionary) -> Dictionary:
 		var made := _suit(run, int(active_levels[index]), index, _stand(origin, kind, index), story)
 		if not made.is_empty():
 			active.append(made)
+	var heads := _stand_headings(kind, active.size())
+	for index in active.size():
+		(active[index] as Dictionary)["from_h"] = float(heads[index])
 	var reserves: Array = []
 	for index in reserve_levels.size():
 		var made := _suit(run, int(reserve_levels[index]), active.size() + index, _out_seat(origin, kind, index), story)
 		if made.is_empty():
 			continue
 		made["join"] = int(chances[index])
+		made["from_h"] = 180.0
 		reserves.append(made)
 	var out := origin + Vector3(0.0, 0.0, -_room_depth(kind))
 	return {"active": active, "reserves": reserves, "room": kind, "out": [out.x, out.y, out.z]}
 
 
 func _suit(run: Dictionary, level: int, index: int, spot: Vector3, story: int) -> Dictionary:
-	var cog := _pick_cog(String(run.get("track", "c")), level)
+	var cog := _invade(String(run.get("track", "c")), int(run.get("district", 0)), level)
 	if cog.is_empty():
 		return {}
 	return {
@@ -406,9 +411,63 @@ func _suit(run: Dictionary, level: int, index: int, spot: Vector3, story: int) -
 		"dept": String(cog.get("dept", "c")),
 		"body": String(cog.get("body", "c")),
 		"height": float(cog.get("height", 4.0)),
-		"level": level,
+		"level": int(cog.get("level", level)),
+		"skeleton": bool(cog.get("skeleton", false)),
 		"pos": [spot.x, spot.y, spot.z],
 	}
+
+
+## SuitPlannerInteriorAI.__setupSuitInfo. A named invasion replaces every floor
+## cog with that cog. A department invasion keeps the floor's level and picks
+## from that department.
+func _invade(track: String, district: int, level: int) -> Dictionary:
+	var cog := _pick_cog(track, level)
+	if cog.is_empty():
+		return {}
+	var plan: Dictionary = _HOLIDAYS.plan_for(district)
+	var chosen := cog.duplicate()
+	var shown := level
+	if not plan.is_empty():
+		var code := String(plan.get("code", ""))
+		var dept := String(plan.get("dept", ""))
+		if code != "":
+			var forced := _cog_by_code(code)
+			if not forced.is_empty():
+				chosen = forced
+				var cog_type := int(forced.get("type", 1))
+				shown = clampi(level, cog_type, cog_type + 4)
+		elif dept != "":
+			var forced := _pick_cog(dept, level)
+			if not forced.is_empty():
+				chosen = forced.duplicate()
+		if bool(plan.get("skeleton", false)):
+			StreetSuits.dress_skeleton(chosen)
+	chosen["level"] = shown
+	return chosen
+
+
+func _cog_by_code(code: String) -> Dictionary:
+	for item in _catalog:
+		if item is Dictionary and String((item as Dictionary).get("code", "")) == code:
+			return (item as Dictionary).duplicate()
+	return {}
+
+
+## DistributedSuitInterior.SuitHs. Two or fewer cogs all face 170.
+func _stand_headings(kind: String, count: int) -> Array:
+	var heads: Array = []
+	if count <= 2:
+		for _index in count:
+			heads.append(170.0)
+		return heads
+	var authored: Array = [75.0, 170.0, -91.0, -44.0]
+	if kind == "hall":
+		authored = [170.0, 56.0, -52.0, 10.0]
+	elif kind == "office":
+		authored = [170.0, 120.0, 12.0, 38.0]
+	for index in count:
+		heads.append(float(authored[mini(index, authored.size() - 1)]))
+	return heads
 
 
 func _stand(origin: Vector3, kind: String, index: int) -> Vector3:

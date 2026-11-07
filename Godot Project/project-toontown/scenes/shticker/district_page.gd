@@ -7,8 +7,19 @@ extends Control
 ## clicked. A full one answers with the original rejection.
 
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 const _CIRCLE := preload("res://assets/gui/shticker/pop_circle.png")
+const _CORP := preload("res://assets/gui/cogs/CorpIcon.png")
+const _LEGAL := preload("res://assets/gui/cogs/LegalIcon.png")
+const _MONEY := preload("res://assets/gui/cogs/MoneyIcon.png")
+const _SALES := preload("res://assets/gui/cogs/SalesIcon.png")
+const _MEDAL := {
+	"c": Color(0.863, 0.776, 0.769),
+	"s": Color(0.843, 0.745, 0.745),
+	"l": Color(0.749, 0.776, 0.824),
+	"m": Color(0.749, 0.769, 0.749),
+}
 const _SCROLL_UP := preload("res://assets/gui/friends/FndsLst_ScrollUp.png")
 const _SCROLL_DOWN := preload("res://assets/gui/friends/FndsLst_ScrollDN.png")
 const _SCROLL_HOVER := preload("res://assets/gui/friends/FndsLst_ScrollUp_Rllvr.png")
@@ -59,6 +70,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	_paint_invasions()
 	_wait -= delta
 	if _wait > 0.0:
 		return
@@ -243,28 +255,71 @@ func _make_row(row: Dictionary, width: float, room: float, body: int, top: float
 		button.mouse_filter = MOUSE_FILTER_IGNORE
 	else:
 		button.pressed.connect(_pick.bind(id, district_name, count))
+	button.set_meta("district", id)
+	var ink := _HERE if here else Color(0.05, 0.05, 0.05)
+	var name_w := minf(_text_width(district_name, body) + 8.0, width * 0.30)
 	var name_label := Label.new()
 	name_label.text = district_name
 	name_label.position = Vector2(8, 0)
-	name_label.size = Vector2(width * 0.48, room)
+	name_label.size = Vector2(name_w, room)
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.mouse_filter = MOUSE_FILTER_IGNORE
-	var ink := _HERE if here else Color(0.05, 0.05, 0.05)
 	ToonGui.style_label(name_label, ink, body, Color(0, 0, 0, 0), 0)
 	button.add_child(name_label)
+	var icon := TextureRect.new()
+	icon.name = "InvasionIcon"
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = MOUSE_FILTER_IGNORE
+	icon.visible = false
+	var side := room * 0.78
+	var icon_x := 8.0 + name_w + 6.0
+	icon.size = Vector2(side, side)
+	icon.position = Vector2(icon_x, (room - side) * 0.5)
+	button.add_child(icon)
+	var dot := room * 0.72
+	var circle_x := width - dot - 6.0
+	var word_text := ToonNet.population_word(count)
+	var word_w := _text_width(word_text, body) + 8.0
+	var word_x := circle_x - word_w - 4.0
+	var count_w := _text_width("9999", body) + 6.0
+	var count_x := word_x - count_w - 4.0
+	var time_w := _text_width("1000 left", body) + 8.0
+	var time_x := count_x - time_w - 8.0
+	var text_x := icon_x + side + 4.0
+	var invasion := Label.new()
+	invasion.name = "Invasion"
+	invasion.position = Vector2(text_x, 0)
+	invasion.size = Vector2(maxf(time_x - text_x - 4.0, 8.0), room)
+	invasion.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	invasion.clip_text = false
+	invasion.mouse_filter = MOUSE_FILTER_IGNORE
+	invasion.visible = false
+	ToonGui.style_label(invasion, ink, body, Color(0, 0, 0, 0), 0)
+	button.add_child(invasion)
+	var clock := Label.new()
+	clock.name = "InvasionTime"
+	clock.position = Vector2(time_x, 0)
+	clock.size = Vector2(time_w, room)
+	clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	clock.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	clock.mouse_filter = MOUSE_FILTER_IGNORE
+	clock.visible = false
+	ToonGui.style_label(clock, ink, body, Color(0, 0, 0, 0), 0)
+	button.add_child(clock)
 	var count_label := Label.new()
 	count_label.text = str(count)
-	count_label.position = Vector2(width * 0.5, 0)
-	count_label.size = Vector2(width * 0.14, room)
+	count_label.position = Vector2(count_x, 0)
+	count_label.size = Vector2(count_w, room)
 	count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	count_label.mouse_filter = MOUSE_FILTER_IGNORE
 	ToonGui.style_label(count_label, ink, body, Color(0, 0, 0, 0), 0)
 	button.add_child(count_label)
 	var word := Label.new()
-	word.text = ToonNet.population_word(count)
-	word.position = Vector2(width * 0.66, 0)
-	word.size = Vector2(width * 0.2, room)
+	word.text = word_text
+	word.position = Vector2(word_x, 0)
+	word.size = Vector2(word_w, room)
 	word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	word.mouse_filter = MOUSE_FILTER_IGNORE
 	ToonGui.style_label(word, ToonNet.population_color(count), body, Color(0, 0, 0, 0), 0)
@@ -275,11 +330,66 @@ func _make_row(row: Dictionary, width: float, room: float, body: int, top: float
 	circle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	circle.modulate = ToonNet.population_color(count)
 	circle.mouse_filter = MOUSE_FILTER_IGNORE
-	var side := room * 0.72
-	circle.size = Vector2(side, side)
-	circle.position = Vector2(width - side - 6.0, (room - side) * 0.5)
+	circle.size = Vector2(dot, dot)
+	circle.position = Vector2(circle_x, (room - dot) * 0.5)
 	button.add_child(circle)
 	return button
+
+
+func _paint_invasions() -> void:
+	if _stack == null:
+		return
+	for child in _stack.get_children():
+		var icon := child.get_node_or_null("InvasionIcon") as TextureRect
+		var caption := child.get_node_or_null("Invasion") as Label
+		var clock := child.get_node_or_null("InvasionTime") as Label
+		if icon == null or caption == null or clock == null:
+			continue
+		var info := _HOLIDAYS.district_invasion(int(child.get_meta("district", 0)))
+		if info.is_empty():
+			icon.visible = false
+			caption.visible = false
+			clock.visible = false
+			continue
+		var dept := String(info.get("dept", "c"))
+		var cog_name := String(info.get("name", "Cog"))
+		caption.text = cog_name
+		_fit_line(caption, cog_name, body_of(caption))
+		clock.text = String(info.get("left", ""))
+		caption.visible = true
+		clock.visible = true
+		icon.visible = true
+		if String(icon.get_meta("dept", "")) != dept:
+			icon.set_meta("dept", dept)
+			icon.texture = _dept_icon(dept)
+			icon.modulate = _MEDAL.get(dept, Color(0.863, 0.776, 0.769))
+
+
+func _text_width(text: String, px: int) -> float:
+	return ToonGui.font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+
+
+func _fit_line(label: Label, text: String, px: int) -> void:
+	var font := ToonGui.font()
+	var size := px
+	var budget := label.size.x
+	while size > 8 and font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > budget:
+		size -= 1
+	label.add_theme_font_size_override("font_size", size)
+
+
+func body_of(label: Label) -> int:
+	return int(label.get_theme_font_size("font_size"))
+
+
+func _dept_icon(dept: String) -> Texture2D:
+	if dept == "l":
+		return _LEGAL
+	if dept == "m":
+		return _MONEY
+	if dept == "s":
+		return _SALES
+	return _CORP
 
 
 func _row_box(color: Color) -> StyleBoxFlat:

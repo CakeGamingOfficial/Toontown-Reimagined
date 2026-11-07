@@ -23,9 +23,14 @@ const WELCOME_VALLEY := 0
 const LOW_POP := 399
 const MID_POP := 599
 const _PORT := 4343
-const _TROLLEY: Array[int] = [2, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
+const _TROLLEY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+## MinigamePlayerMatrix. One toon never draws Race, Tag, Match Minnie, or Ice.
+const _TROLLEY_ONE: Array[int] = [2, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
+const _TROLLEY_TWO: Array[int] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+const _TROLLEY_MANY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 const _CONFIG := "res://scenes/net/districts.json"
 const _TOON := preload("res://scenes/playgrounds/playground_toon.gd")
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 var _districts: Array[Dictionary] = []
 var _here := 1
@@ -38,6 +43,7 @@ var _peers: Dictionary = {}
 var _avatars: Dictionary = {}
 var _silence_keep := false
 const _BANK := preload("res://scenes/net/toon_bank.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 var _next_id := 1
 var _port := _PORT
 var _dedicated := false
@@ -55,6 +61,11 @@ var _reset_told := false
 var _shutdown_started := false
 var _stop_file := ""
 var _stop_wait := 0.0
+## Host unix minus this machine's unix, and the host's local offset from UTC.
+var _clock_skew := 0.0
+var _clock_zone := 0.0
+var _clock_known := false
+var _clock_wait := 0.0
 var _notice: Node
 static var _lan_lines: PackedStringArray = PackedStringArray()
 static var _lan_ready := false
@@ -86,6 +97,8 @@ func _ready() -> void:
 		_become_dedicated()
 	else:
 		_warm_lan()
+	if is_authority():
+		_HOLIDAYS.tick_county(0.0)
 
 
 static func live() -> ToonNet:
@@ -93,6 +106,23 @@ static func live() -> ToonNet:
 	if tree == null:
 		return null
 	return tree.root.get_node_or_null("ToonNetwork") as ToonNet
+
+
+## The host's clock. Offline play uses this machine. Clients follow the host.
+static func now() -> float:
+	var local := Time.get_unix_time_from_system()
+	var net := live()
+	if net == null or net._role != "client" or not net._clock_known:
+		return local
+	return local + net._clock_skew
+
+
+## Wall clock for Toontown Time. Clients show the host's hour, not their own zone.
+static func clock() -> Dictionary:
+	var net := live()
+	if net == null or net._role != "client" or not net._clock_known:
+		return Time.get_datetime_dict_from_system()
+	return Time.get_datetime_dict_from_unix_time(now() + net._clock_zone)
 
 
 static func is_authority() -> bool:
@@ -147,6 +177,24 @@ static func district_id() -> int:
 	return net._here
 
 
+static func name_of(id: int) -> String:
+	var net := live()
+	if net == null:
+		return ""
+	return net._name_of(id)
+
+
+static func id_named(district_name: String) -> int:
+	var net := live()
+	if net == null:
+		return -1
+	var wanted := district_name.strip_edges().to_lower()
+	for row in net._districts:
+		if String(row["name"]).to_lower() == wanted:
+			return int(row["id"])
+	return -1
+
+
 static func district_name() -> String:
 	var net := live()
 	if net == null:
@@ -177,6 +225,52 @@ static func publish(channel: String, state: Dictionary) -> void:
 
 
 ## A client owns its own toon. The district AI relays that pose to everyone else.
+## The running holiday list. The district keeps one copy and sends it to everyone.
+static func share_holidays(ids: Array) -> void:
+	var net := live()
+	if net == null or net._role == "offline":
+		return
+	var clean: Array = []
+	for item in ids:
+		clean.append(int(item))
+	var state := {"ids": clean}
+	if is_authority():
+		net._store("holidays", state)
+		return
+	net._states["holidays"] = state
+	net.state_changed.emit("holidays")
+	net._set_holidays.rpc_id(1, clean)
+
+
+## SuitInvasionManager for the district. One record, sent to every player.
+## Offline play stores it too, so Reload can bring the same invasion back.
+static func share_invasion(state: Dictionary) -> void:
+	var net := live()
+	if net == null:
+		return
+	var packed := net._pack(state) as Dictionary
+	if is_authority():
+		net._store("invasion", packed)
+		return
+	net._states["invasion"] = packed
+	net.state_changed.emit("invasion")
+	net._set_invasion.rpc_id(1, packed)
+
+
+## Corporate County's invasion. Separate from a ~invasion on the other districts.
+static func share_county(state: Dictionary) -> void:
+	var net := live()
+	if net == null:
+		return
+	var packed := net._pack(state) as Dictionary
+	if is_authority():
+		net._store("county", packed)
+		return
+	net._states["county"] = packed
+	net.state_changed.emit("county")
+	net._set_county.rpc_id(1, packed)
+
+
 static func submit(channel: String, state: Dictionary) -> void:
 	var net := live()
 	if net == null or net._role == "offline":
@@ -343,13 +437,91 @@ static func begin_trolley(avoid: int) -> int:
 	var net := live()
 	if net == null:
 		return 0
-	return net._begin_trolley(avoid)
+	var group := 1
+	var party: Array = []
+	var ride := load("res://scenes/trolley/trolley_ride.gd") as GDScript
+	if ride != null:
+		group = clampi(int(ride.players), 1, 4)
+		var cards: Variant = ride.riders
+		if cards is Array:
+			for card in cards as Array:
+				if card is Dictionary:
+					party.append(int((card as Dictionary).get("peer", 0)))
+	if party.is_empty():
+		party.append(net.peer_id())
+	return net._begin_trolley(avoid, -1, -1, group, party)
+
+
+static func join_trolley_clock(place: String) -> void:
+	var net := live()
+	if net != null:
+		net._join_trolley_clock(place)
+
+
+static func clear_trolley_clock(place: String) -> void:
+	var net := live()
+	if net != null:
+		net._clear_trolley_clock(place)
+
+
+static func trolley_clock(place: String) -> int:
+	var net := live()
+	if net == null:
+		return 0
+	return net._trolley_clock(place)
+
+
+static func vote_trolley_skip() -> bool:
+	var net := live()
+	if net == null:
+		return true
+	return net._vote_trolley_skip()
+
+
+static func vote_trolley_ready() -> void:
+	var net := live()
+	if net != null:
+		net._vote_trolley_ready()
+
+
+## fillSlot. The district keeps the four seats so two toons cannot pick the same one.
+static func claim_trolley_seat(place: String) -> int:
+	var net := live()
+	if net == null:
+		return 0
+	return net._claim_trolley_seat(place)
+
+
+static func release_trolley_seat(place: String) -> void:
+	var net := live()
+	if net != null:
+		net._release_trolley_seat(place)
+
+
+static func trolley_seat(place: String, peer: int) -> int:
+	var net := live()
+	if net == null:
+		return 0 if peer == 1 else -1
+	return net._trolley_seat(place, peer)
+
+
+static func trolley_seat_owner(place: String, index: int) -> int:
+	var net := live()
+	if net == null:
+		return 0
+	return net._trolley_seat_owner(place, index)
+
+
+static func claim_maze_treasure(index: int) -> void:
+	var net := live()
+	if net != null:
+		net._claim_maze_treasure(index)
 
 
 static func finish_trolley(score: int) -> void:
 	var net := live()
 	if net != null:
-		net._finish_trolley(score)
+		net._finish_trolley(score, _BEANS.pouch(), _BEANS.pouch_limit())
 
 
 static func request_suits(district: int, slug: String) -> void:
@@ -402,6 +574,9 @@ func _become_dedicated() -> void:
 
 
 func _process(delta: float) -> void:
+	if is_authority():
+		_HOLIDAYS.tick_county(delta)
+		_tick_clock(delta)
 	if _stop_file == "" or _shutdown_started:
 		return
 	_stop_wait -= delta
@@ -685,6 +860,8 @@ func _host_game(port: int) -> String:
 	_port = port
 	multiplayer.multiplayer_peer = peer
 	_role = "host"
+	_HOLIDAYS.republish_county()
+	_publish_clock()
 	_recount()
 	if _dedicated:
 		return "Hosting %d districts on UDP port %d." % [_districts.size(), port]
@@ -702,6 +879,7 @@ func _join_server(address: String, port: int) -> String:
 	_last_port = port
 	multiplayer.multiplayer_peer = peer
 	_role = "client"
+	_clock_known = false
 	return "Joining %s:%d." % [address, port]
 
 
@@ -734,6 +912,7 @@ func _drop_host_soon() -> void:
 
 func _finish_offline() -> void:
 	_role = "offline"
+	_clock_known = false
 	_peers.clear()
 	multiplayer.multiplayer_peer = null
 	_recount()
@@ -952,7 +1131,159 @@ func _ask_summon(district: int, slug: String, query: String, level: int, near: V
 		_request_summon.rpc_id(1, district, slug, query, level, near.x, near.y, near.z)
 
 
-func _begin_trolley(avoid: int, peer: int = -1, district: int = -1) -> int:
+func _trolley_seat_channel(district: int, place: String) -> String:
+	return "trolley-seats:%d:%s" % [district, place]
+
+
+func _seat_row(state: Dictionary) -> Array:
+	var row := [0, 0, 0, 0]
+	var raw: Variant = state.get("seats", [])
+	if raw is Array:
+		var seats: Array = raw
+		for i in range(mini(4, seats.size())):
+			row[i] = int(seats[i])
+	return row
+
+
+func _claim_trolley_seat(place: String, peer: int = -1, district: int = -1) -> int:
+	if not is_authority():
+		if _role == "client":
+			_request_trolley_seat.rpc_id(1, place, district_id())
+		return -1
+	if peer < 0:
+		peer = _self_peer()
+	if district < 0:
+		district = district_id()
+	var channel := _trolley_seat_channel(district, place)
+	var row := _seat_row(latest(channel))
+	for i in range(4):
+		if int(row[i]) == peer:
+			return i
+	for i in range(4):
+		if int(row[i]) == 0:
+			row[i] = peer
+			publish(channel, {"seats": row})
+			return i
+	return -1
+
+
+func _release_trolley_seat(place: String, peer: int = -1, district: int = -1) -> void:
+	if not is_authority():
+		if _role == "client":
+			_release_trolley_seat_rpc.rpc_id(1, place, district_id())
+		return
+	if peer < 0:
+		peer = _self_peer()
+	if district < 0:
+		district = district_id()
+	var channel := _trolley_seat_channel(district, place)
+	var row := _seat_row(latest(channel))
+	var changed := false
+	for i in range(4):
+		if int(row[i]) == peer:
+			row[i] = 0
+			changed = true
+	if changed:
+		publish(channel, {"seats": row})
+		var occupied := false
+		for i in range(4):
+			if int(row[i]) != 0:
+				occupied = true
+		if not occupied:
+			_clear_trolley_clock(place, district)
+
+
+func _trolley_clock_channel(district: int, place: String) -> String:
+	return "trolley-clock:%d:%s" % [district, place]
+
+
+func _join_trolley_clock(place: String, district: int = -1) -> void:
+	if not is_authority():
+		if _role == "client":
+			_request_trolley_clock.rpc_id(1, place, district_id())
+		return
+	if district < 0:
+		district = district_id()
+	var channel := _trolley_clock_channel(district, place)
+	var now := int(Time.get_unix_time_from_system() * 1000.0)
+	var until := int(latest(channel).get("until", 0))
+	if until > now:
+		return
+	publish(channel, {"until": now + 10000})
+
+
+func _clear_trolley_clock(place: String, district: int = -1) -> void:
+	if not is_authority():
+		if _role == "client":
+			_clear_trolley_clock_rpc.rpc_id(1, place, district_id())
+		return
+	if district < 0:
+		district = district_id()
+	publish(_trolley_clock_channel(district, place), {"until": 0})
+
+
+func _trolley_clock(place: String) -> int:
+	return int(latest(_trolley_clock_channel(district_id(), place)).get("until", 0))
+
+
+func _trolley_seat(place: String, peer: int) -> int:
+	var row := _seat_row(latest(_trolley_seat_channel(district_id(), place)))
+	for i in range(4):
+		if int(row[i]) == peer:
+			return i
+	return -1
+
+
+func _trolley_seat_owner(place: String, index: int) -> int:
+	if index < 0 or index > 3:
+		return 0
+	var row := _seat_row(latest(_trolley_seat_channel(district_id(), place)))
+	return int(row[index])
+
+
+func _clear_trolley_peer(peer: int) -> void:
+	if not is_authority():
+		return
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("trolley-seats:"):
+			continue
+		var row := _seat_row(_states[channel])
+		var changed := false
+		for i in range(4):
+			if int(row[i]) == peer:
+				row[i] = 0
+				changed = true
+		if changed:
+			publish(channel, {"seats": row})
+
+
+func _claim_maze_treasure(index: int, district: int = -1) -> void:
+	if not is_authority():
+		if _role == "client":
+			_request_maze_treasure.rpc_id(1, index, district_id())
+		return
+	if index < 0 or index > 1024:
+		return
+	if district < 0:
+		district = district_id()
+	var trolley: Dictionary = latest("trolley:%d" % district)
+	var round := int(trolley.get("stamp", trolley.get("id", 0)))
+	var channel := "maze:%d" % district
+	var state := latest(channel)
+	var taken: Array = []
+	if int(state.get("round", -1)) == round:
+		var raw: Variant = state.get("taken", [])
+		if raw is Array:
+			taken = (raw as Array).duplicate()
+	for item in taken:
+		if int(item) == index:
+			return
+	taken.append(index)
+	publish(channel, {"round": round, "taken": taken})
+
+
+func _begin_trolley(avoid: int, peer: int = -1, district: int = -1, group: int = 1, party: Array = []) -> int:
 	if district < 0:
 		district = district_id()
 	var channel := "trolley:%d" % district
@@ -961,38 +1292,135 @@ func _begin_trolley(avoid: int, peer: int = -1, district: int = -1) -> int:
 		return int(have["id"])
 	if not is_authority():
 		if _role == "client":
-			_request_trolley.rpc_id(1, avoid, district_id())
+			_request_trolley.rpc_id(1, avoid, district_id(), clampi(group, 1, 4), party)
 		return 0
 	if peer < 0:
 		peer = _self_peer()
+	group = clampi(group, 1, 4)
+	if party.is_empty():
+		party = [peer]
 	# The toon who boarded asked for this game with ~mg. Anyone else's request waits.
 	var picked := int(_trolley_for.get(peer, 0))
 	_trolley_for.erase(peer)
 	if not _TROLLEY.has(picked):
 		picked = 0
 	if picked == 0:
-		var pool: Array[int] = []
-		for game_id in _TROLLEY:
+		var pool := _trolley_pool(group)
+		var open: Array[int] = []
+		for game_id in pool:
 			if game_id != avoid:
-				pool.append(game_id)
-		if pool.is_empty():
-			pool = _TROLLEY.duplicate()
-		picked = pool[randi() % pool.size()]
-	publish(channel, {"id": picked, "open": true, "score": 0, "by": peer})
+				open.append(game_id)
+		if open.is_empty():
+			open = pool
+		picked = open[randi() % open.size()]
+	var now := int(Time.get_unix_time_from_system() * 1000.0)
+	publish(channel, {
+		"id": picked,
+		"open": true,
+		"score": 0,
+		"by": peer,
+		"stamp": now,
+		"seed": randi(),
+		"players": group,
+		"rules_until": now + 16000,
+		"skips": [],
+		"ready": [],
+		"skipped": false,
+		"party": party,
+	})
 	return picked
 
 
-func _finish_trolley(score: int, district: int = -1) -> void:
+func _trolley_pool(group: int) -> Array[int]:
+	if group <= 1:
+		return _TROLLEY_ONE.duplicate()
+	if group == 2:
+		return _TROLLEY_TWO.duplicate()
+	return _TROLLEY_MANY.duplicate()
+
+
+func _vote_trolley_skip(peer: int = -1, district: int = -1) -> bool:
 	if not is_authority():
 		if _role == "client":
-			_submit_trolley.rpc_id(1, score, district_id())
+			_request_trolley_skip.rpc_id(1, district_id())
+		return false
+	if district < 0:
+		district = district_id()
+	if peer < 0:
+		peer = _self_peer()
+	var channel := "trolley:%d" % district
+	var have := latest(channel)
+	if not bool(have.get("open", false)):
+		return false
+	if bool(have.get("skipped", false)):
+		return true
+	var skips: Array = []
+	var raw: Variant = have.get("skips", [])
+	if raw is Array:
+		skips = (raw as Array).duplicate()
+	var listed := false
+	for item in skips:
+		if int(item) == peer:
+			listed = true
+	if not listed:
+		skips.append(peer)
+	var group := maxi(int(have.get("players", 1)), 1)
+	var skipped := skips.size() >= int(group / 2) + 1
+	have["skips"] = skips
+	have["skipped"] = skipped
+	publish(channel, have)
+	return skipped
+
+
+func _vote_trolley_ready(peer: int = -1, district: int = -1) -> void:
+	if not is_authority():
+		if _role == "client":
+			_request_trolley_ready.rpc_id(1, district_id())
 		return
 	if district < 0:
 		district = district_id()
+	if peer < 0:
+		peer = _self_peer()
+	var channel := "trolley:%d" % district
+	var have := latest(channel)
+	if not bool(have.get("open", false)) or bool(have.get("skipped", false)):
+		return
+	var ready: Array = []
+	var raw: Variant = have.get("ready", [])
+	if raw is Array:
+		ready = (raw as Array).duplicate()
+	for item in ready:
+		if int(item) == peer:
+			return
+	ready.append(peer)
+	have["ready"] = ready
+	var group := maxi(int(have.get("players", 1)), 1)
+	if ready.size() >= group:
+		have["rules_until"] = int(Time.get_unix_time_from_system() * 1000.0)
+	publish(channel, have)
+
+
+func _finish_trolley(score: int, pouch: int = 0, limit: int = 0, district: int = -1, peer: int = -1) -> void:
+	if not is_authority():
+		if _role == "client":
+			_submit_trolley.rpc_id(1, score, pouch, limit, district_id())
+		return
+	if district < 0:
+		district = district_id()
+	if peer < 0:
+		peer = _self_peer()
 	var channel := "trolley:%d" % district
 	var have := latest(channel)
 	have["open"] = false
 	have["score"] = score
+	var results := {}
+	var raw: Variant = have.get("results", {})
+	if raw is Dictionary:
+		var prior: Dictionary = raw
+		for key in prior.keys():
+			results[key] = prior[key]
+	results[str(peer)] = {"beans": score, "pouch": pouch, "limit": limit}
+	have["results"] = results
 	publish(channel, have)
 
 
@@ -1171,6 +1599,7 @@ func _on_peer(id: int) -> void:
 		print("Peer %d joined %s. %d connected." % [id, _district_phrase(_here), _peers.size()])
 	_broadcast()
 	districts_changed.emit()
+	_publish_clock()
 	_receive_districts.rpc_id(id, _pack_rows())
 	for channel in _states.keys():
 		var state: Dictionary = _states[channel]
@@ -1189,6 +1618,7 @@ func _on_peer_gone(id: int) -> void:
 	districts_changed.emit()
 	_drop_toon(id)
 	MiniGolf.drop_peer(id)
+	_clear_trolley_peer(id)
 
 
 func _peer_label(id: int) -> String:
@@ -1216,6 +1646,7 @@ func _print_move(peer: int, previous: int, id: int) -> void:
 func _on_connected() -> void:
 	_lost = false
 	_role = "client"
+	_clock_known = false
 	if not _rejoining:
 		return
 	_rejoining = false
@@ -1414,7 +1845,44 @@ func _receive_state(channel: String, state: Dictionary) -> void:
 	if is_authority():
 		return
 	_states[channel] = state
+	if channel == "clock":
+		_apply_clock(state)
 	state_changed.emit(channel)
+
+
+func _tick_clock(delta: float) -> void:
+	if _role != "host":
+		return
+	_clock_wait -= delta
+	if _clock_wait > 0.0:
+		return
+	_clock_wait = 1.0
+	_publish_clock()
+
+
+func _publish_clock() -> void:
+	if _role != "host":
+		return
+	var unix := Time.get_unix_time_from_system()
+	var local := Time.get_datetime_dict_from_system()
+	var zone := Time.get_unix_time_from_datetime_dict({
+		"year": int(local.get("year", 0)),
+		"month": int(local.get("month", 0)),
+		"day": int(local.get("day", 0)),
+		"hour": int(local.get("hour", 0)),
+		"minute": int(local.get("minute", 0)),
+		"second": int(local.get("second", 0)),
+	}) - unix
+	_store("clock", {"unix": unix, "zone": zone})
+
+
+func _apply_clock(state: Dictionary) -> void:
+	var host_unix := float(state.get("unix", 0.0))
+	if host_unix <= 0.0:
+		return
+	_clock_skew = host_unix - Time.get_unix_time_from_system()
+	_clock_zone = float(state.get("zone", 0.0))
+	_clock_known = true
 
 
 @rpc("any_peer", "reliable")
@@ -1424,23 +1892,202 @@ func _set_trolley(game_id: int) -> void:
 
 
 @rpc("any_peer", "reliable")
-func _request_trolley(avoid: int, district: int) -> void:
+func _request_trolley_seat(place: String, district: int) -> void:
 	if not is_authority():
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if _peers.has(sender):
 		district = int(_peers[sender])
-	_begin_trolley(avoid, sender, district)
+	_claim_trolley_seat(place, sender, district)
 
 
 @rpc("any_peer", "reliable")
-func _submit_trolley(score: int, district: int) -> void:
+func _release_trolley_seat_rpc(place: String, district: int) -> void:
 	if not is_authority():
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	if _peers.has(sender):
 		district = int(_peers[sender])
-	_finish_trolley(score, district)
+	_release_trolley_seat(place, sender, district)
+
+
+@rpc("any_peer", "reliable")
+func _request_maze_treasure(index: int, district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_claim_maze_treasure(index, district)
+
+
+@rpc("any_peer", "reliable")
+func _request_trolley_clock(place: String, district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_join_trolley_clock(place, district)
+
+
+@rpc("any_peer", "reliable")
+func _clear_trolley_clock_rpc(place: String, district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_clear_trolley_clock(place, district)
+
+
+@rpc("any_peer", "reliable")
+func _request_trolley_skip(district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_vote_trolley_skip(sender, district)
+
+
+@rpc("any_peer", "reliable")
+func _request_trolley_ready(district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_vote_trolley_ready(sender, district)
+
+
+@rpc("any_peer", "reliable")
+func _request_trolley(avoid: int, district: int, players: int, party: Array) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_begin_trolley(avoid, sender, district, players, party)
+
+
+static func note_cannon(yaw: float, pitch: float) -> void:
+	var net := live()
+	if net != null:
+		net._note_cannon(yaw, pitch)
+
+
+static func note_minigame(kind: String, value: int) -> void:
+	var net := live()
+	if net != null:
+		net._note_minigame(kind, value)
+
+
+static func minigame_state() -> Dictionary:
+	var net := live()
+	if net == null:
+		return {}
+	return net.latest(net._mg_channel(net.district_id()))
+
+
+func _mg_channel(district: int) -> String:
+	return "mgplay:%d" % district
+
+
+func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1) -> void:
+	if district < 0:
+		district = district_id()
+	if not is_authority():
+		if _role == "client":
+			_request_minigame.rpc_id(1, kind, value, district)
+		return
+	if peer < 0:
+		peer = _self_peer()
+	var stamp := int(latest("trolley:%d" % district).get("stamp", 0))
+	var state := latest(_mg_channel(district)).duplicate(true)
+	if int(state.get("round", -1)) != stamp:
+		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": []}
+	if kind == "it":
+		var current := int(state.get("it", -1))
+		if current < 0 or current == peer:
+			state["it"] = value
+	elif kind == "take":
+		var taken: Array = []
+		var raw: Variant = state.get("taken", [])
+		if raw is Array:
+			taken = (raw as Array).duplicate()
+		if value >= 0 and value < 64 and not taken.has(value):
+			taken.append(value)
+		state["taken"] = taken
+	elif kind == "pick":
+		var picks: Dictionary = {}
+		var raw_picks: Variant = state.get("picks", {})
+		if raw_picks is Dictionary:
+			picks = (raw_picks as Dictionary).duplicate()
+		# Race is the only "pick" game. 0 is the timeout (no move). 1-4 are the dice.
+		picks[str(peer)] = clampi(value, 0, 4)
+		state["picks"] = picks
+		var listed: Variant = latest("trolley:%d" % district).get("party", [])
+		if listed is Array and (listed as Array).size() > 0 and picks.size() >= (listed as Array).size():
+			var deal: Array = []
+			for id in listed as Array:
+				deal.append(int(picks.get(str(int(id)), 0)))
+			state["deal"] = deal
+			state["turn"] = int(state.get("turn", 0)) + 1
+			state["picks"] = {}
+	publish(_mg_channel(district), state)
+
+
+func _note_cannon(yaw: float, pitch: float, district: int = -1, peer: int = -1) -> void:
+	if district < 0:
+		district = district_id()
+	if not is_authority():
+		if _role == "client":
+			_request_cannon_aim.rpc_id(1, yaw, pitch, district)
+		return
+	if peer < 0:
+		peer = _self_peer()
+	var stamp := int(latest("trolley:%d" % district).get("stamp", 0))
+	var state := latest(_mg_channel(district)).duplicate(true)
+	if int(state.get("round", -1)) != stamp:
+		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": [], "aims": {}}
+	var aims: Dictionary = {}
+	var raw: Variant = state.get("aims", {})
+	if raw is Dictionary:
+		aims = (raw as Dictionary).duplicate()
+	aims[str(peer)] = [yaw, pitch]
+	state["aims"] = aims
+	publish(_mg_channel(district), state)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_cannon_aim(yaw: float, pitch: float, district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_note_cannon(yaw, pitch, district, sender)
+
+
+@rpc("any_peer", "reliable")
+func _request_minigame(kind: String, value: int, district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_note_minigame(kind, value, district, sender)
+
+
+@rpc("any_peer", "reliable")
+func _submit_trolley(score: int, pouch: int, limit: int, district: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_finish_trolley(score, pouch, limit, district, sender)
 
 
 @rpc("any_peer", "reliable")
@@ -1468,6 +2115,30 @@ func _minigolf_act(kind: String, a: int, b: float, c: float) -> void:
 	if not is_authority():
 		return
 	MiniGolf.act(multiplayer.get_remote_sender_id(), kind, a, b, c)
+
+
+@rpc("any_peer", "reliable")
+func _set_county(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_store("county", state)
+
+
+@rpc("any_peer", "reliable")
+func _set_invasion(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_store("invasion", state)
+
+
+@rpc("any_peer", "reliable")
+func _set_holidays(ids: Array) -> void:
+	if not is_authority():
+		return
+	var clean: Array = []
+	for item in ids:
+		clean.append(int(item))
+	_store("holidays", {"ids": clean})
 
 
 @rpc("any_peer", "unreliable_ordered")

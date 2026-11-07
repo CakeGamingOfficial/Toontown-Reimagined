@@ -3,7 +3,7 @@ extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
 ## sit down the right edge, and the pages are Options, Districts, the map,
-## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, and Cog Disguise. Harry's reward still opens on the
+## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Cog Disguise, and Events. Harry's reward still opens on the
 ## map and turns to gags, then tasks.
 
 signal book_opened
@@ -19,7 +19,8 @@ const PAGE_TRACKS := 5
 const PAGE_COGS := 6
 const PAGE_FISH := 7
 const PAGE_DISGUISE := 8
-const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Cog Disguise"]
+const PAGE_EVENTS := 9
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Cog Disguise", "Events"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
@@ -111,6 +112,7 @@ const _TAB_GEAR := preload("res://assets/gui/shticker/gallery/tab_gear.png")
 const _TAB_FISH := preload("res://assets/gui/shticker/fishing/tab_fish.png")
 const _TAB_DISGUISE := preload("res://assets/gui/shticker/disguise/tab_icon.png")
 const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
+const _EVENTS_PAGE := preload("res://scenes/shticker/events_page.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -147,6 +149,7 @@ var _cogs: CogGallery
 var _tracks_page: TrackPage
 var _fish: Control
 var _disguise: DisguisePage
+var _events: Control
 var _districts_page: DistrictPage
 var _loadout: ToonLoadout
 var _button: TextureButton
@@ -411,7 +414,11 @@ func _build_book() -> void:
 	_disguise = DisguisePage.new()
 	_cover.add_child(_disguise)
 	_pages.append(_disguise)
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, _TAB_DISGUISE]
+	_events = _EVENTS_PAGE.new()
+	_events.name = "EventsPage"
+	_cover.add_child(_events)
+	_pages.append(_events)
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, _TAB_DISGUISE, _EVENTS_PAGE.tab_icon()]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -683,10 +690,8 @@ func _arrow(flip: bool) -> TextureButton:
 	button.texture_normal = _ARROW
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	button.custom_minimum_size = Vector2(54, 54)
-	button.size = Vector2(54, 54)
+	button.custom_minimum_size = Vector2.ZERO
 	button.focus_mode = Control.FOCUS_NONE
-	button.pivot_offset = button.size * 0.5
 	if flip:
 		button.scale = Vector2(-1, 1)
 	button.visible = false
@@ -858,6 +863,8 @@ func _show_page(index: int) -> void:
 		_fish.call("refresh")
 	elif index == PAGE_DISGUISE and _disguise != null:
 		_disguise.refresh()
+	elif index == PAGE_EVENTS and _events != null:
+		_events.call("refresh")
 	for page_index in _pages.size():
 		_pages[page_index].visible = page_index == index
 	for tab_index in _tabs.size():
@@ -1061,7 +1068,10 @@ func _fill_tasks() -> void:
 		sheet.add_child(blank)
 		blank.show_task({})
 	else:
-		for task in cards:
+		for index in cards.size():
+			var task: Dictionary = cards[index]
+			# The red circle is this task's place in the book, starting at 1.
+			task["task_number"] = index + 1
 			var poster := QuestPoster.new()
 			sheet.add_child(poster)
 			poster.show_task(task)
@@ -1321,6 +1331,8 @@ func _layout() -> void:
 		_fish.call("layout", page_size)
 	if _disguise != null:
 		_disguise.layout(page_size)
+	if _events != null:
+		_events.call("layout", page_size)
 	# pageTabFrame scale 1.25, each tab scale 0.06, frame ±0.575, step 0.07.
 	var tab_size := Vector2(_cover.size.x * 0.043125, _cover.size.y * 0.0575)
 	for tab_index in _tabs.size():
@@ -1328,14 +1340,18 @@ func _layout() -> void:
 		var center := Vector2(_cover.size.x * 0.965, _cover.size.y * (0.1167 + float(tab_index) * 0.05833))
 		tab.position = center - tab_size * 0.5
 		tab.size = tab_size
-	var arrow := _cover.size.x * 0.05
-	_prev.size = Vector2(arrow, arrow)
-	_next.size = Vector2(arrow, arrow)
-	# The previous arrow is mirrored. Flip it around its center so it stays on the same spot.
-	_prev.pivot_offset = _prev.size * 0.5
-	var arrow_y := _cover.size.y * 0.9407 - arrow * 0.5
-	_prev.position = Vector2(_cover.size.x * 0.081 - arrow * 0.5, arrow_y)
-	_next.position = Vector2(_cover.size.x * 0.919 - arrow * 0.5, arrow_y)
+	# arrow_button is a 1x1 card at scale 0.1, centered on (±0.838, -0.661).
+	var arrow := Vector2(_cover.size.x, _cover.size.x) * 0.05
+	_prev.custom_minimum_size = Vector2.ZERO
+	_next.custom_minimum_size = Vector2.ZERO
+	_prev.size = arrow
+	_next.size = arrow
+	_prev.pivot_offset = arrow * 0.5
+	_next.pivot_offset = arrow * 0.5
+	var prev_center := Vector2(_cover.size.x * 0.081, _cover.size.y * 0.9406667)
+	var next_center := Vector2(_cover.size.x * 0.919, prev_center.y)
+	_prev.position = prev_center - arrow * 0.5
+	_next.position = next_center - arrow * 0.5
 	_apply_peek()
 
 

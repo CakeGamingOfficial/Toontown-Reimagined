@@ -8,6 +8,7 @@ signal finished
 
 const _TANK := preload("res://scenes/fishing/fish_tank.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _ROLL := preload("res://scenes/fishing/fish_roll.gd")
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
 const _BOARDS := preload("res://assets/gui/fishing/boards.png")
@@ -164,8 +165,10 @@ func _process(delta: float) -> void:
 	elif _state == "leave":
 		_leaving(delta)
 	if _posing:
+		_share()
 		return
 	_actor.set_locomotion(0.0, false, false, delta)
+	_share()
 
 
 func _approach(delta: float) -> void:
@@ -386,7 +389,7 @@ func _catch() -> void:
 		else:
 			text = _FULL
 	elif code == 3:
-		var beans := int(caught["beans"])
+		var beans := int(caught["beans"]) * int(_HOLIDAYS.bean_scale("fish"))
 		_BEANS.add_beans(beans)
 		_jar.text = str(_BEANS.pouch())
 		_refresh_jar()
@@ -454,6 +457,8 @@ func _finish() -> void:
 		return
 	_done = true
 	if _actor != null and is_instance_valid(_actor):
+		if _actor.has_meta("fish_anim"):
+			_actor.remove_meta("fish_anim")
 		_actor.end_action("cast")
 		_actor.end_action("castlong")
 		_actor.clear_gesture()
@@ -673,6 +678,32 @@ func _surface_y() -> float:
 
 func _world() -> Node:
 	return _spot.get_parent()
+
+
+func _share() -> void:
+	if _actor == null or not is_instance_valid(_actor):
+		return
+	var anim := "pole-neutral"
+	var pose := -1.0
+	if _state == "approach":
+		anim = "pole" if _poled else "run"
+	elif _state == "aim" or _state == "cast":
+		anim = "castlong"
+		var along := (0.2 + _power * 0.7) * 4.0
+		if _state == "cast":
+			along = minf(_cast_from + _cast_clock, _long_dur) * 4.0
+		pose = along
+	elif _state == "flight" or _state == "bite":
+		anim = "fish-neutral"
+	elif _state == "reward":
+		anim = "pole-neutral"
+		if _queue_at >= 0 and _queue_at < _queue.size():
+			anim = _queue[_queue_at]
+	elif _state == "leave":
+		anim = "fish-end"
+	_actor.set_meta("fish_anim", anim)
+	_actor.set_meta("fish_pose", pose)
+	_actor.set_meta("fish_rod", _rod)
 
 
 func _play(suffix: String, loop: bool) -> void:

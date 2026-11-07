@@ -5,6 +5,7 @@ extends Node
 ## show that. A battle holds four toons and four cogs. The face-off plays
 ## before choosing. The clock is BBbattleInputTimeout, not a delay before the fight.
 
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const INPUT_TIME := 20.0
 const REWARD_TIME := 120.0
 ## BattleBase.FLOOR_REWARD_TIMEOUT. A cleared floor dances, then the elevator.
@@ -66,6 +67,19 @@ const _TOON_POINTS: Array = [
 	[Vector2(1.5, -6.5), Vector2(-1.5, -6.5)],
 	[Vector2(3.0, -6.75), Vector2(0.0, -7.0), Vector2(-3.0, -6.75)],
 	[Vector2(4.5, -7.0), Vector2(1.5, -7.5), Vector2(-1.5, -7.5), Vector2(-4.5, -7.0)],
+]
+## BattleBase.suitPoints / toonPoints headings. Panda +H turns left, same as a toon heading.
+const _SUIT_HEAD: Array = [
+	[179.0],
+	[170.0, 180.0],
+	[170.0, 179.0, 190.0],
+	[160.0, 170.0, 190.0, 200.0],
+]
+const _TOON_HEAD: Array = [
+	[0.0],
+	[5.0, -5.0],
+	[5.0, 0.0, -5.0],
+	[10.0, 5.0, -5.0, -10.0],
 ]
 
 var _fights: Array = []
@@ -205,6 +219,7 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 		"origin": [origin.x, origin.y, origin.z],
 		"out": exit_at,
 		"yaw": yaw,
+		"floor": floor_index,
 	}
 	_next += 1
 	_fights.append(fight)
@@ -437,8 +452,15 @@ func _earned_for(fight: Dictionary, peer: int) -> Array:
 	var earned: Array = []
 	var source: Array = row if row is Array else []
 	for track in ToonLoadout.TRACK_COUNT:
-		earned.append(int(source[track]) if track < source.size() else 0)
+		earned.append(int(round(float(source[track]))) if track < source.size() else 0)
 	return earned
+
+
+## ToontownBattleGlobals.getCreditMultiplier. Street fights stay at 1.
+func _credit_mult(fight: Dictionary) -> float:
+	if int(fight.get("building", 0)) == 0:
+		return 1.0
+	return 1.0 + float(fight.get("floor", 0)) * 0.5
 
 
 func _grant(fight: Dictionary, peer: int, track: int, level: int) -> void:
@@ -449,7 +471,8 @@ func _grant(fight: Dictionary, peer: int, track: int, level: int) -> void:
 	var row: Array = book.get(key, [0, 0, 0, 0, 0, 0, 0])
 	while row.size() < ToonLoadout.TRACK_COUNT:
 		row.append(0)
-	row[track] = mini(int(row[track]) + level + 1, 10500)
+	var gained := float(level + 1) * _credit_mult(fight)
+	row[track] = minf(float(row[track]) + gained, 10500.0)
 	book[key] = row
 	fight["skill"] = book
 
@@ -681,7 +704,9 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 	for item in patients:
 		var patient: Dictionary = item
 		if not hit:
-			beats.append(_beat("%s's %s missed." % [who, gag], track, level, toon, {}, false, 0, ""))
+			var missed := _beat("%s's %s missed." % [who, gag], track, level, toon, {}, false, 0, "")
+			missed["toon_id"] = int(patient.get("id", 0))
+			beats.append(missed)
 			continue
 		var before := int(patient.get("hp", 0))
 		patient["hp"] = mini(before + amount, int(patient.get("max_hp", before)))
@@ -971,6 +996,8 @@ func _finish_movie(fight: Dictionary) -> void:
 	for item in cogs:
 		var cog: Dictionary = item
 		if int(cog.get("hp", 0)) <= 0:
+			if int(fight.get("building", 0)) == 0:
+				_HOLIDAYS.note_cog(int(fight.get("district", 0)), String(cog.get("code", "")), bool(cog.get("skeleton", false)))
 			if traffic != null and traffic.has_method("dismiss_cog"):
 				traffic.call("dismiss_cog", int(fight.get("district", 0)), String(fight.get("slug", "")), int(cog.get("id", 0)))
 			continue
@@ -1085,9 +1112,9 @@ func _sum_tracks(have: Variant, extra: Variant) -> Array:
 	var right: Array = extra if extra is Array else []
 	var sum: Array = []
 	for track in ToonLoadout.TRACK_COUNT:
-		var a := int(left[track]) if track < left.size() else 0
-		var b := int(right[track]) if track < right.size() else 0
-		sum.append(mini(a + b, 10500))
+		var a := float(left[track]) if track < left.size() else 0.0
+		var b := float(right[track]) if track < right.size() else 0.0
+		sum.append(minf(a + b, 10500.0))
 	return sum
 
 
@@ -1176,7 +1203,7 @@ func _gag_killed(beat: Variant) -> bool:
 func _beat_dur(beat: Dictionary) -> float:
 	# Toon.getDiedInterval starts at the hit. The movie stays up through the shrink.
 	# A defeated cog then plays Suit.getLoseActor for SUIT_LOSE_DURATION.
-	var length := GagMovie.seconds(String(beat.get("kind", "")), int(beat.get("track", -1)), int(beat.get("level", 0)), bool(beat.get("died", false)))
+	var length := GagMovie.seconds(String(beat.get("kind", "")), int(beat.get("track", -1)), int(beat.get("level", 0)), bool(beat.get("died", false)), String(beat.get("attack", "")))
 	if _gag_killed(beat):
 		length += GagMovie.LOSE_SECONDS
 	return length
@@ -1296,7 +1323,7 @@ func _avatar(toon: Dictionary) -> int:
 func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 	var level := int(cog.get("level", 1))
 	var hp := Cog.hp_for_level(level)
-	(fight["cogs"] as Array).append({
+	var row := {
 		"id": int(cog.get("id", 0)),
 		"code": String(cog.get("code", "")),
 		"name": String(cog.get("name", "Cog")),
@@ -1306,11 +1333,15 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 		"lured": false,
 		"trap": {},
 		"dept": String(cog.get("dept", "c")),
+		"skeleton": bool(cog.get("skeleton", false)),
 		"body": String(cog.get("body", "c")),
 		"height": float(cog.get("height", 4.0)),
 		"from": cog.get("pos", [0.0, 0.0, 0.0]),
 		"slot": cog.get("pos", [0.0, 0.0, 0.0]),
-	})
+	}
+	if cog.has("from_h"):
+		row["from_h"] = float(cog["from_h"])
+	(fight["cogs"] as Array).append(row)
 
 
 func _place(fight: Dictionary) -> void:
@@ -1326,14 +1357,21 @@ func _place(fight: Dictionary) -> void:
 	var toons: Array = fight.get("toons", [])
 	var suit_row: Array = _SUIT_POINTS[clampi(cogs.size(), 1, 4) - 1]
 	var toon_row: Array = _TOON_POINTS[clampi(toons.size(), 1, 4) - 1]
+	var suit_head: Array = _SUIT_HEAD[clampi(cogs.size(), 1, 4) - 1]
+	var toon_head: Array = _TOON_HEAD[clampi(toons.size(), 1, 4) - 1]
+	var indoors := int(fight.get("building", 0)) != 0
 	for index in cogs.size():
 		var cog: Dictionary = cogs[index]
 		var spot: Vector2 = suit_row[mini(index, suit_row.size() - 1)] as Vector2
 		cog["slot"] = _battle_slot(origin, right, forward, spot)
+		if indoors:
+			cog["h"] = float(suit_head[mini(index, suit_head.size() - 1)])
 	for index in toons.size():
 		var toon: Dictionary = toons[index]
 		var spot: Vector2 = toon_row[mini(index, toon_row.size() - 1)] as Vector2
 		toon["slot"] = _battle_slot(origin, right, forward, spot)
+		if indoors:
+			toon["h"] = float(toon_head[mini(index, toon_head.size() - 1)])
 
 
 func _battle_slot(origin: Vector3, right: Vector3, forward: Vector3, spot: Vector2) -> Array:
@@ -1503,6 +1541,7 @@ func _cog_info(row: Variant) -> Dictionary:
 		"name": String(body.get("name", "Cog")),
 		"level": int(body.get("level", 1)),
 		"dept": String(body.get("dept", "c")),
+		"skeleton": bool(body.get("skeleton", false)),
 		"body": String(body.get("body", "c")),
 		"height": float(body.get("height", 4.0)),
 		"phase": int(source.get("phase", -1)),

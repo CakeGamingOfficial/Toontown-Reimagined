@@ -11,6 +11,7 @@ const TOTAL_MAX_SUITS := 50
 const _CLEAR_OUT := 4.0
 const _DEPTS: PackedStringArray = ["c", "l", "m", "s"]
 const _BUILDINGS := preload("res://scenes/streets/street_buildings.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 var _streets: Dictionary = {}
 var _blocks: Dictionary = {}
@@ -24,6 +25,9 @@ const _STATE_PATH := "user://street_state.json"
 var _remembered := false
 var _dirty := false
 var _save_wait := 2.0
+## Set while the Reload button is putting the same suits back. The street
+## that is closing must not park an empty roster over them.
+var _keep_spawns := false
 
 
 func _ready() -> void:
@@ -100,7 +104,7 @@ func take_actor(code: String) -> Node:
 
 
 func hold(district: int, slug: String, record: Dictionary) -> void:
-	if slug.is_empty():
+	if _keep_spawns or slug.is_empty():
 		return
 	remember_state()
 	var key := _key(district, slug)
@@ -112,6 +116,7 @@ func hold(district: int, slug: String, record: Dictionary) -> void:
 
 
 func claim(district: int, slug: String) -> Dictionary:
+	_keep_spawns = false
 	remember_state()
 	var key := _key(district, slug)
 	_live[key] = true
@@ -260,12 +265,19 @@ func prepare_buildings(district: int, slug: String, data: Dictionary) -> void:
 		var target := 0
 		if district != 0:
 			target = _BUILDINGS.target_count(blocks.size(), int(data.get("bmin", 0)), int(data.get("bmax", 0)))
+			if _HOLIDAYS.is_county(district):
+				target = blocks.size()
 		_plans[key] = {
 			"target": target,
 			"blocks": blocks,
 			"tracks": data.get("tracks", []),
 			"levels": data.get("levels", []),
 		}
+	elif _HOLIDAYS.is_county(district):
+		var saved: Dictionary = _plans[key]
+		var blocks: Array = saved.get("blocks", [])
+		saved["target"] = blocks.size()
+		_plans[key] = saved
 	if not _blocks.has(key):
 		_blocks[key] = []
 	keep_buildings(district, slug, building_rows(district, slug))
@@ -279,6 +291,10 @@ func claim_takeover(district: int, slug: String) -> Dictionary:
 	if not _plans.has(key):
 		return {}
 	var plan: Dictionary = _plans[key]
+	if _HOLIDAYS.is_county(district):
+		var blocks: Array = plan.get("blocks", [])
+		plan["target"] = blocks.size()
+		_plans[key] = plan
 	var target := int(plan.get("target", 0))
 	var used := {}
 	for item in building_rows(district, slug):
@@ -292,6 +308,9 @@ func claim_takeover(district: int, slug: String) -> Dictionary:
 	var picked: Dictionary = _BUILDINGS.plan_one(plan.get("blocks", []), plan.get("tracks", []), plan.get("levels", []), used)
 	if picked.is_empty():
 		return {}
+	var forced := _HOLIDAYS.building_track(district)
+	if forced != "":
+		picked["track"] = forced
 	pending.append(int(picked.get("block", 0)))
 	_pending[key] = pending
 	return picked
@@ -825,7 +844,7 @@ func _pick_track(record: Dictionary, track: String) -> Dictionary:
 	var source: Dictionary = catalog[index]
 	var swapped := source.duplicate() as Dictionary
 	swapped["level"] = level
-	return swapped
+	return StreetSuits.invade(swapped, int(record.get("district", 1)), catalog)
 
 
 func _step_exit(cog: Dictionary, delta: float) -> bool:
@@ -893,6 +912,7 @@ func _step_fly(cog: Dictionary, delta: float, leaving: bool) -> bool:
 
 
 func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: float) -> void:
+	_retire_invasion(record)
 	# adjustSuitPopulation drifts the street every five minutes. Upkeep is separate.
 	_drift(record, delta)
 	var left := float(record.get("upkeep", 10.0)) - delta
@@ -912,8 +932,15 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 	var building_target := int(float(_established(district, slug).size()) * StreetSuits.SUIT_BUILDING_NUM_SUITS)
 	var reserved := maxi(building_target - have_buildings, 0)
 	var burst := mini(int((deficit + 3) / 4), TOTAL_MAX_SUITS - suit_total(district) - reserved)
-	while burst > 0:
+	var county_take := 1 if _HOLIDAYS.is_county(district) else 0
+	while burst > 0 or county_take > 0:
 		var plan := claim_takeover(district, slug)
+		if plan.is_empty():
+			county_take = 0
+		else:
+			county_take = 0
+		if plan.is_empty() and burst <= 0:
+			break
 		var cog := _pick(record) if plan.is_empty() else _pick_planned(record, plan)
 		if cog.is_empty():
 			if not plan.is_empty():
@@ -924,9 +951,53 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 			job["takeover"] = plan
 			job["take_stage"] = "lane"
 		cogs.append(job)
-		burst -= 1
+		if burst > 0:
+			burst -= 1
 	_queue_building_suits(record, points, route, cogs)
 	record["cogs"] = cogs
+
+
+func _retire_invasion(record: Dictionary) -> void:
+	var district := int(record.get("district", 1))
+	var sig := _HOLIDAYS.invasion_sig(district)
+	var previous := String(record.get("invasion", ""))
+	if previous == sig:
+		return
+	record["invasion"] = sig
+	if previous == "" and not _stale_invasion(record, sig):
+		return
+	var fights := get_node_or_null("StreetFights")
+	var kept: Array = []
+	for item in record.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		var busy := false
+		if fights != null and fights.has_method("cog_paused"):
+			busy = bool(fights.call("cog_paused", int(cog.get("do_id", 0))))
+		if busy:
+			kept.append(cog)
+	record["cogs"] = kept
+
+
+func _stale_invasion(record: Dictionary, sig: String) -> bool:
+	var parts := sig.split("|")
+	var code := parts[0] if not parts.is_empty() else ""
+	var dept := parts[2] if parts.size() > 2 else ""
+	if code == "" and dept == "":
+		return false
+	for item in record.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var nested: Variant = row.get("cog", {})
+		var cog: Dictionary = nested if nested is Dictionary else row
+		var cog_code := String(cog.get("code", row.get("code", "")))
+		if code != "" and cog_code != code:
+			return true
+		if code == "" and dept != "" and String(cog.get("dept", "")) != dept:
+			return true
+	return false
 
 
 ## adjustSuitPopulation adds -2..2, weighted toward zero, and clamps to the street.
@@ -1079,7 +1150,7 @@ func _pick(record: Dictionary) -> Dictionary:
 	var source: Dictionary = catalog[index]
 	var cog := source.duplicate() as Dictionary
 	cog["level"] = level
-	return cog
+	return StreetSuits.invade(cog, int(record.get("district", 1)), catalog)
 
 
 func _pick_planned(record: Dictionary, plan: Dictionary) -> Dictionary:
@@ -1102,7 +1173,7 @@ func _pick_planned(record: Dictionary, plan: Dictionary) -> Dictionary:
 	var source: Dictionary = catalog[index]
 	var cog := source.duplicate() as Dictionary
 	cog["level"] = level
-	return cog
+	return StreetSuits.invade(cog, int(record.get("district", 1)), catalog)
 
 
 func _pick_dept(tracks: Array) -> int:
@@ -1220,6 +1291,72 @@ func has_actor(code: String) -> bool:
 func has_street(district: int, slug: String) -> bool:
 	remember_state()
 	return _streets.has(_key(district, slug))
+
+
+## The suits already walking, plus every parked street. The Reload button
+## reads this before scripts are refreshed and writes it back after.
+func snapshot_spawns() -> Dictionary:
+	remember_state()
+	var streets := {}
+	for key in _streets.keys():
+		var name := String(key)
+		var raw: Dictionary = _streets[key]
+		var record := raw.duplicate(true)
+		record["invasion"] = _HOLIDAYS.invasion_sig(int(record.get("district", _district_of(name))))
+		streets[name] = record
+	var suits := _live_suits()
+	if suits != null and suits.has_method("capture_record"):
+		var live: Variant = suits.call("capture_record")
+		if live is Dictionary and not (live as Dictionary).is_empty():
+			var record: Dictionary = (live as Dictionary).duplicate(true)
+			var district := int(record.get("district", suits.get("district_id")))
+			var slug := String(record.get("slug", suits.get("street_slug")))
+			if not slug.is_empty():
+				record["invasion"] = _HOLIDAYS.invasion_sig(district)
+				streets[_key(district, slug)] = record
+	return {
+		"streets": streets,
+		"blocks": _blocks.duplicate(true),
+		"plans": _plans.duplicate(true),
+		"pending": _pending.duplicate(true),
+	}
+
+
+func restore_spawns(saved: Dictionary) -> void:
+	var streets: Variant = saved.get("streets", {})
+	if streets is Dictionary:
+		_streets = (streets as Dictionary).duplicate(true)
+	var blocks: Variant = saved.get("blocks", {})
+	if blocks is Dictionary:
+		_blocks = (blocks as Dictionary).duplicate(true)
+	var plans: Variant = saved.get("plans", {})
+	if plans is Dictionary:
+		_plans = (plans as Dictionary).duplicate(true)
+	var pending: Variant = saved.get("pending", {})
+	if pending is Dictionary:
+		_pending = (pending as Dictionary).duplicate(true)
+	_live.clear()
+	_remembered = true
+	_keep_spawns = true
+
+
+func release_spawns() -> void:
+	_keep_spawns = false
+
+
+## The scene did not reload. Drop the copied live street so it is not simulated twice.
+func abort_spawns() -> void:
+	_keep_spawns = false
+	var suits := _live_suits()
+	if suits == null:
+		return
+	var district := int(suits.get("district_id"))
+	var slug := String(suits.get("street_slug"))
+	if slug.is_empty():
+		return
+	var key := _key(district, slug)
+	_streets.erase(key)
+	_live[key] = true
 
 
 func remember_state() -> void:

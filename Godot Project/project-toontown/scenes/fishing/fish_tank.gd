@@ -2,7 +2,7 @@ extends RefCounted
 
 ## FishTank plus the album FishCollection writes when a fisherman buys the
 ## bucket. A new toon holds 20 and the twig rod. Value is FishGlobals.getValue,
-## with no holiday multiplier. Every tenth new species is a fishing trophy.
+## Jellybean Day, Jellybean Week, and Double Bean Days - Fishing pay double. Every tenth new species is a fishing trophy.
 ## set_rod is what Clarabelle's Cattlelog calls when a pole is delivered.
 
 const MAX := 20
@@ -147,6 +147,7 @@ static func sell() -> Dictionary:
 	var after := collected()
 	var trophies := mini(int(after / PER_TROPHY), 7) - mini(int(before / PER_TROPHY), 7)
 	if beans > 0:
+		beans *= int(preload("res://scenes/shticker/calendar_holidays.gd").bean_scale("fish"))
 		preload("res://scenes/toons/jellybeans.gd").add_beans(beans)
 	return {"beans": beans, "trophies": maxi(trophies, 0), "collected": after, "total": TOTAL}
 

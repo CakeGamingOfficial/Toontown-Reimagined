@@ -11,6 +11,7 @@ signal changed
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _KEEP_LINES := 200
 const _KEEP_SAMPLES := 180
 const _METER_MARGIN := 9.8
@@ -299,16 +300,30 @@ func _hot_reload() -> void:
 		_reload_point = body.global_position
 		_reload_heading = _heading_of(body)
 		_reload_armed = true
+	var saved: Dictionary = _HOLIDAYS.snapshot()
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	var spawns := {}
+	if traffic != null and traffic.has_method("snapshot_spawns"):
+		var taken: Variant = traffic.call("snapshot_spawns")
+		if taken is Dictionary:
+			spawns = taken
 	var changed := _refresh_scripts()
+	_HOLIDAYS.restore(saved)
+	if traffic != null and traffic.has_method("restore_spawns"):
+		traffic.call("restore_spawns", spawns)
 	var path := scene.scene_file_path
 	var packed: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
 	if packed == null:
 		_reload_armed = false
+		if traffic != null and traffic.has_method("abort_spawns"):
+			traffic.call("abort_spawns")
 		_push("Could not read %s." % path.get_file(), true)
 		return
 	var err := get_tree().reload_current_scene()
 	if err != OK:
 		_reload_armed = false
+		if traffic != null and traffic.has_method("abort_spawns"):
+			traffic.call("abort_spawns")
 		_push("Scene reload failed.", true)
 		return
 	_push("Reload: %d script(s), %s." % [changed, path.get_file()], false)
@@ -324,6 +339,9 @@ func _restore_pose() -> void:
 	if not _reload_armed:
 		return
 	_reload_armed = false
+	var traffic := get_node_or_null("/root/StreetTraffic")
+	if traffic != null and traffic.has_method("release_spawns"):
+		traffic.call("release_spawns")
 	var scene := get_tree().current_scene
 	if scene == null:
 		return

@@ -12,7 +12,9 @@ const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
+~invasion start flunky 1000   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
 const _WORDS: Dictionary = {
@@ -77,11 +79,33 @@ const _WORDS: Dictionary = {
 	"accessory": "accessory",
 	"accessories": "accessory",
 	"acc": "accessory",
+	"quest": "quest",
+	"quests": "quest",
+	"task": "quest",
+	"tasks": "quest",
+	"toontask": "quest",
+	"toontasks": "quest",
+	"startholiday": "startholiday",
+	"starth": "startholiday",
+	"endholiday": "endholiday",
+	"endh": "endholiday",
+	"holiday": "holiday",
+	"holidays": "holiday",
+	"invasion": "invasion",
+	"spawninvasion": "invasion",
+	"deptinvasion": "deptinvasion",
+	"invasionstatus": "invasionstatus",
 }
 
-## Solo games from MinigamePlayerMatrix. Names match ToontownGlobals.MinigameNames.
+## Trolley games. Names match ToontownGlobals.MinigameNames.
 const _TROLLEY: Dictionary = {
+	"race": 1,
 	"cannon": 2,
+	"tag": 3,
+	"pattern": 4,
+	"minnie": 4,
+	"match": 4,
+	"matching": 4,
 	"ring": 5,
 	"maze": 6,
 	"tug": 7,
@@ -96,6 +120,9 @@ const _TROLLEY: Dictionary = {
 	"vine": 12,
 	"vines": 12,
 	"jungle": 12,
+	"ice": 13,
+	"iceslide": 13,
+	"slide": 13,
 	"thief": 14,
 	"cogthief": 14,
 	"2d": 15,
@@ -104,7 +131,10 @@ const _TROLLEY: Dictionary = {
 }
 
 const _TROLLEY_NAMES: Dictionary = {
+	1: "Race Game",
 	2: "Cannon Game",
+	3: "Tag Game",
+	4: "Match Minnie",
 	5: "Ring Game",
 	6: "Maze Game",
 	7: "Tug-of-War",
@@ -113,6 +143,7 @@ const _TROLLEY_NAMES: Dictionary = {
 	10: "Toon Slingshot",
 	11: "Toon Memory Game",
 	12: "Jungle Vines",
+	13: "Ice Slide",
 	14: "Cog Thief",
 	15: "Toon Escape",
 }
@@ -302,6 +333,20 @@ static func invoke(scene: Node, text: String) -> String:
 			return _districts_word(args)
 		"accessory":
 			return _accessory(scene, word, args)
+		"quest":
+			return _quest_word(scene, args)
+		"startholiday":
+			return _holiday_word(scene, args, true)
+		"endholiday":
+			return _holiday_word(scene, args, false)
+		"holiday":
+			return _holiday_toggle(scene, args)
+		"invasion":
+			return _invasion_word(args)
+		"deptinvasion":
+			return _dept_invasion_word(args)
+		"invasionstatus":
+			return _HOLIDAYS.invasion_status()
 	return "Uh-oh! This Magic Word doesn't exist!"
 
 
@@ -639,8 +684,186 @@ static func _summon_suit(scene: Node, args: PackedStringArray) -> String:
 	return String(suits.call("summon_named", query, level, body.global_position))
 
 
+static func _quest_word(scene: Node, args: PackedStringArray) -> String:
+	var tasks := ToonTasks.live()
+	if tasks == null:
+		return "No ToonTask journal here."
+	if args.is_empty():
+		return "Try ~quest finish 164, ~quest finish 1, ~quest set 164, or ~quest set 2 175."
+	var command := args[0].to_lower()
+	if command == "finish" or command == "complete" or command == "done":
+		if args.size() < 2 or not args[1].is_valid_int():
+			var finished_all := tasks.finish_active(0)
+			_refresh_tasks(scene)
+			if finished_all.is_empty():
+				return "You have no ToonTask."
+			if finished_all.size() == 1:
+				return "Finished %s. Turn it in." % finished_all[0]
+			return "Finished %d ToonTasks. Turn them in." % finished_all.size()
+		var picked := _journal_quest(tasks, int(args[1]))
+		if picked < 0:
+			return "ToonTask %d is not in your journal." % int(args[1])
+		var finished := tasks.finish_active(picked)
+		_refresh_tasks(scene)
+		if finished.is_empty():
+			return "ToonTask %d is not in your journal." % int(args[1])
+		return "Finished %s. Turn it in." % finished[0]
+	var quest_id := 0
+	var slot := 0
+	if command == "set":
+		if args.size() >= 3 and args[1].is_valid_int() and args[2].is_valid_int():
+			slot = int(args[1])
+			quest_id = int(args[2])
+		elif args.size() >= 2 and args[1].is_valid_int():
+			quest_id = int(args[1])
+		else:
+			return "Set which ToonTask? Try ~quest set 164, or ~quest set 2 175."
+	elif command.is_valid_int():
+		quest_id = int(command)
+	else:
+		return "Try ~quest finish 164, ~quest finish 1, ~quest set 164, or ~quest set 2 175."
+	var caption := tasks.set_slot(slot, quest_id) if slot > 0 else tasks.replace_with(quest_id)
+	_refresh_tasks(scene)
+	if caption == "":
+		if slot > 0:
+			return "Can't set task %d to ToonTask %d." % [slot, quest_id]
+		return "No ToonTask %d." % quest_id
+	if slot > 0:
+		return "Task %d is now %d, %s." % [slot, quest_id, caption]
+	return "Current ToonTask is %d, %s." % [quest_id, caption]
+
+
+## 164 is that quest. 1 is the first poster when you are not carrying quest 1.
+static func _journal_quest(tasks: ToonTasks, number: int) -> int:
+	var ids := tasks.active_ids()
+	if ids.has(number):
+		return number
+	if number >= 1 and number <= ids.size():
+		return ids[number - 1]
+	return -1
+
+
+static func _invasion_word(args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "You didn't enter a valid command! Commands are ~invasion start or stop."
+	var command := args[0].to_lower()
+	var amount := 1000
+	var skeleton := false
+	var names := PackedStringArray()
+	for index in range(1, args.size()):
+		var token := args[index]
+		var key := token.to_lower()
+		if key == "true" or key == "yes" or key == "skelecog" or key == "skele" or key == "skeleton":
+			skeleton = true
+		elif key == "false" or key == "no":
+			skeleton = false
+		elif token.is_valid_int():
+			amount = int(token)
+		else:
+			names.append(token)
+	if amount < 10 or amount > 25000:
+		return "Can't the invasion amount to %d! Specify a value between 10 and 25,000." % amount
+	if command == "start":
+		var query := "f" if names.is_empty() else " ".join(names)
+		var dept := "" if names.is_empty() else _HOLIDAYS.dept_named(query)
+		if dept != "" and not _exact_cog(query):
+			return _HOLIDAYS.begin_dept_invasion(dept, amount, skeleton)
+		var cog := _cog_named(query)
+		if cog.is_empty():
+			return "This cog does not exist!"
+		return _HOLIDAYS.begin_invasion(cog, amount, skeleton)
+	if command == "stop" or command == "end":
+		return _HOLIDAYS.end_invasion()
+	return "You didn't enter a valid command! Commands are ~invasion start or stop."
+
+
+static func _dept_invasion_word(args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "Use ~deptinvasion sellbot. Departments are Bossbot, Lawbot, Cashbot, and Sellbot."
+	var amount := 1000
+	var skeleton := false
+	var names := PackedStringArray()
+	for token in args:
+		var key := token.to_lower()
+		if key == "true" or key == "yes" or key == "skelecog" or key == "skele" or key == "skeleton":
+			skeleton = true
+		elif key == "false" or key == "no":
+			skeleton = false
+		elif token.is_valid_int():
+			amount = int(token)
+		else:
+			names.append(token)
+	if amount < 10 or amount > 25000:
+		return "Can't the invasion amount to %d! Specify a value between 10 and 25,000." % amount
+	var dept := _HOLIDAYS.dept_named(" ".join(names))
+	if dept == "":
+		return "That department does not exist! Departments are Bossbot, Lawbot, Cashbot, and Sellbot."
+	return _HOLIDAYS.begin_dept_invasion(dept, amount, skeleton)
+
+
+static func _exact_cog(query: String) -> bool:
+	var wanted := StreetSuits.cog_key(query)
+	if wanted.is_empty():
+		return false
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
+	if not (parsed is Dictionary):
+		return false
+	var cogs: Variant = (parsed as Dictionary).get("cogs", [])
+	if not (cogs is Array):
+		return false
+	for item in cogs:
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		if wanted == StreetSuits.cog_key(String(cog.get("code", ""))):
+			return true
+		if wanted == StreetSuits.cog_key(String(cog.get("name", ""))):
+			return true
+	return false
+
+
+static func _cog_named(query: String) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
+	if not (parsed is Dictionary):
+		return {}
+	var cogs: Variant = (parsed as Dictionary).get("cogs", [])
+	if not (cogs is Array):
+		return {}
+	return StreetSuits.match_cog(cogs, query)
+
+
+static func _holiday_word(scene: Node, args: PackedStringArray, starting: bool) -> String:
+	if args.is_empty():
+		return "Use ~holiday 7 to toggle one. ~startholiday 3 starts it, ~endholiday 3 ends it."
+	var reply := _HOLIDAYS.start_text(" ".join(args)) if starting else _HOLIDAYS.stop_text(" ".join(args))
+	_refresh_holidays(scene)
+	return reply
+
+
+static func _holiday_toggle(scene: Node, args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "Use ~holiday 7, ~holiday Fish Bingo, or ~holiday Bloodsucker."
+	var reply := String(_HOLIDAYS.toggle(" ".join(args)))
+	_refresh_holidays(scene)
+	return reply
+
+
+static func _refresh_holidays(scene: Node) -> void:
+	var page := scene.find_child("EventsPage", true, false) if scene != null else null
+	if page != null and page.has_method("refresh"):
+		page.call("refresh")
+
+
+static func _refresh_tasks(scene: Node) -> void:
+	if scene == null:
+		return
+	var book := scene.find_child("ShtickerBook", true, false)
+	if book != null and book.has_method("refresh_tasks"):
+		book.call("refresh_tasks")
+
+
 static func _trolley_choices() -> String:
-	return "Try ~mg cannon, ring, maze, tug, catch, diving, slingshot, memory, vine, thief, or escape."
+	return "Try ~mg race, cannon, tag, minnie, ring, maze, tug, catch, diving, slingshot, memory, vine, ice, thief, or escape."
 
 
 static func _unique_prefix(word: String) -> String:
