@@ -261,6 +261,7 @@ func _process(delta: float) -> void:
 		# image_scale 6 on a button about 0.147 units across, then the marker scale.
 		_place_frac(marker, rel, wave * 0.882)
 		_style_number(marker)
+		_tint_marker(marker)
 		index += 1
 
 
@@ -295,6 +296,7 @@ func _rebuild() -> void:
 		var marker := Control.new()
 		marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		marker.set_meta("rel", rel)
+		marker.set_meta("building", _marker_building(card))
 		var icon := TextureRect.new()
 		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
 		icon.offset_right = 0.0
@@ -399,6 +401,7 @@ func _layout() -> void:
 		var wave := (sin(_time * 16.0 + float(index) * PI / 3.0) + 1.0) * 0.005 + 0.04
 		_place_frac(marker, rel, wave * 0.882)
 		_style_number(marker)
+		_tint_marker(marker)
 		index += 1
 
 
@@ -449,6 +452,30 @@ func _place_box(node: Control, rel: Vector2, wide: float, tall: float) -> void:
 	var point := Vector2((rel.x + 0.5) * span.x, (0.5 - rel.y) * span.y)
 	node.size = Vector2(span.x * wide, span.y * tall)
 	node.position = point - node.size * 0.5
+
+
+func _marker_building(card: Dictionary) -> Node:
+	var ready := bool(card.get("ready", false))
+	var kind := String(card.get("kind", ""))
+	var turn_in := String(card.get("turn_in", ""))
+	var place := turn_in if ready or kind == "visit" or kind == "deliver" or kind == "track" else ""
+	if not place.is_valid_int():
+		return null
+	var zone := int(place)
+	var building := _BLDG.find_for_zone(zone)
+	if building == null:
+		building = _landmark(zone)
+	return building
+
+
+## A taken building keeps its pin, in grey, until the Toons take it back.
+func _tint_marker(marker: Control) -> void:
+	var icon := marker.get_child(0) as CanvasItem
+	if icon == null:
+		return
+	var building: Variant = marker.get_meta("building", null)
+	var taken := is_instance_valid(building) and building is Node and (building as Node).has_meta("cog_building")
+	icon.modulate = Color(0.55, 0.55, 0.55, 1) if taken else Color(1, 0, 0, 1)
 
 
 func _style_number(marker: Control) -> void:
