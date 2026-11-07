@@ -86,13 +86,19 @@ static func spend_gag(av_id: int, track: int, level: int) -> void:
 	store(av_id, row)
 
 
-static func set_exp(av_id: int, amounts: Array) -> void:
+static func set_exp(av_id: int, amounts: Array, force: bool = false) -> void:
 	var row := recall(av_id)
 	if row.is_empty():
 		return
+	var previous: Array = row.get("exp", []) if row.get("exp", []) is Array else []
 	var experience: Array = []
 	for track in ToonLoadout.TRACK_COUNT:
 		var amount := int(amounts[track]) if track < amounts.size() else 0
+		# A fight total is counted from the bank's last number. If that number
+		# is already behind the toon, writing it back would erase the point
+		# that just unlocked the next gag. The tutorial reset passes force.
+		if not force and track < previous.size():
+			amount = maxi(amount, int(previous[track]))
 		experience.append(clampi(amount, 0, 10500))
 	row["exp"] = experience
 	store(av_id, row)

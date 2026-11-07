@@ -1506,11 +1506,11 @@ static func persist_gag(av_id: int, track: int, level: int) -> void:
 	_BANK.spend_gag(av_id, track, level)
 
 
-static func persist_exp(av_id: int, amounts: Array) -> void:
+static func persist_exp(av_id: int, amounts: Array, force: bool = false) -> void:
 	var net := live()
 	if net == null or not net.is_authority():
 		return
-	_BANK.set_exp(av_id, amounts)
+	_BANK.set_exp(av_id, amounts, force)
 
 
 static func finish_reward(fight_id: int) -> void:
@@ -2159,14 +2159,14 @@ func _clear_state(channel: String) -> void:
 
 ## The toontorial writes the book and SpeedChat into the journal after the
 ## first claim. A stored row from that first claim must not win over them.
-func _journal_ahead(incoming: Dictionary, kept: Dictionary) -> bool:
-	if bool(incoming.get("has_book", false)) and not bool(kept.get("has_book", false)):
+func _journal_behind(incoming: Dictionary, kept: Dictionary) -> bool:
+	if bool(kept.get("has_book", false)) and not bool(incoming.get("has_book", false)):
 		return true
-	if bool(incoming.get("met_flippy", false)) and not bool(kept.get("met_flippy", false)):
+	if bool(kept.get("met_flippy", false)) and not bool(incoming.get("met_flippy", false)):
 		return true
 	var incoming_done: Array = incoming.get("done", [])
 	var kept_done: Array = kept.get("done", [])
-	return incoming_done.size() > kept_done.size()
+	return kept_done.size() > incoming_done.size()
 
 
 func _accept_claim(peer: int, av_id: int, record: Dictionary) -> void:
@@ -2174,11 +2174,17 @@ func _accept_claim(peer: int, av_id: int, record: Dictionary) -> void:
 		return
 	_avatars[peer] = av_id
 	var kept := _BANK.recall(av_id)
+	record = _BANK.merge_exp(av_id, record)
 	# The first claim, at the start of the toontorial, stores a journal from
 	# before Harry and Flippy. A later claim has to keep the copy that actually
 	# has the book and SpeedChat, not replay that empty row over the file.
-	if kept.is_empty() or _journal_ahead(record, kept):
+	# Once the journals match, this visit's gags and experience are the newer
+	# copy. Leaving them out put the old experience back on the next playground.
+	if kept.is_empty() or not _journal_behind(record, kept):
 		_BANK.store(av_id, record)
+		kept = _BANK.recall(av_id)
+	else:
+		_BANK.set_exp(av_id, record.get("exp", []))
 		kept = _BANK.recall(av_id)
 	var local := false
 	if multiplayer.multiplayer_peer == null:

@@ -230,7 +230,7 @@ func resume_tutorial() -> void:
 	save()
 	ToonNet.silence_keep(false)
 	var avatar := ToonRoster.avatar_id()
-	ToonNet.persist_exp(avatar, track_experience())
+	ToonNet.persist_exp(avatar, track_experience(), true)
 	ToonNet.persist_laff(avatar, hp, max_hp)
 
 

@@ -37,6 +37,59 @@ const _SKIP_SIZE := Vector2(0.2666 * 0.39, 0.2666 * 0.39)
 const _CREAM := Color(1.0, 1.0, 0.75, 1.0)
 const _INK := Color(0.0, 0.0, 0.0, 1.0)
 const _DONE := Color(0.0, 0.3, 0.0, 1.0)
+const _CHEERS: PackedStringArray = ["Yeah!", "Congratulations!", "Wow!", "Cool!", "Awesome!", "Toon-tastic!"]
+# Inventory button art, track by track, the same order as the gag book.
+const _GAG_ICONS: PackedStringArray = [
+	"res://assets/gui/tutorial/gags/inventory_feather.png",
+	"res://assets/gui/tutorial/gags/inventory_megaphone.png",
+	"res://assets/gui/tutorial/gags/inventory_lipstick.png",
+	"res://assets/gui/tutorial/gags/inventory_bamboo_cane.png",
+	"res://assets/gui/tutorial/gags/inventory_pixiedust.png",
+	"res://assets/gui/tutorial/gags/inventory_juggling_cubes.png",
+	"res://assets/gui/tutorial/gags/inventory_ladder.png",
+	"res://assets/gui/tutorial/gags/inventory_bannana_peel.png",
+	"res://assets/gui/tutorial/gags/inventory_rake.png",
+	"res://assets/gui/tutorial/gags/inventory_marbles.png",
+	"res://assets/gui/tutorial/gags/inventory_quicksand_icon.png",
+	"res://assets/gui/tutorial/gags/inventory_trapdoor.png",
+	"res://assets/gui/tutorial/gags/inventory_tnt.png",
+	"res://assets/gui/tutorial/gags/inventory_traintracks.png",
+	"res://assets/gui/tutorial/gags/inventory_1dollarbill.png",
+	"res://assets/gui/tutorial/gags/inventory_small_magnet.png",
+	"res://assets/gui/tutorial/gags/inventory_5dollarbill.png",
+	"res://assets/gui/tutorial/gags/inventory_big_magnet.png",
+	"res://assets/gui/tutorial/gags/inventory_10dollarbill.png",
+	"res://assets/gui/tutorial/gags/inventory_hypno_goggles.png",
+	"res://assets/gui/tutorial/gags/inventory_screen.png",
+	"res://assets/gui/tutorial/gags/inventory_bikehorn.png",
+	"res://assets/gui/tutorial/gags/inventory_whistle.png",
+	"res://assets/gui/tutorial/gags/inventory_bugle.png",
+	"res://assets/gui/tutorial/gags/inventory_aoogah.png",
+	"res://assets/gui/tutorial/gags/inventory_elephant.png",
+	"res://assets/gui/tutorial/gags/inventory_fog_horn.png",
+	"res://assets/gui/tutorial/gags/inventory_opera_singer.png",
+	"res://assets/gui/tutorial/gags/inventory_tart.png",
+	"res://assets/gui/tutorial/gags/inventory_fruit_pie_slice.png",
+	"res://assets/gui/tutorial/gags/inventory_cream_pie_slice.png",
+	"res://assets/gui/tutorial/gags/inventory_fruitpie.png",
+	"res://assets/gui/tutorial/gags/inventory_creampie.png",
+	"res://assets/gui/tutorial/gags/inventory_cake.png",
+	"res://assets/gui/tutorial/gags/inventory_wedding.png",
+	"res://assets/gui/tutorial/gags/inventory_squirt_flower.png",
+	"res://assets/gui/tutorial/gags/inventory_glass_of_water.png",
+	"res://assets/gui/tutorial/gags/inventory_water_gun.png",
+	"res://assets/gui/tutorial/gags/inventory_seltzer_bottle.png",
+	"res://assets/gui/tutorial/gags/inventory_firehose.png",
+	"res://assets/gui/tutorial/gags/inventory_storm_cloud.png",
+	"res://assets/gui/tutorial/gags/inventory_geyser.png",
+	"res://assets/gui/tutorial/gags/inventory_flower_pot.png",
+	"res://assets/gui/tutorial/gags/inventory_sandbag.png",
+	"res://assets/gui/tutorial/gags/inventory_anvil.png",
+	"res://assets/gui/tutorial/gags/inventory_weight.png",
+	"res://assets/gui/tutorial/gags/inventory_safe_box.png",
+	"res://assets/gui/tutorial/gags/inventory_piano.png",
+	"res://assets/gui/tutorial/gags/inventory_ship.png",
+]
 
 var _loadout: ToonLoadout
 var _before: Dictionary = {}
@@ -58,6 +111,12 @@ var _ack: TextureRect
 var _ack_text: Label
 var _ok: TextureButton
 var _ok_caption: Label
+var _toon_name := ""
+var _settled: Dictionary = {}
+var _new_title: Label
+var _new_icon: TextureRect
+var _new_left: Label
+var _new_right: Label
 
 
 func stop() -> void:
@@ -79,6 +138,8 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 	_loadout = loadout
 	_before = before
 	_earned = earned
+	_toon_name = toon_name
+	_settled = {}
 	_skip = false
 	_name.text = toon_name
 	_skip_button.disabled = no_skip
@@ -90,17 +151,29 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 		if int(_earned.get(track, 0)) <= 0:
 			continue
 		showed = true
-		await _tick(track)
+		if not _skip:
+			await _tick(track)
+		_settled[track] = true
+		var start := int(_before.get(track, 0))
+		var amount := int(_earned.get(track, 0))
+		var gained: Array[int] = _new_levels(track, start, start + amount)
+		for level in gained:
+			_give_gag(track, level)
+			if _skip:
+				continue
+			await _present_new_gag(track, level)
 		if _skip:
 			break
-		var amount := int(_earned[track])
-		var points := "point" if amount == 1 else "points"
-		var goal := loadout.goal_for(track, int(_before.get(track, 0)) + amount)
-		await _acknowledge("You received %d %s %s! When you get %d, you will get a new gag!" % [
-			amount, ToonLoadout.TRACK_NAMES[track], points, goal,
-		])
+		if gained.is_empty():
+			var points := "point" if amount == 1 else "points"
+			var goal := loadout.goal_for(track, start + amount)
+			await _acknowledge("You received %d %s %s! When you get %d, you will get a new gag!" % [
+				amount, ToonLoadout.TRACK_NAMES[track], points, goal,
+			])
 		if _skip:
 			break
+	if _skip:
+		_grant_remaining()
 	if not showed and not _skip:
 		await _wait(2.5)
 	if not _skip and not quest_line.is_empty():
@@ -128,6 +201,156 @@ func _tick(track: int) -> void:
 	_paint(track, start + amount, false)
 
 
+## Experience.getNewGagIndexList, then RewardPanel.getNewGagIntervalList.
+## A point this reward crossed, and any point this toon already reached
+## without being given the gag. Another toon's card only shows a fresh cross.
+func _new_levels(track: int, before: int, after: int) -> Array[int]:
+	var found: Array[int] = []
+	if _loadout == null:
+		return found
+	var pockets: Array = _loadout.pocket_unlocked()
+	var missed_ok := not pockets.is_empty() and _owns_a_gag(pockets)
+	for level in ToonLoadout.LEVEL_COUNT:
+		var point := ToonLoadout.skill_at(track, level)
+		if point <= 0:
+			continue
+		var crossed := before < point and after >= point
+		var owned := false
+		if track < pockets.size() and pockets[track] is Array and level < (pockets[track] as Array).size():
+			owned = bool((pockets[track] as Array)[level])
+		var missed := missed_ok and not owned and after >= point
+		if crossed or missed:
+			found.append(level)
+	return found
+
+
+func _owns_a_gag(pockets: Array) -> bool:
+	for row in pockets:
+		if not (row is Array):
+			continue
+		for owned in row:
+			if bool(owned):
+				return true
+	return false
+
+
+## InventoryBase.addItem. One of the gag, when the pocket and the pouch allow.
+## A full pouch still marks the gag unlocked, and the card still plays.
+func _give_gag(track: int, level: int) -> void:
+	if _loadout == null or _loadout.pocket_unlocked().is_empty():
+		return
+	if _loadout.unlocked(track, level):
+		return
+	var count := _loadout.count_of(track, level)
+	var pocket := count < _loadout.carry_limit(track, level)
+	var pouch := level > ToonLoadout.LAST_REGULAR or _loadout.gag_count() < _loadout.max_carry
+	if pocket and pouch:
+		count += 1
+	_loadout.set_gag(track, level, count, true)
+	_loadout.save()
+
+
+func _grant_remaining() -> void:
+	if _loadout == null:
+		return
+	for track in ToonLoadout.TRACK_COUNT:
+		var amount := int(_earned.get(track, 0))
+		if amount <= 0:
+			continue
+		var start := int(_before.get(track, 0))
+		for level in _new_levels(track, start, start + amount):
+			_give_gag(track, level)
+
+
+func _present_new_gag(track: int, level: int) -> void:
+	_hide_track_bars()
+	_new_title.text = "New %s gag for %s!" % [ToonLoadout.TRACK_NAMES[track], _toon_name]
+	_new_title.visible = true
+	var icon := _gag_texture(track, level)
+	_new_icon.texture = icon
+	_new_icon.visible = icon != null
+	_new_left.text = ""
+	_new_right.text = ""
+	_new_left.visible = true
+	_new_right.visible = true
+	_layout()
+	var cheers := _cheer_pair()
+	await _wait(1.0)
+	if _skip:
+		_hide_new_gag()
+		return
+	_new_left.text = cheers[0]
+	await _wait(1.0)
+	if _skip:
+		_hide_new_gag()
+		return
+	_new_right.text = cheers[1]
+	await _wait(1.5)
+	_hide_new_gag()
+	_restore_bars()
+
+
+func _cheer_pair() -> PackedStringArray:
+	var first := randi() % _CHEERS.size()
+	var second := randi() % (_CHEERS.size() - 1)
+	if second >= first:
+		second += 1
+	return PackedStringArray([_CHEERS[first], _CHEERS[second]])
+
+
+func _gag_texture(track: int, level: int) -> Texture2D:
+	var index := track * ToonLoadout.LEVEL_COUNT + level
+	if index < 0 or index >= _GAG_ICONS.size():
+		return null
+	var picture = load(_GAG_ICONS[index])
+	return picture as Texture2D
+
+
+func _hide_new_gag() -> void:
+	if _new_title == null:
+		return
+	_new_title.visible = false
+	_new_icon.visible = false
+	_new_left.visible = false
+	_new_right.visible = false
+
+
+func _hide_track_bars() -> void:
+	_quest_title.visible = false
+	_quest_line.visible = false
+	for track in ToonLoadout.TRACK_COUNT:
+		_frames[track].visible = false
+		_fills[track].visible = false
+		_amounts[track].visible = false
+		_tracks[track].visible = false
+		_plus[track].visible = false
+
+
+func _restore_bars() -> void:
+	_hide_new_gag()
+	if _loadout == null:
+		return
+	for track in ToonLoadout.TRACK_COUNT:
+		var open := _loadout.track_open(track)
+		_frames[track].visible = open
+		_fills[track].visible = open
+		_amounts[track].visible = open
+		_tracks[track].visible = open
+		var filled := bool(_settled.get(track, false)) and int(_earned.get(track, 0)) > 0
+		_plus[track].visible = open and filled
+		if open:
+			_paint(track, _bar_value(track), false)
+
+
+func _bar_value(track: int) -> int:
+	var start := int(_before.get(track, 0))
+	if bool(_settled.get(track, false)):
+		return start + int(_earned.get(track, 0))
+	if _loadout != null:
+		return int(_before.get(track, _loadout.experience_of(track)))
+	return start
+
+
 func _acknowledge(text: String) -> void:
 	_ack_done = false
 	_ack_text.text = text
@@ -153,6 +376,7 @@ func _wait(seconds: float) -> void:
 
 
 func _show_bars() -> void:
+	_hide_new_gag()
 	_quest_title.visible = false
 	_quest_line.visible = false
 	_quest_line.bbcode_enabled = false
@@ -362,6 +586,19 @@ func _build() -> void:
 	_ok_caption.text = "OK"
 	_ok_caption.z_index = 3
 	_ok_caption.visible = false
+	_new_title = _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
+	_new_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_new_title.visible = false
+	_new_icon = TextureRect.new()
+	_new_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_new_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_new_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_new_icon.visible = false
+	add_child(_new_icon)
+	_new_left = _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
+	_new_left.visible = false
+	_new_right = _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
+	_new_right.visible = false
 
 
 func _picture(texture: Texture2D) -> TextureRect:
@@ -416,6 +653,14 @@ func _layout() -> void:
 	_ack_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_put(_ok, ack_at + Vector2(0.0, -0.16), Vector2(0.1, 0.1))
 	_style(_ok_caption, ack_at.x, ack_at.y - 0.24, 0.3, 0.05, HORIZONTAL_ALIGNMENT_CENTER)
+	# newGagFrame sits on the panel. The caption is under the icon, and the
+	# two cheers land on either side of it.
+	if _new_title != null:
+		_style(_new_title, 0.0, 0.34, 1.4, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
+		_new_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_put(_new_icon, Vector2(0.0, 0.58), Vector2(0.36, 0.36))
+		_style(_new_left, -0.42, 0.66, 0.55, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
+		_style(_new_right, 0.42, 0.66, 0.55, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _shown(track: int) -> int:
