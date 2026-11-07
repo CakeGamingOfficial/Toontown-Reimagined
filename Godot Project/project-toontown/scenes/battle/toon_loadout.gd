@@ -18,6 +18,14 @@ const CARRY := 20
 const MAX_CARRY := 80
 const SKILL_CREDIT := 1
 
+
+## InventoryNew.setDetailCredit. level + 1 is one use, times the fight's credit.
+static func experience_line(level: int, mult: float) -> String:
+	var shown := snappedf(float(level + 1) * mult, 0.1)
+	if is_equal_approx(shown, roundf(shown)):
+		return "Experience: %d" % int(roundf(shown))
+	return "Experience: %.1f" % shown
+
 # ToontownBattleGlobals AvPropDamage, level by level, and AvPropAccuracy.
 const _DAMAGE_MIN: Array = [
 	[8, 15, 25, 40, 60, 90, 210],

@@ -165,8 +165,18 @@ def load_shops():
 
 def subst_quest(body):
     reps = [
+        ("DD_TIER + 2", "6"),
+        ("DD_TIER + 1", "5"),
+        ("DD_TIER", "4"),
         ("TT_TIER + 3", "3"),
         ("TT_TIER + 2", "2"),
+        ("ToontownBattleGlobals.DROP_TRACK", "6"),
+        ("ToontownBattleGlobals.SQUIRT_TRACK", "5"),
+        ("ToontownBattleGlobals.THROW_TRACK", "4"),
+        ("ToontownBattleGlobals.SOUND_TRACK", "3"),
+        ("ToontownBattleGlobals.LURE_TRACK", "2"),
+        ("ToontownBattleGlobals.TRAP_TRACK", "1"),
+        ("ToontownBattleGlobals.HEAL_TRACK", "0"),
         ("ToontownGlobals.ToontownCentral", "2000"),
         ("ToontownGlobals.DonaldsDock", "1000"),
         ("ToontownGlobals.DaisyGardens", "5000"),
@@ -192,12 +202,16 @@ def subst_quest(body):
         ("CogLevelQuest", "'CogLevelQuest'"),
         ("CogTrackQuest", "'CogTrackQuest'"),
         ("RecoverItemQuest", "'RecoverItemQuest'"),
+        ("DeliverGagQuest", "'DeliverGagQuest'"),
         ("DeliverItemQuest", "'DeliverItemQuest'"),
+        ("BuildingNewbieQuest", "'BuildingNewbieQuest'"),
         ("BuildingQuest", "'BuildingQuest'"),
+        ("TrackChoiceQuest", "'TrackChoiceQuest'"),
         ("VisitQuest", "'VisitQuest'"),
         ("CogQuest", "'CogQuest'"),
     ]
     body = re.sub(r"TTLocalizer\.QuestDialogDict\[(\d+)\]", r"\1", body)
+    body = re.sub(r"TTLocalizer\.QuestDialog_(\d+)", r"\1", body)
     for old, new in reps:
         body = re.sub(r"\b%s\b" % re.escape(old), new, body)
     body = re.sub(r"\bTT_TIER\b", "0", body)
@@ -215,9 +229,9 @@ def parse_quests(text):
         replaced = subst_quest(body)
         try:
             quests[qid] = ast.literal_eval(replaced)
-        except Exception:
-            if "TT_TIER + 2" in body or "TT_TIER + 3" in body:
-                print("skip", qid)
+        except Exception as exc:
+            if "DD_TIER" in body or "TT_TIER + 2" in body or "TT_TIER + 3" in body:
+                print("skip", qid, exc)
     return quests
 
 
@@ -377,6 +391,78 @@ def quest_info(qid, kind_name, desc, ns, suits, items, loc_where, loc_phrase, np
             "loc": (" " + loc_phrase(loc)) if loc_phrase(loc) else "",
         }
         return info
+    if kind_name == "BuildingNewbieQuest":
+        kind_name = "BuildingQuest"
+    if kind_name == "BuildingQuest":
+        loc = args[0]
+        num = int(args[1])
+        track = args[2]
+        floors = int(args[3])
+        floor_words = ["", "two+", "three+", "four+", "five+"]
+        dept_names = {"c": "Bossbot", "l": "Lawbot", "m": "Cashbot", "s": "Sellbot"}
+        info["kind"] = "building"
+        info["headline"] = ns.get("QuestsBuildingQuestHeadline", "DEFEAT")
+        info["goal"] = num
+        info["floors"] = floors
+        info["hood"] = int(loc) if loc in HOODS else 0
+        info["zone"] = int(loc) if loc not in HOODS and loc != ANYWHERE else 0
+        info["where"] = loc_where(loc)
+        if track in (ANY, "1", 1):
+            info["track"] = "any"
+            type_name = "Cog"
+        else:
+            info["track"] = str(track)
+            type_name = dept_names.get(str(track), "Cog")
+        floor_word = floor_words[floors - 1] if 1 <= floors <= len(floor_words) else ""
+        if num == 1:
+            shown = "a %s Building" % type_name
+            if floor_word:
+                shown = "a %s story %s Building" % (floor_word, type_name)
+        elif floor_word:
+            shown = "%d %s story %s Buildings" % (num, floor_word, type_name)
+        else:
+            shown = "%d %s Buildings" % (num, type_name)
+        info["caption"] = cap_first(shown)
+        loc_bit = (" " + loc_phrase(loc)) if loc_phrase(loc) else ""
+        info["speech"] = "I need to defeat %s%s." % (shown, loc_bit)
+        return info
+    if kind_name == "DeliverGagQuest":
+        num = int(args[0])
+        track = int(args[1])
+        level = int(args[2])
+        names = ns.get("BattleGlobalAvPropStringsSingular", ())
+        plural = ns.get("BattleGlobalAvPropStringsPlural", ())
+        single = "a gag"
+        many = "gags"
+        if track < len(names) and level < len(names[track]):
+            single = names[track][level]
+        if track < len(plural) and level < len(plural[track]):
+            many = plural[track][level]
+        shown = single if num == 1 else "%d %s" % (num, many)
+        info["kind"] = "gag"
+        info["headline"] = ns.get("QuestsDeliverGagQuestHeadline", "DELIVER")
+        info["caption"] = cap_first(shown)
+        info["goal"] = num
+        info["gag_track"] = track
+        info["gag_level"] = level
+        info["cog"] = ""
+        info["speech"] = "I need to deliver %s." % shown
+        return info
+    if kind_name == "TrackChoiceQuest":
+        left = int(args[0])
+        right = int(args[1])
+        names = ["Toon-up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"]
+        info["kind"] = "track"
+        info["headline"] = "TRAINING"
+        info["goal"] = 1
+        info["cog"] = ""
+        info["show_count"] = False
+        info["tracks"] = [left, right]
+        info["caption"] = "%s or %s" % (names[left], names[right])
+        info["where"] = "Toon Headquarters"
+        info["speech"] = "I need to choose between %s and %s." % (names[left], names[right])
+        info["choice"] = ["Are you ready to choose?"]
+        return info
     if kind_name == "VisitQuest":
         info["kind"] = "visit"
         info["headline"] = ns.get("QuestsVisitQuestHeadline", "VISIT")
@@ -402,7 +488,7 @@ def quest_info(qid, kind_name, desc, ns, suits, items, loc_where, loc_phrase, np
     return None
 
 
-def main():
+def main(tiers=(2, 3), out_path=OUT):
     ns = load_localizer()
     suits = load_suits(ns)
     npc_zones = load_npc_zones()
@@ -418,9 +504,9 @@ def main():
     wanted = {}
     for qid, row in quests.items():
         tier = row[0]
-        if tier in (2, 3) and row[5] != "OBSOLETE" and row[1] != "OBSOLETE":
+        if tier in tiers and row[5] != "OBSOLETE" and row[1] != "OBSOLETE":
             wanted[qid] = row
-    print("ttc quests", len(wanted))
+    print("quests", len(wanted), "tiers", tiers)
 
     def npc_info(npc_id):
         if npc_id in shops:
@@ -486,6 +572,7 @@ def main():
         if info is None:
             skipped[kind_name] = skipped.get(kind_name, 0) + 1
             continue
+        info["tier"] = int(_tier)
         info["start"] = bool(start == 1)
         if src == SAME:
             info["from"] = -1
@@ -523,7 +610,11 @@ def main():
                 info["caption"] = dest_name
                 info["where"] = dest_where
                 info["speech"] = "I need to see %s." % dest_name
+            elif info["kind"] == "gag":
+                info["where"] = dest_where
         dialog = dialogs.get(dialog_id) if dialog_id else None
+        if not isinstance(dialog, dict) and dialog_id:
+            dialog = ns.get("QuestDialog_%s" % dialog_id)
         lines = []
         busy = []
         after = []
@@ -543,7 +634,7 @@ def main():
         info["lines"] = lines
         info["busy"] = busy
         info["after"] = after
-        info["show_count"] = int(info.get("goal", 1)) > 1 and info["kind"] in ("cog", "recover")
+        info["show_count"] = int(info.get("goal", 1)) > 1 and info["kind"] in ("cog", "recover", "gag")
         out_quests[str(qid)] = info
         if info["start"] and info["final"] not in (0,):
             key = "any" if info["final"] == "any" else str(info["final"])
@@ -553,11 +644,16 @@ def main():
     print("rewards", {key: len(ids) for key, ids in sorted(by_reward.items(), key=lambda item: str(item[0]))})
     payload = {"quests": out_quests, "npcs": npc_out, "by_reward": by_reward}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w", encoding="utf-8", newline="\n") as handle:
+    with open(out_path, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, indent=1, ensure_ascii=True)
         handle.write("\n")
-    print("wrote", OUT)
+    print("wrote", out_path)
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "dd":
+        dock = os.path.join(os.path.dirname(__file__), "..", "scenes", "quests", "dd_quests.json")
+        main((4, 5, 6), dock)
+    else:
+        main()

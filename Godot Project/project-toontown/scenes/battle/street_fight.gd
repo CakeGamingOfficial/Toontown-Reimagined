@@ -16,6 +16,7 @@ const _WIN := "res://assets/audio/sfx/ENC_Win.mp3"
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 ## Toon.getDiedInterval: lose, ENC_Lose at 2s, then a 1.5s shrink starting at 5.333.
 const _LOSE_SHRINK := 5.333
 const _LOSE_END := 6.833
@@ -349,10 +350,9 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 		return
 	_asking = true
 	_ask_seq = seq
-	var credit := 1.0
-	if int(fight.get("building", 0)) != 0:
-		credit = 1.0 + float(fight.get("floor", 0)) * 0.5
-	_menu.setup(loadout, false, int(fight.get("building", 0)) != 0, credit)
+	var building := int(fight.get("building", 0)) != 0
+	var credit := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
+	_menu.setup(loadout, false, building, credit)
 	_ask(fight, seq, loadout)
 
 
@@ -631,11 +631,11 @@ func _show_number(beat: Dictionary) -> void:
 	var host: Node3D = null
 	if kind == "cog" or heal:
 		var shown: Variant = _actor_for(int(beat.get("toon_id", beat.get("toon", 0))))
-		if shown is Node3D:
+		if is_instance_valid(shown) and shown is Node3D:
 			host = shown
 	else:
-		var cog := _cog_node(int(beat.get("cog", 0)))
-		if cog is Node3D:
+		var cog: Variant = _cog_node(int(beat.get("cog", 0)))
+		if is_instance_valid(cog) and cog is Node3D:
 			host = cog
 	if host == null:
 		return
@@ -653,8 +653,9 @@ func _show_number(beat: Dictionary) -> void:
 		return
 	if host.has_meta("hp_text"):
 		var previous: Variant = host.get_meta("hp_text")
-		if previous is Node and is_instance_valid(previous):
+		if is_instance_valid(previous) and previous is Node:
 			(previous as Node).queue_free()
+		host.remove_meta("hp_text")
 	var height := _body_height(host)
 	var label := Label3D.new()
 	label.text = text
@@ -676,7 +677,14 @@ func _show_number(beat: Dictionary) -> void:
 	tween.tween_property(label, "position:y", height + 1.5, 1.0)
 	tween.tween_interval(0.85)
 	tween.tween_property(label, "modulate:a", 0.0, 0.1)
-	tween.tween_callback(label.queue_free)
+	tween.tween_callback(_drop_number.bind(host, label))
+
+
+func _drop_number(host: Node, label: Node) -> void:
+	if is_instance_valid(host) and is_instance_valid(label) and host.get_meta("hp_text", null) == label:
+		host.remove_meta("hp_text")
+	if is_instance_valid(label):
+		label.queue_free()
 
 
 func _body_height(host: Node3D) -> float:

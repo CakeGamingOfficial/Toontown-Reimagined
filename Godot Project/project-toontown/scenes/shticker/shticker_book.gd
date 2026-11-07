@@ -22,6 +22,7 @@ const PAGE_DISGUISE := 8
 const PAGE_EVENTS := 9
 const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Cog Disguise", "Events"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 const _BOOK := preload("res://assets/gui/tutorial/book/big_book.png")
 const _CLOSED := preload("res://assets/gui/tutorial/book/BookIcon_CLSD.png")
@@ -489,6 +490,7 @@ func _build_map() -> Control:
 		hit.mouse_filter = MOUSE_FILTER_STOP
 		hit.mouse_entered.connect(_hover_hood.bind(index, true))
 		hit.mouse_exited.connect(_hover_hood.bind(index, false))
+		hit.gui_input.connect(_click_hood.bind(index))
 		_map_picture.add_child(hit)
 		_hood_hits.append(hit)
 		var label := Label.new()
@@ -589,9 +591,15 @@ func _build_gags() -> Control:
 	_detail.name = "Detail"
 	_totals = _cream_label()
 	_totals.name = "Totals"
-	sheet.add_child(_panel_behind(_detail))
+	# The plate cannot share the label's name. Godot renames the second sibling,
+	# and the layout then never finds the plate, so the hotkey text floats.
+	var detail_plate := _dialog_plate()
+	detail_plate.name = "DetailPlate"
+	var totals_plate := _dialog_plate()
+	totals_plate.name = "TotalsPlate"
+	sheet.add_child(detail_plate)
 	sheet.add_child(_detail)
-	sheet.add_child(_panel_behind(_totals))
+	sheet.add_child(totals_plate)
 	sheet.add_child(_totals)
 	var jar := TextureRect.new()
 	jar.texture = _JAR
@@ -672,15 +680,17 @@ func _cream_label() -> Label:
 	return label
 
 
-func _panel_behind(label: Label) -> Panel:
+## InventoryPage.trackInfo and gagFrame. Both sit on the default dialog.
+func _dialog_plate() -> Panel:
 	var panel := Panel.new()
 	panel.mouse_filter = MOUSE_FILTER_IGNORE
-	panel.name = label.name
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(1.0, 0.98, 0.82)
-	box.border_color = Color(0.45, 0.32, 0.12)
-	box.set_border_width_all(3)
-	box.set_corner_radius_all(6)
+	var box := StyleBoxTexture.new()
+	box.texture = _DIALOG
+	box.modulate_color = Color(1.0, 1.0, 0.75, 1.0)
+	box.texture_margin_left = 16
+	box.texture_margin_top = 16
+	box.texture_margin_right = 16
+	box.texture_margin_bottom = 16
 	panel.add_theme_stylebox_override("panel", box)
 	return panel
 
@@ -963,11 +973,13 @@ func _on_gag(track: int, level: int) -> void:
 		return
 	var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
 	var accuracy := ToonLoadout.accuracy_label(track, level)
-	_detail.text = "%s\n\nDamage: %d\nAccuracy: %s\n%s" % [
+	var credit := _HOLIDAYS.gag_credit(ToonNet.district_id(), false, 0)
+	_detail.text = "%s\n\nDamage: %d\nAccuracy: %s\n%s\n%s" % [
 		_loadout.gag_name(track, level),
 		damage,
 		accuracy,
 		ToonLoadout.affects_label(track),
+		ToonLoadout.experience_line(level, credit),
 	]
 
 
@@ -1451,8 +1463,8 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 			ToonGui.style_label(count, Color.WHITE, count_px, Color(0.05, 0.12, 0.28), 2)
 	var footer_y := first_center + float(ToonLoadout.TRACK_COUNT - 1) * pitch + row_h * 0.5 + 4.0
 	var box := Vector2(page_size.x * 0.24, maxf(page_size.y - footer_y - 4.0, row_h))
-	_place_cream(sheet, _detail, Vector2(page_size.x * 0.02, footer_y), box, body_px)
-	_place_cream(sheet, _totals, Vector2(page_size.x * 0.27, footer_y), box, body_px)
+	_place_cream(sheet, _detail, "DetailPlate", Vector2(page_size.x * 0.02, footer_y), box, body_px)
+	_place_cream(sheet, _totals, "TotalsPlate", Vector2(page_size.x * 0.27, footer_y), box, body_px)
 	var can := minf(box.y * 0.92, page_size.x * 0.14)
 	_trash.position = Vector2(page_size.x * 0.53, footer_y + (box.y - can) * 0.5)
 	_trash.size = Vector2(can, can)
@@ -1491,14 +1503,16 @@ func _layout_tasks(page_size: Vector2) -> void:
 		index += 1
 
 
-func _place_cream(sheet: Control, label: Label, at: Vector2, box: Vector2, body_px: int) -> void:
-	label.position = at
-	label.size = box
-	ToonGui.style_label(label, Color(0.08, 0.12, 0.28), maxi(body_px - 1, 12), Color(0, 0, 0, 0), 0)
-	for child in sheet.get_children():
-		if child is Panel and child.name == label.name:
-			child.position = at
-			child.size = box
+func _place_cream(sheet: Control, label: Label, plate_name: String, at: Vector2, box: Vector2, body_px: int) -> void:
+	# dialog_box.png keeps its corners in a 16px margin, so the words sit inside that.
+	var pad := Vector2(box.x * 0.1, box.y * 0.16)
+	label.position = at + pad
+	label.size = Vector2(maxf(box.x - pad.x * 2.0, 1.0), maxf(box.y - pad.y * 2.0, 1.0))
+	ToonGui.style_label(label, Color(0.05, 0.14, 0.4), maxi(body_px - 1, 12), Color(0, 0, 0, 0), 0)
+	var plate := sheet.get_node_or_null(plate_name) as Control
+	if plate != null:
+		plate.position = at
+		plate.size = box
 
 
 ## A point in the book's own coordinates, in this page's pixels.
@@ -1596,12 +1610,29 @@ func _play(player: AudioStreamPlayer) -> void:
 		player.play()
 
 
+func _click_hood(index: int, event: InputEvent) -> void:
+	if _guided or _tasks == null or index < 0 or index >= _HOODS.size():
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse == null or not mouse.pressed or mouse.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var hood := _HOODS[index]
+	if not _tasks.has_teleport(hood):
+		return
+	get_viewport().set_input_as_handled()
+	_travel(hood)
+
+
 func _hover_hood(index: int, inside: bool) -> void:
 	var label := _hood_labels[index]
 	label.visible = inside
-	if inside:
-		var seen := int(label.get_meta("seen", 0)) == 1
-		label.add_theme_color_override("font_color", Color(0, 0, 0, 1 if seen else 0.65))
+	if not inside:
+		return
+	var hood := _HOODS[index]
+	var seen := int(label.get_meta("seen", 0)) == 1
+	var going := _tasks != null and _tasks.has_teleport(hood)
+	label.text = "Go To\n%s" % _HOOD_NAMES[index] if going else _HOOD_NAMES[index]
+	label.add_theme_color_override("font_color", Color(0, 0, 0, 1 if seen else 0.65))
 	var cloud := _hood_clouds[index]
 	if cloud.visible:
 		cloud.modulate = Color(1, 1, 1, 0.25 if inside else 1.0)

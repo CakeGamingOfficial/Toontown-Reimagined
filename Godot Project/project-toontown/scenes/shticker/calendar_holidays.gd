@@ -264,6 +264,15 @@ static func invasion_scale(district: int) -> int:
 	return 2
 
 
+## Floor credit, then an invasion, then Double Gag Experience. Each one multiplies.
+static func gag_credit(district: int, building: bool, floor: int) -> float:
+	var mult := 1.0
+	if building:
+		mult = 1.0 + float(floor) * 0.5
+	mult *= float(invasion_scale(district))
+	return mult * float(exp_scale())
+
+
 ## ToontownBattleGlobals.getMoreXpHolidayMultiplier. This multiplies whatever
 ## credit the fight already has, including a building floor and an invasion.
 static func exp_scale() -> int:

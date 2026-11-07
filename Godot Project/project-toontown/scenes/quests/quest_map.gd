@@ -501,7 +501,7 @@ func _landmark(interior_zone: int) -> Node3D:
 		suffix = "library_DNARoot"
 	elif interior_zone == 2516:
 		suffix = "school_house_DNARoot"
-	elif interior_zone == 2521:
+	elif interior_zone == 1508 or interior_zone == 2521 or interior_zone == 3509 or interior_zone == 4506 or interior_zone == 5503 or interior_zone == 9506:
 		suffix = "clothes_shop_DNARoot"
 	else:
 		return null

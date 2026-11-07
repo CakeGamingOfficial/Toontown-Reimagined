@@ -117,8 +117,7 @@ static func prepare(host: Node) -> void:
 
 
 ## Playground landmarks that use a normal toon interior: the school house
-## (Professor Pete, zone 2516), Tammy's clothing shop (zone 2521), and
-## Longjohn Leroy's clothing shop on Donald's Dock (zone 1508).
+## (Professor Pete, zone 2516) and each playground's clothing shop.
 ## The neighborhood export left each door slab at the building origin, so the
 ## swinging panels take the door-origin point from the landmark bam.
 static func prepare_landmarks(host: Node) -> void:
@@ -128,12 +127,27 @@ static func prepare_landmarks(host: Node) -> void:
 	var clothes := _find_suffix(host, "clothes_shop_DNARoot")
 	if clothes == null:
 		return
-	# clothshopDD.bam and clothshopTT.bam share this door_origin.
+	# Every clothshop*.bam shares this door_origin.
 	var pivot := Vector3(-4.672, -0.77, 3.827)
-	if "_DD_" in str(clothes.name):
-		_place_landmark(clothes, 1508, "door_double_clothesshop_ur", pivot, Color(0.91, 0.34, 0.34, 1.0))
-	else:
-		_place_landmark(clothes, 2521, "door_double_clothesshop_ur", pivot, Color(0.88, 0.45, 0.38, 1.0))
+	var zone_id := 2521
+	var tint := Color(0.88, 0.45, 0.38, 1.0)
+	var name := str(clothes.name)
+	if "_DD_" in name:
+		zone_id = 1508
+		tint = Color(0.91, 0.34, 0.34, 1.0)
+	elif "_BR_" in name:
+		zone_id = 3509
+		tint = Color(0.0, 0.87, 0.69, 1.0)
+	elif "_MM_" in name:
+		zone_id = 4506
+		tint = Color(1.0, 0.64, 0.74, 1.0)
+	elif "_DG_" in name:
+		zone_id = 5503
+		tint = Color(1.0, 0.55, 0.65, 1.0)
+	elif "_DL_" in name:
+		zone_id = 9506
+		tint = Color(0.415686, 0.27451, 0.168627, 1.0)
+	_place_landmark(clothes, zone_id, "door_double_clothesshop_ur", pivot, tint)
 
 
 static func _hang_landmark(host: Node, suffix: String, zone_id: int, door_code: String, pivot: Vector3, tint: Color) -> void:

@@ -456,14 +456,9 @@ func _earned_for(fight: Dictionary, peer: int) -> Array:
 	return earned
 
 
-## Floor credit, then an invasion, then Double Gag Experience. Each one multiplies.
 func _credit_mult(fight: Dictionary) -> float:
-	var mult := 1.0
-	if int(fight.get("building", 0)) != 0:
-		mult = 1.0 + float(fight.get("floor", 0)) * 0.5
-	var district := int(fight.get("district", 0))
-	mult *= float(_HOLIDAYS.invasion_scale(district))
-	return mult * float(_HOLIDAYS.exp_scale())
+	var building := int(fight.get("building", 0)) != 0
+	return _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
 
 
 func _grant(fight: Dictionary, peer: int, track: int, level: int) -> void:

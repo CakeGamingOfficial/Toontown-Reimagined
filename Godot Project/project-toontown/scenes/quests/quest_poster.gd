@@ -18,8 +18,15 @@ const _ARM := preload("res://assets/gui/quests/CogArmIcon2.png")
 const _SKELE := preload("res://assets/gui/quests/skelecog5.png")
 const _VP := preload("res://assets/gui/quests/BossHead3Icon.png")
 const _CFO := preload("res://assets/gui/quests/CashBotBossHeadIcon.png")
-const _FEATHER := preload("res://assets/gui/tutorial/gags/inventory_feather.png")
-const _HORN := preload("res://assets/gui/tutorial/gags/inventory_bikehorn.png")
+const _TRACK_ICON: Array[Texture2D] = [
+	preload("res://assets/gui/tutorial/gags/inventory_feather.png"),
+	preload("res://assets/gui/tutorial/gags/inventory_bannana_peel.png"),
+	preload("res://assets/gui/tutorial/gags/inventory_1dollarbill.png"),
+	preload("res://assets/gui/tutorial/gags/inventory_bikehorn.png"),
+	preload("res://assets/gui/tutorial/gags/inventory_tart.png"),
+	preload("res://assets/gui/tutorial/gags/inventory_squirt_flower.png"),
+	preload("res://assets/gui/tutorial/gags/inventory_flower_pot.png"),
+]
 const _CORP := preload("res://assets/gui/cogs/CorpIcon.png")
 const _LEGAL := preload("res://assets/gui/cogs/LegalIcon.png")
 const _MONEY := preload("res://assets/gui/cogs/MoneyIcon.png")
@@ -344,16 +351,26 @@ func _show_activity(task: Dictionary) -> void:
 		# TrackChoiceQuest shows the two offered gag icons with "or" between them.
 		_frame.modulate = _GREEN
 		_icon_fit = 0.8
-		_icon.texture = _FEATHER
+		var left := 0
+		var right := 3
+		var offered: Variant = task.get("tracks", [])
+		if typeof(offered) == TYPE_ARRAY and (offered as Array).size() >= 2:
+			left = int(offered[0])
+			right = int(offered[1])
+		_icon.texture = _track_icon(left)
 		if not _complete:
 			_split = true
 			_aux.text = "or"
 			_aux.visible = true
 			_right_frame.visible = true
 			_right_frame.modulate = _GREEN
-			_right_icon.texture = _HORN
+			_right_icon.texture = _track_icon(right)
 			_right_icon.visible = true
 			_right_fit = 0.8
+	elif kind == "gag":
+		_frame.modulate = _BROWN
+		_icon_fit = 0.8
+		_show_visit(int(task.get("npc", 0)))
 	elif kind == "building":
 		_frame.modulate = _BLUE
 		_icon_fit = 0.13 / 0.15
@@ -401,6 +418,12 @@ func _show_cog_icon(code: String, dept: String, on_right: bool) -> void:
 	icon.modulate = Color.WHITE
 	icon.visible = true
 	frame.visible = true
+
+
+func _track_icon(track: int) -> Texture2D:
+	if track < 0 or track >= _TRACK_ICON.size():
+		return _TRACK_ICON[0]
+	return _TRACK_ICON[track]
 
 
 func _show_recover_holder(task: Dictionary) -> void:

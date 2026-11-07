@@ -1806,6 +1806,18 @@ func _shop_pets(clerk: Node3D) -> void:
 	_locked = false
 
 
+func _pick_track(quest_id: int) -> int:
+	var panel := _TRACK_CHOICE.new()
+	panel.name = "TrackChoice"
+	var tracks: Array = _tasks.choice_tracks(quest_id)
+	panel.set_tracks(int(tracks[0]), int(tracks[1]))
+	_hud().add_child(panel)
+	var track: int = await panel.chosen
+	if is_instance_valid(panel):
+		panel.queue_free()
+	return track
+
+
 func _try_officer() -> void:
 	if _body == null or not _PLACES.is_toon_hq(_scene_path()) or _tasks == null:
 		_officer_ready = true
@@ -1821,8 +1833,9 @@ func _try_officer() -> void:
 		return
 	var card := _tasks.ready_hq()
 	var offers := _tasks.offers()
+	var choosing := _tasks.hq_track_choice()
 	var pending := 0
-	if card.is_empty() and offers.is_empty():
+	if card.is_empty() and offers.is_empty() and choosing == 0:
 		pending = _tasks.pending_hq()
 		if pending == 0:
 			return
@@ -1842,8 +1855,9 @@ func _try_officer() -> void:
 	if not card.is_empty():
 		var finished_id := int(card.get("id", 0))
 		var finished := _tasks.after_pages(finished_id)
+		var paid := _tasks.reward_due(finished_id)
 		var given := _tasks.turn_in(finished_id)
-		_grant_task_reward(card)
+		_grant_task_reward(card, paid)
 		if _book != null:
 			_book.refresh_tasks()
 		await _speak_pages(actor, finished)
@@ -1853,6 +1867,30 @@ func _try_officer() -> void:
 			await _speak_assign(actor, given)
 			if not is_inside_tree():
 				return
+		offers = _tasks.offers()
+	choosing = _tasks.hq_track_choice()
+	if choosing != 0:
+		_begin_quest_shot(actor, true)
+		await _speak_pages(actor, _tasks.choice_pages(choosing))
+		if not is_inside_tree():
+			return
+		var track: int = await _pick_track(choosing)
+		if not is_inside_tree():
+			return
+		if track < 0:
+			_say_clerk(actor, "Come back when you have decided.", 3.0)
+			await get_tree().create_timer(3.0).timeout
+			if not is_inside_tree():
+				return
+			_say_clerk(null, "", 0.0)
+			_locked = false
+			return
+		_tasks.choose_track(choosing, track)
+		if _book != null:
+			_book.refresh_tasks()
+		await _speak_pages(actor, _tasks.after_pages(choosing))
+		if not is_inside_tree():
+			return
 		offers = _tasks.offers()
 	if offers.is_empty():
 		_locked = false
@@ -1909,7 +1947,7 @@ func _try_quest_npc() -> void:
 	if card.is_empty():
 		shop_offers = _tasks.offers_for(npc_id)
 		if shop_offers.is_empty():
-			if npc_id == 2004 or npc_id == 1007:
+			if npc_id == 2004 or npc_id == 1007 or npc_id == 3008 or npc_id == 4008 or npc_id == 5007 or npc_id == 9010:
 				await _meet_tailor(npc)
 			return
 	_npc_ready = false
@@ -1937,12 +1975,7 @@ func _try_quest_npc() -> void:
 		await _speak_pages(actor, _tasks.choice_pages(quest_id))
 		if not is_inside_tree():
 			return
-		var panel := _TRACK_CHOICE.new()
-		panel.name = "TrackChoice"
-		_hud().add_child(panel)
-		var track: int = await panel.chosen
-		if is_instance_valid(panel):
-			panel.queue_free()
+		var track: int = await _pick_track(quest_id)
 		if not is_inside_tree():
 			return
 		if track < 0:
@@ -1961,8 +1994,9 @@ func _try_quest_npc() -> void:
 		return
 	var finished := _tasks.after_pages(quest_id)
 	_deliver_hold = String(card.get("headline", "")) == "DELIVER"
+	var paid := _tasks.reward_due(quest_id)
 	var given := _tasks.turn_in(quest_id, npc_id)
-	_grant_task_reward(card)
+	_grant_task_reward(card, paid)
 	if _book != null:
 		_book.refresh_tasks()
 	await _speak_pages(actor, finished)
@@ -2021,13 +2055,41 @@ func _pay_of(offers: Array, picked: int) -> int:
 	return 0
 
 
-func _grant_task_reward(card: Dictionary) -> void:
+## 15, plus every MaxHpReward already in the journal. Fishing trophies sit on top of this.
+func _quest_laff() -> int:
+	if _tasks == null:
+		return 15
+	var total := 15
+	for reward_id in _tasks.reward_history:
+		var reward := int(reward_id)
+		if reward >= 100 and reward <= 109:
+			total += reward - 99
+	return mini(total, 137)
+
+
+func _grant_task_reward(card: Dictionary, paid: int) -> void:
 	var laff := int(card.get("laff", 0))
 	var carry := int(card.get("carry", 0))
 	var beans := int(card.get("beans", 0))
+	# MaxHpReward.sendRewardAI. The paid id is what the turn-in collected.
+	# 100 is +1, 109 is +10. The new limit is filled, and it stops at 137.
+	if paid >= 100 and paid <= 109:
+		laff = paid - 99
+	elif paid == 200:
+		carry = 25
+	elif paid == 201:
+		carry = 30
+	elif paid == 700:
+		beans = 50
+	elif paid == 701:
+		beans = 60
 	if laff > 0 and _loadout != null:
-		_loadout.set_hp(_loadout.hp + laff, _loadout.max_hp + laff)
-		_loadout.save()
+		var maximum := _loadout.max_hp + laff
+		if _loadout.max_hp < 137:
+			maximum = mini(maximum, 137)
+		if maximum > _loadout.max_hp:
+			_loadout.set_hp(maximum, maximum)
+			_loadout.save()
 	if carry > 0 and _loadout != null and _loadout.max_carry < carry:
 		_loadout.max_carry = carry
 		_loadout.save()
@@ -3687,9 +3749,15 @@ func _fade_in() -> void:
 
 func _ready_hud() -> void:
 	_loadout = ToonLoadout.for_selected()
+	# Read this before the claim. A stored row can arrive without the journal's
+	# reward list, and the laff those tasks already paid still has to land.
+	var owed := _quest_laff()
 	# Apply the district copy before either corner control is built. Doing it
 	# between them left the book showing a journal the claim had already erased.
 	ToonNet.claim_toon()
+	if _loadout != null and _loadout.max_hp < owed:
+		_loadout.set_hp(owed, owed)
+		_loadout.save()
 	_meter = LaffMeter.new()
 	_meter.name = "LaffMeter"
 	var style := ToonRoster.selected_style()

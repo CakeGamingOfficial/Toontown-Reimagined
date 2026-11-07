@@ -21,6 +21,8 @@ var _cancel_caption: Label
 var _timer: Label
 var _left := _TIMEOUT
 var _sent := false
+var _side: Array[int] = [0, 3]
+const _TRACK_NAME: PackedStringArray = ["Toon-up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"]
 
 
 func _init() -> void:
@@ -35,10 +37,10 @@ func _init() -> void:
 	_dialog.modulate = Color(0.8, 0.6, 0.4, 1.0)
 	add_child(_dialog)
 	_toonup = _pill()
-	_toonup.pressed.connect(_pick.bind(0))
+	_toonup.pressed.connect(_pick_side.bind(0))
 	_toonup_caption = _ink("Toon-up")
 	_sound = _pill()
-	_sound.pressed.connect(_pick.bind(3))
+	_sound.pressed.connect(_pick_side.bind(1))
 	_sound_caption = _ink("Sound")
 	_cancel = _pill()
 	_cancel.pressed.connect(_pick.bind(-1))
@@ -120,6 +122,19 @@ func _place_ink(label: Label, view: Vector2, x: float, z: float, text_scale: flo
 	var px := maxi(int(round(text_scale * view.y * 0.5)), 10)
 	ToonGui.style_label(label, Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
 	ToonGui.place(label, view, x, z, text_scale * 8.0, text_scale * 1.6)
+
+
+func set_tracks(left: int, right: int) -> void:
+	if left >= 0 and left < _TRACK_NAME.size():
+		_side[0] = left
+		_toonup_caption.text = _TRACK_NAME[left]
+	if right >= 0 and right < _TRACK_NAME.size():
+		_side[1] = right
+		_sound_caption.text = _TRACK_NAME[right]
+
+
+func _pick_side(index: int) -> void:
+	_pick(_side[index])
 
 
 func _pick(track: int) -> void:

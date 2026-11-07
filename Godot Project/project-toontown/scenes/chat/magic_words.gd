@@ -9,6 +9,11 @@ const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
+## HoodsForTeleportAll. Funny Farm stays off the list.
+const _TELEPORT_ALL: Array[int] = [
+	1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000,
+	10000, 11000, 12000, 13000, 17000,
+]
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
@@ -487,6 +492,11 @@ static func _restock(scene: Node, everything: bool) -> String:
 		filled = loadout.unlock_all()
 		_BEANS.set_pouch_limit(_BEANS.POUCH_MAX)
 		_BEANS.fill_pouch()
+		var tasks := ToonTasks.live()
+		for hood in _TELEPORT_ALL:
+			tasks.grant_teleport(hood)
+			tasks._remember(hood)
+		tasks.save()
 	else:
 		filled = loadout.restock()
 	var book := _find(scene, "ShtickerBook") as ShtickerBook
@@ -496,7 +506,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if filled <= 0:
 		return "No gags are unlocked yet. ~max unlocks them."
 	if everything:
-		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, and filled %d gags." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
+		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, filled %d gags, and opened teleport to every playground and Cog HQ." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
 	return "Restocked %d gags." % filled
 
 

@@ -374,15 +374,7 @@ func _show_detail(track: int, level: int) -> void:
 		ToonLoadout.gag_damage(track, level, exp),
 		ToonLoadout.affects_label(track, level),
 	]
-	_detail_credit.text = _credit_label(level)
-
-
-## InventoryNew.setDetailCredit. A whole number stays whole; 1.5 stays 1.5.
-func _credit_label(level: int) -> String:
-	var shown := snappedf(float(level + 1) * _credit, 0.1)
-	if is_equal_approx(shown, roundf(shown)):
-		return "Skill credit: %d" % int(roundf(shown))
-	return "Skill credit: %.1f" % shown
+	_detail_credit.text = ToonLoadout.experience_line(level, _credit)
 
 
 func _pick(track: int, level: int) -> void:

@@ -17,6 +17,7 @@ const TRACK := "track"
 const FRIEND := "friend"
 const PHONE := "phone"
 const BUILDING := "building"
+const GAG := "gag"
 ## QuestPoster hides the reward on the tasks before Clarabelle.
 const _NO_POSTER_REWARD := [101, 110, 121, 131, 141, 145, 150, 160, 161, 162, 163]
 
@@ -269,7 +270,39 @@ const _TIER1: Array[int] = [400]
 const _TIER2: Array[int] = [100, 801, 200, 802, 803, 101, 804, 805, 102, 806, 807, 100, 808, 809, 101, 810, 811, 500, 812, 813, 700, 814, 815, 300]
 ## TT_TIER + 3. Reward 900 is the final frame of the gag track.
 const _TIER3: Array[int] = [900]
+## Donald's Dock. Tier 4 is the Lure or Drop choice. Tier 5 is the rest of
+## the playground. Tier 6 is that track's final frame.
+const _TIER4: Array[int] = [400]
+const _TIER5: Array[int] = [100, 801, 802, 201, 803, 804, 101, 805, 806, 102, 807, 808, 100, 809, 810, 101, 811, 812, 701, 813, 814, 815, 301]
+const _TIER6: Array[int] = [900]
+## TeleportReward. 300 through 305 are the original playground rewards.
+## 306 through 309 are reserved for the later Cog HQ taskline.
+const _TELEPORT_ZONE: Dictionary = {
+	300: 2000,
+	301: 1000,
+	302: 5000,
+	303: 4000,
+	304: 3000,
+	305: 9000,
+	306: 11000,
+	307: 12000,
+	308: 13000,
+	309: 10000,
+}
+const _ZONE_NAME: Dictionary = {
+	1000: "Donald's Dock",
+	2000: "Toontown Central",
+	3000: "The Brrrgh",
+	4000: "Minnie's Melodyland",
+	5000: "Daisy Gardens",
+	9000: "Donald's Dreamland",
+	10000: "Bossbot HQ",
+	11000: "Sellbot HQ",
+	12000: "Cashbot HQ",
+	13000: "Lawbot HQ",
+}
 const _QUEST_FILE := "res://scenes/quests/ttc_quests.json"
+const _DOCK_FILE := "res://scenes/quests/dd_quests.json"
 const _DIALOG := preload("res://scenes/quests/quest_dialog.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
@@ -277,7 +310,12 @@ const _BUILDING := {
 	2513: "Toon Hall",
 	2516: "School House",
 	2518: "Toontown Library",
+	1508: "Clothing Shop",
 	2521: "Clothing Shop",
+	3509: "Clothing Shop",
+	4506: "Clothing Shop",
+	5503: "Clothing Shop",
+	9506: "Clothing Shop",
 }
 const _TRACKS := ["Toon-up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"]
 ## Quests the toontorial hands out itself. One of these in the journal means
@@ -641,9 +679,38 @@ func pending_hq() -> int:
 		if not _known(quest_id) or is_complete(quest_id):
 			continue
 		var card := _card(entry)
+		if String(card.get("kind", "")) == TRACK:
+			continue
 		if String(card.get("turn_in", "")) == "hq":
 			return quest_id
 	return 0
+
+
+## TrackChoiceQuest aimed at HQ. The officer asks for the choice instead of
+## saying the task is still unfinished.
+func hq_track_choice() -> int:
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != TRACK:
+			continue
+		var dest := _dest(entry)
+		if dest == 0 or dest == 1000:
+			return quest_id
+	return 0
+
+
+## The two gag tracks this choice offers. Toontown Central is Toon-up and Sound.
+func choice_tracks(quest_id: int) -> Array:
+	var info: Dictionary = _info(quest_id)
+	var raw: Variant = info.get("tracks", [])
+	var tracks: Array = []
+	if typeof(raw) == TYPE_ARRAY:
+		for item in raw:
+			tracks.append(int(item))
+	if tracks.size() < 2:
+		return [0, 3]
+	return tracks
 
 
 ## RewardPanel shows these once, after the gag experience, then clears them.
@@ -892,24 +959,28 @@ func _card(entry: Dictionary) -> Dictionary:
 	var info: Dictionary = _info(quest_id)
 	var progress := int(entry["progress"])
 	var goal := int(info["goal"])
+	if String(info.get("kind", "")) == GAG:
+		progress = mini(_gag_held(info), goal)
 	var card: Dictionary = info.duplicate()
 	card["id"] = quest_id
 	card["progress"] = progress
 	card["goal"] = goal
 	card["ready"] = _kind_done(entry, info)
+	if String(info.get("kind", "")) == GAG and goal > 1:
+		card["show_count"] = true
 	if bool(card["ready"]):
 		card["progress"] = goal
 	var pay := int(entry.get("pay", 0))
 	if pay == 0:
 		pay = int(info.get("reward", 0))
 	# The reward chosen at the start of a chain is paid by its last step.
-	var nxt: Variant = info.get("next", 0)
-	var finishes := typeof(nxt) != TYPE_ARRAY and int(nxt) == 0
-	if pay > 0 and finishes:
+	if pay > 0 and _pays(info):
 		card["pay"] = pay
 		_stamp_reward(card, pay)
 	card["reward_line"] = _poster_reward(quest_id, pay)
 	var dest := _dest(entry)
+	if String(info.get("kind", "")) == GAG and int(card.get("npc", 0)) == 0 and dest > 1000:
+		card["npc"] = dest
 	var npc := {}
 	if dest > 0 and dest != 1000:
 		npc = _npc_row(dest)
@@ -920,7 +991,7 @@ func _card(entry: Dictionary) -> Dictionary:
 		card["turn_in"] = str(int(npc.get("zone", dest)))
 		card["return_name"] = String(npc.get("name", ""))
 		card["return_where"] = String(npc.get("where", ""))
-		if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK:
+		if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK or String(info["kind"]) == GAG:
 			card["where"] = String(npc.get("where", card.get("where", "")))
 	var place := _poster_place(dest, npc)
 	card["building"] = String(place["building"])
@@ -1079,6 +1150,11 @@ func _pays(info: Dictionary) -> bool:
 	return int(nxt) == 0
 
 
+## The reward this task pays on turn-in. 0 until the chain's last step.
+func reward_due(quest_id: int) -> int:
+	return _spoken_reward(quest_id)
+
+
 func _spoken_reward(quest_id: int) -> int:
 	if not _known(quest_id):
 		return 0
@@ -1100,6 +1176,28 @@ func _track_name() -> String:
 	return _TRACKS[track_id]
 
 
+func _carry_limit(reward_id: int) -> int:
+	if reward_id == 200:
+		return 25
+	if reward_id == 201:
+		return 30
+	return 0
+
+
+func _carry_name(limit: int) -> String:
+	if limit >= 30:
+		return "Large Pouch"
+	return "Medium Pouch"
+
+
+func _bean_limit(reward_id: int) -> int:
+	if reward_id == 700:
+		return 50
+	if reward_id == 701:
+		return 60
+	return 0
+
+
 ## QuestPoster.rewardText. The journal shows it while the card is pointed at.
 func _poster_reward(quest_id: int, reward_id: int) -> String:
 	if reward_id <= 0 or _NO_POSTER_REWARD.has(quest_id):
@@ -1107,16 +1205,19 @@ func _poster_reward(quest_id: int, reward_id: int) -> String:
 	var track := _track_name()
 	if reward_id >= 100 and reward_id <= 109:
 		return "Reward: %d point Laff boost" % (reward_id - 99)
-	if reward_id == 200:
-		return "Reward: Medium Pouch (25)"
-	if reward_id == 300:
-		return "Reward: Teleport access to Toontown Central"
+	var carry := _carry_limit(reward_id)
+	if carry > 0:
+		return "Reward: %s (%d)" % [_carry_name(carry), carry]
+	var teleport_zone := _teleport_zone(reward_id)
+	if teleport_zone != 0:
+		return "Reward: Teleport access to %s" % _zone_name(teleport_zone)
 	if reward_id == 400:
 		return "Reward: Gag training"
 	if reward_id == 500:
 		return "Reward: Carry 2 ToonTasks"
-	if reward_id == 700:
-		return "Reward: Carry 50 jellybeans"
+	var beans := _bean_limit(reward_id)
+	if beans > 0:
+		return "Reward: Carry %d jellybeans" % beans
 	if reward_id >= 801 and reward_id <= 815:
 		return "Reward: \"%s\" track animation frame %d" % [track, reward_id - 800]
 	if reward_id == 900:
@@ -1131,16 +1232,19 @@ func _reward_line(quest_id: int) -> String:
 	var track := _track_name()
 	if reward_id >= 100 and reward_id <= 109:
 		return "Your Laff limit has been increased by %d." % (reward_id - 99)
-	if reward_id == 200:
-		return "You get a Medium Pouch. You can now carry 25 gags."
-	if reward_id == 300:
-		return "You now have teleport access to Toontown Central."
+	var carry := _carry_limit(reward_id)
+	if carry > 0:
+		return "You get a %s. You can now carry %d gags." % [_carry_name(carry), carry]
+	var teleport_zone := _teleport_zone(reward_id)
+	if teleport_zone != 0:
+		return "You now have teleport access to %s." % _zone_name(teleport_zone)
 	if reward_id == 400:
 		return "You can now train for \"%s\" gags." % track
 	if reward_id == 500:
 		return "You can now have 2 ToonTasks."
-	if reward_id == 700:
-		return "You can now carry 50 jellybeans."
+	var beans := _bean_limit(reward_id)
+	if beans > 0:
+		return "You can now carry %d jellybeans." % beans
 	if reward_id >= 801 and reward_id <= 815:
 		return "You now have frame %d of the %s track animation." % [reward_id - 800, track]
 	if reward_id == 900:
@@ -1227,6 +1331,20 @@ func has_visited(hood: int) -> bool:
 	return visited.has(hood - posmod(hood, 1000))
 
 
+## MapPage.__buttonCallback. The name is a trip only after this hood is on the list.
+func has_teleport(zone_id: int) -> bool:
+	return teleport.has(zone_id - posmod(zone_id, 1000))
+
+
+## addTeleportAccess. A quest reward and a later Cog HQ both call this.
+## The caller saves the journal.
+func grant_teleport(zone_id: int) -> void:
+	var hood := zone_id - posmod(zone_id, 1000)
+	if hood < 1000 or teleport.has(hood):
+		return
+	teleport.append(hood)
+
+
 func _remember(hood: int) -> void:
 	var canonical := hood - posmod(hood, 1000)
 	if canonical < 1000 or visited.has(canonical):
@@ -1271,7 +1389,7 @@ func training_step(index: int) -> bool:
 
 ## Reward 900 is the sixteenth training frame. The track can be used after it.
 func training_done() -> bool:
-	return reward_history.has(900)
+	return track_id >= 0 and (track_progress & (1 << 15)) != 0
 
 
 func finished_ids() -> Array:
@@ -1289,12 +1407,17 @@ func apply_dict(record: Dictionary) -> void:
 	reward_tier = int(record.get("reward_tier", reward_tier))
 	quest_carry = maxi(int(record.get("quest_carry", quest_carry)), 1)
 	clothing_tickets = maxi(int(record.get("clothing_tickets", clothing_tickets)), 0)
-	reward_history.clear()
-	for reward_id in record.get("reward_history", []):
-		reward_history.append(int(reward_id))
-	teleport.clear()
-	for zone_id in record.get("teleport", []):
-		teleport.append(int(zone_id))
+	# An older district row has no checklist. Leave the journal's copy alone.
+	if record.has("reward_history"):
+		reward_history.clear()
+		for reward_id in record.get("reward_history", []):
+			reward_history.append(int(reward_id))
+	_settle_tier()
+	# An older district row has no teleport list. Leave the journal's copy alone.
+	if record.has("teleport"):
+		teleport.clear()
+		for zone_id in record.get("teleport", []):
+			teleport.append(int(zone_id))
 	in_playground = bool(record.get("in_playground", in_playground))
 	last_hood = int(record.get("last_hood", last_hood))
 	visited.clear()
@@ -1377,7 +1500,17 @@ func _info(quest_id: int) -> Dictionary:
 func _kind_done(entry: Dictionary, info: Dictionary) -> bool:
 	if String(info.get("kind", "")) == FRIEND and FriendsBook.toon_friend_count() > 0:
 		return true
+	if String(info.get("kind", "")) == GAG:
+		return _gag_held(info) >= int(info.get("goal", 1))
 	return int(entry.get("progress", 0)) >= int(info.get("goal", 1))
+
+
+## DeliverGagQuest is finished by carrying the gags, not by using them.
+func _gag_held(info: Dictionary) -> int:
+	var loadout := ToonLoadout.for_selected()
+	if loadout == null:
+		return 0
+	return loadout.count_of(int(info.get("gag_track", 0)), int(info.get("gag_level", 0)))
 
 
 func _fill_kind(kind: String) -> void:
@@ -1431,6 +1564,12 @@ func _required(tier: int) -> Array[int]:
 		return _TIER2.duplicate()
 	if tier == 3:
 		return _TIER3.duplicate()
+	if tier == 4:
+		return _TIER4.duplicate()
+	if tier == 5:
+		return _TIER5.duplicate()
+	if tier == 6:
+		return _TIER6.duplicate()
 	return []
 
 
@@ -1493,6 +1632,13 @@ func _candidates(key: String, npc_id: int, used: Dictionary, reuse: bool) -> Arr
 			continue
 		if not _giver_ok(info, npc_id):
 			continue
+		# Central quests have no tier. Dock quests are offered only on their tier.
+		var quest_tier := int(info.get("tier", -1))
+		if reward_tier <= 3:
+			if quest_tier >= 4:
+				continue
+		elif quest_tier != reward_tier:
+			continue
 		found.append(quest_id)
 	return found
 
@@ -1511,7 +1657,7 @@ func _giver_ok(info: Dictionary, npc_id: int) -> bool:
 	if dest > 1000 and not _npc_live(dest):
 		return false
 	var kind := String(info.get("kind", ""))
-	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING
+	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == GAG or kind == TRACK
 
 
 func _npc_live(npc_id: int) -> bool:
@@ -1585,9 +1731,14 @@ static func _load_pool() -> void:
 	if _pool_ready:
 		return
 	_pool_ready = true
-	if not FileAccess.file_exists(_QUEST_FILE):
+	_read_quest_file(_QUEST_FILE)
+	_read_quest_file(_DOCK_FILE)
+
+
+static func _read_quest_file(path: String) -> void:
+	if not FileAccess.file_exists(path):
 		return
-	var file := FileAccess.open(_QUEST_FILE, FileAccess.READ)
+	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
@@ -1603,22 +1754,39 @@ static func _load_pool() -> void:
 	for key in people.keys():
 		var raw: Variant = people[key]
 		if typeof(raw) == TYPE_DICTIONARY:
-			_extra_npcs[int(key)] = raw
+			var npc_id := int(key)
+			if not _extra_npcs.has(npc_id) or bool(raw.get("live", false)):
+				_extra_npcs[npc_id] = raw
 	var rewards: Dictionary = root.get("by_reward", {})
-	_by_reward = rewards
+	for key in rewards.keys():
+		var incoming: Variant = rewards[key]
+		if typeof(incoming) != TYPE_ARRAY:
+			continue
+		var have: Array = _by_reward.get(key, [])
+		for item in incoming:
+			have.append(int(item))
+		_by_reward[key] = have
+
+
+func _teleport_zone(reward_id: int) -> int:
+	return int(_TELEPORT_ZONE.get(reward_id, 0))
+
+
+func _zone_name(zone_id: int) -> String:
+	var hood := zone_id - posmod(zone_id, 1000)
+	return String(_ZONE_NAME.get(hood, "Toontown Central"))
 
 
 func _stamp_reward(info: Dictionary, reward_id: int) -> void:
-	if reward_id == 100:
-		info["laff"] = 1
-	elif reward_id == 101:
-		info["laff"] = 2
-	elif reward_id == 102:
-		info["laff"] = 3
-	elif reward_id == 200:
-		info["carry"] = 25
-	elif reward_id == 700:
-		info["beans"] = 50
+	# RewardDict 100-109 are MaxHpReward, and the amount is the id minus 99.
+	if reward_id >= 100 and reward_id <= 109:
+		info["laff"] = reward_id - 99
+	var carry := _carry_limit(reward_id)
+	if carry > 0:
+		info["carry"] = carry
+	var beans := _bean_limit(reward_id)
+	if beans > 0:
+		info["beans"] = beans
 	elif reward_id >= 801 and reward_id <= 815:
 		info["frame"] = reward_id - 800
 	elif reward_id == 900:
@@ -1632,31 +1800,60 @@ func _collect(info: Dictionary) -> void:
 	reward_history.append(reward_id)
 	if reward_id >= 801 and reward_id <= 815 and track_id >= 0:
 		track_progress = track_progress | (1 << (reward_id - 801))
+	# The sixteenth frame. Bit 15 stays set so the film still reads finished
+	# after this tier's reward list is cleared.
+	if reward_id == 900 and track_id >= 0:
+		track_progress = track_progress | (1 << 15)
 	if reward_id == 500:
 		quest_carry = maxi(quest_carry, 2)
 	if reward_id == 1000:
 		clothing_tickets += 1
-	if reward_id == 300 and not teleport.has(2000):
-		teleport.append(2000)
+	grant_teleport(_teleport_zone(reward_id))
+	_advance_tier()
+
+
+## incrementReward. A finished tier drops its checklist so the next playground
+## can use the same reward ids again.
+func _advance_tier() -> void:
 	var guard := 0
 	while guard < 4:
 		guard += 1
 		var need := _required(reward_tier)
-		if need.is_empty():
+		if need.is_empty() or not _history_covers(need):
 			return
-		var pending: Array[int] = []
-		for owned in reward_history:
-			pending.append(owned)
-		var finished := true
-		for needed in need:
-			var found := pending.find(needed)
-			if found < 0:
-				finished = false
-				break
-			pending.remove_at(found)
-		if not finished:
-			return
+		reward_history.clear()
 		reward_tier += 1
+
+
+func _history_covers(need: Array[int]) -> bool:
+	var pending: Array[int] = []
+	for owned in reward_history:
+		pending.append(owned)
+	for needed in need:
+		var found := pending.find(needed)
+		if found < 0:
+			return false
+		pending.remove_at(found)
+	return true
+
+
+## Saves from before each tier started empty still hold Central's rewards.
+## Those must not count as Donald's Dock's copy of the same ids.
+func _settle_tier() -> bool:
+	var changed := false
+	if track_id >= 0 and (track_progress & (1 << 15)) == 0:
+		var frames := track_progress & ((1 << 15) - 1)
+		if reward_history.has(900) or (reward_tier >= 4 and frames == (1 << 15) - 1):
+			track_progress = track_progress | (1 << 15)
+			changed = true
+	if reward_tier >= 4 and (reward_history.has(300) or (reward_tier < 6 and reward_history.has(900))):
+		reward_history.clear()
+		changed = true
+	var before := reward_tier
+	_advance_tier()
+	if reward_tier != before:
+		changed = true
+	return changed
 
 
 func _is_active(quest_id: int) -> bool:
@@ -1757,6 +1954,8 @@ func _load() -> void:
 	elif reward_history.is_empty() and _done.has(175) and reward_tier < 1:
 		reward_tier = 1
 		reward_history.append(100)
+		repaired = true
+	if _settle_tier():
 		repaired = true
 	if repaired:
 		save()
