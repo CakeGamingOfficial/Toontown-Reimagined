@@ -61,7 +61,7 @@ func _build() -> void:
 	for rank in 8:
 		for _suit in 4:
 			deck.append(rank)
-	deck.shuffle()
+	shared_shuffle(deck)
 	for index in deck.size():
 		var col := index % 8
 		var row := int(index / 8)
@@ -79,7 +79,10 @@ func _build() -> void:
 	_bonus_order = _bonus_path()
 	_glow = _make_glow()
 	_seat_glow(0, false)
-	_make_toon(_panda(0.0, 0.0, 0.0))
+	if party_size() > 1:
+		_px = 14.0 + lineup_x(6.0)
+		_py = 8.0
+	_make_toon(_panda(_px, _py, 0.0))
 	# A single player starts at the corner, facing the board.
 	_toon.rotation_degrees.y = 0.0
 	_toon.set_locomotion(0.0, false, false, 0.0)

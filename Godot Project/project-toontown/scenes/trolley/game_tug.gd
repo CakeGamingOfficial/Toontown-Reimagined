@@ -26,10 +26,13 @@ func begin() -> void:
 
 func _build() -> void:
 	_show("res://assets/minigames/tug_set.glb")
-	var toon := _make_toon(_panda(-6.0, 18.0, 0.1))
-	toon.rotation_degrees.y = -90.0
-	var cog := _flunky(6.0, 18.0, 0.1)
-	cog.rotation_degrees.y = 90.0
+	var side := -6.0 if party_index() % 2 == 0 else 6.0
+	var row := float(int(party_index() / 2)) * 2.2
+	var toon := _make_toon(_panda(side, 18.0 - row, 0.1))
+	toon.rotation_degrees.y = -90.0 if party_index() % 2 == 0 else 90.0
+	if party_size() <= 1:
+		var cog := _flunky(6.0, 18.0, 0.1)
+		cog.rotation_degrees.y = 90.0
 	_aim(0.0, 1.08, 2.75, 0.0, 18.0, 1.2)
 	show_board("power")
 

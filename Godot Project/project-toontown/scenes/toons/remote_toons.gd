@@ -25,6 +25,9 @@ var _turning := false
 var _jumping := false
 var _hidden := false
 var _anim := ""
+var _fishing := false
+var _fish_pose := -1.0
+var _fish_rod := 0
 var _sent_gm := -1
 var _meter: LaffMeter
 var _puppets: Dictionary = {}
@@ -55,13 +58,45 @@ func bind(world: Node, body: Node3D, actor: ToonActor, tags: Nametags) -> void:
 
 func note(heading: float, speed: float, turning: bool, jumping: bool, hidden: bool) -> void:
 	var anim := _anim_name(speed, turning, jumping)
-	var changed := anim != _anim or hidden != _hidden
+	var changed := anim != _anim or hidden != _hidden or _fishing
 	_heading = heading
 	_speed = speed
 	_turning = turning
 	_jumping = jumping
 	_hidden = hidden
 	_anim = anim
+	_fishing = false
+	_fish_pose = -1.0
+	if changed:
+		_wait = 0.0
+
+
+## The trolley publishes sit instead of a walk speed. A change goes out immediately.
+func note_anim(heading: float, anim: String) -> void:
+	var changed := anim != _anim or _fishing
+	_heading = heading
+	_speed = 0.0
+	_turning = false
+	_jumping = false
+	_anim = anim
+	_fishing = false
+	_fish_pose = -1.0
+	if changed:
+		_wait = 0.0
+
+
+## The fishing spot plays castlong by pose time. pose is -1 when the clip runs on its own.
+func note_fishing(heading: float, anim: String, pose: float, rod: int) -> void:
+	var changed := anim != _anim or rod != _fish_rod or absf(pose - _fish_pose) > 0.12 or not _fishing
+	_heading = heading
+	_speed = 0.0
+	_turning = false
+	_jumping = false
+	_hidden = false
+	_anim = anim
+	_fishing = true
+	_fish_pose = pose
+	_fish_rod = rod
 	if changed:
 		_wait = 0.0
 
@@ -127,6 +162,9 @@ func _send() -> void:
 		"z": where.z,
 		"heading": _heading,
 		"anim": _anim,
+		"fishing": _fishing,
+		"pose": _fish_pose,
+		"rod": _fish_rod,
 		"gm": gm,
 		"hp": laff.x,
 		"max_hp": laff.y,
@@ -201,8 +239,12 @@ func _apply(channel: String) -> void:
 	puppet["pos"] = target
 	puppet["heading"] = float(state.get("heading", 0.0))
 	puppet["anim"] = String(state.get("anim", "neutral"))
+	puppet["fishing"] = bool(state.get("fishing", false))
+	puppet["pose"] = float(state.get("pose", -1.0))
+	puppet["rod"] = int(state.get("rod", 0))
 	puppet["seen"] = true
 	_puppets[peer] = puppet
+	actor.set_meta("peer", peer)
 	actor.set_meta("av", int(state.get("av", 0)))
 	actor.set_meta("gm", int(state.get("gm", 0)))
 	actor.set_meta("hp", int(state.get("hp", 15)))
@@ -293,7 +335,20 @@ func _move_puppets(delta: float) -> void:
 		_face(actor, facing(actor) + rad_to_deg(turn) * blend)
 		var anim := String(puppet.get("anim", "neutral"))
 		actor.set_sad(anim == "sad-walk" or anim == "sad-neutral")
+		if bool(puppet.get("fishing", false)):
+			_play_fishing(actor, puppet, anim, delta)
+			continue
+		_drop_pole(puppet)
 		actor.set_swimming(actor.under_water())
+		if anim == "sit":
+			actor.pose_synced_loop("sit")
+			continue
+		if anim == "sit-start":
+			actor.release_pose()
+			actor.play_gesture("sit-start", 1.0, false)
+			actor.set_locomotion(0.0, false, false, delta)
+			continue
+		actor.release_pose()
 		if anim == "run":
 			actor.set_locomotion(9.0, false, false, delta)
 		elif anim == "walk":
@@ -310,6 +365,61 @@ func _move_puppets(delta: float) -> void:
 			actor.set_locomotion(0.0, false, false, delta)
 		else:
 			actor.set_locomotion(0.0, false, false, delta)
+
+
+func _play_fishing(actor: ToonActor, puppet: Dictionary, anim: String, delta: float) -> void:
+	actor.set_swimming(false)
+	if anim == "run":
+		_drop_pole(puppet)
+		actor.release_pose()
+		actor.set_locomotion(9.0, false, false, delta)
+		return
+	_hold_pole(actor, puppet, int(puppet.get("rod", 0)))
+	var pose := float(puppet.get("pose", -1.0))
+	if pose >= 0.0:
+		actor.pose_action(anim, pose)
+		return
+	actor.release_pose()
+	var looping := anim == "pole-neutral" or anim == "fish-neutral"
+	actor.play_gesture(anim, 1.0, looping)
+	actor.set_locomotion(0.0, false, false, delta)
+
+
+func _hold_pole(actor: ToonActor, puppet: Dictionary, rod: int) -> void:
+	var pole: Node3D = puppet.get("pole")
+	if pole == null or not is_instance_valid(pole) or int(puppet.get("pole_rod", -1)) != rod:
+		if pole != null and is_instance_valid(pole):
+			pole.queue_free()
+		pole = Node3D.new()
+		pole.name = "FishingPole"
+		var paths: PackedStringArray = [
+			"res://assets/props/fishing_pole.glb",
+			"res://assets/props/fishing_pole_bamboo.glb",
+			"res://assets/props/fishing_pole_wood.glb",
+			"res://assets/props/fishing_pole_steel.glb",
+			"res://assets/props/fishing_pole_gold.glb",
+		]
+		var which := clampi(rod, 0, paths.size() - 1)
+		var packed := load(paths[which]) as PackedScene
+		if packed != null:
+			pole.add_child(packed.instantiate())
+		puppet["pole"] = pole
+		puppet["pole_rod"] = rod
+	var hand := actor.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		if pole.get_parent() != actor:
+			actor.add_child(pole)
+	elif pole.get_parent() != hand:
+		hand.add_child(pole)
+	pole.scale = Vector3.ONE
+
+
+func _drop_pole(puppet: Dictionary) -> void:
+	var pole: Node3D = puppet.get("pole")
+	if pole != null and is_instance_valid(pole):
+		pole.queue_free()
+	puppet.erase("pole")
+	puppet.erase("pole_rod")
 
 
 func _hide(peer: int) -> void:
@@ -331,6 +441,7 @@ func _drop(peer: int) -> void:
 	var actor: ToonActor = puppet.get("actor")
 	if _tags != null and actor != null and is_instance_valid(actor):
 		_tags.release(actor)
+	_drop_pole(puppet)
 	if actor != null and is_instance_valid(actor):
 		actor.queue_free()
 	_free_pet(puppet)
@@ -493,10 +604,11 @@ func _style_key(value: Variant) -> String:
 	if not (value is Dictionary):
 		return ""
 	var data: Dictionary = value
-	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+	return "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		data.get("head", ""), data.get("torso", ""), data.get("legs", ""),
 		data.get("gender", ""), data.get("head_color", 0), data.get("arm_color", 0),
-		data.get("leg_color", 0), data.get("top_tex", 0), data.get("top_color", 0),
+		data.get("leg_color", 0), data.get("head_hex", ""), data.get("arm_hex", ""),
+		data.get("leg_hex", ""), data.get("top_tex", 0), data.get("top_color", 0),
 		data.get("bot_tex", 0), data.get("bot_color", 0), data.get("top_map", ""),
 		data.get("sleeve_map", ""), data.get("bottom_map", ""), data.get("first_name", ""),
 		data.get("last_name", ""),

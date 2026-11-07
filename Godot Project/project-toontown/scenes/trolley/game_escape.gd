@@ -52,7 +52,7 @@ func _build() -> void:
 	_cog.scale = Vector3(0.7, 0.7, 0.7)
 	_exit = _spawn("res://assets/minigames/toonblitz_elevator.glb", 46.0, 0.0, 0.0)
 	_add_floor(_exit)
-	_make_toon(Vector3(-30.0, 2.0, 0.0))
+	_make_toon(Vector3(-30.0 + lineup_x(2.5), 2.0, 0.0))
 	if _floors.size() > 1:
 		_toon.position.y = float(_floors[1]["top"])
 	elif not _floors.is_empty():

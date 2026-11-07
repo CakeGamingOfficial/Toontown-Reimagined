@@ -302,6 +302,13 @@ static func _write_mail() -> void:
 	file.store_string(JSON.stringify(_mail))
 
 
+static func catalog_tokens() -> PackedStringArray:
+	var tokens := PackedStringArray()
+	for item in _list(_row(), "catalog"):
+		tokens.append(String(item))
+	return tokens
+
+
 static func _token(item: Dictionary) -> String:
 	return "%s:%d:%d" % [String(item.get("kind", "")), int(item.get("id", -1)), int(item.get("color_index", 0))]
 

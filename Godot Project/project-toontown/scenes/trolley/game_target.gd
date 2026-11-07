@@ -37,13 +37,14 @@ func _build() -> void:
 			continue
 		_pads.append({"node": pad, "points": int(spot["points"])})
 	for index in 10:
-		var cactus := _spawn("res://assets/minigames/cactus.glb", randf_range(-40.0, 40.0), 20.0 + float(index) * 18.0, 0.0, randf_range(0.7, 1.3))
+		var cactus := _spawn("res://assets/minigames/cactus.glb", shared_float(-40.0, 40.0), 20.0 + float(index) * 18.0, 0.0, shared_float(0.7, 1.3))
 		if cactus != null:
 			_cacti.append(cactus)
 	_chute = _spawn("res://assets/minigames/umbrella.glb", 0.0, 0.0, 2.0, 1.2)
 	if _chute != null:
 		_chute.visible = false
-	_make_toon(_panda(0.0, 0.0, 0.0))
+	var stand := lineup_x(4.0)
+	_make_toon(_panda(stand, 0.0, 0.0))
 	_aim(0.0, -18.0, 8.0, 0.0, 20.0, 1.0)
 	_loop_sfx("target_wind_fly_loop", 0.25)
 	var layer := CanvasLayer.new()
@@ -133,7 +134,7 @@ func _land() -> void:
 	_umbrella = false
 	if _chute != null:
 		_chute.visible = false
-	_toon.position = _panda(0.0, 0.0, 0.0)
+	_toon.position = _panda(lineup_x(4.0), 0.0, 0.0)
 	_aim(0.0, -18.0, 8.0, 0.0, 20.0, 1.0)
 	if _board != null:
 		_board.show_round(_shots, score, true)

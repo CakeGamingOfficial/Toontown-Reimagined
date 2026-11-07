@@ -64,6 +64,13 @@ const _SPECIES_HEADS: Array[Texture2D] = [
 
 var _shop := 0
 var _style: ToonStyle
+var _color_menu: Control
+var _color_card: Panel
+var _color_title: Label
+var _color_picker: ColorPicker
+var _color_confirm: TextureButton
+var _color_close: TextureButton
+var _color_part := ""
 var _actor: ToonActor
 var _room: Node3D
 var _viewport: SubViewport
@@ -263,6 +270,7 @@ func _build_chrome() -> void:
 
 
 func _show_shop() -> void:
+	_close_color_card()
 	for child in _shop_box.get_children():
 		if child == _rotate_left or child == _rotate_right:
 			continue
@@ -350,9 +358,10 @@ func _pose_toon() -> void:
 	if _style == null:
 		return
 	var mesh := "%s|%s|%s" % [_style.head, _style.torso, _style.legs]
-	var paint := "%d|%d|%d|%d|%d|%d|%d" % [
+	var paint := "%d|%d|%d|%d|%d|%d|%d|%s|%s|%s" % [
 		_style.top_tex, _style.top_color, _style.bot_tex, _style.bot_color,
 		_style.head_color, _style.arm_color, _style.leg_color,
+		_style.custom_hex("head"), _style.custom_hex("arm"), _style.custom_hex("leg"),
 	]
 	var key := mesh + "|" + paint
 	if mesh != _mesh_key:
@@ -426,7 +435,7 @@ func _species_heads() -> void:
 		button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 		button.focus_mode = Control.FOCUS_NONE
 		var chosen := _style != null and _style.species() == code
-		var fur := ToonStyle.fur_color(_style.head_color) if _style else Color.WHITE
+		var fur := _style.painted_color("head") if _style else Color.WHITE
 		button.modulate = fur if chosen else fur.darkened(0.45)
 		button.mouse_filter = Control.MOUSE_FILTER_STOP
 		button.z_index = 2
@@ -447,10 +456,10 @@ func _species_heads() -> void:
 
 func _build_color() -> void:
 	_dock = 1
-	_choice_row(0.98, 0.343, 1.3, 0.0, "Toon Color", _cycle_all_color.bind(-1), _cycle_all_color.bind(1))
-	_choice_row(0.98, 0.116, 0.9, 2.0, "Head", _cycle_part_color.bind("head", -1), _cycle_part_color.bind("head", 1))
-	_choice_row(0.98, -0.084, 0.9, -2.0, "Body", _cycle_part_color.bind("arm", -1), _cycle_part_color.bind("arm", 1))
-	_choice_row(0.98, -0.284, 0.9, 3.0, "Legs", _cycle_part_color.bind("leg", -1), _cycle_part_color.bind("leg", 1))
+	_choice_row(0.98, 0.343, 1.3, 0.0, "Toon Color", _cycle_all_color.bind(-1), _cycle_all_color.bind(1), _open_color_card.bind("all"))
+	_choice_row(0.98, 0.116, 0.9, 2.0, "Head", _cycle_part_color.bind("head", -1), _cycle_part_color.bind("head", 1), _open_color_card.bind("head"))
+	_choice_row(0.98, -0.084, 0.9, -2.0, "Body", _cycle_part_color.bind("arm", -1), _cycle_part_color.bind("arm", 1), _open_color_card.bind("arm"))
+	_choice_row(0.98, -0.284, 0.9, 3.0, "Legs", _cycle_part_color.bind("leg", -1), _cycle_part_color.bind("leg", 1), _open_color_card.bind("leg"))
 	_shuffle_button(0.98, -0.584, _shuffle_color)
 
 
@@ -804,7 +813,7 @@ func _column_wheel(host: Control, cx: float, cy: float, w: float, h: float, chan
 	)
 
 
-func _choice_row(x: float, z: float, frame_scale: float, rot: float, caption: String, previous: Callable, next: Callable) -> void:
+func _choice_row(x: float, z: float, frame_scale: float, rot: float, caption: String, previous: Callable, next: Callable, clicked: Callable = Callable()) -> void:
 	# shuffleFrame is 0.875 by 0.3667, drawn at halfButtonScale 0.6, then the frame scale.
 	var width := 0.875 * 0.6 * frame_scale
 	var height := 0.3667 * 0.6 * frame_scale
@@ -829,6 +838,20 @@ func _choice_row(x: float, z: float, frame_scale: float, rot: float, caption: St
 		var px := int(0.0625 * frame_scale * size.y * 0.5)
 		ToonGui.style_label(label, Color.WHITE, maxi(px, 1), _OUTLINE, maxi(px / 8, 1))
 	)
+	if clicked.is_valid():
+		frame.mouse_filter = Control.MOUSE_FILTER_STOP
+		frame.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		# Fish page tabs in the Shticker Book use this rollover tint.
+		frame.mouse_entered.connect(func() -> void:
+			image.modulate = Color(0.15, 0.82, 1.0)
+		)
+		frame.mouse_exited.connect(func() -> void:
+			image.modulate = Color.WHITE
+		)
+		frame.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				clicked.call()
+		)
 	var arrow_w := 0.1 * 0.6 * frame_scale
 	var arrow_h := 0.1833 * 0.6 * frame_scale
 	var arrow_x := 0.2 * frame_scale
@@ -987,6 +1010,8 @@ func _layout() -> void:
 	if _slide:
 		_slide.position = Vector2.ZERO
 		_slide.size = size
+	if _color_menu != null and _color_menu.visible:
+		_place_color_card()
 	if _title:
 		_title.position = Vector2(0, size.y * 0.012)
 		_title.size = Vector2(size.x, size.y * 0.12)
@@ -1057,6 +1082,7 @@ func _cycle_all_color(step: int) -> void:
 	_style.head_color = color
 	_style.arm_color = color
 	_style.leg_color = color
+	_style.clear_painted("all")
 	_refresh()
 
 
@@ -1068,6 +1094,7 @@ func _cycle_part_color(part: String, step: int) -> void:
 			_style.arm_color = _step_color(_style.arm_color, step)
 		"leg":
 			_style.leg_color = _step_color(_style.leg_color, step)
+	_style.clear_painted(part)
 	_refresh()
 
 
@@ -1094,7 +1121,291 @@ func _shuffle_color() -> void:
 	_style.head_color = 1 + randi() % 24
 	_style.arm_color = 1 + randi() % 24
 	_style.leg_color = 1 + randi() % 24
+	_style.clear_painted("all")
 	_refresh()
+
+
+func _open_color_card(part: String) -> void:
+	if _style == null:
+		return
+	_ensure_color_card()
+	_swap_color_copy(_color_picker)
+	_color_part = part
+	_color_title.text = _color_caption(part)
+	_color_picker.color = _style.painted_color("head" if part == "all" else part)
+	_color_menu.visible = true
+	_place_color_card()
+
+
+func _color_caption(part: String) -> String:
+	match part:
+		"all":
+			return "Toon Color"
+		"head":
+			return "Head"
+		"arm":
+			return "Body"
+		_:
+			return "Legs"
+
+
+func _ensure_color_card() -> void:
+	if _color_menu != null:
+		return
+	_color_menu = Control.new()
+	_color_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	_color_menu.z_index = 40
+	_color_menu.visible = false
+	_color_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_color_menu.gui_input.connect(_on_color_dim)
+	add_child(_color_menu)
+	_color_card = Panel.new()
+	_color_card.mouse_filter = Control.MOUSE_FILTER_STOP
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.93, 0.9, 0.78)
+	box.border_color = Color(0.45, 0.32, 0.12)
+	box.set_border_width_all(4)
+	box.set_corner_radius_all(10)
+	_color_card.add_theme_stylebox_override("panel", box)
+	_color_menu.add_child(_color_card)
+	_color_title = Label.new()
+	_color_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_color_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_color_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_color_card.add_child(_color_title)
+	_color_picker = ColorPicker.new()
+	_color_picker.edit_alpha = false
+	_color_picker.sampler_visible = false
+	_color_picker.presets_visible = false
+	_color_picker.color_mode = ColorPicker.MODE_RGB
+	_color_picker.theme = _color_theme()
+	_color_card.add_child(_color_picker)
+	_swap_color_copy(_color_picker)
+	_color_confirm = _color_pill("Confirm")
+	_color_confirm.pressed.connect(_confirm_color_card)
+	_color_card.add_child(_color_confirm)
+	_color_close = _color_pill("Close")
+	_color_close.pressed.connect(_close_color_card)
+	_color_card.add_child(_color_close)
+
+
+func _place_color_card() -> void:
+	if _color_menu == null:
+		return
+	var area := size
+	_color_menu.position = Vector2.ZERO
+	_color_menu.size = area
+	var card_w := minf(maxf(area.x * 0.42, 320.0), 420.0)
+	var inner_w := card_w - 24.0
+	_color_picker.custom_minimum_size = Vector2(inner_w, 0)
+	var picker_h := _color_picker.get_combined_minimum_size().y
+	if picker_h < 1.0:
+		picker_h = 460.0
+	var title_h := 40.0
+	var close_h := 36.0
+	var gap := 8.0
+	var card_h := title_h + picker_h + gap + close_h + 14.0
+	_color_card.position = Vector2(maxf(area.x - card_w - 16.0, 8.0), maxf((area.y - card_h) * 0.5, 8.0))
+	_color_card.size = Vector2(card_w, card_h)
+	_color_title.position = Vector2(12, 6)
+	_color_title.size = Vector2(inner_w, title_h - 8.0)
+	ToonGui.style_label(_color_title, Color(0.08, 0.08, 0.08), 20, Color(0, 0, 0, 0), 0)
+	_color_picker.position = Vector2(12, title_h)
+	_color_picker.size = Vector2(inner_w, picker_h)
+	var button_w := minf(card_w * 0.36, 140.0)
+	var row_y := title_h + picker_h + gap
+	var pair_x := (card_w - button_w * 2.0 - gap) * 0.5
+	_place_color_pill(_color_confirm, Vector2(pair_x, row_y), Vector2(button_w, close_h))
+	_place_color_pill(_color_close, Vector2(pair_x + button_w + gap, row_y), Vector2(button_w, close_h))
+
+
+func _close_color_card() -> void:
+	if _color_menu != null:
+		_color_menu.visible = false
+
+
+func _on_color_dim(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton) or not event.pressed:
+		return
+	var click := event as InputEventMouseButton
+	if click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if Rect2(_color_card.position, _color_card.size).has_point(click.position):
+		return
+	_close_color_card()
+
+
+func _confirm_color_card() -> void:
+	if _style == null or _color_part == "" or _color_picker == null:
+		return
+	_style.set_painted(_color_part, _color_picker.color)
+	_refresh()
+
+
+func _swap_color_copy(node: Node) -> bool:
+	for child in node.get_children(true):
+		if child is Button:
+			var button := child as Button
+			var hint := (button.text + " " + button.tooltip_text).to_lower()
+			if hint.contains("copy"):
+				_replace_color_copy(button)
+				return true
+		if child is LineEdit:
+			var field := child as LineEdit
+			var field_hint := (field.placeholder_text + " " + field.tooltip_text).to_lower()
+			if field_hint.contains("hex"):
+				var copy := _color_button_after(field)
+				if copy != null:
+					_replace_color_copy(copy)
+					return true
+		if _swap_color_copy(child):
+			return true
+	return false
+
+
+func _color_button_after(field: LineEdit) -> Button:
+	var row := field.get_parent()
+	if row == null:
+		return null
+	var found := false
+	for sibling in row.get_children():
+		if sibling == field:
+			found = true
+		elif found and sibling is Button:
+			return sibling as Button
+	return null
+
+
+func _replace_color_copy(copy: Button) -> void:
+	copy.visible = false
+	copy.disabled = true
+	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := copy.get_parent()
+	if row == null or row.has_node("PasteHex"):
+		return
+	var paste := Button.new()
+	paste.name = "PasteHex"
+	paste.text = "Paste"
+	paste.tooltip_text = "Paste a color from your clipboard."
+	paste.custom_minimum_size = Vector2(72, 0)
+	paste.focus_mode = Control.FOCUS_NONE
+	row.add_child(paste)
+	paste.pressed.connect(_paste_color_card)
+
+
+func _paste_color_card() -> void:
+	var color: Variant = _color_from_clipboard()
+	if color == null or _color_picker == null:
+		return
+	_color_picker.color = color
+
+
+func _color_from_clipboard() -> Variant:
+	var raw := DisplayServer.clipboard_get().strip_edges().trim_prefix("#")
+	if raw.length() == 3 and raw.is_valid_hex_number():
+		raw = "%s%s%s%s%s%s" % [raw[0], raw[0], raw[1], raw[1], raw[2], raw[2]]
+	if raw.length() == 8 and raw.is_valid_hex_number():
+		raw = raw.substr(0, 6)
+	if raw.length() == 6 and raw.is_valid_hex_number():
+		return Color.html(raw)
+	var pieces := raw.replace(",", " ").split(" ", false)
+	if pieces.size() < 3:
+		return null
+	var numbers: Array[int] = []
+	for i in 3:
+		if not pieces[i].is_valid_int():
+			return null
+		numbers.append(clampi(int(pieces[i]), 0, 255))
+	return Color8(numbers[0], numbers[1], numbers[2])
+
+
+func _color_pill(text: String) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = preload("res://assets/toons/gui/QuitBtn_UP.png")
+	button.texture_hover = preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+	button.texture_pressed = preload("res://assets/toons/gui/QuitBtn_DN.png")
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	var caption := Label.new()
+	caption.text = text
+	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.set_anchors_preset(Control.PRESET_FULL_RECT)
+	button.add_child(caption)
+	return button
+
+
+func _place_color_pill(button: TextureButton, at: Vector2, box: Vector2) -> void:
+	button.position = at
+	button.size = box
+	var caption := button.get_child(0) as Label
+	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), 15, Color(0, 0, 0, 0), 0)
+
+
+func _color_theme() -> Theme:
+	var theme := Theme.new()
+	var face := ToonGui.font()
+	theme.default_font = face
+	theme.default_font_size = 16
+	var ink := Color(0.1, 0.1, 0.1)
+	theme.set_color("font_color", "Label", ink)
+	theme.set_font("font", "Label", face)
+	theme.set_font_size("font_size", "Label", 16)
+	var field := StyleBoxFlat.new()
+	field.bg_color = Color(1, 0.98, 0.9)
+	field.border_color = Color(0, 0, 0)
+	field.set_border_width_all(2)
+	field.set_corner_radius_all(6)
+	field.set_content_margin_all(4)
+	var focus := field.duplicate() as StyleBoxFlat
+	focus.border_color = Color(0.95, 0.55, 0.16)
+	theme.set_stylebox("normal", "LineEdit", field)
+	theme.set_stylebox("focus", "LineEdit", focus)
+	theme.set_color("font_color", "LineEdit", ink)
+	theme.set_font("font", "LineEdit", face)
+	theme.set_font_size("font_size", "LineEdit", 16)
+	var button := StyleBoxFlat.new()
+	button.bg_color = Color(0.98, 0.9, 0.55)
+	button.border_color = Color(0.45, 0.32, 0.12)
+	button.set_border_width_all(2)
+	button.set_corner_radius_all(8)
+	button.set_content_margin_all(4)
+	var hover := button.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(1, 0.96, 0.7)
+	var pressed := button.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.9, 0.72, 0.28)
+	theme.set_stylebox("normal", "Button", button)
+	theme.set_stylebox("hover", "Button", hover)
+	theme.set_stylebox("pressed", "Button", pressed)
+	theme.set_color("font_color", "Button", Color(0.12, 0.12, 0.14))
+	theme.set_font("font", "Button", face)
+	theme.set_font_size("font_size", "Button", 16)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.72, 0.58, 0.38)
+	track.set_corner_radius_all(5)
+	track.content_margin_top = 6
+	track.content_margin_bottom = 6
+	var fill := track.duplicate() as StyleBoxFlat
+	fill.bg_color = Color(0.95, 0.55, 0.16)
+	var knob := _color_knob()
+	theme.set_stylebox("slider", "HSlider", track)
+	theme.set_stylebox("grabber_area", "HSlider", fill)
+	theme.set_stylebox("grabber_area_highlight", "HSlider", fill)
+	theme.set_icon("grabber", "HSlider", knob)
+	theme.set_icon("grabber_highlight", "HSlider", knob)
+	return theme
+
+
+func _color_knob() -> Texture2D:
+	var image := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	for y in 16:
+		for x in 16:
+			var edge := x < 2 or y < 2 or x > 13 or y > 13
+			image.set_pixel(x, y, Color(0.42, 0.24, 0.05, 1) if edge else Color(0.98, 0.84, 0.32, 1))
+	return ImageTexture.create_from_image(image)
 
 
 func _shuffle_clothes() -> void:

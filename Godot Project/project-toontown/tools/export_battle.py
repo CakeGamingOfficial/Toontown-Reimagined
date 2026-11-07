@@ -106,6 +106,9 @@ TOON_ANIMS = [
     ("pushbutton", "phase_3.5", "press-button"),
     ("conked", "phase_3.5", "conked"),
     ("cringe", "phase_3.5", "cringe"),
+    ("slip-forward", "phase_4", "slip-forward"),
+    ("slip-backward", "phase_4", "slip-backward"),
+    ("struggle", "phase_5", "struggle"),
     ("sidestep-left", "phase_3.5", "sidestep-left"),
     ("sidestep-right", "phase_3.5", "jump-back-right"),
     ("duck", "phase_3.5", "duck"),
@@ -516,6 +519,7 @@ def export_added() -> int:
         "battlecast", "water-gun", "hold-bottle", "firehose", "spit", "tickle",
         "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "sound",
         "toss", "hold-magnet", "hypnotize",
+        "slip-forward", "slip-backward", "struggle",
         "lose", "sad-neutral", "sad-walk",
     }
     for suffix, phase, anim in TOON_ANIMS:

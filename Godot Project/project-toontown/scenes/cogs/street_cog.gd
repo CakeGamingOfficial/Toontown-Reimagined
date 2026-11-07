@@ -229,6 +229,9 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		var previous := get_node_or_null("Suit")
 		if previous != null:
 			_drop_health()
+			# The attack clips still point at this suit. Posing them after it is
+			# freed is the "previously freed instance" crash on a drop react.
+			_attacks.clear()
 			previous.free()
 		var packed := load(String(paths["model"])) as PackedScene
 		if packed == null:
@@ -668,12 +671,14 @@ func _match_lose_scale(lose: Node, suit: Node) -> void:
 		return
 	var worn := 1.0
 	for child in suit.get_children():
-		if child is Node3D and (child as Node3D).scale.x > 0.05:
-			worn = (child as Node3D).scale.x
+		var worn_part := _node3d(child)
+		if worn_part != null and worn_part.scale.x > 0.05:
+			worn = worn_part.scale.x
 			break
 	for child in lose.get_children():
-		if child is Node3D:
-			(child as Node3D).scale = Vector3.ONE * worn
+		var part := _node3d(child)
+		if part != null:
+			part.scale = Vector3.ONE * worn
 
 
 func _dress_lose(lose: Node, suit: Node) -> void:
@@ -699,9 +704,10 @@ func _copy_head(lose: Node, suit: Node) -> void:
 	# Suit.getLoseActor.instanceTo(joint_head). The lose body has an empty
 	# neck. The standing head, glasses included, is what blows up.
 	for child in src.get_children():
-		if not (child is Node3D) or String(child.name).begins_with("joint"):
+		var part := _node3d(child)
+		if part == null or String(part.name).begins_with("joint"):
 			continue
-		var copy := (child as Node3D).duplicate()
+		var copy := part.duplicate()
 		dst.add_child(copy)
 		_show_lose_face(copy)
 
@@ -740,8 +746,9 @@ func _keep_lose_face() -> void:
 		posed.basis = posed.basis.orthonormalized()
 		head.transform = posed
 	for child in head.get_children():
-		if child is Node3D:
-			(child as Node3D).visible = not popped
+		var part := _node3d(child)
+		if part != null:
+			part.visible = not popped
 
 
 func defeat() -> void:
@@ -778,8 +785,30 @@ func _vec(state: Dictionary, key: String, fallback: Vector3) -> Vector3:
 	return fallback
 
 
+func _node3d(value: Variant) -> Node3D:
+	if value != null and is_instance_valid(value) and value is Node3D:
+		return value
+	return null
+
+
+func _mesh3d(value: Variant) -> MeshInstance3D:
+	if value != null and is_instance_valid(value) and value is MeshInstance3D:
+		return value
+	return null
+
+
+func _bank_live(bank: Dictionary) -> bool:
+	var clips: Array = bank.get("clips", [])
+	if clips.is_empty():
+		return true
+	var record: Dictionary = clips[0]
+	return _mesh3d(record.get("instance")) != null
+
+
 func play_attack(key: String, elapsed: float) -> void:
 	# Attack clips are loaded on demand. Street roaming does not call this.
+	if _attacks.has(key) and not _bank_live(_attacks[key]):
+		_attacks.erase(key)
 	if not _attacks.has(key):
 		var folder := body
 		if bool(_source.get("skeleton", false)):
@@ -1673,8 +1702,8 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 	var clips: Array = bank.get("clips", [])
 	for item in clips:
 		var record: Dictionary = item
-		var instance := record["instance"] as MeshInstance3D
-		if not is_instance_valid(instance):
+		var instance := _mesh3d(record.get("instance"))
+		if instance == null:
 			continue
 		var posed := _frame_mesh(record, frame)
 		if posed == null:
@@ -1696,8 +1725,8 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 	var joints: Array = bank.get("joints", [])
 	for item in joints:
 		var record: Dictionary = item
-		var joint := record["node"] as Node3D
-		if not is_instance_valid(joint):
+		var joint := _node3d(record.get("node"))
+		if joint == null:
 			continue
 		var frames: Array = record["frames"]
 		if frames.is_empty():

@@ -9,8 +9,17 @@ const _TROLLEY := preload("res://assets/gui/tutorial/book/trolley.png")
 const _COG := preload("res://assets/gui/tutorial/book/cog_icon.png")
 ## RecoverItemQuest uses the stickerbook package, scaled to 0.12 inside the 0.15 frame.
 const _PACKAGE := preload("res://assets/gui/tutorial/book/package.png")
-const _FRIENDS := preload("res://assets/gui/friends/FriendsBox_Open.png")
-const _CLARA := preload("res://assets/gui/catalog/clarabelle.png")
+const _FRIENDS := preload("res://assets/gui/friends/FriendsBox_Closed.png")
+const _CLARA := preload("res://assets/gui/quests/clarabelleCow.png")
+const _BUILDING := preload("res://assets/gui/quests/COG_building.png")
+const _FACTORY := preload("res://assets/gui/quests/factoryIcon2.png")
+const _MINT := preload("res://assets/gui/quests/CashBotMint.png")
+const _ARM := preload("res://assets/gui/quests/CogArmIcon2.png")
+const _SKELE := preload("res://assets/gui/quests/skelecog5.png")
+const _VP := preload("res://assets/gui/quests/BossHead3Icon.png")
+const _CFO := preload("res://assets/gui/quests/CashBotBossHeadIcon.png")
+const _FEATHER := preload("res://assets/gui/tutorial/gags/inventory_feather.png")
+const _HORN := preload("res://assets/gui/tutorial/gags/inventory_bikehorn.png")
 const _CORP := preload("res://assets/gui/cogs/CorpIcon.png")
 const _LEGAL := preload("res://assets/gui/cogs/LegalIcon.png")
 const _MONEY := preload("res://assets/gui/cogs/MoneyIcon.png")
@@ -18,16 +27,30 @@ const _SALES := preload("res://assets/gui/cogs/SalesIcon.png")
 ## QuestPoster colors the picture square. Cog tasks are blue, the trolley is light blue.
 const _BLUE := Color(0.45, 0.45, 0.8)
 const _LIGHT_BLUE := Color(0.42, 0.671, 1.0)
+const _GREEN := Color(0.45, 0.8, 0.45)
+const _BROWN := Color(0.52, 0.42, 0.22)
+## Suit.medallionColors. A department picture is the cog icon tinted with these.
+const _CORP_TINT := Color(0.863, 0.776, 0.769)
+const _SALES_TINT := Color(0.843, 0.745, 0.745)
+const _LEGAL_TINT := Color(0.749, 0.776, 0.824)
+const _MONEY_TINT := Color(0.749, 0.769, 0.749)
+const _SHOPS := "res://assets/interiors/shops/shops.json"
 ## A finished task tints the scroll lightGreen and the headline (0, 0.3, 0).
 const _LIGHT_GREEN := Color(0.784, 1.0, 0.863)
 const _DONE := Color(0.0, 0.3, 0.0)
 const _INK := Color(0.3, 0.25, 0.2)
+## QuestPoster.colors rewardRed.
+const _REWARD := Color(0.8, 0.3, 0.3)
 
 var _card: TextureRect
 var _headline: Label
 var _caption: Label
 var _where: Label
 var _progress: Label
+var _reward: Label
+var _quest_id: Label
+var _reward_text := ""
+var _choosing := false
 var _return: Label
 var _left_name: Label
 var _right_name: Label
@@ -40,7 +63,10 @@ var _icon: TextureRect
 var _right_frame: TextureRect
 var _right_icon: TextureRect
 var _port: SubViewport
+var _right_port: SubViewport
 var _officer_port: SubViewport
+static var _npc_dna: Dictionary = {}
+static var _npcs_ready := false
 var _head_code := ""
 var _icon_fit := 0.8
 var _right_fit := 0.8
@@ -118,6 +144,14 @@ func _init() -> void:
 	_caption = _label()
 	_where = _label()
 	_progress = _label()
+	_reward = _label()
+	_reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_reward.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_reward.visible = false
+	_quest_id = _label()
+	_quest_id.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_quest_id.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_quest_id.visible = false
 	layout(Vector2(230, 180))
 
 
@@ -126,8 +160,8 @@ func layout(card: Vector2) -> void:
 	custom_minimum_size = card
 	size = card
 	_card.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	_badge.position = card * Vector2(18.0 / 230.0, 28.0 / 180.0)
 	_badge.size = card * Vector2(26.0 / 230.0, 26.0 / 180.0)
+	_place_quest_id(card)
 	_badge_box.set_corner_radius_all(maxi(int(_badge.size.x * 0.5), 1))
 	_count.position = Vector2.ZERO
 	_count.size = _badge.size
@@ -156,6 +190,10 @@ func layout(card: Vector2) -> void:
 		_place_line(_caption, 0.0, 0.02, 0.045, card, false)
 		_place_line(_where, 0.0, -0.075, 0.045, card, true)
 		_progress.visible = false
+	# The reward stays on the scroll, at the choice-card height, so the journal
+	# does not have to grow the card before the line can be read.
+	_place_reward(-0.205, card)
+	_reward.visible = not _reward_text.is_empty()
 	# The picture square is image_scale 0.15. Open tasks center it at z 0.13.
 	# A finished task, and an open recover task, shift it to x -0.18.
 	var frame := card * Vector2(0.15 / 0.8, 0.15 / 0.58)
@@ -175,12 +213,23 @@ func layout(card: Vector2) -> void:
 	_right_icon.size = officer
 
 
-func show_task(task: Dictionary) -> void:
+func show_task(task: Dictionary, choosing := false) -> void:
+	_choosing = choosing
+	var quest_id := int(task.get("id", 0))
+	_quest_id.text = str(quest_id) if quest_id > 0 else ""
+	_quest_id.visible = quest_id > 0
+	_reward_text = String(task.get("reward_line", ""))
+	_reward.text = _reward_text
 	_complete = bool(task.get("ready", false))
 	var goal := int(task.get("goal", 1))
-	var show_count := bool(task.get("show_count", false))
-	_badge.visible = show_count
-	_count.text = str(goal)
+	var task_number := int(task.get("task_number", 0))
+	if task_number > 0:
+		_badge.visible = true
+		_count.text = str(task_number)
+	else:
+		var show_count := bool(task.get("show_count", false))
+		_badge.visible = show_count
+		_count.text = str(goal)
 	_card.modulate = _LIGHT_GREEN if _complete else Color.WHITE
 	_return.visible = _complete
 	_left_name.visible = _complete
@@ -222,65 +271,62 @@ func _show_activity(task: Dictionary) -> void:
 	_split = false
 	_aux.visible = false
 	_right_fit = 0.8
+	_icon.modulate = Color.WHITE
+	_right_icon.modulate = Color.WHITE
 	var kind := String(task.get("kind", ""))
 	_frame.visible = kind != ""
 	_icon.visible = kind != ""
 	if kind == "cog":
 		_frame.modulate = _BLUE
-		var code := String(task.get("cog", ""))
-		if code == "" or code == "any":
-			_icon_fit = 0.85
-			_icon.texture = _COG
-		else:
-			# createSuitHead fits the head into 0.8, then the poster scales it by 0.15.
-			_icon_fit = 0.8
-			_show_head(code)
+		_show_cog_icon(String(task.get("cog", "")), String(task.get("dept", "")), false)
 	elif kind == "trolley":
 		_frame.modulate = _LIGHT_BLUE
 		_icon_fit = 0.13 / 0.15
 		_icon.texture = _TROLLEY
 	elif kind == "recover":
-		# The item picture is the stickerbook package. An open task also shows
-		# "from:" and the holder. Quest 145 recovers it from any Cog.
-		_frame.modulate = _LIGHT_GREEN
+		# RecoverItemQuest puts the package on the left. The holder is the
+		# cog, the department, or nothing when the holder is a fish.
+		_frame.modulate = _GREEN
 		_icon_fit = 0.12 / 0.15
 		_icon.texture = _PACKAGE
 		_icon.visible = true
 		if not _complete:
-			_split = true
-			_aux.text = "from:"
-			_aux.visible = true
-			var holder_name := String(task.get("holder_name", "The Cogs"))
-			_right_name.text = holder_name if holder_name != "" else "The Cogs"
-			_right_name.visible = true
-			_right_frame.visible = true
-			_right_frame.modulate = _LIGHT_GREEN
-			_right_icon.texture = _COG
-			_right_icon.visible = String(task.get("holder", "")) != "fish"
-			_right_fit = 1.0
+			_show_recover_holder(task)
+	elif kind == "visit":
+		_frame.modulate = _BROWN
+		_icon_fit = 0.8
+		_show_visit(int(task.get("npc", 0)))
 	elif kind == "friend":
-		_frame.modulate = _LIGHT_BLUE
-		_icon_fit = 0.72
+		_frame.modulate = _BROWN
+		_icon_fit = 0.7
 		_icon.texture = _FRIENDS
 	elif kind == "phone":
-		_frame.modulate = _LIGHT_GREEN
-		_icon_fit = 0.8
+		_frame.modulate = _LIGHT_BLUE
+		_icon_fit = 0.12 / 0.15
 		_icon.texture = _CLARA
+	elif kind == "track":
+		# TrackChoiceQuest shows the two offered gag icons with "or" between them.
+		_frame.modulate = _GREEN
+		_icon_fit = 0.8
+		_icon.texture = _FEATHER
+		if not _complete:
+			_split = true
+			_aux.text = "or"
+			_aux.visible = true
+			_right_frame.visible = true
+			_right_frame.modulate = _GREEN
+			_right_icon.texture = _HORN
+			_right_icon.visible = true
+			_right_fit = 0.8
 	elif kind == "building":
 		_frame.modulate = _BLUE
-		_icon_fit = 0.85
-		var dept := String(task.get("track", "any"))
-		if dept == "l":
-			_icon.texture = _LEGAL
-		elif dept == "m":
-			_icon.texture = _MONEY
-		elif dept == "s":
-			_icon.texture = _SALES
-		elif dept == "c":
-			_icon.texture = _CORP
-		else:
-			_icon.texture = _COG
-	else:
+		_icon_fit = 0.13 / 0.15
+		_icon.texture = _BUILDING
+	elif kind == "rescue":
+		_frame.modulate = _BLUE
+		_icon_fit = 0.13 / 0.15
+		_show_portrait(_npc_style(2001))
+	elif not _show_later(kind):
 		_frame.visible = false
 		_icon.visible = false
 	if size.x > 1.0:
@@ -291,20 +337,147 @@ func _show_activity(task: Dictionary) -> void:
 		_right_icon.visible = true
 
 
-func _show_head(code: String) -> void:
-	var packed := load("res://assets/cogs/heads/%s.glb" % code) as PackedScene
-	if packed == null:
+func _show_cog_icon(code: String, dept: String, on_right: bool) -> void:
+	var icon := _right_icon if on_right else _icon
+	var frame := _right_frame if on_right else _frame
+	if not on_right:
+		_icon_fit = 0.85
+	else:
+		_right_fit = 0.85
+	if code != "" and code != "any":
+		if not on_right:
+			_icon_fit = 0.8
+		else:
+			_right_fit = 0.8
+		_show_head(code, on_right)
+		return
+	if dept != "":
+		icon.texture = _dept_icon(dept)
+		icon.modulate = _dept_tint(dept)
+		icon.visible = true
+		frame.visible = true
+		if on_right:
+			_right_fit = 0.13 / 0.15
+		else:
+			_icon_fit = 0.13 / 0.15
+		return
+	icon.texture = _COG
+	icon.modulate = Color.WHITE
+	icon.visible = true
+	frame.visible = true
+
+
+func _show_recover_holder(task: Dictionary) -> void:
+	_split = true
+	var holder := String(task.get("holder", ""))
+	var holder_name := String(task.get("holder_name", "The Cogs"))
+	_right_name.text = holder_name if holder_name != "" else "The Cogs"
+	_right_name.visible = true
+	_right_frame.visible = true
+	_right_frame.modulate = _GREEN
+	if holder == "fish":
+		_aux.text = "for"
+		_aux.visible = true
+		_right_icon.visible = false
+		_right_frame.visible = false
+		_right_name.visible = false
+		return
+	_aux.text = "from:"
+	_aux.visible = true
+	var holder_type := String(task.get("holder_type", ""))
+	if holder_type == "level" or holder == "" or holder == "any":
+		_show_cog_icon("any", "", true)
+	elif holder_type == "track":
+		_show_cog_icon("any", holder, true)
+	else:
+		_show_cog_icon(holder, "", true)
+
+
+func _show_visit(npc_id: int) -> void:
+	if npc_id == 0 or npc_id == 1000:
+		_show_portrait(_officer_style())
+		return
+	var style := _npc_style(npc_id)
+	if style == null:
 		_icon.visible = false
 		return
-	_port = SubViewport.new()
-	_port.transparent_bg = true
-	_port.own_world_3d = true
-	_port.size = Vector2i(160, 160)
-	_port.gui_disable_input = true
-	_port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
-	add_child(_port)
+	_show_portrait(style)
+
+
+func _show_later(kind: String) -> bool:
+	var picture: Texture2D = null
+	var tint := _BLUE
+	var fit := 0.13 / 0.15
+	if kind == "factory":
+		picture = _FACTORY
+	elif kind == "mint":
+		picture = _MINT
+	elif kind == "cogpart":
+		picture = _ARM
+		tint = _GREEN
+	elif kind == "skelecog" or kind == "foreman" or kind == "supervisor":
+		picture = _SKELE
+	elif kind == "vp":
+		picture = _VP
+	elif kind == "cfo":
+		picture = _CFO
+	elif kind == "mailbox" or kind == "deliver":
+		picture = _PACKAGE
+		tint = _LIGHT_BLUE
+		fit = 0.12 / 0.15
+	else:
+		return false
+	_frame.modulate = tint
+	_icon_fit = fit
+	_icon.texture = picture
+	_icon.visible = true
+	return true
+
+
+func _dept_icon(dept: String) -> Texture2D:
+	if dept == "c":
+		return _CORP
+	if dept == "s":
+		return _SALES
+	if dept == "l":
+		return _LEGAL
+	if dept == "m":
+		return _MONEY
+	return _COG
+
+
+func _dept_tint(dept: String) -> Color:
+	if dept == "c":
+		return _CORP_TINT
+	if dept == "s":
+		return _SALES_TINT
+	if dept == "l":
+		return _LEGAL_TINT
+	if dept == "m":
+		return _MONEY_TINT
+	return Color.WHITE
+
+
+func _show_head(code: String, on_right := false) -> void:
+	var icon := _right_icon if on_right else _icon
+	var packed := load("res://assets/cogs/heads/%s.glb" % code) as PackedScene
+	if packed == null:
+		icon.visible = false
+		return
+	var port := SubViewport.new()
+	if on_right:
+		_right_port = port
+	else:
+		_port = port
+		_head_code = code
+	port.transparent_bg = true
+	port.own_world_3d = true
+	port.size = Vector2i(160, 160)
+	port.gui_disable_input = true
+	port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	add_child(port)
 	var stage := Node3D.new()
-	_port.add_child(stage)
+	port.add_child(stage)
 	var world := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -330,8 +503,8 @@ func _show_head(code: String) -> void:
 	camera.current = true
 	camera.position = Vector3(0.0, 0.02, 2.05)
 	stage.add_child(camera)
-	_icon.texture = _port.get_texture()
-	_head_code = code
+	icon.texture = port.get_texture()
+	icon.visible = true
 
 
 func _clear_head() -> void:
@@ -339,6 +512,9 @@ func _clear_head() -> void:
 	if _port != null and is_instance_valid(_port):
 		_port.queue_free()
 	_port = null
+	if _right_port != null and is_instance_valid(_right_port):
+		_right_port.queue_free()
+	_right_port = null
 
 
 func _copy_head(actor: Node3D, holder: Node3D) -> void:
@@ -375,6 +551,104 @@ func _pose(mesh: Node3D, actor: Node3D) -> Transform3D:
 			break
 		node = node.get_parent()
 	return xform
+
+
+func _show_portrait(style: ToonStyle) -> void:
+	if style == null:
+		_icon.visible = false
+		return
+	_port = SubViewport.new()
+	_port.transparent_bg = true
+	_port.own_world_3d = true
+	_port.size = Vector2i(180, 180)
+	_port.gui_disable_input = true
+	_port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	add_child(_port)
+	var stage := Node3D.new()
+	_port.add_child(stage)
+	var world := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0, 0, 0, 0)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color.WHITE
+	env.ambient_light_energy = 1.2
+	world.environment = env
+	stage.add_child(world)
+	var key := DirectionalLight3D.new()
+	key.light_energy = 1.2
+	key.rotation_degrees = Vector3(-28.0, 35.0, 0.0)
+	stage.add_child(key)
+	var actor := ToonActor.new()
+	stage.add_child(actor)
+	actor.show_style(style)
+	var camera := Camera3D.new()
+	camera.fov = 26.0
+	camera.current = true
+	stage.add_child(camera)
+	var focus := actor.position + Vector3(0.0, 3.45, 0.0)
+	var head := _find(actor, "def_head")
+	if head != null:
+		focus = head.global_position if is_inside_tree() else actor.to_global(head.position)
+	camera.position = focus + Vector3(0.0, 0.08, 1.55)
+	camera.look_at(focus, Vector3.UP)
+	_icon.texture = _port.get_texture()
+	_icon.visible = true
+
+
+func _npc_style(npc_id: int) -> ToonStyle:
+	_load_npcs()
+	var dna: Variant = _npc_dna.get(npc_id, [])
+	if typeof(dna) != TYPE_ARRAY or (dna as Array).size() < 14:
+		return null
+	return _style_from_dna(dna)
+
+
+func _load_npcs() -> void:
+	if _npcs_ready:
+		return
+	_npcs_ready = true
+	# Flippy and Librarian Larry are interior toons, not shopkeepers.
+	_npc_dna[2001] = ["dss", "ms", "m", "m", 17, 0, 17, 17, 3, 3, 0, 0, 7, 2]
+	_npc_dna[2005] = ["cls", "ls", "l", "m", 4, 0, 4, 4, 0, 4, 0, 0, 0, 4]
+	if not FileAccess.file_exists(_SHOPS):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SHOPS))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var shops: Dictionary = parsed
+	for zone in shops.keys():
+		var row: Variant = shops[zone]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var people: Variant = (row as Dictionary).get("npcs", [])
+		if typeof(people) != TYPE_ARRAY:
+			continue
+		for npc in people:
+			if typeof(npc) != TYPE_DICTIONARY:
+				continue
+			var who: Dictionary = npc
+			var dna: Array = who.get("dna", [])
+			var npc_id := int(who.get("id", 0))
+			if npc_id != 0 and dna.size() >= 14:
+				_npc_dna[npc_id] = dna
+
+
+func _style_from_dna(dna: Array) -> ToonStyle:
+	var style := ToonStyle.new()
+	style.head = String(dna[0])
+	style.torso = String(dna[1])
+	style.legs = String(dna[2])
+	style.gender = String(dna[3])
+	style.arm_color = int(dna[4])
+	style.glove_color = int(dna[5])
+	style.leg_color = int(dna[6])
+	style.head_color = int(dna[7])
+	style.top_tex = int(dna[8])
+	style.top_color = int(dna[9])
+	style.bot_tex = int(dna[12])
+	style.bot_color = int(dna[13])
+	return style
 
 
 func _show_officer() -> void:
@@ -467,6 +741,7 @@ func _hover_in() -> void:
 	_hover_tween.set_parallel(true)
 	_hover_tween.tween_property(self, "position", position + Vector2(0.0, -extra * 0.5), 0.08)
 	_hover_tween.tween_property(self, "size", size + Vector2(0.0, extra), 0.08)
+	_reward.visible = not _reward_text.is_empty()
 	for child in get_children():
 		if child == _card or child is SubViewport:
 			continue
@@ -520,6 +795,37 @@ func _place_line(label: Label, x: float, z: float, text_scale: float, card: Vect
 		ToonGui.style_sign(label, ink, px, Color(0, 0, 0, 0), 0)
 	else:
 		ToonGui.style_label(label, _INK, px, Color(0, 0, 0, 0), 0)
+
+
+## The quest number sits in the top-left of the scroll. A counted task's red
+## circle moves to the right of it.
+func _place_quest_id(card: Vector2) -> void:
+	var id_px := maxi(int(card.y * 0.04 / 0.58), 9)
+	ToonGui.style_label(_quest_id, _INK, id_px, Color(0, 0, 0, 0), 0)
+	var text_w := 0.0
+	if _quest_id.visible:
+		text_w = ToonGui.font().get_string_size(_quest_id.text, HORIZONTAL_ALIGNMENT_LEFT, -1, id_px).x
+	var origin := card * Vector2(14.0 / 230.0, 24.0 / 180.0)
+	_quest_id.position = origin
+	_quest_id.size = Vector2(maxf(text_w, 1.0), card.y * (26.0 / 180.0))
+	var badge_x := 18.0 / 230.0
+	if _quest_id.visible:
+		badge_x = (origin.x + text_w + card.x * (6.0 / 230.0)) / card.x
+	_badge.position = Vector2(card.x * badge_x, card.y * (28.0 / 180.0))
+
+
+## rewardText is left aligned at x -0.36. z is the first line's baseline, so the
+## words sit above it and a wrapped second line continues down the scroll.
+func _place_reward(z: float, card: Vector2) -> void:
+	var px := maxi(int(card.y * 0.0425 / 0.58), 8)
+	var width := card.x * 0.9
+	var line_h := float(px)
+	var left := card.x * ((-0.36 + 0.4) / 0.8)
+	var baseline := card.y * ((0.29 - z) / 0.58)
+	_reward.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_reward.position = Vector2(left, baseline - line_h)
+	_reward.size = Vector2(width, line_h * 2.4)
+	ToonGui.style_label(_reward, _REWARD, px, Color(0, 0, 0, 0), 0)
 
 
 func _place_sign(label: Label, z: float, text_scale: float, card: Vector2) -> void:

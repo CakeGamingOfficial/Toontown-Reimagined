@@ -8,6 +8,9 @@ extends Node
 const _PROPS := "res://assets/battle/props/"
 const _SFX := "res://assets/audio/battle/"
 const _HEIGHT := 4.88
+# MovieUtil.SPRAY_LEN. The spray mesh runs along local +Y, and Panda's lookAt aims that axis.
+const _SPRAY_LEN := 1.5
+const _SPRAY_SCALE: Array[float] = [0.2, 0.3, 0.1, 0.6, 0.8, 1.0, 2.0]
 # MovieUtil.SUIT_LOSE_DURATION. The lose-mod plays after the hit react.
 const LOSE_SECONDS := 6.0
 const _GAGS: Array = [
@@ -52,6 +55,49 @@ const _HEAL_CLIP: PackedStringArray = ["tickle", "sound", "smooch", "happy-dance
 const _LURE_DOLLAR: PackedStringArray = ["1dollar", "", "5dollar", "", "10dollar", "", ""]
 
 const _DROP_FALL: Array[float] = [0.5, 0.1667, 0.0417, 0.4583, 0.4583, 0.4583, 0.0833]
+# MovieTrap distances, in front of the cog. Panda +Y is the cog's forward.
+const _TRAP_REACH: Array[float] = [2.6, 4.5, 3.7, 2.6, 2.6, 5.1, 2.6]
+const _ATTACK_HELD := {
+	"Pound Key!": ["phone", "receiver"],
+	"Hang Up!": ["phone", "receiver"],
+	"Audit!": ["calculator"],
+	"Calculate!": ["calculator"],
+	"Tabulate!": ["calculator"],
+	"Shred!": ["shredder", "shredder-paper"],
+	"Fountain Pen!": ["pen"],
+	"Rub Out!": ["pad", "pencil"],
+	"Write Off!": ["pad", "pencil"],
+	"Fill With Lead!": ["pencil", "sharpener"],
+	"Rubber Stamp!": ["rubber-stamp", "pad"],
+	"Razzle Dazzle!": ["smile"],
+	"Tee Off!": ["golf-club"],
+	"Rolodex!": ["rollodex"],
+	"Evil Eye!": ["evil-eye"],
+	"Watercooler!": ["watercooler"],
+	"Cigar Smoke!": ["cigar"],
+	"Glower Power!": ["dagger", "dagger"],
+}
+const _ATTACK_THROWN := {
+	"Clip On Tie!": "clip-on-tie",
+	"Canned!": "can",
+	"Pink Slip!": "pink-slip",
+	"Sacked!": "sandbag",
+	"Half Windsor!": "half-windsor",
+	"Play Hardball!": "baseball",
+	"Power Tie!": "power-tie",
+	"Pick Pocket!": "1dollar",
+	"Red Tape!": "redtape",
+	"Bounce Check!": "bounced-check",
+	"Crunch!": "calculator",
+	"Market Crash!": "newspaper",
+	"Bite!": "teeth",
+	"Chomp!": "teeth",
+	"Eviction Notice!": "shredder-paper",
+	"Restraining Order!": "shredder-paper",
+	"Pecking Order!": "bird",
+	"Throw Book!": "lawbook",
+	"Tee Off!": "golf-ball",
+}
 const _HEAL_TIME: Array[float] = [3.2, 3.6, 3.4, 6.4, 4.6, 7.7, 9.0]
 const _SHOTS: Dictionary = {
 	"throw_close": {"rel": true, "x": 3.0, "y": 8.0, "z": 0.66, "chest": true},
@@ -67,6 +113,7 @@ const _SHOTS: Dictionary = {
 
 var _spawned: Array[Node] = []
 var _traps: Dictionary = {}
+var _sprung: Array = []
 var _fired: Dictionary = {}
 var _attach: Dictionary = {}
 var _aiming := false
@@ -92,11 +139,12 @@ func _ready() -> void:
 
 ## The server holds the movie for this long. Playback uses the same numbers,
 ## so a client cannot finish after the round has already moved on.
-static func seconds(kind: String, track: int, level: int, died: bool) -> float:
+static func seconds(kind: String, track: int, level: int, died: bool, attack := "") -> float:
 	if kind == "run" or kind == "lured":
 		return 1.3
 	if kind == "cog":
-		return 9.4 if died else 3.8
+		var length := maxf(_cog_length(attack, "a"), maxf(_cog_length(attack, "b"), _cog_length(attack, "c")))
+		return length + (5.6 if died else 0.0)
 	if kind != "gag":
 		return 2.2
 	if track == 4:
@@ -118,7 +166,7 @@ static func seconds(kind: String, track: int, level: int, died: bool) -> float:
 	if track == 6:
 		return 6.6
 	if track == 1:
-		return 3.6
+		return 5.2 if level <= 2 or level == 5 else 4.6
 	if track == 2:
 		if level == 1 or level == 3:
 			return 7.2
@@ -132,6 +180,76 @@ static func seconds(kind: String, track: int, level: int, died: bool) -> float:
 	if track == 0:
 		return _HEAL_TIME[clampi(level, 0, _HEAL_TIME.size() - 1)]
 	return 2.2
+
+
+## MovieSuitAttacks.getToonTrack. The extra 1.4s is the reaction after the hit.
+static func _cog_length(title: String, body: String) -> float:
+	var react := _attack_react(title, body)
+	return maxf(3.8, maxf(float(react["hit_t"]), float(react["dodge_t"])) + 1.4)
+
+
+static func _react(hit: String, hit_t: float, dodge: String, dodge_t: float) -> Dictionary:
+	return {"hit": hit, "hit_t": hit_t, "dodge": dodge, "dodge_t": dodge_t}
+
+
+static func _attack_react(title: String, body: String) -> Dictionary:
+	var heavy := body == "a" or body == "b"
+	if title == "Clip On Tie!" or title == "Power Tie!":
+		return _react("conked", (3.3 if heavy else 2.61), "sidestep-left", (3.1 if heavy else 2.34))
+	if title == "Finger Wag!":
+		var wag := 2.0
+		if body == "a":
+			wag = 1.7
+		elif body == "b":
+			wag = 1.8
+		return _react("slip-backward", 2.7, "sidestep-left", wag)
+	if title == "Rolodex!":
+		var cards := 3.5
+		if body == "a":
+			cards = 3.8
+		elif body == "b":
+			cards = 4.0
+		return _react("conked", cards, "sidestep-left", 2.5)
+	if title == "Bounce Check!":
+		if body == "a":
+			return _react("conked", 5.1, "sidestep-left", 4.3)
+		return _react("conked", 4.4, "sidestep-left", 3.6)
+	var known := {
+		"Pound Key!": _react("cringe", 2.7, "sidestep-left", 1.9),
+		"Write Off!": _react("slip-forward", 3.4, "sidestep-left", 2.4),
+		"Rubber Stamp!": _react("conked", 3.4, "sidestep-left", 1.9),
+		"Razzle Dazzle!": _react("cringe", 2.6, "sidestep-left", 1.9),
+		"Fountain Pen!": _react("conked", 1.81, "duck", 0.11),
+		"Rub Out!": _react("conked", 2.2, "jump", 2.0),
+		"Pick Pocket!": _react("cringe", 0.6, "sidestep-left", 0.01),
+		"Hang Up!": _react("slip-backward", 5.5, "jump", 4.7),
+		"Red Tape!": _react("struggle", 3.4, "jump", 2.8),
+		"Audit!": _react("conked", 3.2, "duck", 0.9),
+		"Calculate!": _react("conked", 3.2, "sidestep-left", 1.8),
+		"Tabulate!": _react("conked", 3.2, "sidestep-left", 1.8),
+		"Eviction Notice!": _react("conked", 3.4, "jump", 2.8),
+		"Withdrawal!": _react("cringe", 1.2, "duck", 0.2),
+		"Mumbo Jumbo!": _react("cringe", 3.2, "sidestep-left", 2.2),
+		"Quake!": _react("slip-forward", 1.8, "jump", 1.1),
+		"Shake!": _react("slip-forward", 1.1, "jump", 0.7),
+		"Tremor!": _react("slip-forward", 1.1, "jump", 0.7),
+		"Synergy!": _react("slip-forward", 1.7, "jump", 0.91),
+		"Power Trip!": _react("slip-forward", 1.8, "jump", 1.29),
+		"Guilt Trip!": _react("slip-forward", 1.5, "jump", 0.86),
+		"Paradigm Shift!": _react("slip-backward", 1.95, "jump", 0.95),
+		"Pink Slip!": _react("cringe", 2.81, "jump", 2.8),
+		"Crunch!": _react("cringe", 4.7, "sidestep-left", 3.6),
+		"Market Crash!": _react("cringe", 3.8, "sidestep-left", 2.4),
+		"Glower Power!": _react("cringe", 1.6, "sidestep-left", 0.7),
+		"Fired!": _react("cringe", 1.5, "sidestep-left", 0.3),
+		"Restraining Order!": _react("cringe", 3.4, "sidestep-left", 2.8),
+		"Pecking Order!": _react("cringe", 4.2, "sidestep-left", 2.8),
+		"Bite!": _react("cringe", 3.2, "sidestep-left", 2.9),
+		"Chomp!": _react("cringe", 3.2, "sidestep-left", 2.75),
+	}
+	if known.has(title):
+		return known[title]
+	return _react("cringe", 2.4, "sidestep-left", 2.4)
 
 
 func has_aim() -> bool:
@@ -264,6 +382,8 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 		# tPieLeavesHand 2.7, tPieHitsSuit 3.0, tSuitDodges 2.45.
 		if elapsed < 2.7:
 			pie.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed, 0.0, 1.0))
+		elif level == 6 and marks.size() > 1:
+			_fly_cake(pie, marks, elapsed)
 		else:
 			_fly(pie, aim, _HEIGHT if hit else _HEIGHT * 1.3, elapsed, 2.7, 0.3 if hit else 0.45, not hit, not hit)
 		if hit and elapsed >= 3.0 and not pie.has_meta("splats"):
@@ -273,7 +393,7 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 				var row: Dictionary = mark
 				if not bool(row.get("hit", false)):
 					continue
-				var cog: Node3D = row.get("cog")
+				var cog := _node3d(row.get("cog"))
 				var splat := _make("splat")
 				_tint(splat, _splat_color(pie_name))
 				splat.scale = Vector3.ONE * _splat_scale(pie_name)
@@ -324,7 +444,7 @@ func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable)
 			flower.scale = Vector3.ONE * size
 		if elapsed >= 2.5 and elapsed < 2.8 and aim != null:
 			spray.visible = true
-			_spray(spray, flower.global_position, aim.global_position + Vector3(0.0, _HEIGHT * 0.66, 0.0))
+			_spray(spray, flower.global_position, aim.global_position + Vector3(0.0, _HEIGHT * 0.66, 0.0), 0)
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, 2.7, "squirt-small", 2.5)
@@ -337,7 +457,11 @@ func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable)
 
 func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
 	var prop := _make(prop_name)
-	_hand(prop, actor, "def_joint_right_hold")
+	if level == 2:
+		# MovieSquirt water-gun: right hand, not the joint origin.
+		_seat(prop, actor, "def_joint_right_hold", Vector3(0.28, 0.1, 0.08), Vector3(85.6, -4.44, 94.43), Vector3.ONE)
+	else:
+		_hand(prop, actor, "def_joint_right_hold")
 	var spray := _make("spray")
 	spray.visible = false
 	_tint(spray, Color(0.75, 0.75, 1.0, 0.8))
@@ -352,9 +476,13 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 	var hydrant: Node3D = null
 	if level == 4:
 		hydrant = _make("hydrant")
-		hydrant.global_position = actor.global_position + (-actor.global_transform.basis.z) * 1.4
-		hydrant.global_position.y = actor.global_position.y
+		# The hose is parented to the hydrant, and the hydrant sits on the toon.
+		hydrant.reparent(actor)
+		hydrant.position = Vector3.ZERO
+		hydrant.basis = Basis.IDENTITY
 		prop.reparent(hydrant)
+		prop.position = Vector3.ZERO
+		prop.basis = Basis.IDENTITY
 	var gate := {}
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
@@ -362,7 +490,7 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.5, 0.0, 1.0))
 		if elapsed >= spray_at and elapsed < spray_at + hold and aim != null:
 			spray.visible = true
-			_spray(spray, prop.global_position, aim.global_position + Vector3(0.0, _HEIGHT * 0.66, 0.0))
+			_spray(spray, prop.global_position, aim.global_position + Vector3(0.0, _HEIGHT * 0.66, 0.0), level)
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, contact_at, "squirt-small", dodge_at)
@@ -385,15 +513,16 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action("pushbutton", elapsed)
 		if cloud:
-			# Storm cloud scales up for 1.5s, holds, then shrinks.
+			# A hit holds the rain. A miss shrinks after the short 1.7s hold.
+			var hold_until := 6.2 if hit else 4.2
 			if elapsed < 1.5:
 				prop.visible = true
 				prop.scale = Vector3.ONE * lerpf(0.05, 3.0, elapsed / 1.5)
-			elif elapsed < 6.2:
+			elif elapsed < hold_until:
 				prop.visible = true
 				prop.scale = Vector3.ONE * 3.0
 			else:
-				prop.scale = Vector3.ONE * lerpf(3.0, 0.05, clampf((elapsed - 6.2) / 0.5, 0.0, 1.0))
+				prop.scale = Vector3.ONE * lerpf(3.0, 0.05, clampf((elapsed - hold_until) / 0.5, 0.0, 1.0))
 			if aim != null:
 				prop.global_position = aim.global_position + Vector3(0.0, _HEIGHT + 3.0, 0.0)
 		elif elapsed >= 1.0:
@@ -437,15 +566,16 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 			var falling := props[index]
 			var shadow := shadows[index]
 			var mark: Dictionary = marks[index]
-			var cog: Node3D = mark.get("cog")
+			var cog := _node3d(mark.get("cog"))
 			if cog == null:
+				falling.visible = false
+				shadow.visible = false
 				continue
 			var missed := not bool(mark.get("hit", false))
-			var rest := cog.global_position + Vector3(0.0, 1.2 if level < 3 else 0.4, 0.0)
+			var rest := cog.global_position + Vector3(0.0, 0.75 if level < 2 else 0.0, 0.0)
+			# Big drops miss five units in front of the cog. Small ones still land on it.
 			if missed and level >= 3:
-				rest += _aside(actor, cog) * 5.0
-			elif missed:
-				rest += _aside(actor, cog) * 2.4
+				rest += _forward(cog) * 5.0
 			shadow.global_position = Vector3(rest.x, cog.global_position.y + 0.05, rest.z)
 			if elapsed >= 2.44 and elapsed < 4.6:
 				shadow.visible = true
@@ -459,8 +589,14 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 			falling.visible = true
 			var fallen := clampf((elapsed - 4.3) / fall, 0.0, 1.0)
 			var above := rest + Vector3(0.0, 5.0, 0.0)
-			falling.global_position = above.lerp(rest, fallen)
-			falling.scale = Vector3.ONE
+			falling.global_position = above.lerp(rest, fallen) + Vector3(0.0, _drop_hop(elapsed - (4.3 + fall)), 0.0)
+			var shrink_at := 4.3 + fall + 0.4
+			var shrink_for := 0.3 if (not missed or level == 1 or level == 2) else 0.1
+			if elapsed < shrink_at:
+				falling.scale = Vector3.ONE
+			else:
+				var faded := clampf((elapsed - shrink_at) / shrink_for, 0.0, 1.0)
+				falling.scale = Vector3.ONE * maxf(1.0 - faded, 0.01)
 		_react_marks(marks, elapsed, 4.3, react, 4.3)
 		if elapsed >= 4.3 + fall and _latch(gate, "land"):
 			_sfx(_DROP_HIT[level] if hit else _DROP_MISS[level])
@@ -483,18 +619,17 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		for index in props.size():
 			var prop := props[index]
 			var mark: Dictionary = marks[index]
-			var cog: Node3D = mark.get("cog")
-			if elapsed < 2.6:
-				prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed, 0.0, 1.0))
-			elif cog != null:
-				_fly(prop, cog, 0.25, elapsed, 2.6, 0.9, false)
+			var cog := _node3d(mark.get("cog"))
+			if cog == null:
+				continue
+			_throw_trap(prop, actor, cog, level, elapsed)
 		_once("trap", elapsed, 0.2, _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg")
 		if elapsed >= 3.5 and _latch(gate, "hit"):
 			contact.call()
 	)
 	for index in props.size():
 		var mark: Dictionary = marks[index]
-		var cog: Node3D = mark.get("cog")
+		var cog := _node3d(mark.get("cog"))
 		if cog != null:
 			_plant(cog, props[index], int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
 	actor.end_action(clip)
@@ -509,14 +644,25 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 	elif level == 6:
 		clip = "pushbutton"
 	var prop := _make(prop_name)
-	_hand(prop, actor, "def_joint_right_hold")
 	if level == 1:
-		prop.scale = Vector3.ONE * 0.5
+		_seat(prop, actor, "def_joint_left_hold", Vector3(-0.27, 0.19, 0.29), Vector3(-90.0, 84.17, -180.0), Vector3(0.85, 0.85, 0.85))
+	elif level == 3:
+		_seat(prop, actor, "def_joint_left_hold", Vector3(-0.27, 0.08, 0.29), Vector3(-90.0, 84.17, -180.0), Vector3(1.32, 1.32, 1.32))
+	elif level == 5:
+		_seat(prop, actor, "def_joint_left_hold", Vector3(-1.03, 1.04, -0.3), Vector3(-96.55, 36.14, -170.59), Vector3(1.5, 1.5, 1.5))
+	else:
+		_hand(prop, actor, "def_joint_right_hold")
 	var bill: Node3D = null
 	var bill_name := _LURE_DOLLAR[level] if level < _LURE_DOLLAR.size() else ""
 	if bill_name != "":
 		bill = _make(bill_name)
-		_hand(bill, actor, "def_joint_left_hold")
+		var paid := _first_cog(marks)
+		if paid != null:
+			# The bill stands in front of the cog, 5.1 along the cog's forward.
+			_seat(bill, paid, "Suit", Vector3(0.0, 5.1, 0.0), Vector3.ZERO, Vector3.ONE)
+			bill.scale = Vector3.ONE
+		else:
+			_hand(bill, actor, "def_joint_right_hold")
 	var gate := {}
 	var lure_at := 3.5
 	if level == 1 or level == 3:
@@ -527,14 +673,11 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		lure_at = 2.4
 	await _run(seconds("gag", 2, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
-		if level == 1 or level == 3:
-			prop.scale = Vector3.ONE * 0.5
+		if level == 1 or level == 3 or level == 5:
+			var held: Vector3 = prop.get_meta("grow")
+			prop.scale = held
 		else:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.6, 0.0, 1.0))
-		if bill != null:
-			var aim := _first_cog(marks)
-			if elapsed >= 3.0 and aim != null:
-				_fly(bill, aim, _HEIGHT * 0.5, elapsed, 3.0, 0.5, not _any_hit(marks))
 		_react_marks(marks, elapsed, lure_at, "hypnotized", lure_at)
 		_once("lure", elapsed, 0.7, "AA_pie_throw_only.ogg")
 		if elapsed >= lure_at and _latch(gate, "hit"):
@@ -542,18 +685,21 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 				var row: Dictionary = mark
 				if not bool(row.get("hit", false)):
 					continue
-				if _spring(int(row.get("id", 0))):
+				if _spring(int(row.get("id", 0)), elapsed):
 					_react_one(row.get("cog"), "rake-react", 0.0)
 			contact.call()
+		_pose_sprung(elapsed)
 	)
 	actor.end_action(clip)
 
 
 func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
 	var horn := _make("megaphone")
-	_hand(horn, actor, "def_joint_left_hold")
+	# Both the megaphone and the instrument sit on the right hand.
+	_hand(horn, actor, "def_joint_right_hold")
 	var prop := _make(prop_name)
-	_hand(prop, actor, "def_joint_right_hold")
+	var seat: Dictionary = _instrument_seat(level)
+	_seat(prop, actor, "def_joint_right_hold", seat["pos"], seat["hpr"], Vector3.ONE)
 	var gate := {}
 	var react_at := 2.8 + (3.0 if level >= 6 else 0.0)
 	await _run(seconds("gag", 3, level, false), still, func(elapsed: float) -> void:
@@ -570,6 +716,19 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 		elif elapsed >= 4.2:
 			size = lerpf(0.65, 0.01, clampf((elapsed - 4.2) / 0.1, 0.0, 1.0))
 		prop.scale = Vector3(size, size * (1.4 if elapsed >= 2.45 and elapsed < 2.65 else 1.0), size)
+		if level >= 6 and elapsed >= 2.2:
+			# The singer leaves the hand and stands in front of the toon.
+			if prop.get_parent() != self:
+				var at := prop.global_position
+				prop.reparent(self)
+				prop.global_position = at
+				prop.set_meta("stage", at)
+			var stage: Vector3 = prop.get_meta("stage")
+			var walked := clampf((elapsed - 2.2) / 1.0, 0.0, 1.0)
+			var ahead := -actor.global_transform.basis.z
+			ahead.y = 0.0
+			if ahead.length_squared() > 0.01:
+				prop.global_position = stage + ahead.normalized() * 1.6 * walked
 		_react_marks(marks, elapsed, react_at, "squirt-small")
 		_once("sound", elapsed, 2.45, _SOUND_SFX[level] if level < _SOUND_SFX.size() else "AA_sound_bikehorn.ogg")
 		if level >= 6 and _any_hit(marks):
@@ -586,17 +745,62 @@ func _heal(actor: ToonActor, prop_name: String, level: int, beats: Array, actor_
 	var prop: Node3D = null
 	if prop_name != "":
 		prop = _make(prop_name)
-		_hand(prop, actor, "def_joint_right_hold")
+		if level == 2:
+			_seat(prop, actor, "def_joint_right_hold", Vector3(-0.27, -0.24, -0.95), Vector3(-118.0, -10.6, -25.9), Vector3.ONE)
+		elif level == 3:
+			_seat(prop, actor, "def_joint_left_hold", Vector3(-0.28, 0.0, 0.14), Vector3(0.0, 0.0, -150.0), Vector3.ONE)
+		elif level == 5:
+			var hips := _hips(actor)
+			if hips != null:
+				_seat(prop, hips, "", Vector3.ZERO, Vector3.ZERO, Vector3.ONE)
+			else:
+				_hand(prop, actor, "def_joint_right_hold")
+		else:
+			_hand(prop, actor, "def_joint_right_hold")
 	var hat: Node3D = null
 	if level == 3:
 		hat = _make("hat")
-		_hand(hat, actor, "def_joint_attachFlower")
+		_seat(hat, actor, "def_joint_right_hold", Vector3(0.23, 0.09, 0.69), Vector3(180.0, 0.0, 0.0), Vector3.ONE)
+	var ladder: Node3D = null
+	var glass: Node3D = null
+	if level == 6:
+		ladder = _make("ladder")
+		glass = _make("glass")
+		# MovieHeal: ladder is 4 ahead of the toon, the glass is just in front, pitched flat.
+		ladder.global_position = actor.global_transform * Vector3(0.0, 4.0, 0.0)
+		ladder.global_basis = actor.global_transform.basis
+		glass.global_position = actor.global_transform * Vector3(0.0, 1.1, 0.2)
+		glass.global_basis = actor.global_transform.basis * _panda_hpr(0.0, 90.0, 0.0)
+		ladder.scale = Vector3(0.01, 0.01, 0.01)
+		glass.scale = Vector3.ONE * 4.0
 	var gate := {}
 	await _run(dur, still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
-		if prop != null:
+		if prop != null and level != 5:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
-		if elapsed >= 1.4 and _latch(gate, "spark"):
+		if hat != null:
+			hat.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
+		if level == 5 and prop != null:
+			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
+		if level == 4:
+			_pixie(actor, beats, actor_of, elapsed)
+		if ladder != null:
+			var grown := clampf(elapsed / 1.5, 0.0, 1.0)
+			if elapsed > dur - 1.5:
+				grown = clampf((dur - elapsed) / 1.5, 0.0, 1.0)
+			ladder.scale = Vector3(0.5, 0.5, 0.45) * maxf(grown, 0.01)
+			if not actor.has_meta("battle_home"):
+				actor.set_meta("battle_home", actor.global_position)
+			var home: Vector3 = actor.get_meta("battle_home")
+			var climb_to := ladder.global_position
+			if elapsed < 1.5:
+				actor.global_position = home.lerp(climb_to, elapsed / 1.5)
+			elif elapsed < dur - 1.5:
+				var risen := clampf((elapsed - 1.5) / 4.5, 0.0, 1.0)
+				actor.global_position = climb_to + Vector3(0.0, risen * 3.2, 0.0)
+			else:
+				actor.global_position = climb_to.lerp(home, clampf((elapsed - (dur - 1.5)) / 1.5, 0.0, 1.0))
+		if level < 4 and elapsed >= 1.4 and _latch(gate, "spark"):
 			for item in beats:
 				if not (item is Dictionary) or not bool((item as Dictionary).get("hit", false)):
 					continue
@@ -609,67 +813,99 @@ func _heal(actor: ToonActor, prop_name: String, level: int, beats: Array, actor_
 				spark.global_position = patient.global_position + Vector3(0.0, 3.2, 0.0)
 				if level == 2:
 					var lips := _make("lips")
-					lips.global_position = patient.global_position + Vector3(0.0, 3.5, 0.35)
-					lips.scale = Vector3.ONE * 0.35
+					var head := _joint(patient, "def_head")
+					if head == null:
+						head = _joint(patient, "joint_head")
+					if head != null:
+						_seat(lips, head, "", Vector3(0.0, 0.0, -3.04), Vector3.ZERO, Vector3.ONE)
+					else:
+						lips.global_position = patient.global_position + Vector3(0.0, 3.5, 0.35)
+					lips.scale = Vector3.ONE
 		_once("heal", elapsed, 0.4, _HEAL_SFX[level] if level < _HEAL_SFX.size() else "AA_heal_tickle.ogg")
 		if elapsed >= 1.4 and _latch(gate, "hit"):
 			contact.call()
 	)
 	actor.end_action(clip)
+	if actor.has_meta("battle_home"):
+		actor.global_position = actor.get_meta("battle_home")
+		actor.remove_meta("battle_home")
 
 
 func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, contact: Callable) -> void:
 	var lead: Dictionary = beats[0]
 	var cog := _first_cog(marks)
 	var key := String(lead.get("anim", "glower"))
-	var prop_name := ""
-	var joint_name := ""
-	var pose_name := ""
-	if key == "phone":
-		prop_name = "phone"
-		joint_name = "joint_Lhold"
-		pose_name = "phone"
-	elif key == "throw-paper":
-		prop_name = "shredder-paper"
-		joint_name = "joint_Rhold"
-		pose_name = "paper"
-	elif key == "shredder":
-		prop_name = "shredder"
-		joint_name = "joint_Rhold"
-		pose_name = "shredder"
-	elif key == "clip-on-tie" or key == "throw-object":
-		prop_name = "clip-on-tie" if key == "clip-on-tie" else "shredder-paper"
-		joint_name = "joint_Rhold"
-		pose_name = "tie" if key == "clip-on-tie" else "paper"
-	var prop: Node3D = null
-	if prop_name != "" and cog != null:
-		prop = _make(prop_name)
-		_on_joint(prop, cog, joint_name, pose_name)
+	var title := String(lead.get("attack", ""))
+	var thrown_name := String(_ATTACK_THROWN.get(title, ""))
+	var body := "c"
+	if cog != null and "body" in cog:
+		body = String(cog.body)
+	var reaction := _attack_react(title, body)
+	var hit_anim := String(reaction["hit"])
+	var dodge_anim := String(reaction["dodge"])
+	var hit_t := float(reaction["hit_t"])
+	var dodge_t := float(reaction["dodge_t"])
+	var length := _cog_length(title, body)
+	var props: Array[Node3D] = []
+	if cog != null:
+		for item in _attack_rows(title, body):
+			var row: Dictionary = item
+			var shown := _make(String(row["prop"]))
+			_seat(shown, cog, String(row["joint"]), row["pos"], row["hpr"], row["grow"])
+			if bool(row.get("thrown", false)):
+				thrown_name = shown.name
+			props.append(shown)
 	var victims: Array = lead.get("victims", [])
 	var gate := {}
-	var title := String(lead.get("attack", ""))
 	if _live(cog) and title != "":
 		cog.set_meta("chat_line", title)
-		cog.set_meta("chat_until", Time.get_ticks_msec() + 3800)
+		cog.set_meta("chat_until", Time.get_ticks_msec() + int(length * 1000.0))
 		ToonSpeech.cog(title)
 	# A fatal hit keeps the round open for the shrink. This clip is only the attack.
-	await _run(3.8, still, func(elapsed: float) -> void:
+	await _run(length, still, func(elapsed: float) -> void:
 		if _live(cog):
 			_react_one(cog, key, elapsed)
-		if prop != null and elapsed < 0.4:
-			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, elapsed / 0.4)
-		if elapsed >= 2.4:
-			for item in victims:
-				if not (item is Dictionary):
-					continue
-				var victim: Dictionary = item
-				if bool(victim.get("died", false)):
-					continue
-				var actor: ToonActor = actor_of.call(int(victim.get("id", 0)))
-				if actor == null:
-					continue
-				var react := "cringe" if bool(victim.get("hit", false)) else "sidestep-left"
-				actor.pose_action(react, elapsed - 2.4)
+		if (title == "Pound Key!" or title == "Hang Up!") and elapsed >= 1.54:
+			for shown in props:
+				if shown.name == "receiver" and not shown.has_meta("ear"):
+					var ear := Vector3(-0.45, 0.48, -0.62)
+					var turn := Vector3(-87.47, -18.21, 7.82)
+					if title == "Hang Up!":
+						ear = Vector3(-0.53, 0.21, -0.54)
+						turn = Vector3(-99.49, -35.27, 1.84)
+					_seat(shown, cog, "joint_Rhold", ear, turn, Vector3.ONE)
+					shown.set_meta("ear", true)
+		for shown in props:
+			var flying := thrown_name != "" and shown.name == thrown_name and elapsed >= 1.4
+			if not flying:
+				var grow := Vector3.ONE
+				if shown.has_meta("grow"):
+					grow = shown.get_meta("grow")
+				var amount := 1.0 if elapsed >= 0.4 else lerpf(0.01, 1.0, elapsed / 0.4)
+				shown.scale = grow * amount
+			elif thrown_name != "" and shown.name == thrown_name and elapsed >= 1.4:
+				var victim := _first_victim(victims, actor_of)
+				var missed := true
+				for item in victims:
+					if item is Dictionary and bool((item as Dictionary).get("hit", false)):
+						missed = false
+				if victim != null:
+					_arc(shown, victim.global_position + Vector3(0.0, 2.4, 0.0), elapsed, 1.4, 0.5 if not missed else 0.75, missed)
+		for item in victims:
+			if not (item is Dictionary):
+				continue
+			var victim: Dictionary = item
+			if bool(victim.get("died", false)):
+				continue
+			var landed := bool(victim.get("hit", false))
+			var react_at := hit_t if landed else dodge_t
+			if elapsed < react_at:
+				continue
+			var actor: ToonActor = actor_of.call(int(victim.get("id", 0)))
+			if actor == null:
+				continue
+			var clip := hit_anim if landed else dodge_anim
+			actor.pose_action(clip, elapsed - react_at)
 		if key == "phone":
 			_once("phone", elapsed, 1.2, "SA_hangup.mp3")
 		elif key == "throw-paper" or key == "throw-object":
@@ -681,8 +917,9 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 			if item is Dictionary and bool((item as Dictionary).get("hit", false)):
 				missed = false
 		if missed:
-			_once("step", elapsed, 2.4, "AV_side_step.mp3")
-		if elapsed >= 2.4 and _latch(gate, "hit"):
+			_once("step", elapsed, dodge_t, "AV_side_step.mp3")
+		var strike := hit_t if not missed else dodge_t
+		if elapsed >= strike and _latch(gate, "hit"):
 			contact.call()
 	)
 	for item in victims:
@@ -691,8 +928,8 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 		var actor: ToonActor = actor_of.call(int((item as Dictionary).get("id", 0)))
 		if actor == null:
 			continue
-		var react := "cringe" if bool((item as Dictionary).get("hit", false)) else "sidestep-left"
-		actor.end_action(react)
+		var clip := hit_anim if bool((item as Dictionary).get("hit", false)) else dodge_anim
+		actor.end_action(clip)
 	if _live(cog):
 		cog.set_meta("chat_line", "")
 		cog.set_meta("chat_until", 0)
@@ -704,27 +941,85 @@ func _plant(cog: Node3D, prop: Node3D, cog_id: int, sound_name: String, level: i
 		var old: Node = previous.get("node")
 		if old != null and is_instance_valid(old):
 			old.queue_free()
-	var forward := -cog.global_transform.basis.z
-	forward.y = 0.0
-	if forward.length_squared() < 0.01:
-		forward = Vector3(0, 0, -1)
-	prop.reparent(cog)
-	prop.global_position = cog.global_position + forward.normalized() * 1.7 + Vector3(0.0, 0.15, 0.0)
-	prop.scale = Vector3.ONE
+	var reach := _TRAP_REACH[clampi(level, 0, _TRAP_REACH.size() - 1)]
+	var spot := cog.global_position + _forward(cog) * reach
+	spot.y = cog.global_position.y
+	if level == 0:
+		spot.y -= 0.35
+	elif level == 5:
+		spot.y += 0.4
+	else:
+		spot.y += 0.05
+	prop.reparent(self)
+	prop.global_position = spot
+	prop.scale = Vector3.ONE * (0.7 if level == 1 else 1.0)
+	if level == 1:
+		prop.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	elif level == 5:
+		prop.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 	_spawned.erase(prop)
-	_traps[cog_id] = {"node": prop, "sound": sound_name, "level": level}
+	_traps[cog_id] = {"node": prop, "sound": sound_name, "level": level, "cog": cog}
 
 
-func _spring(cog_id: int) -> bool:
+func _spring(cog_id: int, elapsed: float) -> bool:
 	if not _traps.has(cog_id):
 		return false
 	var record: Dictionary = _traps[cog_id]
 	_traps.erase(cog_id)
-	_sfx(String(record.get("sound", "TL_step_on_rake.ogg")))
-	var node: Node = record.get("node")
-	if node != null and is_instance_valid(node):
-		node.queue_free()
+	record["born"] = elapsed
+	_sprung.append(record)
+	var level := int(record.get("level", 0))
+	if level == 5:
+		_sfx("TL_dynamite.ogg")
+	elif level == 6:
+		_sfx("TL_train_track_appear.ogg")
+		var cog := _node3d(record.get("cog"))
+		var node := _node3d(record.get("node"))
+		if cog != null and node != null:
+			var train := _make("train")
+			var across := _forward(cog)
+			record["train"] = train
+			record["from"] = node.global_position - across * 14.0
+			record["to"] = node.global_position + across * 14.0
+			train.global_position = record["from"]
+	else:
+		_sfx(String(record.get("sound", "TL_step_on_rake.ogg")))
 	return true
+
+
+func _pose_sprung(elapsed: float) -> void:
+	for item in _sprung:
+		var record: Dictionary = item
+		var node := _node3d(record.get("node"))
+		if node == null:
+			continue
+		var age := elapsed - float(record.get("born", elapsed))
+		var level := int(record.get("level", 0))
+		if level == 1:
+			if age >= 0.5 and age < 0.6:
+				node.rotation_degrees.x = lerpf(-90.0, 0.0, (age - 0.5) / 0.1)
+			elif age >= 0.6 and age < 1.3:
+				node.rotation_degrees.x = 0.0
+			elif age >= 1.3:
+				node.rotation_degrees.x = lerpf(0.0, -90.0, clampf((age - 1.3) / 0.4, 0.0, 1.0))
+				node.scale = Vector3.ONE * 0.7 * maxf(1.0 - clampf((age - 1.9) / 0.2, 0.0, 1.0), 0.01)
+		elif level == 5 and age >= 2.3 and not bool(record.get("boom", false)):
+			record["boom"] = true
+			node.visible = false
+			var boom := _make("explosion")
+			boom.global_position = node.global_position + Vector3(0.0, 1.2, 0.0)
+			boom.scale = Vector3.ONE * 1.6
+		elif level == 6:
+			var train := _node3d(record.get("train"))
+			if train != null:
+				var rolled := clampf(age / 2.0, 0.0, 1.0)
+				var start: Vector3 = record.get("from", train.global_position)
+				var finish: Vector3 = record.get("to", train.global_position)
+				train.global_position = start.lerp(finish, rolled)
+		elif level <= 2 and age > 1.1:
+			node.scale = Vector3.ONE * maxf(1.0 - clampf((age - 1.1) / 1.0, 0.0, 1.0), 0.01)
+		elif age > 2.4:
+			node.scale = Vector3.ONE * maxf(1.0 - clampf((age - 2.4) / 0.8, 0.0, 1.0), 0.01)
 
 
 func _react_marks(marks: Array, elapsed: float, at: float, hit_key: String, miss_at: float = -1.0) -> void:
@@ -779,6 +1074,165 @@ func _rest(actor: ToonActor, marks: Array) -> void:
 			(cog as Node).call("begin_react", "", 0.0)
 	if actor != null:
 		actor.set_locomotion(0.0, false, false, 0.0)
+
+
+func _throw_trap(prop: Node3D, actor: ToonActor, cog: Node3D, level: int, elapsed: float) -> void:
+	var reach := _TRAP_REACH[clampi(level, 0, _TRAP_REACH.size() - 1)]
+	var spot := cog.global_position + _forward(cog) * reach
+	spot.y = cog.global_position.y + (0.4 if level == 5 else 0.05)
+	if level >= 3 and level != 5:
+		if elapsed < 2.5:
+			prop.visible = false
+			return
+		prop.visible = true
+		prop.reparent(self)
+		prop.global_position = spot
+		prop.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
+		return
+	if elapsed < 2.3:
+		var full := 0.7 if level == 1 else 1.0
+		prop.scale = Vector3.ONE * lerpf(0.01, full, clampf(elapsed, 0.0, 1.0))
+		return
+	var duration := 0.9
+	if level == 1:
+		duration = 1.1
+	elif level == 2:
+		duration = 1.2
+	if level == 0 and elapsed > 2.3 + duration:
+		var slide := clampf((elapsed - 2.3 - duration) / 0.8, 0.0, 1.0)
+		var land := cog.global_position + _forward(cog) * (reach + 2.0)
+		land.y = spot.y
+		prop.global_position = land.lerp(spot, slide)
+		prop.rotation_degrees = Vector3.ZERO
+		return
+	_arc(prop, spot, elapsed, 2.3, duration, false)
+	if level == 1:
+		prop.rotation_degrees = Vector3(-90.0, 63.43, 63.43)
+	elif level == 5:
+		prop.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+
+
+func _fly_cake(pie: Node3D, marks: Array, elapsed: float) -> void:
+	var parts := _cake_parts(pie)
+	if parts.is_empty():
+		if not pie.has_meta("copies"):
+			var copies: Array[Node3D] = [pie]
+			for index in range(1, marks.size()):
+				copies.append(_make("wedding-cake"))
+			pie.set_meta("copies", copies)
+		var copies: Array = pie.get_meta("copies")
+		for index in marks.size():
+			var mark: Dictionary = marks[index]
+			var cog := _node3d(mark.get("cog"))
+			var missed := not bool(mark.get("hit", false))
+			var piece := _node3d(copies[index])
+			if piece == null:
+				continue
+			_fly(piece, cog, _HEIGHT if not missed else _HEIGHT * 1.3, elapsed, 2.7, 0.3 if not missed else 0.45, missed, missed)
+		return
+	var groups := _cake_groups(parts, marks.size())
+	for index in mini(marks.size(), groups.size()):
+		var mark: Dictionary = marks[index]
+		var cog := _node3d(mark.get("cog"))
+		var missed := not bool(mark.get("hit", false))
+		var group: Array = groups[index]
+		for item in group:
+			var piece := _node3d(item)
+			if piece != null:
+				_fly(piece, cog, _HEIGHT if not missed else _HEIGHT * 1.3, elapsed, 2.7, 0.3 if not missed else 0.45, missed, missed)
+
+
+func _cake_parts(pie: Node3D) -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	for part_name in ["cake1", "cake2", "cake3", "caketop"]:
+		var part := pie.find_child(part_name, true, false)
+		if part is Node3D:
+			found.append(part as Node3D)
+	return found
+
+
+func _cake_groups(parts: Array[Node3D], count: int) -> Array:
+	if count <= 1 or parts.size() < 4:
+		return [parts]
+	if count == 2:
+		return [[parts[0], parts[1]], [parts[2], parts[3]]]
+	if count == 3:
+		return [[parts[0], parts[1]], [parts[2]], [parts[3]]]
+	return [[parts[0]], [parts[1]], [parts[2]], [parts[3]]]
+
+
+func _arc(prop: Node3D, target: Vector3, elapsed: float, leave: float, duration: float, miss: bool) -> void:
+	if not prop.has_meta("from"):
+		var at := prop.global_position
+		var grown := prop.scale
+		prop.reparent(self)
+		prop.global_position = at
+		prop.scale = grown
+		prop.set_meta("from", at)
+		prop.set_meta("grown", grown)
+	var start: Vector3 = prop.get_meta("from")
+	var finish := target
+	if miss:
+		finish = start + (target - start) * 1.5
+	var flight := maxf(duration, 0.05)
+	var flown := clampf((elapsed - leave) / flight, 0.0, 1.0)
+	var time := flown * flight
+	var velocity := (finish.y - start.y - 0.5 * -32.144 * flight * flight) / flight
+	var pos := start.lerp(finish, flown)
+	pos.y = start.y + velocity * time + 0.5 * -32.144 * time * time
+	prop.global_position = pos
+	if miss and flown > 0.7:
+		var grown: Vector3 = prop.get_meta("grown") if prop.has_meta("grown") else Vector3.ONE
+		prop.scale = grown * maxf(1.0 - (flown - 0.7) / 0.3, 0.01)
+
+
+func _pixie(actor: ToonActor, beats: Array, actor_of: Callable, elapsed: float) -> void:
+	if elapsed < 1.5:
+		return
+	var dust: Node3D = actor.get_meta("pixie") if actor.has_meta("pixie") else null
+	if dust == null:
+		dust = _make("splat")
+		_tint(dust, Color(0.65, 1.0, 0.75, 0.85))
+		actor.set_meta("pixie", dust)
+	var patient: Node3D = actor
+	for item in beats:
+		if item is Dictionary and bool((item as Dictionary).get("hit", false)):
+			var found: ToonActor = actor_of.call(int((item as Dictionary).get("toon_id", (item as Dictionary).get("toon", 0))))
+			if found != null:
+				patient = found
+				break
+	var flown := clampf((elapsed - 1.5) / 1.9, 0.0, 1.0)
+	var end := patient.global_position + Vector3(0.0, 2.2, 0.0)
+	dust.global_position = actor.global_position.lerp(end, flown) + Vector3(0.0, sin(flown * PI) * 1.2, 0.0)
+	dust.scale = Vector3.ONE * lerpf(0.12, 0.5, flown)
+	_face_camera(dust)
+
+
+func _drop_hop(age: float) -> float:
+	if age <= 0.0:
+		return 0.0
+	if age < 0.15:
+		return sin(age / 0.15 * PI) * 0.5
+	if age < 0.3:
+		return sin((age - 0.15) / 0.15 * PI) * 0.2
+	return 0.0
+
+
+func _forward(cog: Node3D) -> Vector3:
+	var forward := -cog.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.01:
+		return Vector3(0.0, 0.0, -1.0)
+	return forward.normalized()
+
+
+func _first_victim(victims: Array, actor_of: Callable) -> ToonActor:
+	for item in victims:
+		if item is Dictionary:
+			var actor: ToonActor = actor_of.call(int((item as Dictionary).get("id", 0)))
+			if actor != null:
+				return actor
+	return null
 
 
 func _fly(prop: Node3D, aim: Node3D, height: float, elapsed: float, leave: float, flight: float, miss: bool, shrink: bool = false) -> void:
@@ -950,6 +1404,159 @@ func _make(prop_name: String) -> Node3D:
 	return wrap
 
 
+func _instrument_seat(level: int) -> Dictionary:
+	# MovieSound setInstrumentStats. The instrument shares the megaphone's right hand.
+	match level:
+		0:
+			return {"pos": Vector3(-1.1, -1.4, 0.1), "hpr": Vector3(145.0, 0.0, 0.0)}
+		1:
+			return {"pos": Vector3(-1.2, -1.3, 0.1), "hpr": Vector3(145.0, 0.0, 85.0)}
+		2:
+			return {"pos": Vector3(-1.3, -1.4, 0.1), "hpr": Vector3(145.0, 0.0, 85.0)}
+		3:
+			return {"pos": Vector3(-1.0, -1.5, 0.2), "hpr": Vector3(145.0, 0.0, 85.0)}
+		4:
+			return {"pos": Vector3(-0.6, -0.9, 0.15), "hpr": Vector3(145.0, 0.0, 85.0)}
+		5:
+			return {"pos": Vector3(-0.8, -0.9, 0.2), "hpr": Vector3(145.0, 0.0, 0.0)}
+		_:
+			return {"pos": Vector3(-1.04, -1.17, 0.26), "hpr": Vector3(145.0, 0.0, 90.0)}
+
+
+func _attack_rows(title: String, body: String) -> Array:
+	var right := "joint_Rhold"
+	var left := "joint_Lhold"
+	var one := Vector3.ONE
+	match title:
+		"Pound Key!", "Hang Up!":
+			return [
+				_prop_row("phone", left, Vector3(0.23, 0.17, -0.11), Vector3(5.939, 2.763, -177.591), one, false),
+				_prop_row("receiver", left, Vector3(0.23, 0.17, -0.11), Vector3(5.939, 2.763, -177.591), one, false),
+			]
+		"Shred!":
+			return [
+				_prop_row("shredder", left, Vector3(0.0, -0.12, -0.34), Vector3(-90.0, -53.77, 0.0), Vector3(4.81, 4.81, 4.81), false),
+				_prop_row("shredder-paper", right, Vector3(0.59, -0.31, 0.81), Vector3(79.224, 32.576, -179.449), one, false),
+			]
+		"Fountain Pen!":
+			return [_prop_row("pen", right, Vector3.ZERO, Vector3.ZERO, Vector3(1.5, 1.5, 1.5), false)]
+		"Fill With Lead!":
+			return [
+				_prop_row("pencil", right, Vector3(-0.29, -0.33, -0.13), Vector3(160.565, -11.653, -169.244), one, false),
+				_prop_row("sharpener", left, Vector3(0.0, 0.0, -0.03), Vector3.ZERO, one, false),
+			]
+		"Write Off!", "Rub Out!":
+			return [
+				_prop_row("pad", left, Vector3(-0.66, 0.81, -0.06), Vector3(14.93, -2.29, 180.0), one, false),
+				_prop_row("pencil", right, Vector3(0.04, -0.38, -0.1), Vector3(-170.223, -3.762, -62.929), one, false),
+			]
+		"Rubber Stamp!":
+			if body == "c":
+				return [
+					_prop_row("pad", left, Vector3(0.19, -0.55, -0.21), Vector3(-166.76, -4.001, -1.658), one, false),
+					_prop_row("rubber-stamp", right, Vector3(-0.64, -0.08, 0.11), Vector3.ZERO, one, false),
+				]
+			return [
+				_prop_row("pad", left, Vector3(-0.65, 0.83, -0.04), Vector3(5.625, 4.456, -165.125), one, false),
+				_prop_row("rubber-stamp", right, Vector3(-0.64, -0.17, -0.03), Vector3.ZERO, one, false),
+			]
+		"Razzle Dazzle!":
+			return [_prop_row("smile", right, Vector3(0.0, -0.42, -0.04), Vector3(105.715, 73.977, 65.932), Vector3(1.39, 1.39, 1.39), false)]
+		"Tee Off!":
+			return [
+				_prop_row("golf-club", left, Vector3.ZERO, Vector3(63.097, 43.988, -18.435), Vector3(1.1, 1.1, 1.1), false),
+				_prop_row("golf-ball", "Suit", Vector3(2.1, 0.0, 0.1), Vector3.ZERO, Vector3(1.5, 1.5, 1.5), true),
+			]
+		"Rolodex!":
+			if body == "b":
+				return [_prop_row("rollodex", left, Vector3(0.12, 0.24, 0.01), Vector3(99.032, 5.973, -179.839), Vector3(0.91, 0.91, 0.91), false)]
+			return [_prop_row("rollodex", left, Vector3(-0.51, -0.03, -0.1), Vector3(89.673, 2.166, 177.786), Vector3(1.2, 1.2, 1.2), false)]
+		"Evil Eye!":
+			return [_prop_row("evil-eye", "Suit", Vector3(-0.4, 3.65, 5.01), Vector3(-155.0, -20.0, 0.0), Vector3(11.0, 11.0, 11.0), false)]
+		"Watercooler!":
+			return [_prop_row("watercooler", left, Vector3(0.48, 0.11, -0.92), Vector3(20.403, 33.158, 69.511), Vector3(1.15, 1.15, 1.15), false)]
+		"Glower Power!":
+			return [
+				_prop_row("dagger", "Suit", Vector3(0.4, 3.8, 3.7), Vector3.ZERO, Vector3(0.4, 0.4, 0.4), false),
+				_prop_row("dagger", "Suit", Vector3(-0.4, 3.8, 3.7), Vector3.ZERO, Vector3(0.4, 0.4, 0.4), false),
+			]
+		"Audit!", "Calculate!", "Tabulate!", "Crunch!":
+			return [_prop_row("calculator", left, Vector3(0.35, 0.52, 0.03), Vector3(1.352, -6.518, -6.045), Vector3(1.0, 1.37, 1.31), title == "Crunch!")]
+		"Clip On Tie!":
+			return [_prop_row("clip-on-tie", right, Vector3(0.66, 0.51, 0.28), Vector3(-69.652, -17.199, 67.96), one, true)]
+		"Canned!":
+			return [_prop_row("can", right, Vector3(-0.14, 0.15, 0.08), Vector3(-10.584, 11.945, -161.684), Vector3(6.0, 6.0, 6.0), true)]
+		"Pink Slip!":
+			return [_prop_row("pink-slip", right, Vector3(0.07, -0.06, -0.18), Vector3(-172.075, -26.715, -89.131), Vector3(8.0, 8.0, 8.0), true)]
+		"Sacked!":
+			return [_prop_row("sandbag", right, Vector3(0.51, -2.03, -0.73), Vector3(90.0, -24.98, 77.73), Vector3(0.65, 1.47, 1.28), true)]
+		"Half Windsor!":
+			return [_prop_row("half-windsor", right, Vector3(0.02, 0.88, 0.48), Vector3(99.0, -3.0, -108.2), Vector3(7.0, 7.0, 7.0), true)]
+		"Play Hardball!":
+			return [_prop_row("baseball", right, Vector3(0.04, 0.03, -0.31), Vector3(-1.152, 86.581, -76.784), Vector3(5.0, 5.0, 5.0), true)]
+		"Power Tie!":
+			return [_prop_row("power-tie", right, Vector3(1.16, 0.24, 0.63), Vector3(171.561, 1.745, -163.443), Vector3(3.5, 3.5, 3.5), true)]
+		"Pick Pocket!":
+			return [_prop_row("1dollar", right, Vector3(-0.01, 0.45, -0.25), Vector3(136.424, -46.434, -129.712), Vector3(1.41, 1.41, 1.41), true)]
+		"Red Tape!":
+			return [_prop_row("redtape", right, Vector3(0.24, 0.09, -0.38), Vector3(-1.152, 86.581, -76.784), Vector3(0.9, 0.9, 0.24), true)]
+		"Bounce Check!":
+			return [_prop_row("bounced-check", right, Vector3.ZERO, Vector3(95.247, 79.025, 88.849), Vector3(8.5, 8.5, 8.5), true)]
+		"Market Crash!":
+			return [_prop_row("newspaper", right, Vector3(-0.07, 0.17, -0.13), Vector3(161.867, -33.149, -48.086), Vector3(3.0, 3.0, 3.0), true)]
+		"Bite!", "Chomp!":
+			return [_prop_row("teeth", right, Vector3(-0.05, 0.41, -0.54), Vector3(4.465, -3.563, 51.479), Vector3(3.0, 3.0, 3.0), true)]
+		"Eviction Notice!", "Restraining Order!":
+			return [_prop_row("shredder-paper", right, Vector3(-0.04, 0.15, -1.38), Vector3(10.584, -11.945, 18.316), one, true)]
+		"Pecking Order!":
+			return [_prop_row("bird", right, Vector3.ZERO, Vector3.ZERO, Vector3(9.0, 9.0, 9.0), true)]
+		"Cigar Smoke!":
+			return [_prop_row("cigar", right, Vector3.ZERO, Vector3.ZERO, one, false)]
+		"Throw Book!":
+			return [_prop_row("lawbook", right, Vector3.ZERO, Vector3.ZERO, one, true)]
+		_:
+			return []
+
+
+func _prop_row(prop_name: String, joint_name: String, pos: Vector3, hpr: Vector3, grow: Vector3, thrown: bool) -> Dictionary:
+	return {"prop": prop_name, "joint": joint_name, "pos": pos, "hpr": hpr, "grow": grow, "thrown": thrown}
+
+
+func _hips(actor: Node) -> Node3D:
+	var hips := _joint(actor, "def_joint_hips")
+	if hips == null:
+		hips = _joint(actor, "joint_hips")
+	return hips
+
+
+func _seat(prop: Node3D, host: Node, joint_name: String, pos: Vector3, hpr: Vector3, grow: Vector3) -> void:
+	var joint: Node3D = null
+	if joint_name == "Suit":
+		joint = host.get_node_or_null("Suit") as Node3D
+		if joint == null:
+			joint = host as Node3D
+	elif joint_name == "":
+		joint = host as Node3D
+	else:
+		joint = _joint(host, joint_name)
+	if joint == null:
+		prop.reparent(host)
+		return
+	prop.reparent(joint, false)
+	prop.position = pos
+	prop.basis = _panda_hpr(hpr.x, hpr.y, hpr.z)
+	prop.scale = Vector3(0.01, 0.01, 0.01)
+	prop.set_meta("grow", grow)
+
+
+## Panda setHpr in the joint's Z-up space: heading about Z, pitch about X, roll about Y.
+func _panda_hpr(heading: float, pitch: float, roll: float) -> Basis:
+	var turn := Quaternion(Vector3(0, 0, 1), deg_to_rad(heading))
+	var tilt := Quaternion(Vector3(1, 0, 0), deg_to_rad(pitch))
+	var twist := Quaternion(Vector3(0, 1, 0), deg_to_rad(roll))
+	return Basis(twist * tilt * turn)
+
+
 func _hand(prop: Node3D, actor: Node3D, joint_name: String) -> void:
 	var joint := _joint(actor, joint_name)
 	if joint == null:
@@ -995,16 +1602,25 @@ func _joint(host: Node, joint_name: String) -> Node3D:
 	return host.find_child(joint_name, true, false) as Node3D
 
 
-func _spray(spray: Node3D, from_world: Vector3, to_world: Vector3) -> void:
+func _spray(spray: Node3D, from_world: Vector3, to_world: Vector3, level: int) -> void:
 	var dir := to_world - from_world
 	var distance := dir.length()
 	if distance < 0.05:
 		spray.visible = false
 		return
 	spray.reparent(self)
-	spray.look_at(to_world, Vector3.UP)
+	# look_at aims local -Z. This mesh's stream is local +Y, so aim that at the cog.
+	var forward := dir / distance
+	var up := Vector3.UP
+	if absf(forward.dot(up)) > 0.98:
+		up = Vector3.FORWARD
+	var side := up.cross(forward).normalized()
+	up = forward.cross(side).normalized()
+	spray.global_basis = Basis(side, forward, up)
 	spray.global_position = from_world
-	spray.scale = Vector3(0.35, distance, 0.35)
+	var reach := distance / _SPRAY_LEN
+	var thick := _SPRAY_SCALE[clampi(level, 0, _SPRAY_SCALE.size() - 1)]
+	spray.scale = Vector3(reach * thick, reach, reach * thick)
 
 
 func _face_camera(node: Node3D) -> void:
@@ -1030,6 +1646,13 @@ func _tint(node: Node, color: Color) -> void:
 
 func _live(node: Variant) -> bool:
 	return node != null and is_instance_valid(node)
+
+
+## A freed cog is not null. Assigning it to a Node3D runs `is` and crashes.
+func _node3d(value: Variant) -> Node3D:
+	if _live(value) and value is Node3D:
+		return value
+	return null
 
 
 func _first_cog(marks: Array) -> Node3D:
@@ -1111,6 +1734,12 @@ func _sfx(file_name: String) -> void:
 
 
 func _clear_spawned() -> void:
+	for item in _sprung:
+		var record: Dictionary = item
+		var node: Node = record.get("node")
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_sprung.clear()
 	for node in _spawned:
 		if is_instance_valid(node):
 			node.queue_free()

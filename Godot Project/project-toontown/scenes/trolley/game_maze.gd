@@ -1,6 +1,7 @@
 extends "res://scenes/trolley/trolley_minigame.gd"
 
-## Maze Game. maze_1player plus the MazeData walls, Mickey treasures, and Cogs.
+## Maze Game. One toon uses maze_1player. Two or more use the larger maze
+## for that group, and a Mickey any of them grabs counts for every rider.
 
 const _DATA := "res://assets/minigames/maze_1player.json"
 # DistributedMazeGame.TOON_SPEED. OrthoDrive also refuses a step longer than half a cell.
@@ -16,6 +17,7 @@ const _FAST := {
 	4000: [49, 35], 3000: [46, 33], 9000: [43, 32],
 }
 const _STARTS: Array[Vector2] = [Vector2(0.25, 0.25), Vector2(0.75, 0.75), Vector2(0.25, 0.75), Vector2(0.75, 0.25)]
+const _GATES: Array[Vector2] = [Vector2(0, 3), Vector2(0, -3), Vector2(3, 0), Vector2(-3, 0)]
 const _HEADINGS: Array[float] = [0.0, 180.0, 90.0, 270.0]
 const _OPPOSITE: Array[int] = [1, 0, 3, 2]
 var _width := 0
@@ -33,17 +35,26 @@ var _stun := 0.0
 var _bar_back: Panel
 var _bar_fill: ColorRect
 var _status_on := false
+var _players := 1
+var _seat := 0
 
 
 func _init() -> void:
 	title = "Maze Game"
 	instructions = "Collect the treasures. Try to get them all, but look out for the Cogs!"
 	duration = 60.0
+	_players = clampi(int(_RIDE.players), 1, 4)
+	_seat = clampi(int(_RIDE.seat), 0, 3)
 
 
 func _build() -> void:
-	_show("res://assets/minigames/maze_1player.glb")
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_DATA))
+	var map_name := "maze_%dplayer" % _players
+	var data_path := "res://assets/minigames/%s.json" % map_name
+	if _players == 1 or not FileAccess.file_exists(data_path):
+		map_name = "maze_1player"
+		data_path = _DATA
+	_show("res://assets/minigames/%s.glb" % map_name)
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(data_path))
 	if parsed is Dictionary:
 		var info: Dictionary = parsed
 		_width = int(info["width"])
@@ -59,11 +70,17 @@ func _build() -> void:
 				gem = _ball(0.35, Color(1, 0.85, 0.1))
 				add_child(gem)
 				gem.position = _panda(float(point[0]), float(point[1]), float(point[2]))
+			gem.set_meta("n", _treasures.size())
 			_treasures.append(gem)
 		_left = _treasures.size()
 	_mx = 0.0
 	_my = 0.0
-	if _blocked(_mx, _my):
+	if _players > 1:
+		var gate: Vector2 = _GATES[_seat]
+		_mx = gate.x
+		_my = gate.y
+		_settle_start()
+	elif _blocked(_mx, _my):
 		_find_start()
 	_make_toon(_panda(_mx, _my, 0.0))
 	_place_cogs()
@@ -106,6 +123,7 @@ func _play(delta: float) -> void:
 		_toon.set_locomotion(0.0, move.length() > 0.1, false, delta)
 	_toon.position = _panda(_mx, _my, 0.0)
 	_collect()
+	_sync_grabs()
 	_walk_cogs(delta)
 	for cog in _cogs:
 		var node := cog["node"] as Node3D
@@ -125,8 +143,7 @@ func _collect() -> void:
 		if gem.position.distance_to(_toon.position) > 1.6:
 			continue
 		gem.visible = false
-		_left -= 1
-		score += 1
+		ToonNet.claim_maze_treasure(int(gem.get_meta("n")))
 		_sfx("MG_maze_pickup")
 		_paint_bar()
 
@@ -195,7 +212,7 @@ func _render_size(rw: float, rh: float) -> Vector2:
 
 
 func _place_cogs() -> void:
-	# One player faces four suits. MazeSuit defaults every one of them to a Flunky.
+	# One player faces four suits. A group faces four suits for each toon. MazeSuit defaults every one of them to a Flunky.
 	var periods: Array[int] = []
 	var hood := 2000
 	var host := get_parent()
@@ -203,11 +220,13 @@ func _place_cogs() -> void:
 		hood = int(host.get("hood"))
 	var slow: Array = _SLOW.get(hood, _SLOW[2000])
 	var fast: Array = _FAST.get(hood, _FAST[2000])
-	for period in slow:
-		periods.append(int(period))
-	for period in fast:
-		periods.append(int(period))
-	periods.shuffle()
+	var copies := maxi(_players, 1)
+	for _copy in copies:
+		for period in slow:
+			periods.append(int(period))
+		for period in fast:
+			periods.append(int(period))
+	shared_shuffle(periods)
 	var taken: Array[Vector2i] = []
 	for index in periods.size():
 		var frac := _STARTS[index % _STARTS.size()]
@@ -299,7 +318,7 @@ func _begin_leg(cog: Dictionary) -> void:
 
 func _choose_dir(direction: int, tx: int, ty: int, blocked: Array[Vector2i]) -> int:
 	# randrange(WALK_SAME_DIRECTION_PROB) is zero one time in four, and that keeps the heading.
-	if randi() % 4 == 0:
+	if shared_int(4) == 0:
 		var ahead := _step_tile(direction, tx, ty)
 		if _suit_walkable(ahead.x, ahead.y, blocked):
 			return direction
@@ -309,7 +328,7 @@ func _choose_dir(direction: int, tx: int, ty: int, blocked: Array[Vector2i]) -> 
 		if candidate != opposite:
 			options.append(candidate)
 	while not options.is_empty():
-		var pick := options[randi() % options.size()]
+		var pick := options[shared_int(options.size())]
 		var nxt := _step_tile(pick, tx, ty)
 		if _suit_walkable(nxt.x, nxt.y, blocked):
 			return pick
@@ -383,6 +402,44 @@ func _find_start() -> void:
 					_mx = world.x
 					_my = world.y
 					return
+
+
+func _settle_start() -> void:
+	if not _blocked(_mx, _my):
+		return
+	var home := Vector2(_mx, _my)
+	for radius in range(1, 16):
+		for y in range(-radius, radius + 1):
+			for x in range(-radius, radius + 1):
+				var point := home + Vector2(float(x), float(y)) * _cell
+				if not _blocked(point.x, point.y):
+					_mx = point.x
+					_my = point.y
+					return
+
+
+func _sync_grabs() -> void:
+	var district := ToonNet.district_id()
+	var trolley: Dictionary = ToonNet.latest("trolley:%d" % district)
+	var round := int(trolley.get("stamp", trolley.get("id", 0)))
+	var state: Dictionary = ToonNet.latest("maze:%d" % district)
+	if int(state.get("round", -1)) != round:
+		return
+	var raw: Variant = state.get("taken", [])
+	if not (raw is Array):
+		return
+	var taken: Array = raw
+	var got := 0
+	for item in taken:
+		var index := int(item)
+		if index < 0 or index >= _treasures.size():
+			continue
+		var gem := _treasures[index]
+		gem.visible = false
+		got += 1
+	score = got
+	_left = _treasures.size() - got
+	_paint_bar()
 
 
 func _tile_world(tx: int, ty: int) -> Vector2:

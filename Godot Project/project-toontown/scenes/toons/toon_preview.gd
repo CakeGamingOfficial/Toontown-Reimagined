@@ -17,9 +17,9 @@ func show_style(style: ToonStyle) -> void:
 	var leg_h: float = [0.55, 0.85, 1.15][style.leg_size()]
 	var torso_h: float = [0.5, 0.7, 0.9][style.torso_size()]
 	var torso_w: float = [0.38, 0.46, 0.54][style.torso_size()]
-	var fur := ToonStyle.fur_color(style.leg_color)
-	var arms := ToonStyle.fur_color(style.arm_color)
-	var head := ToonStyle.fur_color(style.head_color)
+	var fur := style.painted_color("leg")
+	var arms := style.painted_color("arm")
+	var head := style.painted_color("head")
 	var shirt := ToonStyle.clothes_color(style.top_color)
 	var bottom := ToonStyle.clothes_color(style.bot_color)
 	var gloves := ToonStyle.fur_color(style.glove_color)

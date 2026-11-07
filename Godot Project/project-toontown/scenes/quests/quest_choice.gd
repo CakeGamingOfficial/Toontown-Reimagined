@@ -10,6 +10,11 @@ const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
 const _UP := preload("res://assets/toons/gui/QuitBtn_UP.png")
 const _DOWN := preload("res://assets/toons/gui/QuitBtn_DN.png")
 const _HOVER := preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+## ToontownTimer.getImage is phase_3.5 clock_gui alarm_clock. QuestChoiceGui scales it to 0.3.
+const _CLOCK := preload("res://assets/gui/purchase/alarm_clock.png")
+const _CLOCK_SCALE := 0.3
+const _CLOCK_W := 0.7417 * _CLOCK_SCALE
+const _CLOCK_H := 0.7292 * _CLOCK_SCALE
 const _TIMEOUT := 20.0
 
 var _tasks: Array[Dictionary] = []
@@ -19,8 +24,11 @@ var _chooses: Array[TextureButton] = []
 var _captions: Array[Label] = []
 var _cancel: TextureButton
 var _cancel_caption: Label
+var _clock: TextureRect
 var _timer: Label
+var _timer_z := -0.35
 var _left := _TIMEOUT
+var _shown := -1
 var _sent := false
 
 
@@ -39,6 +47,12 @@ func _init() -> void:
 	_cancel = _pill()
 	_cancel.pressed.connect(_pick.bind(0))
 	_cancel_caption = _ink("Cancel")
+	_clock = TextureRect.new()
+	_clock.texture = _CLOCK
+	_clock.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_clock.stretch_mode = TextureRect.STRETCH_SCALE
+	_clock.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(_clock)
 	_timer = Label.new()
 	_timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_timer.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -61,7 +75,7 @@ func show_quests(tasks: Array[Dictionary]) -> void:
 		var poster := QuestPoster.new()
 		poster.mouse_filter = MOUSE_FILTER_IGNORE
 		add_child(poster)
-		poster.show_task(task)
+		poster.show_task(task, true)
 		_posters.append(poster)
 		var quest_id := int(task.get("id", 0))
 		var button := _pill()
@@ -80,7 +94,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_left = maxf(_left - delta, 0.0)
-	_timer.text = str(int(ceil(_left)))
+	# OTPTimer shows int(duration - elapsed), and turns red at 5 seconds.
+	var whole := int(_left)
+	if whole != _shown:
+		_shown = whole
+		_paint_timer(whole)
 	if _left <= 0.0:
 		_pick(0)
 
@@ -134,8 +152,11 @@ func _layout() -> void:
 		_place_ink(_captions[index], view, -0.85 + 0.285 * poster_scale, spots[index] + 0.245 * poster_scale - 0.02, 0.06 * 0.65)
 	ToonGui.place(_cancel, view, -0.7, cancel_z, 0.425 * 0.7, 0.1083)
 	_place_ink(_cancel_caption, view, -0.7, cancel_z - 0.02, 0.06)
-	_place_ink(_timer, view, -1.05, timer_z, 0.12)
-	_timer.text = str(int(ceil(_left)))
+	# The clock is parented to the choice frame, so its screen spot is (-0.85, 0) plus the timer pos.
+	_timer_z = timer_z
+	ToonGui.place(_clock, view, -1.05, timer_z, _CLOCK_W, _CLOCK_H)
+	_shown = -1
+	_paint_timer(int(_left))
 
 
 func _pill() -> TextureButton:
@@ -165,6 +186,24 @@ func _place_ink(label: Label, view: Vector2, x: float, z: float, text_scale: flo
 	var px := maxi(int(round(text_scale * view.y * 0.5)), 10)
 	ToonGui.style_label(label, Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
 	ToonGui.place(label, view, x, z, text_scale * 8.0, text_scale * 1.6)
+
+
+func _paint_timer(whole: int) -> void:
+	var late := whole <= 5
+	var digits := str(whole).length()
+	var text_scale := 0.27
+	if digits <= 1:
+		text_scale = 0.34
+	elif digits >= 3:
+		text_scale = 0.2
+	var view := get_viewport().get_visible_rect().size
+	var px := maxi(int(round(text_scale * _CLOCK_SCALE * view.y * 0.5)), 10)
+	ToonGui.style_label(_timer, Color(1, 0, 0) if late else Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+	_timer.text = str(whole)
+	# alarm_clock.png is 61x61. The white face is centered at pixel (28.5, 33.5), below the bells.
+	var face_x := -1.05 + (28.5 / 61.0 - 0.5) * _CLOCK_W
+	var face_z := _timer_z - (33.5 / 61.0 - 0.5) * _CLOCK_H
+	ToonGui.place(_timer, view, face_x, face_z, (29.0 / 61.0) * _CLOCK_W, (27.0 / 61.0) * _CLOCK_H)
 
 
 func _pick(quest_id: int) -> void:

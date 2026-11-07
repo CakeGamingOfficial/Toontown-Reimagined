@@ -95,10 +95,12 @@ var _run: TextureButton
 var _sos: TextureButton
 var _fire: TextureButton
 var _pass: TextureButton
+var _credit := 1.0
 
 
-func setup(loadout: ToonLoadout, tutorial := false, building := false) -> void:
+func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0) -> void:
 	_loadout = loadout
+	_credit = credit
 	_tutorial = tutorial
 	# InventoryNew.battleActivateButtons hides Run when bldg == 1.
 	_building = building
@@ -372,7 +374,15 @@ func _show_detail(track: int, level: int) -> void:
 		ToonLoadout.gag_damage(track, level, exp),
 		ToonLoadout.affects_label(track, level),
 	]
-	_detail_credit.text = "Skill credit: %d" % ToonLoadout.SKILL_CREDIT
+	_detail_credit.text = _credit_label(level)
+
+
+## InventoryNew.setDetailCredit. A whole number stays whole; 1.5 stays 1.5.
+func _credit_label(level: int) -> String:
+	var shown := snappedf(float(level + 1) * _credit, 0.1)
+	if is_equal_approx(shown, roundf(shown)):
+		return "Skill credit: %d" % int(roundf(shown))
+	return "Skill credit: %.1f" % shown
 
 
 func _pick(track: int, level: int) -> void:

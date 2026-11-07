@@ -54,7 +54,6 @@ const _OUT: Array[Vector3] = [
 	Vector3(-1.6, -6.2, 0.1), Vector3(1.6, -6.2, 0.1),
 ]
 const _EXIT_OPEN := 2.0
-const _EXIT_RUN := 1.0
 
 var _room: Node3D
 var _car: Node3D
@@ -282,9 +281,14 @@ func _show(run: Dictionary, delta: float) -> void:
 		closed = 1.0 if elapsed < 4.0 else 1.0 - clampf((elapsed - 4.0) / 2.0, 0.0, 1.0)
 		if elapsed >= 4.0:
 			_once("open", _OPEN_SFX)
+	elif state == "resting" or state == "floorboard":
+		# enterResting closes the car you arrived in.
+		closed = 1.0
 	var out_closed := 1.0
 	if state == "resting" or state == "floorboard":
+		# The far car is the one that goes up. It stays open while you board.
 		out_closed = 0.0
+		_once("floor-open", _OPEN_SFX)
 	elif fight_state == "reserves":
 		var elapsed := 3.0 - float(fight.get("left", 0.0))
 		out_closed = 1.0 - clampf(elapsed / 2.0, 0.0, 1.0)
@@ -528,27 +532,46 @@ func _ensure_room(run: Dictionary) -> void:
 	_room.position = _RUNS.room_origin(block)
 	add_child(_room)
 	_solid_room(_room)
-	var depth := 30.0
-	if kind == "hall":
-		depth = 40.0
-	elif kind == "office":
-		depth = 37.5
-	_car = _park_car("In", Vector3(0.0, 0.0, depth), 180.0)
-	_out = _park_car("Out", Vector3(0.0, 0.0, -depth), 0.0)
+	# The floor model marks elevator-in and elevator-out. The cars hang on those.
+	_car = _park_car("In", _find(_room, "elevator-in"))
+	_out = _park_car("Out", _find(_room, "elevator-out"))
 	_slide(_car, 1.0)
 	_slide(_out, 1.0)
 
 
-func _park_car(car_name: String, spot: Vector3, yaw: float) -> Node3D:
+func _park_car(car_name: String, anchor: Node3D) -> Node3D:
 	var car := _ELEVATOR.instantiate() as Node3D
 	if car == null or _room == null:
 		return null
 	car.name = car_name
-	_room.add_child(car)
-	car.position = spot
-	car.rotation.y = deg_to_rad(yaw)
+	if anchor != null:
+		anchor.add_child(car)
+	else:
+		_room.add_child(car)
+	car.transform = Transform3D.IDENTITY
+	# The import stands the mesh up. The floor is still panda Z-up, same as the marker.
+	_drop_spin(car)
 	preload("res://scenes/streets/street_buildings.gd").frame_solid(car)
+	_car_floor(car)
 	return car
+
+
+## The elevator ground is a flat polygon over the hole in the suit floor.
+func _car_floor(car: Node3D) -> void:
+	if car.get_node_or_null("CarFloor") != null:
+		return
+	var body := StaticBody3D.new()
+	body.name = "CarFloor"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	# ground mesh: X -4..4, Y 0.8..6.8, top at Z 0.1.
+	box.size = Vector3(8.0, 6.0, 0.2)
+	shape.shape = box
+	shape.position = Vector3(0.0, 3.8, 0.0)
+	body.add_child(shape)
+	car.add_child(body)
 
 
 func _sync_cogs(run: Dictionary) -> void:
@@ -563,8 +586,19 @@ func _sync_cogs(run: Dictionary) -> void:
 	for child in _suits.get_children():
 		have[int(child.get_meta("do_id", 0))] = child
 	for id in have.keys():
-		if not wanted.has(int(id)):
-			(have[id] as Node).queue_free()
+		if wanted.has(int(id)):
+			continue
+		var actor: Variant = have[id]
+		if not is_instance_valid(actor) or not (actor is Node):
+			continue
+		var body := actor as Node
+		# A drop is still falling when the roster drops a dead cog. Freeing it
+		# here crashes the movie on the next frame.
+		if bool(body.get_meta("in_fight", false)):
+			if body.has_method("fly_away"):
+				body.call("fly_away")
+			continue
+		body.queue_free()
 	for id in wanted.keys():
 		if have.has(int(id)):
 			continue
@@ -577,7 +611,7 @@ func _sync_cogs(run: Dictionary) -> void:
 		# the suit. present() leaves it standing where the floor placed it.
 		actor.present(cog, _suit_timing())
 		actor.set_meta("do_id", int(id))
-		actor.hold_fight(true, spot, 0.0)
+		actor.hold_fight(true, spot, deg_to_rad(float(cog.get("from_h", cog.get("h", 0.0)))))
 
 
 func _suit_timing() -> Dictionary:

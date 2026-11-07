@@ -13,23 +13,44 @@ const _INK := Color(0.15, 0.12, 0.2, 1.0)
 const _BLUE := Color(0.18, 0.38, 0.82, 1.0)
 const _RED := Color(0.86, 0.16, 0.14, 1.0)
 
-var _flag: MeshInstance3D
+var _flag: Node3D
 var _screen: Control
 
 
 func build() -> void:
+	var packed := load("res://assets/interiors/estate/mailbox_house.glb") as PackedScene
+	if packed == null:
+		_build_stand_in()
+		return
+	var model := packed.instantiate()
+	add_child(model)
+	_flag = _find_named(model, "mailbox_flag")
+
+
+func _build_stand_in() -> void:
 	var post := _box(Vector3(0.22, 1.05, 0.22), Vector3(0.0, 0.52, 0.0), Color(0.45, 0.32, 0.18, 1.0))
 	add_child(post)
 	var body := _box(Vector3(0.85, 0.62, 0.55), Vector3(0.0, 1.15, 0.0), _BLUE)
 	add_child(body)
 	var door := _box(Vector3(0.7, 0.42, 0.06), Vector3(0.0, 1.12, 0.28), Color(0.12, 0.28, 0.7, 1.0))
 	add_child(door)
-	_flag = _box(Vector3(0.08, 0.42, 0.28), Vector3(0.0, 0.2, 0.0), _RED)
+	var flag := _box(Vector3(0.08, 0.42, 0.28), Vector3(0.0, 0.2, 0.0), _RED)
 	var hinge := Node3D.new()
 	hinge.name = "FlagHinge"
 	hinge.position = Vector3(0.48, 1.35, 0.0)
 	add_child(hinge)
-	hinge.add_child(_flag)
+	hinge.add_child(flag)
+	_flag = flag
+
+
+func _find_named(node: Node, wanted: String) -> Node3D:
+	if String(node.name) == wanted and node is Node3D:
+		return node as Node3D
+	for child in node.get_children():
+		var found := _find_named(child, wanted)
+		if found != null:
+			return found
+	return null
 
 
 func _process(_delta: float) -> void:

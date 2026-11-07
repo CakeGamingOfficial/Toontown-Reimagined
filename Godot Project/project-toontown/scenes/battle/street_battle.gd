@@ -519,6 +519,7 @@ func _defeat_cog() -> void:
 	if _tasks != null:
 		was_done = _tasks.is_complete(101)
 		_tasks.note_cog_defeat("f")
+		_tasks.take_quest_gains()
 	var before := {}
 	for track in _gained.keys():
 		before[int(track)] = _loadout.experience_of(int(track))

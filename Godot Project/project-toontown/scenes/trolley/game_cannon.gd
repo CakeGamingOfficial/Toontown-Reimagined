@@ -7,6 +7,7 @@ extends "res://scenes/trolley/trolley_minigame.gd"
 
 const _CANNON_Y := -130.0
 const _CANNON_Z := 20.0
+const _CANNON_GAP := 12.0
 const _TOWER_Y_RANGE := 200
 const _TOWER_HEIGHT := 43.85
 const _TOWER_RADIUS := 10.5
@@ -38,6 +39,10 @@ var _tower_y := 40.0
 var _cannon: Node3D
 var _barrel: Node3D
 var _muzzle: Node3D
+var _rigs: Array[Node3D] = []
+var _barrels: Array = []
+var _cannon_x := 0.0
+var _aim_sent := -10.0
 var _pullback := _PULL_MIN
 var _body_scale := 1.0
 var _height := 3.0
@@ -68,21 +73,15 @@ func _init() -> void:
 func _build() -> void:
 	var stage := _show("res://assets/minigames/cannon_set.glb")
 	_place_tower(stage)
-	var model := _prop("res://assets/minigames/toon_cannon.glb")
-	_cannon = Node3D.new()
-	_cannon.name = "CannonRig"
-	add_child(_cannon)
-	_cannon.position = _panda(0.0, _CANNON_Y, _CANNON_Z)
-	if model != null:
-		_cannon.add_child(model)
-		_barrel = model.find_child("cannon", true, false) as Node3D
-	if _barrel != null:
-		_muzzle = Node3D.new()
-		_muzzle.name = "Muzzle"
-		_barrel.add_child(_muzzle)
-		# ToonHead.setPosHpr(0, 6, 0, 0, -45, 0) on the barrel node.
-		_muzzle.position = Vector3(0.0, 6.0, 0.0)
-	_make_toon(_panda(0.0, _CANNON_Y, _CANNON_Z))
+	var count := party_size()
+	var mine := clampi(party_index(), 0, count - 1)
+	for i in count:
+		_add_cannon(i, count)
+	_cannon = _rigs[mine]
+	_barrel = _barrels[mine] as Node3D
+	_muzzle = _cannon.find_child("Muzzle", true, false) as Node3D
+	_cannon_x = _slot_x(mine, count)
+	_make_toon(_panda(_cannon_x, _CANNON_Y, _CANNON_Z))
 	_shot = _toon
 	_remember_head()
 	if _toon != null:
@@ -98,9 +97,11 @@ func begin() -> void:
 	super.begin()
 	if _board != null:
 		_board.prime(_jar_points(0.0))
+	_share_aim(true)
 
 
 func _process(delta: float) -> void:
+	_place_tags()
 	if _mode == _AIM and _toon != null:
 		_toon.set_locomotion(0.0, false, false, delta)
 	if not playing:
@@ -118,6 +119,7 @@ func _process(delta: float) -> void:
 
 
 func _play(delta: float) -> void:
+	_pose_others()
 	if _mode == _AIM:
 		_steer(delta)
 	elif _mode == _FLY:
@@ -134,12 +136,14 @@ func _steer(delta: float) -> void:
 	_pitch = clampf(_pitch + move.y * 15.0 * delta, 10.0, 85.0)
 	_pose_cannon()
 	if not is_equal_approx(before.x, _yaw) or not is_equal_approx(before.y, _pitch):
+		_share_aim(false)
 		if _adjust == null:
 			_adjust = _loop_sfx("MG_cannon_adjust", 0.6)
 	elif _adjust != null:
 		_adjust.stop()
 		_adjust.queue_free()
 		_adjust = null
+		_share_aim(true)
 	var fire := Input.is_physical_key_pressed(KEY_CTRL) or Input.is_physical_key_pressed(KEY_SPACE)
 	if fire and not _fire_down:
 		_fire_down = true
@@ -240,6 +244,7 @@ func _launch() -> void:
 		_toon.reparent(self, true)
 	_toon.play_gesture("swim", 1.0, true)
 	_sfx("MG_cannon_fire_alt")
+	_share_aim(true)
 	_whistled = false
 	_mode = _FLY
 	_fly(0.0)
@@ -472,9 +477,9 @@ func _score_mult() -> float:
 ## getTowerPosition. A new spot each round. Near towers stay toward the middle.
 func _place_tower(stage: Node3D) -> void:
 	var y_min := int(float(_TOWER_Y_RANGE) * 0.3)
-	var y_roll := randi_range(y_min, _TOWER_Y_RANGE)
+	var y_roll := shared_range(y_min, _TOWER_Y_RANGE)
 	var x_range := int(float(_TOWER_Y_RANGE) / 2.0)
-	var x_roll := randi_range(0, x_range)
+	var x_roll := shared_range(0, x_range)
 	var x := float(x_roll - int(float(x_range) / 2.0))
 	x *= float(y_roll) / float(_TOWER_Y_RANGE)
 	_tower_x = x
@@ -489,8 +494,63 @@ func _place_tower(stage: Node3D) -> void:
 
 
 func _aim_view() -> void:
-	_camera.position = _panda(0.0, _CANNON_Y - 25.0, _CANNON_Z + 7.0)
+	_camera.position = _panda(_cannon_x, _CANNON_Y - 25.0, _CANNON_Z + 7.0)
 	_camera.rotation = Vector3.ZERO
+
+
+## One cannon per rider. DistributedCannonGame spaces them by CANNON_X_SPACING.
+func _slot_x(index: int, count: int) -> float:
+	return float(index) * _CANNON_GAP - float(count - 1) * _CANNON_GAP * 0.5
+
+
+func _add_cannon(index: int, count: int) -> void:
+	var rig := Node3D.new()
+	rig.name = "CannonRig%d" % index
+	add_child(rig)
+	rig.position = _panda(_slot_x(index, count), _CANNON_Y, _CANNON_Z)
+	var barrel: Node3D = null
+	var model := _prop("res://assets/minigames/toon_cannon.glb")
+	if model != null:
+		rig.add_child(model)
+		barrel = model.find_child("cannon", true, false) as Node3D
+	if barrel != null:
+		var muzzle := Node3D.new()
+		muzzle.name = "Muzzle"
+		barrel.add_child(muzzle)
+		# ToonHead.setPosHpr(0, 6, 0, 0, -45, 0) on the barrel node.
+		muzzle.position = Vector3(0.0, 6.0, 0.0)
+		barrel.rotation_degrees = Vector3(_pitch, 0.0, 0.0)
+	_rigs.append(rig)
+	_barrels.append(barrel)
+
+
+func _share_aim(force: bool) -> void:
+	if party_size() <= 1:
+		return
+	var now := _elapsed()
+	if not force and now - _aim_sent < 0.5:
+		return
+	_aim_sent = now
+	ToonNet.note_cannon(_yaw, _pitch)
+
+
+func _pose_others() -> void:
+	if party_size() <= 1:
+		return
+	var raw: Variant = ToonNet.minigame_state().get("aims", {})
+	if not (raw is Dictionary):
+		return
+	var aims: Dictionary = raw
+	for i in _rigs.size():
+		if _rigs[i] == _cannon:
+			continue
+		var aim: Variant = aims.get(str(party_peer(i)), [])
+		if not (aim is Array) or (aim as Array).size() < 2:
+			continue
+		_rigs[i].rotation_degrees = Vector3(0.0, float((aim as Array)[0]), 0.0)
+		var barrel := _barrels[i] as Node3D
+		if barrel != null:
+			barrel.rotation_degrees = Vector3(float((aim as Array)[1]), 0.0, 0.0)
 
 
 func _flight_view() -> void:

@@ -17,6 +17,8 @@ const TRACK := "track"
 const FRIEND := "friend"
 const PHONE := "phone"
 const BUILDING := "building"
+## QuestPoster hides the reward on the tasks before Clarabelle.
+const _NO_POSTER_REWARD := [101, 110, 121, 131, 141, 145, 150, 160, 161, 162, 163]
 
 # NPCToons ids the Toontown Central chain visits, and the interior zone the
 # quest map uses for that building.
@@ -268,6 +270,16 @@ const _TIER2: Array[int] = [100, 801, 200, 802, 803, 101, 804, 805, 102, 806, 80
 ## TT_TIER + 3. Reward 900 is the final frame of the gag track.
 const _TIER3: Array[int] = [900]
 const _QUEST_FILE := "res://scenes/quests/ttc_quests.json"
+const _DIALOG := preload("res://scenes/quests/quest_dialog.gd")
+const _LINKS := preload("res://scenes/places/tunnel_links.gd")
+const _TITLES := preload("res://scenes/places/zone_title.gd")
+const _BUILDING := {
+	2513: "Toon Hall",
+	2516: "School House",
+	2518: "Toontown Library",
+	2521: "Clothing Shop",
+}
+const _TRACKS := ["Toon-up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"]
 ## Quests the toontorial hands out itself. One of these in the journal means
 ## HQ is still waiting, even when the id is below the Central reward quests.
 const _SCRIPTED: Array[int] = [101, 110, 145, 150, 175, 164, 165, 166, 167, 168, 169, 170, 171, 172, 400]
@@ -302,13 +314,24 @@ var visited: Array[int] = []
 
 var _slot := -1
 var _active: Array[Dictionary] = []
-var _battle_notes: PackedStringArray = PackedStringArray()
 var _done: Array[int] = []
+## Reward lines live on the class. note_cog_defeat and the victory screen each
+## load their own journal, so an instance array would be thrown away.
+static var _battle_notes: PackedStringArray = PackedStringArray()
+static var _quest_gains: Array = []
+static var _note_slot := -2
 
 
 ## The playground journal receives friend and phone progress.
 static func bind(tasks: ToonTasks) -> void:
 	_live = tasks
+
+
+## The journal the playground is using. A fresh load would miss unsaved progress.
+static func live() -> ToonTasks:
+	if is_instance_valid(_live):
+		return _live
+	return for_selected()
 
 
 static func for_selected() -> ToonTasks:
@@ -385,6 +408,93 @@ func assign(quest_id: int, from_npc: int = 0, pay: int = 0) -> void:
 	save()
 
 
+func active_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for entry in _active:
+		ids.append(int(entry["id"]))
+	return ids
+
+
+## ~quest finish. Progress reaches the goal, so the poster is ready to turn in.
+## quest_id 0 finishes every task in the journal.
+func finish_active(quest_id: int = 0) -> PackedStringArray:
+	var finished: PackedStringArray = []
+	var changed := false
+	for entry in _active:
+		var id := int(entry["id"])
+		if quest_id != 0 and id != quest_id:
+			continue
+		var info := _info(id)
+		if info.is_empty():
+			continue
+		var goal := int(info.get("goal", 1))
+		if int(entry.get("progress", 0)) < goal:
+			entry["progress"] = goal
+			changed = true
+		finished.append(String(info.get("caption", str(id))))
+	if changed:
+		save()
+	return finished
+
+
+## ~quest 164. The journal keeps this task and drops whatever was there.
+func replace_with(quest_id: int) -> String:
+	if not _known(quest_id):
+		return ""
+	_active.clear()
+	var kept: Array[int] = []
+	for done_id in _done:
+		if int(done_id) != quest_id:
+			kept.append(int(done_id))
+	_done = kept
+	assign(quest_id)
+	if not _is_active(quest_id):
+		return ""
+	return String(_info(quest_id).get("caption", str(quest_id)))
+
+
+## ~quest set 2 175. Slot is 1 for the first poster. The other tasks stay.
+func set_slot(slot: int, quest_id: int) -> String:
+	if slot < 1 or slot > 4 or not _known(quest_id):
+		return ""
+	var index := slot - 1
+	if index > _active.size():
+		return ""
+	var kept: Array[int] = []
+	for done_id in _done:
+		if int(done_id) != quest_id:
+			kept.append(int(done_id))
+	_done = kept
+	var existing := -1
+	for i in _active.size():
+		if int(_active[i]["id"]) == quest_id:
+			existing = i
+			break
+	if existing == index:
+		return String(_info(quest_id).get("caption", str(quest_id)))
+	if existing >= 0:
+		_active.remove_at(existing)
+		if existing < index:
+			index -= 1
+	if index > _active.size():
+		return ""
+	var info := _info(quest_id)
+	var to_npc := int(info.get("npc", 0))
+	var progress := 0
+	if String(info.get("kind", "")) == FRIEND and FriendsBook.toon_friend_count() > 0:
+		progress = int(info["goal"])
+	var pay := int(info.get("reward", 0))
+	var row := {"id": quest_id, "progress": progress, "to_npc": to_npc}
+	if pay > 0:
+		row["pay"] = pay
+	if index == _active.size():
+		_active.append(row)
+	else:
+		_active[index] = row
+	save()
+	return String(info.get("caption", str(quest_id)))
+
+
 ## FriendQuest is done once a toon is on the friends list.
 static func notify_friend() -> void:
 	if _live != null and is_instance_valid(_live):
@@ -403,6 +513,7 @@ func note_phone() -> void:
 
 
 func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1) -> void:
+	_keep_notes()
 	var code := cog.to_lower()
 	CogGallery.note(code)
 	var changed := false
@@ -424,7 +535,11 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			var min_level := int(info.get("level", 0))
 			if min_level > 0 and level < min_level:
 				continue
-			entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+			if int(entry["progress"]) >= int(info["goal"]):
+				continue
+			var before := int(entry["progress"])
+			entry["progress"] = before + 1
+			_remember_gain(quest_id, before, int(entry["progress"]), info)
 			changed = true
 		elif kind == RECOVER:
 			if String(info.get("holder", "any")) == "fish":
@@ -436,7 +551,9 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			var found := _recover_roll(entry, int(info.get("chance", 100)))
 			var item_name := String(info.get("caption", "item"))
 			if found:
-				entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+				var before := int(entry["progress"])
+				entry["progress"] = mini(before + 1, int(info["goal"]))
+				_remember_gain(quest_id, before, int(entry["progress"]), info)
 				_battle_notes.append("Items Recovered: %s" % item_name)
 			else:
 				_battle_notes.append("Items Not Recovered: %s" % item_name)
@@ -447,6 +564,7 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 
 ## QuestManagerAI.toonKilledBuilding. One building, of this department and height.
 func note_building(track: String, floors: int, zone: int) -> void:
+	_keep_notes()
 	var dept := track.to_lower()
 	var changed := false
 	for entry in _active:
@@ -463,7 +581,11 @@ func note_building(track: String, floors: int, zone: int) -> void:
 			continue
 		if floors < int(info.get("floors", 1)):
 			continue
-		entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		var before := int(entry["progress"])
+		entry["progress"] = before + 1
+		_remember_gain(quest_id, before, int(entry["progress"]), info)
 		changed = true
 	if changed:
 		save()
@@ -507,13 +629,76 @@ func ready_hq() -> Dictionary:
 	return {}
 
 
+## An unfinished task that turns in at HQ. The officer says the progress line
+## instead of offering another task.
+func pending_hq() -> int:
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id) or is_complete(quest_id):
+			continue
+		var card := _card(entry)
+		if String(card.get("turn_in", "")) == "hq":
+			return quest_id
+	return 0
+
+
 ## RewardPanel shows these once, after the gag experience, then clears them.
 func take_battle_notes() -> String:
+	_keep_notes()
 	if _battle_notes.is_empty():
 		return ""
 	var text := "\n".join(_battle_notes)
 	_battle_notes = PackedStringArray()
 	return text
+
+
+## One row per task that advanced in this battle. before is the count at the
+## first credit, after is the count when the victory screen opens.
+func take_quest_gains() -> Array:
+	_keep_notes()
+	var pending := _quest_gains.duplicate(true)
+	_quest_gains = []
+	return pending
+
+
+func _keep_notes() -> void:
+	if _note_slot == _slot:
+		return
+	_note_slot = _slot
+	_battle_notes = PackedStringArray()
+	_quest_gains = []
+
+
+func _remember_gain(quest_id: int, before: int, after: int, info: Dictionary) -> void:
+	_keep_notes()
+	for item in _quest_gains:
+		var gain: Dictionary = item
+		if int(gain.get("id", 0)) != quest_id:
+			continue
+		gain["after"] = after
+		return
+	_quest_gains.append({
+		"id": quest_id,
+		"title": _reward_title(info),
+		"before": before,
+		"after": after,
+		"goal": int(info.get("goal", 1)),
+		"word": "recovered" if String(info.get("kind", "")) == RECOVER else "defeated",
+	})
+
+
+## RewardPanel.getQuestIntervalList. "Defeat 3 Cogs : 2 of 3 defeated".
+func _reward_title(info: Dictionary) -> String:
+	var caption := String(info.get("caption", "task"))
+	if caption.begins_with("A "):
+		caption = "a " + caption.substr(2)
+	var kind := String(info.get("kind", ""))
+	if kind == RECOVER:
+		var holder := String(info.get("holder_name", "The Cogs"))
+		if holder.is_empty():
+			holder = "The Cogs"
+		return "Recover %s from %s" % [caption, holder]
+	return "Defeat %s" % caption
 
 
 func use_clothing_ticket() -> bool:
@@ -629,10 +814,18 @@ func for_npc(npc_id: int) -> Dictionary:
 
 
 func quest_pages(quest_id: int) -> PackedStringArray:
+	var place := _place_fill(quest_id)
+	var spoken := _DIALOG.assign_pages(quest_id, _av_name(), String(place["name"]), String(place["building"]), String(place["street"]), String(place["where"]), _objective(quest_id))
+	if not spoken.is_empty():
+		return spoken
 	return _pages(quest_id, "lines")
 
 
 func busy_pages(quest_id: int) -> PackedStringArray:
+	var place := _place_fill(quest_id)
+	var spoken := _DIALOG.busy_pages(quest_id, _av_name(), String(place["name"]), String(place["building"]), String(place["street"]), String(place["where"]))
+	if not spoken.is_empty():
+		return spoken
 	return _pages(quest_id, "busy")
 
 
@@ -641,6 +834,10 @@ func choice_pages(quest_id: int) -> PackedStringArray:
 
 
 func after_pages(quest_id: int) -> PackedStringArray:
+	var place := _place_fill(quest_id)
+	var spoken := _DIALOG.complete_pages(quest_id, _av_name(), String(place["name"]), String(place["building"]), String(place["street"]), String(place["where"]), _reward_line(quest_id))
+	if not spoken.is_empty():
+		return spoken
 	return _pages(quest_id, "after")
 
 
@@ -684,18 +881,23 @@ func _card(entry: Dictionary) -> Dictionary:
 	if pay > 0 and finishes:
 		card["pay"] = pay
 		_stamp_reward(card, pay)
+	card["reward_line"] = _poster_reward(quest_id, pay)
 	var dest := _dest(entry)
+	var npc := {}
+	if dest > 0 and dest != 1000:
+		npc = _npc_row(dest)
 	if dest == 0 or dest == 1000:
 		if String(info.get("kind", "")) != VISIT or int(info.get("npc", 0)) in [0, 1000]:
 			card["turn_in"] = "hq"
-	elif dest > 0:
-		var npc := _npc_row(dest)
-		if not npc.is_empty():
-			card["turn_in"] = str(int(npc.get("zone", dest)))
-			card["return_name"] = String(npc.get("name", ""))
-			card["return_where"] = String(npc.get("where", ""))
-			if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK:
-				card["where"] = String(npc.get("where", card.get("where", "")))
+	elif not npc.is_empty():
+		card["turn_in"] = str(int(npc.get("zone", dest)))
+		card["return_name"] = String(npc.get("name", ""))
+		card["return_where"] = String(npc.get("where", ""))
+		if String(info["kind"]) == VISIT or String(info["kind"]) == TRACK:
+			card["where"] = String(npc.get("where", card.get("where", "")))
+	var place := _poster_place(dest, npc)
+	card["building"] = String(place["building"])
+	card["location"] = String(place["location"])
 	return card
 
 
@@ -734,6 +936,191 @@ func _kept(quest_id: int, progress: int, to_npc: int, pay: int = 0, misses: int 
 	if misses > 0:
 		row["misses"] = misses
 	return row
+
+
+func _av_name() -> String:
+	var style := ToonRoster.selected_style()
+	if style == null:
+		return "Toon"
+	var called := style.display_name()
+	return called if not called.is_empty() else "Toon"
+
+
+func _objective(quest_id: int) -> String:
+	var lines := _pages(quest_id, "lines")
+	var text := ""
+	if not lines.is_empty():
+		text = lines[0]
+	elif _known(quest_id):
+		text = String(_info(quest_id).get("speech", ""))
+	if text.is_empty():
+		return ""
+	var last := text.substr(text.length() - 1, 1)
+	if last != "." and last != "!" and last != "?":
+		text += "."
+	return text
+
+
+## Building, street, and neighborhood, the three lines on a quest poster.
+func _poster_place(dest: int, npc: Dictionary) -> Dictionary:
+	if dest == 0 or dest == 1000:
+		return {"building": "Toon HQ", "location": "Any Street\nAny Neighborhood"}
+	var zone := int(npc.get("zone", 0))
+	var bits := String(npc.get("where", "")).split("\n", false)
+	var building := bits[0] if not bits.is_empty() else ""
+	if _BUILDING.has(zone):
+		building = String(_BUILDING[zone])
+	var branch := _LINKS.branch_of(zone)
+	var hood_zone := _LINKS.hood_of(branch)
+	var street := String(_TITLES._PLACE.get(branch, ""))
+	var hood := String(_TITLES._HOOD.get(hood_zone, ""))
+	if bits.size() > 1 and bits[1] != hood and bits[1] != "Playground":
+		street = bits[1]
+	if street.is_empty() and branch == hood_zone:
+		street = "Playground"
+	var location := street
+	if not hood.is_empty() and hood != street:
+		location = street + "\n" + hood if not street.is_empty() else hood
+	return {"building": building, "location": location}
+
+
+func _place_fill(quest_id: int) -> Dictionary:
+	var blank := {"name": "", "building": "", "street": "", "where": ""}
+	var dest := 0
+	var entry := _entry(quest_id)
+	if not entry.is_empty():
+		dest = _dest(entry)
+	elif _known(quest_id):
+		dest = int(_info(quest_id).get("npc", 0))
+	if dest == 0:
+		return blank
+	var npc_name := "HQ Officer"
+	var building := "Toon HQ"
+	var street := "in any neighborhood"
+	if dest != 1000:
+		var row := _npc_row(dest)
+		npc_name = String(row.get("name", ""))
+		if npc_name.is_empty():
+			return blank
+		var zone := int(row.get("zone", 0))
+		var bits := String(row.get("where", "")).split("\n", false)
+		building = bits[0] if not bits.is_empty() else ""
+		var street_name := bits[1] if bits.size() > 1 else ""
+		if _BUILDING.has(zone):
+			building = String(_BUILDING[zone])
+		var playground := zone >= 2500 and zone < 2600
+		if playground or street_name == "" or street_name == "Toontown Central" or street_name == "Playground":
+			street = "in the Toontown Central playground"
+		else:
+			street = "on %s in Toontown Central" % street_name
+	var phrase := "%s's building is called" % npc_name
+	var paragraph := "\u0007%s \"%s\"...\u0007...which is %s." % [phrase, building, street]
+	return {"name": npc_name, "building": building, "street": street, "where": paragraph}
+
+
+## The reward id a chain pays, taken from the step that actually finishes it.
+func _chain_reward(quest_id: int) -> int:
+	var seen := {}
+	var current := quest_id
+	var guard := 0
+	while guard < 12:
+		guard += 1
+		if bool(seen.get(current, false)) or not _known(current):
+			return 0
+		seen[current] = true
+		var info := _info(current)
+		if String(info.get("kind", "")) == TRACK:
+			return 400
+		var pay := int(info.get("reward", 0))
+		var nxt: Variant = info.get("next", 0)
+		if typeof(nxt) == TYPE_ARRAY:
+			var options: Array = nxt
+			if options.is_empty():
+				return pay
+			current = int(options[0])
+			continue
+		if int(nxt) == 0:
+			return pay
+		current = int(nxt)
+	return 0
+
+
+func _pays(info: Dictionary) -> bool:
+	var nxt: Variant = info.get("next", 0)
+	if typeof(nxt) == TYPE_ARRAY:
+		return (nxt as Array).is_empty()
+	return int(nxt) == 0
+
+
+func _spoken_reward(quest_id: int) -> int:
+	if not _known(quest_id):
+		return 0
+	var info := _info(quest_id)
+	if String(info.get("kind", "")) == TRACK:
+		return 400
+	if not _pays(info):
+		return 0
+	var entry := _entry(quest_id)
+	var pay := int(entry.get("pay", 0))
+	if pay == 0:
+		pay = int(info.get("reward", 0))
+	return pay
+
+
+func _track_name() -> String:
+	if track_id < 0 or track_id >= _TRACKS.size():
+		return _TRACKS[0]
+	return _TRACKS[track_id]
+
+
+## QuestPoster.rewardText. The journal shows it while the card is pointed at.
+func _poster_reward(quest_id: int, reward_id: int) -> String:
+	if reward_id <= 0 or _NO_POSTER_REWARD.has(quest_id):
+		return ""
+	var track := _track_name()
+	if reward_id >= 100 and reward_id <= 109:
+		return "Reward: %d point Laff boost" % (reward_id - 99)
+	if reward_id == 200:
+		return "Reward: Medium Pouch (25)"
+	if reward_id == 300:
+		return "Reward: Teleport access to Toontown Central"
+	if reward_id == 400:
+		return "Reward: Gag training"
+	if reward_id == 500:
+		return "Reward: Carry 2 ToonTasks"
+	if reward_id == 700:
+		return "Reward: Carry 50 jellybeans"
+	if reward_id >= 801 and reward_id <= 815:
+		return "Reward: \"%s\" track animation frame %d" % [track, reward_id - 800]
+	if reward_id == 900:
+		return "Reward: Final %s track training" % track
+	if reward_id == 1000:
+		return "Reward: Clothing Ticket"
+	return ""
+
+
+func _reward_line(quest_id: int) -> String:
+	var reward_id := _spoken_reward(quest_id)
+	var track := _track_name()
+	if reward_id >= 100 and reward_id <= 109:
+		return "Your Laff limit has been increased by %d." % (reward_id - 99)
+	if reward_id == 200:
+		return "You get a Medium Pouch. You can now carry 25 gags."
+	if reward_id == 300:
+		return "You now have teleport access to Toontown Central."
+	if reward_id == 400:
+		return "You can now train for \"%s\" gags." % track
+	if reward_id == 500:
+		return "You can now have 2 ToonTasks."
+	if reward_id == 700:
+		return "You can now carry 50 jellybeans."
+	if reward_id >= 801 and reward_id <= 815:
+		return "You now have frame %d of the %s track animation." % [reward_id - 800, track]
+	if reward_id == 900:
+		return "You may now carry and use \"%s\" gags." % track
+	if reward_id == 1000:
+		return "You can change your clothes"
+	return ""
 
 
 func _pages(quest_id: int, key: String) -> PackedStringArray:
@@ -995,9 +1382,14 @@ func _offer_card(quest_id: int, pay: int = -1) -> Dictionary:
 	card["ready"] = false
 	if pay < 0:
 		pay = int(info.get("reward", 0))
+	# A starting step often lists no reward of its own. The poster shows the
+	# reward waiting at the end of its chain, the way getFinalRewardId does.
+	if pay <= 0:
+		pay = _chain_reward(quest_id)
 	if pay > 0:
 		card["pay"] = pay
 		_stamp_reward(card, pay)
+	card["reward_line"] = _poster_reward(quest_id, maxi(pay, 0))
 	return card
 
 

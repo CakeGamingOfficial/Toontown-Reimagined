@@ -14,6 +14,23 @@ const _HOP_OVER := preload("res://assets/gui/rules/InventoryButtonRollover.png")
 const _HOP_W := 0.1804 * 20.0 * 0.15
 const _HOP_H := 0.1137 * 11.0 * 0.15
 const _REACH := 5.5
+## generateToonJumpTrack waits 0.43s, then a 0.9s hop. sit-start begins at 1s.
+const _JUMP_HOLD := 0.43
+const _JUMP_FLY := 0.9
+const _SIT_AT := 1.0
+## generateToonReverseJumpTrack waits 0.1s, then the same 0.9s hop.
+const _OUT_HOLD := 0.1
+const _OUT_FLY := 0.9
+const _ARC := 3.0
+## GolfKart.enterBoarding. The camera settles over 1.5s at (0, 18, 8).
+const _BOARD_CAM := 1.5
+## JumpOutOffsets, kart-local. Z is up on the playground pad.
+const _OUT: Array[Vector3] = [
+	Vector3(3.0, 5.0, 0.0),
+	Vector3(1.5, 4.0, 0.0),
+	Vector3(-1.5, 4.0, 0.0),
+	Vector3(-3.0, 4.0, 0.0),
+]
 
 static var _drop := Vector3.ZERO
 static var _drop_heading := 0.0
@@ -26,6 +43,20 @@ var _clock: Label3D
 var _held := false
 var _asked := -1
 var _switching := false
+var _phase := ""
+var _age := 0.0
+var _kart_i := -1
+var _seat_i := 0
+var _from := Vector3.ZERO
+var _to := Vector3.ZERO
+var _ground := 0.0
+var _head_from := 0.0
+var _head_to := 0.0
+var _jump_len := 0.0
+var _sit_len := 0.0
+var _cam_blend := 0.0
+var _cam_from := Vector3.ZERO
+var _look_from := Vector3.ZERO
 
 
 static func take_drop() -> Dictionary:
@@ -69,18 +100,20 @@ func setup(host: Node) -> bool:
 	return true
 
 
-func tick(_delta: float) -> void:
+func tick(delta: float) -> void:
 	if _host == null or _switching:
 		return
 	var game := MiniGolf.mine()
 	if not game.is_empty():
 		_go(game)
 		return
+	if _phase == "out":
+		_fly_out(delta)
+		return
 	var seat := MiniGolf.seated_kart()
 	if seat >= 0:
-		_hold(seat)
+		_ride(seat, delta)
 		return
-	_asked = -1
 	_let_go()
 	_try_join()
 
@@ -99,30 +132,128 @@ func _try_join() -> void:
 		if offset.length() < gap:
 			gap = offset.length()
 			best = index
-	if best < 0 or best == _asked:
+	if best < 0:
+		_asked = -1
+		return
+	if best == _asked:
 		return
 	_asked = best
 	ToonNet.minigolf_act("join", best, 0.0, 0.0)
 
 
-func _hold(seat: int) -> void:
+## Walking cannot leave a seat. Hop off plays the reverse jump and lands
+## outside the join radius, so the cart does not pull the toon back on.
+func _ride(seat: int, delta: float) -> void:
 	_held = true
 	_host.set("_locked", true)
-	var body := _host.get("_body") as CharacterBody3D
-	var kart := _kart_node(seat)
-	if body != null and kart != null:
-		var stand := kart.global_position
-		stand.y = body.global_position.y
-		body.global_position = stand
-		body.velocity = Vector3.ZERO
-		var actor := _host.get("_player") as Node3D
-		if actor != null and actor.has_method("set_locomotion"):
-			actor.call("set_locomotion", 0.0, false, false, 0.016)
+	if _phase == "" or _kart_i != seat:
+		_begin_in(seat)
+	if _phase == "in":
+		_age += delta
+		_place_in()
+	if _phase == "sit":
+		_place_sit()
 	if _exit != null:
 		_exit.visible = true
 		_place_hop()
-	var wait := _wait(seat)
-	_show_clock(kart, wait)
+	_cam_blend = minf(_cam_blend + delta / _BOARD_CAM, 1.0)
+	_show_clock(_kart_node(seat), _wait(seat))
+
+
+func _begin_in(seat: int) -> void:
+	var body := _host.get("_body") as CharacterBody3D
+	var actor := _host.get("_player") as Node3D
+	var kart := _kart_node(seat)
+	_kart_i = seat
+	_seat_i = _my_seat(seat)
+	_phase = "in"
+	_age = 0.0
+	_from = body.global_position if body != null else Vector3.ZERO
+	_ground = _from.y
+	_head_from = float(_host.get("_heading"))
+	_head_to = _sit_heading(kart, _seat_i)
+	_to = _from
+	if kart != null:
+		_to = _cushion(kart, _seat_i)
+		_to.y -= _hip_drop(actor)
+	_jump_len = _clip_length(actor, "jump")
+	_sit_len = _clip_length(actor, "sit-start")
+	_remember_camera()
+	if body != null:
+		body.velocity = Vector3.ZERO
+
+
+func _place_in() -> void:
+	var body := _host.get("_body") as CharacterBody3D
+	var actor := _host.get("_player") as Node3D
+	if body == null:
+		return
+	var landed := _JUMP_HOLD + _JUMP_FLY
+	var along := 0.0
+	if _age > _JUMP_HOLD:
+		along = clampf((_age - _JUMP_HOLD) / _JUMP_FLY, 0.0, 1.0)
+	if _age < landed:
+		body.global_position = _arc(_from, _to, along)
+		_aim(rad_to_deg(lerp_angle(deg_to_rad(_head_from), deg_to_rad(_head_to), along)))
+	else:
+		body.global_position = _to
+		_aim(_head_to)
+	body.velocity = Vector3.ZERO
+	if actor == null:
+		return
+	if _age < _SIT_AT:
+		_pose(actor, "jump", minf(_age, _jump_len))
+		_share("jump")
+		return
+	if _sit_len > 0.0 and _age < _SIT_AT + _sit_len:
+		_pose(actor, "sit-start", _age - _SIT_AT)
+		_share("sit-start")
+		return
+	_phase = "sit"
+
+
+func _place_sit() -> void:
+	var body := _host.get("_body") as CharacterBody3D
+	var actor := _host.get("_player") as Node3D
+	if body != null:
+		body.global_position = _to
+		body.velocity = Vector3.ZERO
+	_aim(_head_to)
+	if actor != null and actor.has_method("pose_synced_loop"):
+		actor.call("pose_synced_loop", "sit")
+	_share("sit")
+
+
+func _fly_out(delta: float) -> void:
+	_age += delta
+	var body := _host.get("_body") as CharacterBody3D
+	var actor := _host.get("_player") as Node3D
+	var landed := _OUT_HOLD + _OUT_FLY
+	var along := 0.0
+	if _age > _OUT_HOLD:
+		along = clampf((_age - _OUT_HOLD) / _OUT_FLY, 0.0, 1.0)
+	if body != null and _age < landed:
+		body.global_position = _arc(_from, _to, along)
+		body.velocity = Vector3.ZERO
+		_aim(rad_to_deg(lerp_angle(deg_to_rad(_head_from), deg_to_rad(_head_to), along)))
+		_pose(actor, "jump", minf(_age, _jump_len))
+		_share("jump")
+		return
+	if body != null:
+		body.global_position = _to
+		body.velocity = Vector3.ZERO
+	_aim(_head_to)
+	if actor != null:
+		if actor.has_method("end_action"):
+			actor.call("end_action", "jump")
+		if actor.has_method("release_pose"):
+			actor.call("release_pose")
+		if actor.has_method("clear_gesture"):
+			actor.call("clear_gesture")
+	_share("neutral")
+	_asked = _kart_i
+	_phase = ""
+	_let_go()
 
 
 func _let_go() -> void:
@@ -244,4 +375,147 @@ func _show_clock(kart: Node3D, wait: float) -> void:
 
 
 func _get_off() -> void:
+	if _phase == "out" or _kart_i < 0:
+		return
+	var body := _host.get("_body") as CharacterBody3D
+	var kart := _kart_node(_kart_i)
+	_from = body.global_position if body != null else _to
+	_to = _exit_point(kart, _seat_i)
+	_head_from = float(_host.get("_heading"))
+	var away := _to - _from
+	away.y = 0.0
+	_head_to = _heading_of(away) if away.length_squared() > 0.04 else _head_from
+	_age = 0.0
+	_phase = "out"
+	if _exit != null:
+		_exit.visible = false
 	ToonNet.minigolf_act("leave", 0, 0.0, 0.0)
+
+
+func _my_seat(kart_index: int) -> int:
+	var av := ToonRoster.avatar_id()
+	var karts: Array = ToonNet.latest("minigolf").get("karts", [])
+	if kart_index < 0 or kart_index >= karts.size():
+		return 0
+	var riders: Array = karts[kart_index].get("avs", [])
+	var found := riders.find(av)
+	return found if found >= 0 else 0
+
+
+func _cushion(kart: Node3D, index: int) -> Vector3:
+	var seat := kart.find_child("seat%d" % (index + 1), true, false) as Node3D
+	if seat != null:
+		return seat.global_position
+	return kart.global_position + Vector3(0.0, 1.6, 0.0)
+
+
+func _exit_point(kart: Node3D, index: int) -> Vector3:
+	if kart == null:
+		return _from
+	var spot := kart.global_transform * _OUT[clampi(index, 0, 3)]
+	spot.y = _ground
+	var flat := spot - kart.global_position
+	flat.y = 0.0
+	if flat.length() < _REACH + 0.75:
+		if flat.length_squared() < 0.01:
+			flat = Vector3(_REACH + 0.75, 0.0, 0.0)
+		else:
+			flat = flat.normalized() * (_REACH + 0.75)
+		spot = kart.global_position + flat
+		spot.y = _ground
+	return spot
+
+
+## The kart's heading is its local +Y. Front seats add 180 and face the hood.
+func _sit_heading(kart: Node3D, index: int) -> float:
+	if kart == null:
+		return float(_host.get("_heading"))
+	var forward := kart.global_transform.basis.y
+	forward.y = 0.0
+	var heading := _heading_of(forward)
+	if index < 2:
+		heading += 180.0
+	return heading
+
+
+## The follow camera sits behind the toon, so the number at the front of the
+## cart stays out of frame. This is the boarding shot that looks back at it.
+func holds_camera() -> bool:
+	return _held and _phase != "out" and _kart_node(_kart_i) != null
+
+
+func aim(camera: Camera3D) -> void:
+	var kart := _kart_node(_kart_i)
+	if camera == null or kart == null:
+		return
+	var dest := kart.global_transform * Vector3(0.0, 18.0, 8.0)
+	var look := kart.global_transform * Vector3(0.0, 0.0, 4.0)
+	var t := clampf(_cam_blend, 0.0, 1.0)
+	camera.global_position = _cam_from.lerp(dest, t)
+	var focus := _look_from.lerp(look, t)
+	if camera.global_position.distance_squared_to(focus) > 0.04:
+		var up := kart.global_transform.basis.z
+		if up.dot(Vector3.UP) < 0.0:
+			up = -up
+		camera.look_at(focus, up if up.length_squared() > 0.01 else Vector3.UP)
+
+
+func _remember_camera() -> void:
+	_cam_blend = 0.0
+	var camera := _host.get("_camera") as Camera3D
+	if camera == null:
+		_cam_from = Vector3.ZERO
+		_look_from = Vector3.FORWARD
+		return
+	_cam_from = camera.global_position
+	_look_from = _cam_from - camera.global_basis.z * 12.0
+
+
+func _heading_of(forward: Vector3) -> float:
+	return rad_to_deg(atan2(-forward.x, -forward.z))
+
+
+func _aim(heading: float) -> void:
+	_host.set("_heading", heading)
+	var actor := _host.get("_player") as Node3D
+	if actor != null and _host.has_method("_face"):
+		_host.call("_face", actor, heading)
+
+
+func _arc(start: Vector3, finish: Vector3, along: float) -> Vector3:
+	var mid := start.lerp(finish, along)
+	mid.y += sin(along * PI) * _ARC
+	return mid
+
+
+func _hip_drop(actor: Node3D) -> float:
+	if actor == null:
+		return 1.2
+	if actor.has_method("pose_action"):
+		actor.call("pose_action", "sit", 47.0 / 24.0)
+	var joint := actor.find_child("joint_hips", true, false) as Node3D
+	var drop := 1.2
+	if joint != null:
+		drop = joint.global_position.y - actor.global_position.y
+	if actor.has_method("end_action"):
+		actor.call("end_action", "sit")
+	if actor.has_method("release_pose"):
+		actor.call("release_pose")
+	return maxf(drop, 0.4)
+
+
+func _clip_length(actor: Node3D, suffix: String) -> float:
+	if actor != null and actor.has_method("action_length"):
+		return float(actor.call("action_length", suffix))
+	return 0.0
+
+
+func _pose(actor: Node3D, suffix: String, elapsed: float) -> void:
+	if actor != null and actor.has_method("pose_action"):
+		actor.call("pose_action", suffix, elapsed)
+
+
+func _share(anim: String) -> void:
+	var remotes := _host.get("_remotes") as Node
+	if remotes != null and remotes.has_method("note_anim"):
+		remotes.call("note_anim", float(_host.get("_heading")), anim)

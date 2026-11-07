@@ -75,7 +75,7 @@ func _ready() -> void:
 	visible = false
 
 
-func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned: Dictionary, quest_line: String, no_skip: bool) -> void:
+func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned: Dictionary, quest_line: String, no_skip: bool, quests: Array = []) -> void:
 	_loadout = loadout
 	_before = before
 	_earned = earned
@@ -106,6 +106,8 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 	if not _skip and not quest_line.is_empty():
 		_show_quest(quest_line)
 		await _wait(2.0)
+	if not _skip and not quests.is_empty():
+		await _tick_quests(quests)
 	visible = false
 
 
@@ -153,6 +155,7 @@ func _wait(seconds: float) -> void:
 func _show_bars() -> void:
 	_quest_title.visible = false
 	_quest_line.visible = false
+	_quest_line.bbcode_enabled = false
 	for track in ToonLoadout.TRACK_COUNT:
 		var open := _loadout != null and _loadout.track_open(track)
 		_frames[track].visible = open
@@ -172,9 +175,90 @@ func _show_quest(line: String) -> void:
 		_tracks[track].visible = false
 		_plus[track].visible = false
 	_quest_title.visible = true
-	_quest_line.text = line
+	var title := "ToonTasks"
+	var body := line
+	var recovered := line.contains("Items Recovered:")
+	var missed := line.contains("Items Not Recovered:")
+	if recovered or missed:
+		title = "Items Recovered" if recovered else "Items Not Recovered"
+		var names := PackedStringArray()
+		for row in line.split("\n"):
+			var text := row
+			if text.begins_with("Items Recovered:"):
+				text = text.trim_prefix("Items Recovered:")
+			elif text.begins_with("Items Not Recovered:"):
+				text = text.trim_prefix("Items Not Recovered:")
+			text = text.strip_edges()
+			if not text.is_empty():
+				names.append(text)
+		body = "\n".join(names)
+	_quest_title.text = title
+	_quest_line.bbcode_enabled = false
+	_quest_line.add_theme_color_override("font_color", _DONE)
+	_quest_line.text = body
 	_quest_line.visible = true
 	_layout()
+
+
+## RewardPanel.getQuestIntervalList. Each task ticks from its old count.
+func _tick_quests(quests: Array) -> void:
+	for track in ToonLoadout.TRACK_COUNT:
+		_frames[track].visible = false
+		_fills[track].visible = false
+		_amounts[track].visible = false
+		_tracks[track].visible = false
+		_plus[track].visible = false
+	_quest_title.text = "ToonTasks"
+	_quest_title.visible = true
+	_quest_line.bbcode_enabled = true
+	_quest_line.add_theme_color_override("font_color", _INK)
+	_quest_line.visible = true
+	_quest_line.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	var shown: Array = []
+	for item in quests:
+		shown.append(int((item as Dictionary).get("before", 0)))
+	_paint_quests(quests, shown)
+	_layout()
+	for index in quests.size():
+		var gain: Dictionary = quests[index]
+		var start := int(gain.get("before", 0))
+		var finish := int(gain.get("after", start))
+		var elapsed := 0.0
+		while elapsed < 0.5:
+			if _skip:
+				elapsed = 0.5
+			else:
+				await get_tree().process_frame
+				elapsed += get_process_delta_time()
+			var along := clampf(elapsed / 0.5, 0.0, 1.0)
+			shown[index] = int(round(float(start) + along * float(finish - start)))
+			_paint_quests(quests, shown)
+		if _skip:
+			break
+	await _wait(0.5)
+
+
+func _paint_quests(quests: Array, shown: Array) -> void:
+	var lines: PackedStringArray = PackedStringArray()
+	for index in quests.size():
+		var gain: Dictionary = quests[index]
+		var progress := int(shown[index]) if index < shown.size() else int(gain.get("after", 0))
+		lines.append(_quest_sentence(gain, progress))
+	_quest_line.text = "\n".join(lines)
+
+
+func _quest_sentence(gain: Dictionary, progress: int) -> String:
+	var title := String(gain.get("title", ""))
+	var goal := int(gain.get("goal", 1))
+	var done := progress >= goal
+	var tail := ""
+	if done:
+		tail = "Complete"
+	elif goal > 1:
+		tail = "%d of %d %s" % [progress, goal, String(gain.get("word", "defeated"))]
+	var text := title if tail.is_empty() else "%s : %s" % [title, tail]
+	var color := "004c00" if done else "000000"
+	return "[color=#%s]%s[/color]" % [color, text]
 
 
 func _paint(track: int, shown: int, hot: bool) -> void:

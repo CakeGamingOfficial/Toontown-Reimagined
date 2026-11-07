@@ -13,11 +13,10 @@ const EXIT_RUN := 1.0
 const BOARD_CAM := 1.5
 const LEAVE_CAM := 3.0
 const RIDE_SCENE := "res://scenes/trolley/trolley_ride.tscn"
+const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const AWAY_SFX := "res://assets/audio/sfx/SZ_trolley_away.ogg"
 const BELL_SFX := "res://assets/audio/sfx/SZ_trolley_bell.ogg"
 
-const _SEAT := Vector3(-3.9, -4.5, 3.0)
-const _STEP := Vector3(-5.0, -4.5, 1.4)
 const _REACH := 8.0
 
 var _host: Node
@@ -43,6 +42,9 @@ var _sit := 0.0
 var _from := Vector3.ZERO
 var _pose := ""
 var _sit_len := -1.0
+var _seat := -1
+var _place := ""
+var _seat_wait := 0.0
 var _exiting := false
 var _exit_age := 0.0
 var _cam_from := Vector3.ZERO
@@ -90,7 +92,7 @@ func setup(host: Node) -> bool:
 
 
 func can_board() -> bool:
-	return _car != null and not _departing and (_mode == "wait" or _mode == "countdown") and not _aboard
+	return _car != null and not _departing and (_mode == "wait" or _mode == "countdown") and not _aboard and not _seats_full()
 
 
 ## Trolley.enterBoarding parents the camera to the car and holds it there
@@ -110,22 +112,30 @@ func near(body: Node3D) -> bool:
 	return body.global_position.y >= door.y - 2.5
 
 
-func board(body: CharacterBody3D, actor: Node3D) -> void:
+func board(body: CharacterBody3D, actor: Node3D) -> bool:
+	_place = _place_name()
+	var assigned := ToonNet.claim_trolley_seat(_place)
+	if ToonNet.is_authority() and assigned < 0:
+		return false
 	_aboard = true
 	_body = body
 	_actor = actor
 	_sit = 0.0
 	_pose = ""
+	_seat = assigned
+	_seat_wait = 0.0
 	_exiting = false
 	_exit_age = 0.0
 	_from = _car.global_transform.affine_inverse() * body.global_position
 	_remember_camera()
+	ToonNet.join_trolley_clock(_place)
 	if _mode != "countdown":
 		_mode = "countdown"
 		_countdown = COUNTDOWN
 		_clock.visible = true
 		_exit.visible = true
 		_paint_clock()
+	return true
 
 
 func tick(delta: float) -> void:
@@ -142,7 +152,11 @@ func tick(delta: float) -> void:
 			_car.position = _rest
 			_reset_spin()
 	elif _mode == "countdown":
-		_countdown = maxf(_countdown - delta, 0.0)
+		var until := ToonNet.trolley_clock(_place)
+		if until > 0:
+			_countdown = maxf((float(until) - Time.get_unix_time_from_system() * 1000.0) / 1000.0, 0.0)
+		else:
+			_countdown = maxf(_countdown - delta, 0.0)
 		_paint_clock()
 		_place_rider(delta)
 		if _countdown <= 0.0 and _aboard and not _exiting:
@@ -173,6 +187,10 @@ func _depart() -> void:
 
 func _go_play() -> void:
 	var ride := load("res://scenes/trolley/trolley_ride.gd") as GDScript
+	ride.players = _rider_count()
+	ride.seat = maxi(_seat, 0)
+	ride.riders = _rider_cards()
+	ToonNet.release_trolley_seat(_place)
 	ride.hood = _host._hood if _host != null else 2000
 	ride.return_scene = _host._scene_path() if _host != null else ""
 	ToonLoading.change_to(RIDE_SCENE)
@@ -234,16 +252,22 @@ func _place_rider(delta: float) -> void:
 	if _exiting:
 		_place_exit(delta)
 		return
+	_read_seat()
+	if _seat < 0:
+		_seat_wait += delta
+		if _seat_wait > 1.5:
+			_drop_off()
+		return
 	_sit += delta
 	var length := _sit_length()
 	var sat := BOARD_TIME + SIT_TIME
-	var local := _SEAT
+	var local := _seat_point()
 	if _sit < BOARD_TIME:
-		local = _from.lerp(_STEP, clampf(_sit / BOARD_TIME, 0.0, 1.0))
+		local = _from.lerp(_step_point(), clampf(_sit / BOARD_TIME, 0.0, 1.0))
 		_play_run(delta)
 		_face_heading(_approach_heading())
 	elif _sit < sat:
-		local = _STEP
+		local = _step_point()
 		var u := clampf((_sit - BOARD_TIME) / SIT_TIME, 0.0, 1.0)
 		_play_run(delta)
 		var heading := rad_to_deg(lerp_angle(deg_to_rad(_approach_heading()), deg_to_rad(_sit_heading()), u))
@@ -253,7 +277,7 @@ func _place_rider(delta: float) -> void:
 		_play_clip("sit-start", delta, false)
 		_face_heading(_sit_heading())
 	else:
-		local = _SEAT
+		local = _seat_point()
 		if length > 0.0:
 			_play_clip("sit", delta, true)
 		else:
@@ -261,6 +285,7 @@ func _place_rider(delta: float) -> void:
 		_face_heading(_sit_heading())
 	_body.global_position = _car.global_transform * local
 	_body.velocity = Vector3.ZERO
+	_publish_pose()
 
 
 func _place_exit(delta: float) -> void:
@@ -268,17 +293,18 @@ func _place_exit(delta: float) -> void:
 	var length := _sit_length()
 	if length > 0.0 and _exit_age < length:
 		var u := _exit_age / length
-		var local := _SEAT
+		var local := _seat_point()
 		if u >= 0.5 and u < 0.75:
-			local = _SEAT.lerp(_STEP, (u - 0.5) / 0.25)
+			local = _seat_point().lerp(_step_point(), (u - 0.5) / 0.25)
 		elif u >= 0.75:
-			local = _STEP
+			local = _step_point()
 		_body.global_position = _car.global_transform * local
 		_body.velocity = Vector3.ZERO
 		_play_reverse_sit(delta)
 		_face_heading(_sit_heading())
+		_publish_pose()
 		return
-	var start := _car.global_transform * _STEP
+	var start := _car.global_transform * _step_point()
 	var dest := _off_point()
 	var run_t := _exit_age - length
 	if run_t < EXIT_RUN:
@@ -295,6 +321,7 @@ func _place_exit(delta: float) -> void:
 		if move.length_squared() > 0.0001 and _host != null:
 			_face_heading(_host._heading_toward(move))
 		_play_run(delta)
+		_publish_pose()
 		return
 	_body.global_position = dest
 	_drop_off()
@@ -325,6 +352,8 @@ func _drop_off() -> void:
 		_body.global_position = _off_point()
 		_body.velocity = Vector3.ZERO
 	_stand(0.016)
+	ToonNet.release_trolley_seat(_place)
+	_seat = -1
 	if _host != null:
 		_host._locked = false
 
@@ -332,16 +361,104 @@ func _drop_off() -> void:
 func _off_point() -> Vector3:
 	if _station == null or _body == null:
 		return _body.global_position if _body != null else Vector3.ZERO
-	return _station.global_transform * Vector3(21.0, -5.0, 0.2)
+	return _station.global_transform * Vector3(21.0 - float(maxi(_seat, 0)) * 3.0, -5.0, 0.2)
 
 
 func _seat_local(age: float, length: float) -> Vector3:
 	var u := age / length
 	if u < 0.25:
-		return _STEP
+		return _step_point()
 	if u < 0.5:
-		return _STEP.lerp(_SEAT, (u - 0.25) / 0.25)
-	return _SEAT
+		return _step_point().lerp(_seat_point(), (u - 0.25) / 0.25)
+	return _seat_point()
+
+
+## fillSlot spreads the bench by 3. Seat 0 is the original single seat.
+func _along() -> float:
+	return -4.5 + float(clampi(_seat, 0, 3)) * 3.0
+
+
+func _seat_point() -> Vector3:
+	return Vector3(-3.9, _along(), 3.0)
+
+
+func _step_point() -> Vector3:
+	return Vector3(-5.0, _along(), 1.4)
+
+
+func _place_name() -> String:
+	if _host != null and _host.has_method("_scene_path"):
+		return str(_host.call("_scene_path")).get_file()
+	return ""
+
+
+func _rider_cards() -> Array:
+	var place := _place if _place != "" else _place_name()
+	var me := ToonNet.peer_id()
+	var group: Array = []
+	var listed := false
+	for index in range(4):
+		var owner := ToonNet.trolley_seat_owner(place, index)
+		if owner == 0:
+			continue
+		group.append(_rider_card(owner))
+		if owner == me:
+			listed = true
+	if not listed and group.size() < 4:
+		group.append(_rider_card(me))
+	return group
+
+
+func _rider_card(peer: int) -> Dictionary:
+	var state := ToonNet.latest("toon:%d" % peer)
+	var style: Variant = state.get("style", {})
+	var worn: Variant = state.get("accessories", {})
+	var name := String(state.get("name", ""))
+	if peer == ToonNet.peer_id():
+		var mine := ToonRoster.selected_style()
+		if mine != null:
+			style = mine.to_dict()
+			name = mine.display_name()
+		worn = _CLOSET.accessory_ids()
+	if not (style is Dictionary):
+		style = {}
+	if not (worn is Dictionary):
+		worn = {}
+	return {"peer": peer, "name": name, "style": style, "accessories": worn}
+
+
+func _rider_count() -> int:
+	var place := _place if _place != "" else _place_name()
+	var count := 0
+	for index in range(4):
+		if ToonNet.trolley_seat_owner(place, index) != 0:
+			count += 1
+	return maxi(count, 1)
+
+
+func _seats_full() -> bool:
+	var place := _place_name()
+	if place == "":
+		return false
+	for index in range(4):
+		if ToonNet.trolley_seat_owner(place, index) == 0:
+			return false
+	return true
+
+
+func _read_seat() -> void:
+	if _place == "":
+		_place = _place_name()
+	var found := ToonNet.trolley_seat(_place, ToonNet.peer_id())
+	if found < 0 or found == _seat:
+		return
+	_seat = found
+	_sit = 0.0
+	_pose = ""
+	_sit_len = -1.0
+	_seat_wait = 0.0
+	if _body != null and _car != null:
+		_from = _car.global_transform.affine_inverse() * _body.global_position
 
 
 func _sit_length() -> float:
@@ -355,7 +472,7 @@ func _sit_length() -> float:
 func _approach_heading() -> float:
 	if _car == null or _host == null:
 		return 0.0
-	var travel := _car.global_transform.basis * (_STEP - _from)
+	var travel := _car.global_transform.basis * (_step_point() - _from)
 	travel.y = 0.0
 	if travel.length_squared() < 0.0001:
 		return _sit_heading()
@@ -385,6 +502,7 @@ func _play_run(delta: float) -> void:
 	var toon := _toon()
 	if toon == null:
 		return
+	toon.release_pose()
 	if _pose != "run" and _pose != "off":
 		_pose = "run"
 		toon.clear_gesture()
@@ -395,6 +513,11 @@ func _play_clip(suffix: String, delta: float, loop: bool) -> void:
 	var toon := _toon()
 	if toon == null:
 		return
+	if suffix == "sit" and loop:
+		_pose = "sit"
+		toon.pose_synced_loop("sit")
+		return
+	toon.release_pose()
 	if _pose != suffix:
 		_pose = suffix
 		toon.play_gesture(suffix, 1.0, loop)
@@ -405,6 +528,7 @@ func _play_reverse_sit(delta: float) -> void:
 	var toon := _toon()
 	if toon == null:
 		return
+	toon.release_pose()
 	if _pose != "stand":
 		_pose = "stand"
 		toon.play_gesture("sit-start", -1.0, false)
@@ -415,8 +539,25 @@ func _stand(delta: float) -> void:
 	var toon := _toon()
 	if toon == null:
 		return
+	toon.release_pose()
 	toon.clear_gesture()
 	toon.set_locomotion(0.0, false, false, delta)
+
+
+func _publish_pose() -> void:
+	if _host == null or _actor == null:
+		return
+	var remotes := _host.get_node_or_null("RemoteToons") as RemoteToons
+	if remotes == null:
+		return
+	var anim := "neutral"
+	if _pose == "run" or _pose == "off":
+		anim = "run"
+	elif _pose == "sit":
+		anim = "sit"
+	elif _pose == "sit-start" or _pose == "stand":
+		anim = "sit-start"
+	remotes.note_anim(RemoteToons.facing(_actor), anim)
 
 
 func _paint_clock() -> void:

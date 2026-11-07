@@ -899,7 +899,7 @@ func _ensure_clips() -> void:
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -978,6 +978,19 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	if drawn.is_empty():
 		return
 	_pose_clip(drawn["clips"], drawn["joints"], frame, following, blend)
+
+
+## The sit loop uses the wall clock, so every rider is on the same frame.
+func pose_synced_loop(suffix: String) -> void:
+	var length := action_length(suffix)
+	var elapsed := 0.0
+	if length > 0.0:
+		elapsed = fposmod(Time.get_unix_time_from_system(), length)
+	pose_action(suffix, elapsed)
+
+
+func release_pose() -> void:
+	_pose_lock = false
 
 
 func set_look_enabled(enabled: bool) -> void:
@@ -1410,6 +1423,18 @@ func _accessory_catalog() -> Dictionary:
 	return _accessory_book
 
 
+func _kept_mesh(value: Variant) -> MeshInstance3D:
+	if value != null and is_instance_valid(value) and value is MeshInstance3D:
+		return value
+	return null
+
+
+func _kept_node(value: Variant) -> Node3D:
+	if value != null and is_instance_valid(value) and value is Node3D:
+		return value
+	return null
+
+
 func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: float) -> void:
 	# These clips are 24 discrete frames. Building a new mesh and smoothing its
 	# normals on every tick, for the toon and again for a street fisherman,
@@ -1417,8 +1442,8 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 	var posed_head: MeshInstance3D = null
 	var built := false
 	for clip in clips:
-		var instance := clip["instance"] as MeshInstance3D
-		if not is_instance_valid(instance):
+		var instance := _kept_mesh(clip.get("instance"))
+		if instance == null:
 			continue
 		var cache: Dictionary = clip.get("posed_meshes", {})
 		var posed: ArrayMesh = cache.get(frame) as ArrayMesh
@@ -1440,15 +1465,15 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 			host = host.get_parent()
 		_unify_forehead(host)
 		for clip in clips:
-			var instance := clip["instance"] as MeshInstance3D
-			if not is_instance_valid(instance) or not (instance.mesh is ArrayMesh):
+			var instance := _kept_mesh(clip.get("instance"))
+			if instance == null or not is_instance_valid(instance.mesh) or not (instance.mesh is ArrayMesh):
 				continue
 			var cache: Dictionary = clip.get("posed_meshes", {})
 			cache[frame] = instance.mesh
 			clip["posed_meshes"] = cache
 	for joint in joints:
-		var node := joint["node"] as Node3D
-		if not is_instance_valid(node):
+		var node := _kept_node(joint.get("node"))
+		if node == null:
 			continue
 		var frames: Array = joint["frames"]
 		if frames.is_empty():
@@ -1459,10 +1484,11 @@ func _pose_clip(clips: Array, joints: Array, frame: int, following: int, blend: 
 
 
 func _mesh_for_frame(clip: Dictionary, frame: int) -> ArrayMesh:
-	var instance := clip["instance"] as MeshInstance3D
-	var original := clip["original"] as Mesh
-	if not is_instance_valid(instance) or original == null:
+	var instance := _kept_mesh(clip.get("instance"))
+	var source: Variant = clip.get("original")
+	if instance == null or not is_instance_valid(source) or not (source is Mesh):
 		return null
+	var original := source as Mesh
 	var surfaces: Array = clip["surfaces"]
 	var posed := ArrayMesh.new()
 	var part := String(instance.name)
@@ -1517,12 +1543,13 @@ func _restore_posed_meshes() -> void:
 
 func _restore_clip(clips: Array, joints: Array) -> void:
 	for clip in clips:
-		var instance := clip["instance"] as MeshInstance3D
-		if is_instance_valid(instance):
-			instance.mesh = clip["original"]
+		var instance := _kept_mesh(clip.get("instance"))
+		var source: Variant = clip.get("original")
+		if instance != null and is_instance_valid(source) and source is Mesh:
+			instance.mesh = source
 	for joint in joints:
-		var node := joint["node"] as Node3D
-		if is_instance_valid(node):
+		var node := _kept_node(joint.get("node"))
+		if node != null:
 			node.transform = joint["rest"]
 
 
@@ -1660,16 +1687,16 @@ func _recolor(node: Node) -> void:
 				color = ToonStyle.fur_color(_style.glove_color)
 				paint = true
 			elif part == "arms" or part == "neck":
-				color = ToonStyle.fur_color(_style.arm_color)
+				color = _style.painted_color("arm")
 				paint = true
 			elif part == "legs" or part == "feet":
-				color = ToonStyle.fur_color(_style.leg_color)
+				color = _style.painted_color("leg")
 				paint = true
 			elif part.begins_with("ears"):
-				color = Color.BLACK if _style.species() == "d" else ToonStyle.fur_color(_style.head_color)
+				color = Color.BLACK if _style.species() == "d" else _style.painted_color("head")
 				paint = true
 			elif part.begins_with("head"):
-				color = ToonStyle.fur_color(_style.head_color)
+				color = _style.painted_color("head")
 				paint = true
 			elif part == "torso-top":
 				color = ToonStyle.clothes_color(_style.top_color)
@@ -1717,9 +1744,9 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 		color = ToonStyle.fur_color(style.glove_color)
 		glove = 1.0
 	elif part == "arms" or part == "neck":
-		color = ToonStyle.fur_color(style.arm_color)
+		color = style.painted_color("arm")
 	elif part == "legs" or part == "feet":
-		color = ToonStyle.fur_color(style.leg_color)
+		color = style.painted_color("leg")
 	elif part.begins_with("muzzle"):
 		# The snout keeps the normals it was exported with. Rebuilding them from
 		# the snout's own center points the two halves apart and draws a seam.
@@ -1733,9 +1760,9 @@ func _paint_mesh(mesh: MeshInstance3D, style: ToonStyle) -> void:
 		# Ears are a thin shell. The two sides share corners, so a single averaged
 		# normal cancels and every triangle shades on its own.
 		_smooth_sides(mesh)
-		color = Color.BLACK if style.species() == "d" else ToonStyle.fur_color(style.head_color)
+		color = Color.BLACK if style.species() == "d" else style.painted_color("head")
 	elif part.begins_with("head"):
-		color = ToonStyle.fur_color(style.head_color)
+		color = style.painted_color("head")
 		# Smoothed skull normals point backward. The body does not.
 		face_sign = -1.0
 	elif part == "torso-top":
@@ -1845,7 +1872,7 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 		var texture: Texture2D = null
 		var color := Color.WHITE
 		if kind == "front":
-			color = ToonStyle.fur_color(style.head_color)
+			color = style.painted_color("head")
 		else:
 			var material := source.surface_get_material(surface)
 			if material is BaseMaterial3D:
@@ -2548,7 +2575,7 @@ func _anchor_wrists(scope: Node, surfaces: Array) -> void:
 func _seat_hands(joints: Array) -> void:
 	var head: Node3D = null
 	for joint in joints:
-		var node := joint["node"] as Node3D
+		var node := _kept_node(joint.get("node"))
 		if node != null and String(node.name) == "def_head":
 			head = node
 	if head == null:

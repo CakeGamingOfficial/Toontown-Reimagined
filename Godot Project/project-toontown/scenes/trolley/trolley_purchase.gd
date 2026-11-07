@@ -19,12 +19,17 @@ const _TRASH_CLOSED := preload("res://assets/toons/gui/TrashCan_CLSD.png")
 const _TRASH_OPEN := preload("res://assets/toons/gui/TrashCan_OPEN.png")
 const _TRASH_HOVER := preload("res://assets/toons/gui/TrashCan_RLVR.png")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _TASKS := preload("res://scenes/quests/toon_tasks.gd")
 const _SECONDS := 120.0
 const _WAIT := 1.0
 const _COUNT := 0.5
 const _HOLD := 1.0
 const _CHEER := 2.6
+const _RIDE := preload("res://scenes/trolley/trolley_ride.gd")
+## Purchase.enterReward. One toon stands in the middle. Two, three, and four use the wider spots.
+const _LINE: Array = [[2], [1, 3], [0, 2, 4], [0, 1, 3, 4]]
+const _BENCH: Array[float] = [5.0, 1.75, -0.25, -1.75, -5.0]
 const _ICONS: PackedStringArray = [
 	"res://assets/gui/tutorial/gags/inventory_feather.png",
 	"res://assets/gui/tutorial/gags/inventory_megaphone.png",
@@ -86,6 +91,20 @@ var _env: Environment
 var _set: Node3D
 var _toon: ToonActor
 var _toon_home := Vector3.ZERO
+var _camera: Camera3D
+var _tags: Nametags
+var _party: Array[ToonActor] = []
+var _party_home: Array[Vector3] = []
+var _party_ax: Array[float] = []
+var _party_box: Array[Panel] = []
+var _party_score: Array[Label] = []
+var _party_jar: Array[TextureRect] = []
+var _party_beans: Array[Label] = []
+var _party_reward: Array[int] = []
+var _party_pouch: Array[int] = []
+var _party_limit: Array[int] = []
+var _party_peer: Array[int] = []
+var _local_slot := 0
 var _gui: Control
 var _sign: TextureRect
 var _title: Label
@@ -119,11 +138,13 @@ var _next_tick := 0.0
 var _remain := _SECONDS
 var _status_left := 0.0
 var _chat: SpeedChat
+var _heads: Array = []
 
 
 func _ready() -> void:
 	_stage()
 	_build_gui()
+	_build_party_cards()
 	var view := get_viewport()
 	if not view.size_changed.is_connected(_layout):
 		view.size_changed.connect(_layout)
@@ -132,7 +153,7 @@ func _ready() -> void:
 	_beans.text = str(_jar_shown)
 	_play_music()
 	_layout()
-	if reward <= 0 and not preview_score:
+	if reward <= 0 and not preview_score and _party.size() < 2:
 		_open_shop(false)
 	else:
 		_show_street(true)
@@ -142,6 +163,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _closed:
 		return
+	if _tags != null:
+		_tags.place()
 	if not _shopping:
 		_animate(delta)
 		return
@@ -153,6 +176,8 @@ func _process(delta: float) -> void:
 			_show_beans()
 	if _remain <= 0.0:
 		_close("timeout")
+		return
+	_paint_heads()
 
 
 func _input(event: InputEvent) -> void:
@@ -189,22 +214,126 @@ func _stage() -> void:
 	camera.current = true
 	camera.far = 800.0
 	add_child(camera)
+	_camera = camera
 	# Purchase.enterReward: camera (0, 16, 2) looking at (0, 0, 0.75).
 	camera.position = _panda(0.0, 16.0, 2.0)
 	camera.look_at(_panda(0.0, 0.0, 0.75), Vector3.UP)
 	if ResourceLoader.exists(_SET):
 		_set = (load(_SET) as PackedScene).instantiate()
 		add_child(_set)
-	_toon = ToonActor.new()
-	add_child(_toon)
-	var style := ToonRoster.selected_style()
-	if style != null:
-		_toon.show_style(style)
-	# Solo layout puts the one toon at x = -0.25, on the floor z = -2.5, facing the camera.
-	_toon_home = _panda(-0.25, 1.0, -2.5)
-	_toon.position = _toon_home
-	_toon.rotation_degrees.y = 0.0
-	_toon.set_locomotion(0.0, false, false, 0.0)
+	_lineup()
+
+
+func _lineup() -> void:
+	var cards: Array = _RIDE.riders
+	if cards.is_empty():
+		var mine := ToonRoster.selected_style()
+		cards = [{
+			"peer": ToonNet.peer_id(),
+			"name": mine.display_name() if mine != null else "",
+			"style": mine.to_dict() if mine != null else {},
+			"accessories": {},
+		}]
+	var count := mini(cards.size(), 4)
+	var layout: Array = _LINE[count - 1]
+	var me := ToonNet.peer_id()
+	_tags = Nametags.new()
+	_tags.camera = _camera
+	var tag_layer := CanvasLayer.new()
+	tag_layer.layer = 40
+	add_child(tag_layer)
+	_tags.layer = tag_layer
+	add_child(_tags)
+	for index in count:
+		var card: Dictionary = cards[index]
+		var spot := int(layout[index])
+		var across := _BENCH[spot]
+		var actor := ToonActor.new()
+		add_child(actor)
+		var dressed = _style_of(card, int(card.get("peer", -1)) == me)
+		if dressed is ToonStyle:
+			var style := dressed as ToonStyle
+			actor.show_style(style)
+			actor.name = style.display_name()
+		var worn: Variant = card.get("accessories", {})
+		if worn is Dictionary:
+			actor.wear_accessories(worn)
+		var local := int(card.get("peer", -1)) == me or count == 1
+		var dressed_style: Dictionary = {}
+		if local:
+			var mine := ToonRoster.selected_style()
+			if mine != null:
+				dressed_style = mine.to_dict()
+		elif card.get("style") is Dictionary:
+			dressed_style = card.get("style")
+		if not dressed_style.is_empty():
+			actor.set_meta("style", dressed_style)
+		var av := ToonRoster.avatar_id() if local else int(ToonNet.latest("toon:%d" % int(card.get("peer", 0))).get("av", 0))
+		actor.set_meta("av", av)
+		var home := _panda(across, 1.0, -2.5)
+		actor.position = home
+		actor.rotation_degrees.y = 0.0
+		actor.set_locomotion(0.0, false, false, 0.0)
+		var label := String(card.get("name", ""))
+		if label == "" and dressed is ToonStyle:
+			label = (dressed as ToonStyle).display_name()
+		if label != "":
+			_tags.add(actor, label, "player")
+		_party.append(actor)
+		_party_home.append(home)
+		_party_ax.append(across * -0.17)
+		_party_peer.append(int(card.get("peer", 0)))
+		if local and _toon == null:
+			_toon = actor
+			_toon_home = home
+			_local_slot = index
+		_party_reward.append(reward if local and _local_slot == index else 0)
+		_party_pouch.append(_BEANS.pouch() if local and _local_slot == index else 0)
+		_party_limit.append(_BEANS.pouch_limit() if local and _local_slot == index else 40)
+	if _toon == null and not _party.is_empty():
+		_toon = _party[0]
+		_toon_home = _party_home[0]
+		_local_slot = 0
+		_party_reward[0] = reward
+		_party_pouch[0] = _BEANS.pouch()
+		_party_limit[0] = _BEANS.pouch_limit()
+
+
+func _style_of(card: Dictionary, local: bool):
+	if local:
+		return ToonRoster.selected_style()
+	var raw: Variant = card.get("style", {})
+	if raw is Dictionary and (raw as Dictionary).has("head"):
+		return ToonStyle.from_dict(raw)
+	return null
+
+
+func _build_party_cards() -> void:
+	for index in _party.size():
+		var box := Panel.new()
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var cream := StyleBoxFlat.new()
+		cream.bg_color = Color(1, 1, 0.75)
+		cream.set_corner_radius_all(8)
+		box.add_theme_stylebox_override("panel", cream)
+		_gui.add_child(box)
+		_party_box.append(box)
+		var number := Label.new()
+		number.text = "0"
+		number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		number.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		number.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_gui.add_child(number)
+		_party_score.append(number)
+		var jar := _image(_JAR)
+		_party_jar.append(jar)
+		var beans := Label.new()
+		beans.text = str(_party_pouch[index])
+		beans.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		beans.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		beans.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_gui.add_child(beans)
+		_party_beans.append(beans)
 
 
 func _build_gui() -> void:
@@ -216,12 +345,7 @@ func _build_gui() -> void:
 	# Empty parts of the shop let clicks through to SpeedChat.
 	_gui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_gui)
-	var chat_layer := CanvasLayer.new()
-	chat_layer.layer = 60
-	add_child(chat_layer)
-	_chat = SpeedChat.new()
-	chat_layer.add_child(_chat)
-	_chat.setup(_TASKS.for_selected())
+	_bind_chat()
 	_panel = _image(_PANEL)
 	_panel.visible = false
 	for track in ToonLoadout.TRACK_COUNT:
@@ -365,13 +489,12 @@ func _layout() -> void:
 	_title.position = _sign.position
 	_title.size = _sign.size
 	ToonGui.style_title(_title, Color(0.6, 0.2, 0.0), _px_of(0.09 * 1.2))
-	# The score card sits above the toon. The jar sits under their feet until the shop opens.
-	_place(_score_box, 0.0425, 0.6, 0.165, 0.165)
-	_score.position = _score_box.position
-	_score.size = _score_box.size
-	ToonGui.style_title(_score, Color(0.95, 0.95, 0.0), _px_of(0.1))
+	_score_box.visible = false
+	_score.visible = false
 	if _shopping:
 		_place(_panel, 0.14 - 0.21, -0.04 + 0.08, 2.4292, 1.4208)
+		_jar.visible = true
+		_beans.visible = true
 		_place(_jar, 0.14 - 1.15, -0.04 + 0.16, 0.4333, 0.5292)
 		_place(_again, 0.14 + 0.72, -0.04 - 0.24, 0.4125 * 1.04, 0.175 * 1.04)
 		_place(_exit, 0.14 + 0.72, -0.04 - 0.045, 0.4125 * 1.04, 0.175 * 1.04)
@@ -388,8 +511,21 @@ func _layout() -> void:
 		_caption(_again, _px_of(0.05))
 		_caption(_exit, _px_of(0.045))
 		_place_rows()
+		_hide_party_cards()
+		_layout_heads()
 	else:
-		_place(_jar, 0.0425, -0.825, 0.4333 * 0.5, 0.5292 * 0.5)
+		_jar.visible = false
+		_beans.visible = false
+		for index in _party_box.size():
+			var across := _party_ax[index]
+			_place(_party_box[index], across, 0.6, 0.165, 0.165)
+			_party_score[index].position = _party_box[index].position
+			_party_score[index].size = _party_box[index].size
+			ToonGui.style_title(_party_score[index], Color(0.95, 0.95, 0.0), _px_of(0.1))
+			_place(_party_jar[index], across, -0.825, 0.4333 * 0.5, 0.5292 * 0.5)
+			_party_beans[index].position = _party_jar[index].position
+			_party_beans[index].size = _party_jar[index].size
+			_paint_one(_party_beans[index], int(_party_beans[index].text), _party_limit[index])
 	_beans.position = _jar.position
 	_beans.size = _jar.size
 	_paint_jar()
@@ -441,57 +577,125 @@ func _place_rows() -> void:
 
 func _animate(delta: float) -> void:
 	_age += delta
-	var counter := 0
-	var jar := _jar_start
-	var pouring := false
+	_read_scores()
 	var up_end := _WAIT + _COUNT
 	var hold_end := up_end + _HOLD
 	var down_end := hold_end + _COUNT
 	var cheer_end := down_end + _CHEER
-	if _age < _WAIT:
-		counter = 0
-	elif _age < up_end:
-		counter = int(round(_ease((_age - _WAIT) / _COUNT) * float(reward)))
-	elif _age < hold_end:
-		counter = reward
-	elif _age < down_end:
-		pouring = true
-		counter = int(round((1.0 - _ease((_age - hold_end) / _COUNT)) * float(reward)))
-		jar = mini(_jar_start + (reward - counter), _BEANS.pouch_limit())
-	elif _age < cheer_end:
-		if not _cheered:
-			_cheered = true
-			_grant()
-			_jar_shown = _BEANS.pouch()
-			_beans.text = str(_jar_shown)
-			_paint_jar()
-			_score_box.visible = false
-			_score.visible = false
-			_effect("MG_win")
-			# enterJump plays the full jump once while the toon is still neutral.
-			# That clip is stored as leap. The airborne hover is a different anim.
-			_toon.play_gesture("leap", 1.0, false)
-		_toon.position = _toon_home
-		_toon.set_locomotion(0.0, false, false, delta)
-		return
-	else:
+	if _age >= cheer_end:
 		_open_shop(false)
 		return
-	var changed := counter != _counter or jar != _jar_shown
-	_counter = counter
-	_jar_shown = jar
-	_score.text = str(counter)
-	_beans.text = str(jar)
-	_paint_jar()
-	if changed and _age >= _WAIT:
-		_tick(pouring and jar >= _BEANS.pouch_limit())
+	var cheering := _age >= down_end
+	var best := 0
+	for beans in _party_reward:
+		best = maxi(best, beans)
+	var local_counter := _counter
+	var local_jar := _jar_shown
+	for index in _party.size():
+		var counter := _counter_at(_age, _party_reward[index])
+		var jar := _jar_at(_age, index, counter)
+		if index == _local_slot:
+			local_counter = counter
+			local_jar = jar
+		if index < _party_score.size():
+			_party_score[index].text = str(counter)
+			_party_score[index].visible = not cheering
+			_party_box[index].visible = not cheering
+			_party_beans[index].text = str(jar)
+			_paint_one(_party_beans[index], jar, _party_limit[index])
+		var actor := _party[index]
+		actor.position = _party_home[index]
+		if cheering and _party_reward[index] == best and not _cheered:
+			actor.play_gesture("leap", 1.0, false)
+		actor.set_locomotion(0.0, false, false, delta)
+	var changed := local_counter != _counter or local_jar != _jar_shown
+	_counter = local_counter
+	_jar_shown = local_jar
+	if cheering and not _cheered:
+		_cheered = true
+		_grant()
+		_jar_shown = _BEANS.pouch()
+		if _local_slot < _party_beans.size():
+			_party_beans[_local_slot].text = str(_jar_shown)
+			_paint_one(_party_beans[_local_slot], _jar_shown, _party_limit[_local_slot])
+		_effect("MG_win")
+	elif changed and _age >= _WAIT:
+		var limit := _BEANS.pouch_limit()
+		if _local_slot < _party_limit.size():
+			limit = _party_limit[_local_slot]
+		_tick(_age >= hold_end and local_jar >= limit)
+
+
+func _counter_at(age: float, beans: int) -> int:
+	var up_end := _WAIT + _COUNT
+	var hold_end := up_end + _HOLD
+	var down_end := hold_end + _COUNT
+	if age < _WAIT:
+		return 0
+	if age < up_end:
+		return int(round(_ease((age - _WAIT) / _COUNT) * float(beans)))
+	if age < hold_end:
+		return beans
+	if age < down_end:
+		return int(round((1.0 - _ease((age - hold_end) / _COUNT)) * float(beans)))
+	return 0
+
+
+func _jar_at(age: float, index: int, counter: int) -> int:
+	var hold_end := _WAIT + _COUNT + _HOLD
+	var start := _party_pouch[index]
+	var cap := _party_limit[index]
+	if age < hold_end:
+		return start
+	return mini(start + (_party_reward[index] - counter), cap)
+
+
+func _read_scores() -> void:
+	var state := ToonNet.latest("trolley:%d" % ToonNet.district_id())
+	var raw: Variant = state.get("results", {})
+	if not (raw is Dictionary):
+		return
+	var results: Dictionary = raw
+	for index in _party_peer.size():
+		if index == _local_slot:
+			continue
+		var row: Variant = results.get(str(_party_peer[index]), {})
+		if not (row is Dictionary):
+			continue
+		var info: Dictionary = row
+		if not info.has("beans"):
+			continue
+		_party_reward[index] = int(info["beans"])
+		_party_pouch[index] = int(info.get("pouch", _party_pouch[index]))
+		_party_limit[index] = maxi(int(info.get("limit", _party_limit[index])), 1)
+
+
+func _hide_party_cards() -> void:
+	for box in _party_box:
+		box.visible = false
+	for number in _party_score:
+		number.visible = false
+	for jar in _party_jar:
+		jar.visible = false
+	for beans in _party_beans:
+		beans.visible = false
+
+
+func _paint_one(label: Label, shown: int, limit: int) -> void:
+	var full := shown >= limit
+	ToonGui.style_title(label, Color(1, 0, 0) if full else Color(0.95, 0.95, 0.0), _px_of(0.1))
 
 
 func _open_shop(cheer: bool) -> void:
 	_shopping = true
 	_grant()
 	_show_street(false)
-	_toon.visible = false
+	for actor in _party:
+		actor.visible = false
+	if _toon != null:
+		_toon.visible = false
+	_hide_party_cards()
+	_build_heads()
 	_score_box.visible = false
 	_score.visible = false
 	_panel.visible = true
@@ -636,7 +840,7 @@ func _grant() -> void:
 	if _granted:
 		return
 	_granted = true
-	_BEANS.add_beans(reward)
+	_BEANS.add_beans(reward * int(_HOLIDAYS.bean_scale("trolley")))
 
 
 func _close(reason: String) -> void:
@@ -646,6 +850,203 @@ func _close(reason: String) -> void:
 	_grant()
 	finished.emit(reason)
 	queue_free()
+
+
+func speaker() -> Node3D:
+	return _toon
+
+
+func _bind_chat() -> void:
+	var host := get_parent()
+	if host != null:
+		_chat = host.find_child("SpeedChat", true, false) as SpeedChat
+	if _chat != null:
+		return
+	var chat_layer := CanvasLayer.new()
+	chat_layer.layer = 70
+	add_child(chat_layer)
+	_chat = SpeedChat.new()
+	_chat.name = "SpeedChat"
+	chat_layer.add_child(_chat)
+	_chat.setup(_TASKS.for_selected())
+	if not _chat.phrase_said.is_connected(_on_phrase):
+		_chat.phrase_said.connect(_on_phrase)
+
+
+func _on_phrase(text: String) -> void:
+	if _toon == null:
+		return
+	var kind := "speed"
+	if _chat != null and not _chat.phrase_is_speedchat:
+		kind = "plus"
+	_toon.set_meta("chat_line", text)
+	_toon.set_meta("chat_kind", kind)
+	_toon.set_meta("chat_until", Time.get_ticks_msec() + maxi(2800, text.length() * 45))
+	ToonSpeech.speak(_toon, text)
+
+
+## PurchaseHeadFrame. The local toon is the first card. The others use the original slots.
+func _head_order(count: int) -> Array:
+	if count <= 1:
+		return [0]
+	if count == 2:
+		return [0, 2]
+	if count == 3:
+		return [0, 1, 3]
+	return [0, 1, 2, 3]
+
+
+func _build_heads() -> void:
+	if not _heads.is_empty():
+		for item in _heads:
+			var root: Control = item.get("root")
+			if root != null:
+				root.visible = true
+		return
+	var spots: Array[Vector2] = [
+		Vector2(0.105, -0.384),
+		Vector2(0.105, -0.776),
+		Vector2(0.85, -0.555),
+		Vector2(-0.654, -0.555),
+	]
+	var order := _head_order(_party.size())
+	var next := 1
+	var art := load("res://assets/gui/purchase/Char_Pnl.png") as Texture2D
+	for index in _party.size():
+		var slot := 0
+		if index != _local_slot:
+			if next < order.size():
+				slot = int(order[next])
+			next += 1
+		var at: Vector2 = spots[clampi(slot, 0, spots.size() - 1)]
+		var root := Control.new()
+		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.z_index = 2
+		_gui.add_child(root)
+		var card := TextureRect.new()
+		card.texture = art
+		card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		card.stretch_mode = TextureRect.STRETCH_SCALE
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.set_anchors_preset(Control.PRESET_FULL_RECT)
+		root.add_child(card)
+		var viewport := SubViewport.new()
+		viewport.transparent_bg = true
+		viewport.own_world_3d = true
+		viewport.size = Vector2i(192, 224)
+		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		var world := WorldEnvironment.new()
+		var environment := Environment.new()
+		environment.background_mode = Environment.BG_COLOR
+		environment.background_color = Color(0, 0, 0, 0)
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		environment.ambient_light_color = Color(1, 1, 1)
+		environment.ambient_light_energy = 1.15
+		world.environment = environment
+		viewport.add_child(world)
+		var sun := DirectionalLight3D.new()
+		sun.rotation_degrees = Vector3(-35, 25, 0)
+		sun.light_energy = 1.05
+		viewport.add_child(sun)
+		var camera := Camera3D.new()
+		camera.current = true
+		camera.fov = 24.0
+		camera.near = 0.05
+		viewport.add_child(camera)
+		var box := SubViewportContainer.new()
+		box.stretch = true
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(viewport)
+		root.add_child(box)
+		var portrait := ToonActor.new()
+		portrait.load_extra_clips = false
+		portrait.footsteps = false
+		viewport.add_child(portrait)
+		var raw: Variant = _party[index].get_meta("style", {})
+		if raw is Dictionary:
+			var style := ToonStyle.from_dict(raw)
+			portrait.show_style(style)
+			portrait.set_locomotion(0.0, false, false, 0.0)
+			var top := style.avatar_height()
+			var muzzle := 0.75 if style.head.length() > 1 and style.head[1] == "l" else 0.5
+			var look := top - muzzle * 0.42
+			camera.position = Vector3(0.08, look, 1.05)
+			camera.look_at(Vector3(0.0, look - 0.02, 0.0))
+		var name := Label.new()
+		name.text = _party[index].name
+		name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(name)
+		var bubble := PanelContainer.new()
+		bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bubble.visible = false
+		var fill := StyleBoxFlat.new()
+		fill.bg_color = Color(1, 1, 1, 0.98)
+		fill.border_color = Color(0.05, 0.05, 0.05)
+		fill.set_border_width_all(3)
+		fill.set_corner_radius_all(12)
+		fill.content_margin_left = 8
+		fill.content_margin_right = 8
+		fill.content_margin_top = 4
+		fill.content_margin_bottom = 4
+		bubble.add_theme_stylebox_override("panel", fill)
+		var words := Label.new()
+		words.name = "Words"
+		words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bubble.add_child(words)
+		root.add_child(bubble)
+		_heads.append({
+			"root": root,
+			"box": box,
+			"name": name,
+			"bubble": bubble,
+			"words": words,
+			"actor": _party[index],
+			"at": at,
+		})
+
+
+func _layout_heads() -> void:
+	for item in _heads:
+		var root: Control = item.get("root")
+		if root == null:
+			continue
+		var at: Vector2 = item.get("at", Vector2.ZERO)
+		var rect := _size(0.766, 0.4)
+		root.position = _point(0.14 + at.x, -0.04 + at.y) - rect * 0.5
+		root.size = rect
+		var box: Control = item.get("box")
+		if box != null:
+			var head := _size(0.28, 0.32)
+			box.position = rect * 0.5 + Vector2(_size(-0.16, 0.0).x, _size(0.0, 0.02).y) - head * 0.5
+			box.size = head
+		var name: Label = item.get("name")
+		if name != null:
+			var band := _size(0.7, 0.1)
+			name.position = Vector2((rect.x - band.x) * 0.5, rect.y - band.y - 2.0)
+			name.size = band
+			ToonGui.style_label(name, Color(0.05, 0.14, 0.4), _px_of(0.045), Color(0, 0, 0, 0), 0)
+
+
+func _paint_heads() -> void:
+	for item in _heads:
+		var actor: Node = item.get("actor")
+		var bubble: PanelContainer = item.get("bubble")
+		var words: Label = item.get("words")
+		var root: Control = item.get("root")
+		if actor == null or bubble == null or words == null or root == null:
+			continue
+		var line := String(actor.get_meta("chat_line", ""))
+		var until := int(actor.get_meta("chat_until", 0))
+		if line == "" or Time.get_ticks_msec() >= until:
+			bubble.visible = false
+			continue
+		ToonGui.show_speech(words, line, _px_of(0.04))
+		bubble.visible = true
+		bubble.reset_size()
+		bubble.position = Vector2((root.size.x - bubble.size.x) * 0.5, -bubble.size.y - 6.0)
 
 
 func _point(ax: float, az: float) -> Vector2:

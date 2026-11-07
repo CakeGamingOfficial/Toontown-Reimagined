@@ -216,6 +216,57 @@ static func fur_color(index: int) -> Color:
 	return FUR[clampi(index, 0, FUR.size() - 1)]
 
 
+## Head, arms, or legs. A custom hex wins over the palette index.
+## The hex lives in metadata so a running editor does not need a new property.
+func painted_color(part: String) -> Color:
+	var hex := custom_hex(part)
+	var index := 0
+	match part:
+		"head":
+			index = head_color
+		"arm":
+			index = arm_color
+		"leg":
+			index = leg_color
+		_:
+			return fur_color(0)
+	if hex.length() == 6:
+		return Color.html(hex)
+	return fur_color(index)
+
+
+func custom_hex(part: String) -> String:
+	var key := part + "_hex"
+	if has_meta(key):
+		return String(get_meta(key))
+	return ""
+
+
+func set_painted(part: String, color: Color) -> void:
+	var hex := color.to_html(false)
+	if part == "all" or part == "head":
+		set_meta("head_hex", hex)
+	if part == "all" or part == "arm":
+		set_meta("arm_hex", hex)
+	if part == "all" or part == "leg":
+		set_meta("leg_hex", hex)
+
+
+func clear_painted(part: String) -> void:
+	if part == "all" or part == "head":
+		_drop_hex("head")
+	if part == "all" or part == "arm":
+		_drop_hex("arm")
+	if part == "all" or part == "leg":
+		_drop_hex("leg")
+
+
+func _drop_hex(part: String) -> void:
+	var key := part + "_hex"
+	if has_meta(key):
+		remove_meta(key)
+
+
 static func clothes_color(index: int) -> Color:
 	return CLOTHES[clampi(index, 0, CLOTHES.size() - 1)]
 
@@ -316,6 +367,9 @@ func to_dict() -> Dictionary:
 		"head_color": head_color,
 		"arm_color": arm_color,
 		"leg_color": leg_color,
+		"head_hex": custom_hex("head"),
+		"arm_hex": custom_hex("arm"),
+		"leg_hex": custom_hex("leg"),
 		"glove_color": glove_color,
 		"top_tex": top_tex,
 		"top_color": top_color,
@@ -339,6 +393,9 @@ static func from_dict(data: Dictionary) -> ToonStyle:
 	style.head_color = int(data.get("head_color", 17))
 	style.arm_color = int(data.get("arm_color", 17))
 	style.leg_color = int(data.get("leg_color", 17))
+	style._keep_hex("head", data.get("head_hex", ""))
+	style._keep_hex("arm", data.get("arm_hex", ""))
+	style._keep_hex("leg", data.get("leg_hex", ""))
 	style.glove_color = int(data.get("glove_color", 0))
 	style.top_tex = int(data.get("top_tex", 0))
 	style.top_color = int(data.get("top_color", 4))
@@ -349,6 +406,14 @@ static func from_dict(data: Dictionary) -> ToonStyle:
 	style.bottom_map = String(data.get("bottom_map", ""))
 	style.av_id = int(data.get("av_id", 0))
 	return style
+
+
+func _keep_hex(part: String, value: Variant) -> void:
+	var raw := String(value).strip_edges().trim_prefix("#").to_lower()
+	if raw.length() == 6 and raw.is_valid_hex_number():
+		set_meta(part + "_hex", raw)
+	else:
+		_drop_hex(part)
 
 
 const _FIRST: PackedStringArray = ["Loopy", "Bumpy", "Zany", "Wiggly", "Dizzy", "Peppy", "Snappy", "Bonnie", "Flip", "Scooter"]

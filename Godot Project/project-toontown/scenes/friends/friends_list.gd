@@ -312,6 +312,20 @@ func _add_card_row(text: String, up: Texture2D, down: Texture2D, hover: Texture2
 	_card_labels.append(label)
 
 
+func show_for_quest() -> void:
+	_open_list()
+
+
+func hide_for_quest() -> void:
+	_hide_card()
+	_hide_list()
+	if _button != null:
+		_button.visible = true
+	if _caption != null:
+		_caption.visible = true
+	_layout()
+
+
 func _open_list() -> void:
 	_hide_card()
 	_hide_dialog()

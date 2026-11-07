@@ -349,10 +349,14 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 		return
 	_asking = true
 	_ask_seq = seq
-	_menu.setup(loadout, false, int(fight.get("building", 0)) != 0)
+	var credit := 1.0
+	if int(fight.get("building", 0)) != 0:
+		credit = 1.0 + float(fight.get("floor", 0)) * 0.5
+	_menu.setup(loadout, false, int(fight.get("building", 0)) != 0, credit)
 	_ask(fight, seq, loadout)
 
 
+@warning_ignore("unused_parameter")
 func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 	var pick := await _menu.choose()
 	_asking = false
@@ -379,6 +383,7 @@ func _show_targets(fight: Dictionary) -> void:
 		var only := _only_cog(fight)
 		if only >= 0:
 			var loadout := _loadout()
+			@warning_ignore("shadowed_global_identifier")
 			var exp := 0 if loadout == null else loadout.experience_of(track)
 			_send(track, _pending.y, only, exp)
 			return
@@ -432,6 +437,7 @@ func _on_target(slot: int) -> void:
 	if slot < 0 or slot >= rows.size() or not (rows[slot] is Dictionary):
 		return
 	var loadout := _loadout()
+	@warning_ignore("shadowed_global_identifier")
 	var exp := 0 if loadout == null else loadout.experience_of(_pending.x)
 	_send(_pending.x, _pending.y, int((rows[slot] as Dictionary).get("id", 0)), exp)
 
@@ -450,6 +456,7 @@ func _loadout() -> ToonLoadout:
 	return toon.call("battle_loadout")
 
 
+@warning_ignore("shadowed_global_identifier")
 func _send(track: int, level: int, target: int, exp: int) -> void:
 	_need_target = false
 	_hud.hide_choose()
@@ -584,10 +591,12 @@ func _apply_beat(beat: Dictionary) -> void:
 			continue
 		var victim: Dictionary = item
 		var row := {
+			"kind": "cog",
 			"cog": int(beat.get("cog", 0)),
 			"toon": int(victim.get("id", 0)),
 			"toon_id": int(victim.get("id", 0)),
 			"hit": bool(victim.get("hit", false)),
+			"damage": int(victim.get("damage", 0)),
 			"died": bool(victim.get("died", false)),
 			"skill": victim.get("skill", []),
 		}
@@ -605,8 +614,84 @@ func _apply_one(beat: Dictionary) -> void:
 		_shown["t:%d" % int(beat.get("toon_id", toon_id))] = int(beat.get("toon_hp", 0))
 		toon_id = int(beat.get("toon_id", toon_id))
 	_push_laff(toon_id)
+	_show_number(beat)
 	if bool(beat.get("hit", false)) and int(beat.get("toon_hp", 1)) <= 0:
 		_begin_sad(toon_id, beat)
+
+
+## Suit.showHpText and Toon.showHpText. A hit prints the signed number in red or
+## green. A miss prints MISSED. The card starts at half the body height, rises
+## for a second, holds, then fades.
+func _show_number(beat: Dictionary) -> void:
+	var kind := String(beat.get("kind", "gag"))
+	var track := int(beat.get("track", -1))
+	var hit := bool(beat.get("hit", false))
+	var damage := int(beat.get("damage", 0))
+	var heal := kind != "cog" and track == ToonLoadout.TOON_UP
+	var host: Node3D = null
+	if kind == "cog" or heal:
+		var shown: Variant = _actor_for(int(beat.get("toon_id", beat.get("toon", 0))))
+		if shown is Node3D:
+			host = shown
+	else:
+		var cog := _cog_node(int(beat.get("cog", 0)))
+		if cog is Node3D:
+			host = cog
+	if host == null:
+		return
+	var text := ""
+	var color := Color(0.9, 0.0, 0.0, 1.0)
+	if not hit:
+		text = "MISSED"
+		color = Color(1.0, 0.0, 0.0, 1.0)
+	elif heal and damage > 0:
+		text = "+%d" % damage
+		color = Color(0.0, 0.9, 0.0, 1.0)
+	elif damage > 0:
+		text = "-%d" % damage
+	else:
+		return
+	if host.has_meta("hp_text"):
+		var previous: Variant = host.get_meta("hp_text")
+		if previous is Node and is_instance_valid(previous):
+			(previous as Node).queue_free()
+	var height := _body_height(host)
+	var label := Label3D.new()
+	label.text = text
+	label.font = ToonGui.sign_font()
+	label.font_size = 64
+	label.pixel_size = 0.015
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.fixed_size = false
+	label.modulate = color
+	label.outline_size = 0
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector3(0.0, height * 0.5, 0.0)
+	host.add_child(label)
+	host.set_meta("hp_text", label)
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "position:y", height + 1.5, 1.0)
+	tween.tween_interval(0.85)
+	tween.tween_property(label, "modulate:a", 0.0, 0.1)
+	tween.tween_callback(label.queue_free)
+
+
+func _body_height(host: Node3D) -> float:
+	var low := INF
+	var high := -INF
+	for node in host.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh.mesh == null:
+			continue
+		var box := mesh.global_transform * mesh.get_aabb()
+		low = minf(low, box.position.y)
+		high = maxf(high, box.position.y + box.size.y)
+	if high <= low:
+		return 4.0
+	return clampf(high - host.global_position.y, 2.5, 9.0)
 
 
 func _credit(fight: Dictionary, beat: Dictionary) -> void:
@@ -829,7 +914,7 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 		for member in fight.get("toons", []):
 			var row: Dictionary = member
 			var spot := _vec(row.get("slot", []))
-			var facing := _yaw(spot, cog_center)
+			var facing := _line_heading(row, spot, cog_center)
 			if int(row.get("id", 0)) == ToonNet.peer_id():
 				toon.call("place_for_battle", spot, facing)
 			else:
@@ -844,11 +929,12 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 			_walk_cog(fight, suit, cog, toon_center)
 		elif state == "reserves" and _is_joining(fight, int(suit.get("id", 0))):
 			var door := _vec(suit.get("from", suit.get("slot", [])))
-			cog.call("hold_fight", true, door, deg_to_rad(_yaw(door, toon_center)))
+			var door_face := float(suit["from_h"]) if suit.has("from_h") else _yaw(door, toon_center)
+			cog.call("hold_fight", true, door, deg_to_rad(door_face))
 			if cog.has_method("march"):
 				cog.call("march", false)
 		else:
-			cog.call("hold_fight", true, stand, deg_to_rad(_yaw(stand, toon_center)))
+			cog.call("hold_fight", true, stand, deg_to_rad(_line_heading(suit, stand, toon_center)))
 			if state != "movie" and not _movie_playing():
 				if cog.has_method("march"):
 					cog.call("march", false)
@@ -953,7 +1039,11 @@ func _walk_cog(fight: Dictionary, suit: Dictionary, cog: Node, toon_center: Vect
 	var start := _vec(suit.get("from", suit.get("slot", [])))
 	var slot := _vec(suit.get("slot", []))
 	var spot := start.lerp(slot, along)
-	var facing := _yaw(spot, toon_center) if along <= 0.001 else _yaw(start, slot)
+	var facing := _yaw(start, slot)
+	if along <= 0.001:
+		facing = float(suit["from_h"]) if suit.has("from_h") else _yaw(spot, toon_center)
+	elif along >= 0.999:
+		facing = _line_heading(suit, slot, toon_center)
 	cog.call("hold_fight", true, spot, deg_to_rad(facing))
 	var walking := along > 0.001 and along < 1.0
 	if cog.has_method("march"):
@@ -1024,6 +1114,7 @@ func _show_hud(fight: Dictionary, delta: float) -> void:
 
 
 ## TownBattleToonPanel.determineWhichText. The first mark is the leftmost body.
+@warning_ignore("shadowed_variable_base_class")
 func _which_marks(track: int, level: int, target: int, owner: int) -> String:
 	if track < 0:
 		return ""
@@ -1071,9 +1162,11 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 	var rows: Array = fight.get("reward_rows", [])
 	_apply_my_reward(fight)
 	var recovered := ""
+	var quests: Array = []
 	var tasks := ToonTasks.for_selected()
 	if tasks != null:
 		recovered = tasks.take_battle_notes()
+		quests = tasks.take_quest_gains()
 	for item in rows:
 		if token != _reward_token or not is_inside_tree():
 			return
@@ -1088,9 +1181,11 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 		if display == null:
 			continue
 		var quest_line := ""
+		var mine: Array = []
 		if int(row.get("id", 0)) == ToonNet.peer_id():
 			quest_line = recovered
-		await _reward.present(String(row.get("name", "Toon")), display, before, earned, quest_line, false)
+			mine = quests
+		await _reward.present(String(row.get("name", "Toon")), display, before, earned, quest_line, false, mine)
 	if token != _reward_token or not is_inside_tree():
 		return
 	if not _any_earned(rows, ToonNet.peer_id()):
@@ -1130,6 +1225,7 @@ func _apply_my_reward(fight: Dictionary) -> void:
 func _display_loadout(before: Variant, earned: Variant) -> ToonLoadout:
 	var prior: Array = before if before is Array else []
 	var gained: Array = earned if earned is Array else []
+	@warning_ignore("shadowed_global_identifier")
 	var exp: Array = []
 	for track in ToonLoadout.TRACK_COUNT:
 		exp.append(int(prior[track]) if track < prior.size() else 0)
@@ -1409,6 +1505,13 @@ func _center(rows: Array) -> Vector3:
 	return total / float(count)
 
 
+## A building line uses BattleBase headings. A street fight still faces the other side.
+func _line_heading(row: Dictionary, spot: Vector3, look_at: Vector3) -> float:
+	if row.has("h"):
+		return float(row["h"])
+	return _yaw(spot, look_at)
+
+
 func _yaw(from: Vector3, to: Vector3) -> float:
 	var flat := to - from
 	flat.y = 0.0
@@ -1446,6 +1549,7 @@ func _aim_camera(fight: Dictionary) -> void:
 	if state == "reward":
 		# Movie.show_reward frames the dancing toon from the side, behind the line.
 		var actor := _actor_for(ToonNet.peer_id())
+		@warning_ignore("confusable_local_declaration")
 		var look := origin + Vector3.UP * 3.0
 		if actor != null:
 			look = actor.global_position + Vector3.UP * 3.0

@@ -1,4 +1,32 @@
 {
+ "1508": {
+  "street": 1000,
+  "block": 8,
+  "title": "Clothing Shop",
+  "npcs": [
+   {
+    "id": 1007,
+    "name": "Longjohn Leroy",
+    "gender": "m",
+    "dna": [
+     "csl",
+     "ls",
+     "m",
+     "m",
+     9,
+     0,
+     9,
+     9,
+     1,
+     12,
+     1,
+     12,
+     0,
+     20
+    ]
+   }
+  ]
+ },
  "1626": {
   "street": 1100,
   "block": 26,

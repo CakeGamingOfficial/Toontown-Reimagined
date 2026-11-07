@@ -15,13 +15,10 @@ var _hold := -1.0
 var _px := 0.0
 var _pz := 2.0
 var _sign: Label
-static var _shared_color := -1
 
 
 func _init() -> void:
-	if _shared_color < 0:
-		_shared_color = randi() % _NAMES.size()
-	_want = _shared_color
+	_want = shared_int(_NAMES.size())
 	title = "Ring Game"
 	instructions = "Try to swim through as many of the %s rings as you can.  Use the arrow keys to swim." % _NAMES[_want]
 	duration = 55.0
@@ -29,7 +26,7 @@ func _init() -> void:
 
 func _build() -> void:
 	_show("res://assets/minigames/swimming_game.glb")
-	_shared_color = -1
+	_px = lineup_x(4.0)
 	_make_toon(_panda(_px, 0.0, _pz))
 	# Face the rings. Yaw 180 faces the camera, so 0 swims away from it.
 	_toon.rotation_degrees.y = 0.0
@@ -64,11 +61,11 @@ func _play(delta: float) -> void:
 	if _gap <= 0.0 and _sent < 16:
 		_gap = 3.0
 		_sent += 1
-		var ring := _spawn("res://assets/minigames/swimming_ring.glb", randf_range(-7.0, 7.0), 90.0, randf_range(0.5, 8.0))
+		var ring := _spawn("res://assets/minigames/swimming_ring.glb", shared_float(-7.0, 7.0), 90.0, shared_float(0.5, 8.0))
 		if ring == null:
 			ring = _ball(1.4, _COLORS[_want])
 			add_child(ring)
-			ring.position = _panda(randf_range(-7.0, 7.0), 90.0, randf_range(0.5, 8.0))
+			ring.position = _panda(shared_float(-7.0, 7.0), 90.0, shared_float(0.5, 8.0))
 		else:
 			_tint(ring, _COLORS[_want])
 		_rings.append({"node": ring, "taken": false, "index": _sent - 1})

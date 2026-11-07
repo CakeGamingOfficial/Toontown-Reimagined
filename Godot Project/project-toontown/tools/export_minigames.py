@@ -90,6 +90,15 @@ SOUNDS = (
     "sparkly",
     "AV_collision",
     "Piano_Tuna",
+    "m_match_trumpet",
+    "m_match_guitar",
+    "m_match_drums",
+    "m_match_piano",
+    "MG_neg_buzzer",
+    "MG_Tag_A",
+    "MG_sfx_ice_force_rotate",
+    "MG_sfx_ice_force_increase_3sec",
+    "MG_sfx_ice_force_decrease_3sec",
 )
 
 
@@ -153,19 +162,21 @@ def extract(relative: str, search: str, name: str, scale: float = 1.0) -> None:
 def dump_maze() -> None:
     namespace: dict = {}
     exec(MAZE_PY.read_text(encoding="utf-8"), namespace)
-    data = namespace["mazeData"]["phase_4/models/minigames/maze_1player"]
-    payload = {
-        "width": data["width"],
-        "height": data["height"],
-        "originX": data["originX"],
-        "originY": data["originY"],
-        "cell": namespace["CELL_WIDTH"],
-        "collision": data["collisionTable"],
-        "treasures": [list(spot) for spot in data["treasurePosList"]],
-    }
-    path = OUT / "maze_1player.json"
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    print(f"maze treasures={len(payload['treasures'])} {data['width']}x{data['height']}", flush=True)
+    for count in (1, 2, 3, 4):
+        key = f"phase_4/models/minigames/maze_{count}player"
+        data = namespace["mazeData"][key]
+        payload = {
+            "width": data["width"],
+            "height": data["height"],
+            "originX": data["originX"],
+            "originY": data["originY"],
+            "cell": namespace["CELL_WIDTH"],
+            "collision": data["collisionTable"],
+            "treasures": [list(spot) for spot in data["treasurePosList"]],
+        }
+        path = OUT / f"maze_{count}player.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        print(f"maze_{count}player treasures={len(payload['treasures'])} {data['width']}x{data['height']}", flush=True)
 
 
 def copy_sounds() -> None:
@@ -212,6 +223,9 @@ def main() -> int:
     scene("swimming_game", [("phase_4/models/minigames/swimming_game.bam", (0, 75, -14.5))])
     scene("swimming_ring", [("phase_4/models/minigames/swimming_game_ring.bam", (0, 0, 0), (0, 0, 0), (0.75, 0.75, 0.75))])
     scene("maze_1player", [("phase_4/models/minigames/maze_1player.bam",)])
+    scene("maze_2player", [("phase_4/models/minigames/maze_2player.bam",)])
+    scene("maze_3player", [("phase_4/models/minigames/maze_3player.bam",)])
+    scene("maze_4player", [("phase_4/models/minigames/maze_4player.bam",)])
     scene("mickey", [("phase_3.5/models/props/mickeySZ.bam", (0, 0, 0), (0, -90, 0), (1.6, 1.6, 1.6))])
     scene("tug_set", [
         ("phase_4/models/minigames/tug_of_war_dock.bam",),
@@ -252,7 +266,23 @@ def main() -> int:
     scene("money_icon", [("phase_4/models/minigames/moneyIcon.bam",)])
     scene("legal_icon", [("phase_4/models/minigames/legalIcon.bam",)])
     scene("corp_icon", [("phase_4/models/minigames/corpIcon.bam",)])
+    export_group_games()
     return 0
+
+
+def export_group_games() -> None:
+    """Tag, Match Minnie, Race, and Ice Slide. These need two or more toons in the original."""
+    scene("tag_arena", [("phase_4/models/minigames/tag_arena.bam",)])
+    scene("matching_room", [("phase_4/models/minigames/matching_room.bam",)])
+    scene("race", [("phase_4/models/minigames/race.bam",)])
+    scene("dice", [("phase_4/models/minigames/dice.bam",)])
+    scene("question_mark", [("phase_4/models/minigames/question_mark.bam",)])
+    scene("chance_card", [("phase_4/models/minigames/chance_card.bam",)])
+    scene("ice_rink", [("phase_4/models/minigames/ice_game_icerink.bam",)])
+    scene("ice_tire", [("phase_4/models/minigames/ice_game_tire.bam",)])
+    scene("ice_barrel", [("phase_4/models/minigames/ice_game_tirestack.bam",)])
+    scene("ice_crate", [("phase_4/models/minigames/ice_game_crate.bam",)])
+    scene("ice_tnt", [("phase_4/models/minigames/ice_game_tnt2.bam", (0, 0, 0), (0, 0, 0), (0.75, 0.75, 0.7))])
 
 
 if __name__ == "__main__":

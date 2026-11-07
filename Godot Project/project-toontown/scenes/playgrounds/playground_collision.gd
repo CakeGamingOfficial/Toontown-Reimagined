@@ -455,7 +455,14 @@ func _thicken_wall(mesh: MeshInstance3D) -> void:
 
 
 func _pier_board(mesh: MeshInstance3D) -> bool:
-	if String(mesh.name) != "board":
+	# Each dock copies the same pier. Godot names the later walkways board2,
+	# board3, and board4. Only an exact "board" match left those docks as
+	# open slats, so the toon fell through before the casting sphere.
+	var leaf := String(mesh.name)
+	if not leaf.begins_with("board"):
+		return false
+	var rest := leaf.substr("board".length())
+	if rest != "" and not rest.is_valid_int():
 		return false
 	var current: Node = mesh.get_parent()
 	while current != null:
@@ -467,8 +474,8 @@ func _pier_board(mesh: MeshInstance3D) -> bool:
 
 ## piers_tt floor_collision is one polygon on the walkway. The model is Z-up,
 ## so that surface is local Z max. The bank slopes down under the planks. A
-## box filled down through that slope is a wall, and only the dock by Toon
-## HQ still reaches its fishing spot.
+## box filled down through that slope is a wall. The thin top is the floor
+## on every dock, including the copies named board2 and up.
 func _solid_pier(mesh: MeshInstance3D) -> void:
 	if mesh.mesh == null or mesh.get_node_or_null("PierSolid") != null:
 		return

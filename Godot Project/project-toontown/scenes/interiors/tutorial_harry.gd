@@ -66,14 +66,14 @@ func play(host: Node, harry: ToonActor) -> void:
 		_finish()
 		return
 	_duck_music()
-	await _world_line("Good work defeating that Flunky. Let me give you your reward...", _BLACK)
+	await _world_line("Good work defeating that Flunky. Let me give you a Shticker Book...", _BLACK)
 	await _offer_hand()
 	var book := _book()
 	if book != null:
 		await book.present_button()
-	await _world_line("This book, a Shticker Book, is full of good stuff.", _TEAL)
+	await _world_line("The book is full of good stuff.", _TEAL)
 	_aim_button()
-	_show_world("Open it and I'll show you a couple of useful pages.", _BLACK, false)
+	_show_world("Open it, and I'll show you.", _BLACK, false)
 	if book != null:
 		book.arm_open()
 		if not book.is_open():
@@ -83,32 +83,32 @@ func play(host: Node, harry: ToonActor) -> void:
 	await _lower_hand()
 	await get_tree().create_timer(0.5).timeout
 	await _build_book_chat()
-	await _book_line("This is a map of Toontown! It'll keep track of where you have been.", _BLACK)
+	await _book_line("The map shows where you've been.", _BLACK)
 	_aim_page()
-	_show_book("Turn the page to see those gags that Tom gave you.", _BLACK, false)
+	_show_book("Turn the page to see your gags...", _BLACK, false)
 	if book != null:
 		book.arm_next()
 		await _wait_page(book, ShtickerBook.PAGE_GAGS)
 	_arrows_off()
-	await _book_line("Yikes! You have no gags! I'll assign you a task...", _TEAL)
+	await _book_line("Uh oh! You have no gags! I will assign you a task.", _TEAL)
 	if tasks != null:
 		tasks.turn_in(101)
 	_aim_page()
-	_show_book("Turn the page to see your ToonTasks.", _TEAL, false)
+	_show_book("Turn the page to see your tasks.", _TEAL, false)
 	if book != null:
 		book.arm_next()
 		await _wait_page(book, ShtickerBook.PAGE_TASKS)
 	_arrows_off()
-	await _book_line("Here you go! Take a ride on the Trolley to buy yourself a few new gags.", _TEAL)
-	await _book_line("To get to the Trolley, go out the door behind me and head for the playground.", _TEAL)
+	await _book_line("Take a ride on the trolley, and earn jelly beans to buy gags!", _TEAL)
+	await _book_line("To get to the trolley, go out the door behind me and head for the playground.", _TEAL)
 	_aim_button()
-	_show_book("I'd love to show you more, but no Toon should be without gags for too long! Close the book and you can head out.", _BLACK, false)
+	_show_book("Now, close the book and find the trolley!", _BLACK, false)
 	if book != null:
 		book.arm_close()
 		await book.book_closed
 	_arrows_off()
 	_hide_book()
-	await _world_line("There is another Toon HQ in Toontown Central where you can turn in your task once complete. Good luck!", _BLACK)
+	await _world_line("Return to Toon HQ when you are done. Bye!", _BLACK)
 	_finish()
 
 

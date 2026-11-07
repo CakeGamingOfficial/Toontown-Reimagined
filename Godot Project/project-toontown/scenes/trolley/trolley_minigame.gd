@@ -15,12 +15,54 @@ var playing := false
 var _over := false
 var _camera: Camera3D
 var _toon: ToonActor
+const _RIDE := preload("res://scenes/trolley/trolley_ride.gd")
+
 var _remotes: RemoteToons
+var _tags: Nametags
 var _last_feet := Vector3.ZERO
 var _hud: Label
 var _clock_face: TextureRect
 var _clock_num: Label
 var _board: MinigameBoard
+var _shared := RandomNumberGenerator.new()
+var _shared_ready := false
+
+
+func shared_int(span: int) -> int:
+	_arm_shared()
+	if span <= 1:
+		return 0
+	return _shared.randi() % span
+
+
+func shared_range(low: int, high: int) -> int:
+	_arm_shared()
+	return _shared.randi_range(low, high)
+
+
+func shared_float(low: float, high: float) -> float:
+	_arm_shared()
+	return _shared.randf_range(low, high)
+
+
+func shared_shuffle(items: Array) -> void:
+	_arm_shared()
+	for index in range(items.size() - 1, 0, -1):
+		var swap := _shared.randi() % (index + 1)
+		var kept: Variant = items[index]
+		items[index] = items[swap]
+		items[swap] = kept
+
+
+func _arm_shared() -> void:
+	if _shared_ready:
+		return
+	_shared_ready = true
+	var state := ToonNet.latest("trolley:%d" % ToonNet.district_id())
+	var seed := int(state.get("seed", 1))
+	if seed == 0:
+		seed = 1
+	_shared.seed = seed
 
 
 func _ready() -> void:
@@ -50,6 +92,7 @@ func _play(_delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_place_tags()
 	if not playing:
 		return
 	duration -= delta
@@ -77,6 +120,8 @@ func _end() -> void:
 	# The score, timer, and other play widgets sit on CanvasLayers. Hiding the
 	# game node does not hide those, so they would stay up over the gag shop.
 	_hide_play_ui(self)
+	_silence_ids(self)
+	process_mode = Node.PROCESS_MODE_DISABLED
 	finished.emit(score)
 
 
@@ -86,6 +131,13 @@ func _hide_play_ui(node: Node) -> void:
 			(child as CanvasLayer).visible = false
 		else:
 			_hide_play_ui(child)
+
+
+func _silence_ids(node: Node) -> void:
+	if node.has_meta("av"):
+		node.set_meta("av", 0)
+	for child in node.get_children():
+		_silence_ids(child)
 
 
 ## Hides the red stand-in and adds the original display for this game. Hidden until begin().
@@ -214,6 +266,7 @@ func _make_toon(at: Vector3) -> ToonActor:
 	if style != null:
 		_toon.show_style(style)
 	_toon.position = at
+	_toon.set_meta("av", ToonRoster.avatar_id())
 	_last_feet = _toon.global_position
 	_remotes = RemoteToons.new()
 	_remotes.name = "RemoteToons"
@@ -226,7 +279,82 @@ func _make_toon(at: Vector3) -> ToonActor:
 	var avatar_panel := (load("res://scenes/toons/toon_avatar_panel.gd") as GDScript).new() as Control
 	avatar_panel.name = "ToonAvatarPanel"
 	avatar_layer.add_child(avatar_panel)
+	_tags = Nametags.new()
+	_tags.name = "RiderTags"
+	_tags.camera = _camera
+	var tag_layer := CanvasLayer.new()
+	tag_layer.layer = 30
+	add_child(tag_layer)
+	_tags.layer = tag_layer
+	add_child(_tags)
+	var called := ""
+	if style != null:
+		called = style.display_name()
+	if called != "":
+		_tags.add(_toon, called, "player")
 	return _toon
+
+
+func _place_tags() -> void:
+	if _tags == null:
+		return
+	if _camera != null:
+		_tags.camera = _camera
+	_tags.place()
+
+
+func party_size() -> int:
+	return clampi(maxi(int(_RIDE.players), _RIDE.riders.size()), 1, 4)
+
+
+func party_index() -> int:
+	var me := ToonNet.peer_id()
+	var cards: Array = _RIDE.riders
+	for i in cards.size():
+		var card: Dictionary = cards[i]
+		if int(card.get("peer", -2)) == me:
+			return i
+	return 0
+
+
+func party_peer(index: int) -> int:
+	var cards: Array = _RIDE.riders
+	if index >= 0 and index < cards.size():
+		var card: Dictionary = cards[index]
+		return int(card.get("peer", ToonNet.peer_id()))
+	return ToonNet.peer_id()
+
+
+func party_name(index: int) -> String:
+	var cards: Array = _RIDE.riders
+	if index >= 0 and index < cards.size():
+		var card: Dictionary = cards[index]
+		var label := String(card.get("name", ""))
+		if label != "":
+			return label
+	return "Toon"
+
+
+func lineup_x(span: float) -> float:
+	var count := party_size()
+	if count <= 1:
+		return 0.0
+	return (float(party_index()) - float(count - 1) * 0.5) * span
+
+
+func other_toons() -> Array[ToonActor]:
+	var found: Array[ToonActor] = []
+	for child in get_children():
+		if child == _toon or not (child is ToonActor):
+			continue
+		var actor := child as ToonActor
+		if actor.visible:
+			found.append(actor)
+	return found
+
+
+func panda_of(node: Node3D) -> Vector2:
+	return Vector2(node.position.x, -node.position.z)
 
 
 func _note_rider(delta: float) -> void:
@@ -245,6 +373,8 @@ func _note_rider(delta: float) -> void:
 
 
 func _stick() -> Vector2:
+	if get_viewport().gui_get_focus_owner() is LineEdit:
+		return Vector2.ZERO
 	var x := 0.0
 	var y := 0.0
 	if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A):

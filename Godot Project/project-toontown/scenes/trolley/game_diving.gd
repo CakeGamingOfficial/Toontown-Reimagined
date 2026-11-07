@@ -27,7 +27,7 @@ func begin() -> void:
 func _build() -> void:
 	_show("res://assets/minigames/diving_game.glb")
 	for index in 8:
-		var gem := _spawn("res://assets/minigames/treasure.glb", -14.0 + float(index) * 4.0, randf_range(-3.0, 3.0), -12.0, 1.4)
+		var gem := _spawn("res://assets/minigames/treasure.glb", -14.0 + float(index) * 4.0, shared_float(-3.0, 3.0), -12.0, 1.4)
 		if gem == null:
 			gem = _ball(0.35, Color(1, 0.85, 0.15))
 			add_child(gem)
@@ -38,7 +38,8 @@ func _build() -> void:
 		_fish = _box(Vector3(1.6, 0.7, 0.5), Color(0.85, 0.45, 0.1))
 		add_child(_fish)
 		_fish.position = _panda(0.0, 0.0, -6.0)
-	_make_toon(_panda(0.0, -2.0, 1.0))
+	_px = lineup_x(4.0)
+	_make_toon(_panda(_px, -2.0, 1.0))
 	_toon.rotation_degrees.y = -90.0
 	_toon.pose_swimming(true)
 	_aim(0.0, 26.0, 2.0, 0.0, 0.0, -4.0)

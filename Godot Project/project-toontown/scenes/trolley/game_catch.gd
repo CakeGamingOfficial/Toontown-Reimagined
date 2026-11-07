@@ -9,6 +9,7 @@ var _next := 0.6
 var _stun := 0.0
 var _px := 0.0
 const _GOAL := 18
+var _gone: Dictionary = {}
 
 
 func _init() -> void:
@@ -19,7 +20,8 @@ func _init() -> void:
 
 func _build() -> void:
 	_show("res://assets/minigames/treehouse.glb")
-	var toon := _make_toon(_panda(0.0, 0.0, 0.0))
+	_px = lineup_x(4.0)
+	var toon := _make_toon(_panda(_px, 0.0, 0.0))
 	toon.rotation_degrees.y = 180.0
 	_flunky(0.0, 8.0, 5.0)
 	_aim(0.0, -29.36, 28.17, 0.0, 0.0, 4.0)
@@ -40,13 +42,21 @@ func _play(delta: float) -> void:
 		_drop()
 		_next = 55.0 / float(_GOAL)
 	var kept: Array[Dictionary] = []
+	_sync_fruit()
 	for item in _fruits:
 		var node := item["node"] as Node3D
 		var pos := _to_panda(node.position)
 		pos.z -= float(item["speed"]) * delta
 		node.position = _panda(pos.x, pos.y, pos.z)
+		var id := int(item["id"])
+		if _gone.has(id):
+			node.queue_free()
+			continue
 		var caught := pos.z < 1.6 and absf(pos.x - _px) < 1.5
 		if caught:
+			_gone[id] = true
+			if party_size() > 1:
+				ToonNet.note_minigame("take", id)
 			if bool(item["good"]):
 				score += 1
 				_sfx("SZ_DD_treasure")
@@ -70,12 +80,22 @@ func _drop() -> void:
 	var good := _spawned % 5 != 0
 	var path := "res://assets/minigames/apple.glb" if good else "res://assets/minigames/anvil.glb"
 	var scale := 2.2 if good else 0.35
-	var node := _spawn(path, randf_range(-12.0, 12.0), randf_range(-1.5, 1.5), 16.0, scale)
+	var node := _spawn(path, shared_float(-12.0, 12.0), shared_float(-1.5, 1.5), 16.0, scale)
 	if node == null:
 		node = _ball(0.45, Color(0.9, 0.15, 0.15) if good else Color(0.35, 0.35, 0.4))
 		add_child(node)
-		node.position = _panda(randf_range(-12.0, 12.0), 0.0, 16.0)
-	_fruits.append({"node": node, "good": good, "speed": 7.5 if good else 12.0})
+		node.position = _panda(shared_float(-12.0, 12.0), 0.0, 16.0)
+	_fruits.append({"node": node, "good": good, "speed": 7.5 if good else 12.0, "id": _spawned})
+
+
+func _sync_fruit() -> void:
+	if party_size() <= 1:
+		return
+	var raw: Variant = ToonNet.minigame_state().get("taken", [])
+	if not (raw is Array):
+		return
+	for item in raw:
+		_gone[int(item)] = true
 
 
 func _to_panda(point: Vector3) -> Vector3:

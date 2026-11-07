@@ -36,6 +36,7 @@ func _build() -> void:
 		_spots.append(spot)
 		_stolen.append(false)
 	_cog = _flunky(_cog_x, _cog_y, 0.0)
+	_px = lineup_x(4.0)
 	_make_toon(_panda(_px, _py, 0.0))
 	_aim(0.0, -13.66, 13.59, 0.0, 0.0, 0.0)
 	score = _barrels.size()

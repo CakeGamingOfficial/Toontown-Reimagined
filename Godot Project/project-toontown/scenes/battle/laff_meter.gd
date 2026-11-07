@@ -81,7 +81,7 @@ func setup(style: ToonStyle) -> void:
 	_fur = Color(0.996, 0.695, 0.512)
 	if style:
 		species = style.species()
-		_fur = ToonStyle.fur_color(style.head_color)
+		_fur = style.painted_color("head")
 	_head_card = _WIDE_HEAD if species in ["p", "b", "s"] else _SQUARE_HEAD
 	_head = _card(_HEADS.get(species, _HEADS["d"]))
 	_face = _card(_SMILE)

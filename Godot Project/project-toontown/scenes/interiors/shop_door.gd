@@ -117,27 +117,40 @@ static func prepare(host: Node) -> void:
 
 
 ## Playground landmarks that use a normal toon interior: the school house
-## (Professor Pete, zone 2516) and the clothing shop (Tammy, zone 2521).
+## (Professor Pete, zone 2516), Tammy's clothing shop (zone 2521), and
+## Longjohn Leroy's clothing shop on Donald's Dock (zone 1508).
 ## The neighborhood export left each door slab at the building origin, so the
 ## swinging panels take the door-origin point from the landmark bam.
 static func prepare_landmarks(host: Node) -> void:
 	_buildings.clear()
 	_entries.clear()
-	_hang_landmark(host, "school_house_DNARoot", 2516, "door_double_square_ur", Vector3(12.637, -7.208, 0.741))
-	_hang_landmark(host, "clothes_shop_DNARoot", 2521, "door_double_clothesshop_ur", Vector3(-4.672, -0.77, 3.827))
+	_hang_landmark(host, "school_house_DNARoot", 2516, "door_double_square_ur", Vector3(12.637, -7.208, 0.741), Color(0.88, 0.45, 0.38, 1.0))
+	var clothes := _find_suffix(host, "clothes_shop_DNARoot")
+	if clothes == null:
+		return
+	# clothshopDD.bam and clothshopTT.bam share this door_origin.
+	var pivot := Vector3(-4.672, -0.77, 3.827)
+	if "_DD_" in str(clothes.name):
+		_place_landmark(clothes, 1508, "door_double_clothesshop_ur", pivot, Color(0.91, 0.34, 0.34, 1.0))
+	else:
+		_place_landmark(clothes, 2521, "door_double_clothesshop_ur", pivot, Color(0.88, 0.45, 0.38, 1.0))
 
 
-static func _hang_landmark(host: Node, suffix: String, zone_id: int, door_code: String, pivot: Vector3) -> void:
+static func _hang_landmark(host: Node, suffix: String, zone_id: int, door_code: String, pivot: Vector3, tint: Color) -> void:
 	var building := _find_suffix(host, suffix)
 	if building == null:
 		return
+	_place_landmark(building, zone_id, door_code, pivot, tint)
+
+
+static func _place_landmark(building: Node3D, zone_id: int, door_code: String, pivot: Vector3, tint: Color) -> void:
 	building.set_meta("shop_zone", zone_id)
 	var door := Node3D.new()
 	door.name = door_code
 	building.add_child(door)
 	door.position = pivot
 	_add_panels(door)
-	_tint_tree(door, Color(0.88, 0.45, 0.38, 1.0))
+	_tint_tree(door, tint)
 	_buildings.append(building)
 	_entries.append({
 		"building": building,

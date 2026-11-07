@@ -151,12 +151,9 @@ func setup(tasks: ToonTasks, zone: int) -> bool:
 	var try_close := _texture("tt_t_gui_qst_mapTryToClose.png")
 	var arrow := _texture("tt_t_gui_qst_arrow.png")
 	var pin := _texture("startPartyButton_inactive.png")
-	if zone == 2000:
-		_span = _playground_span()
-	if closed == null or opened == null or try_open == null or try_close == null or arrow == null or pin == null:
-		visible = false
-		return false
-	if card == null and _span.size() < 4:
+	# QuestMap.updateMap hides the map when this branch has no card. The
+	# playground is one of those places: the original file has street cards only.
+	if closed == null or opened == null or try_open == null or try_close == null or arrow == null or pin == null or card == null:
 		visible = false
 		return false
 	_ready = true
@@ -165,29 +162,15 @@ func setup(tasks: ToonTasks, zone: int) -> bool:
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.visible = false
 	add_child(_panel)
-	if card != null:
-		var image := TextureRect.new()
-		image.set_anchors_preset(Control.PRESET_FULL_RECT)
-		image.offset_right = 0.0
-		image.offset_bottom = 0.0
-		image.texture = card
-		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		image.stretch_mode = TextureRect.STRETCH_SCALE
-		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_panel.add_child(image)
-	else:
-		var grass := ColorRect.new()
-		grass.color = Color(0.56, 0.82, 0.48, 1.0)
-		grass.set_anchors_preset(Control.PRESET_FULL_RECT)
-		grass.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_panel.add_child(grass)
-		var caption := Label.new()
-		caption.text = "Toontown Central"
-		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_GUI.style_label(caption, Color(0.1, 0.25, 0.12, 1.0), 22, Color(0, 0, 0, 0), 0)
-		grass.add_child(caption)
-		caption.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var image := TextureRect.new()
+	image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	image.offset_right = 0.0
+	image.offset_bottom = 0.0
+	image.texture = card
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_panel.add_child(image)
 	_cog = ColorRect.new()
 	_cog.color = Color(0.5, 0.5, 0.5, 0.5)
 	_cog.mouse_filter = Control.MOUSE_FILTER_IGNORE

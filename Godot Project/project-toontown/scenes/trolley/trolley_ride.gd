@@ -1,7 +1,7 @@
 extends Node3D
 
-## The trolley drops you into one solo game from MinigamePlayerMatrix, then
-## opens Goofy's Gag Shop so the jellybean reward can be spent or replayed.
+## The trolley drops you into one game, then opens Goofy's Gag Shop.
+## The district deals from MinigamePlayerMatrix, so a solo ride stays on the one-player list.
 
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _TASKS := preload("res://scenes/quests/toon_tasks.gd")
@@ -22,11 +22,19 @@ const _GAMES: Array[Dictionary] = [
 	{"id": 12, "script": "res://scenes/trolley/game_vine.gd", "music": "res://assets/audio/bgm/MG_Vine.ogg", "loop": true, "volume": 0.9},
 	{"id": 14, "script": "res://scenes/trolley/game_thief.gd", "music": "res://assets/audio/bgm/MG_CogThief.ogg", "loop": true, "volume": 0.8},
 	{"id": 15, "script": "res://scenes/trolley/game_escape.gd", "music": "res://assets/audio/bgm/MG_TwoDGame.ogg", "loop": true, "volume": 0.9},
+	{"id": 1, "script": "res://scenes/trolley/game_race.gd", "music": "res://assets/audio/bgm/minigame_race.ogg", "loop": true, "volume": 0.85},
+	{"id": 3, "script": "res://scenes/trolley/game_tag.gd", "music": "res://assets/audio/bgm/MG_toontag.ogg", "loop": true, "volume": 0.85},
+	{"id": 4, "script": "res://scenes/trolley/game_pattern.gd", "music": "res://assets/audio/bgm/m_match_bg1.ogg", "loop": true, "volume": 0.85},
+	{"id": 13, "script": "res://scenes/trolley/game_ice.gd", "music": "res://assets/audio/bgm/MG_IceGame.ogg", "loop": true, "volume": 0.85},
 ]
 
 static var hood := 2000
 static var return_scene := ""
 static var previous_id := 0
+static var players := 1
+static var seat := 0
+## Seat order from the ride that just left. Each card is peer, name, style, accessories.
+static var riders: Array = []
 
 var _game: Node
 var _rules: Control
@@ -40,9 +48,14 @@ var _shop: Node
 var _clock: Label
 var _rules_left := 16.0
 var _choice: Dictionary = {}
+var _asked_skip := false
+var _asked_ready := false
+var _did_skip := false
+var _chat: SpeedChat
 
 
 func _ready() -> void:
+	_add_chat()
 	_choice = _pick()
 	if _choice.is_empty():
 		var net := ToonNet.live()
@@ -50,6 +63,43 @@ func _ready() -> void:
 			net.state_changed.connect(_on_net_game)
 		return
 	_arm()
+
+
+func _add_chat() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 70
+	add_child(layer)
+	_chat = SpeedChat.new()
+	_chat.name = "SpeedChat"
+	layer.add_child(_chat)
+	_chat.setup(_TASKS.for_selected())
+	if not _chat.phrase_said.is_connected(_on_phrase):
+		_chat.phrase_said.connect(_on_phrase)
+
+
+func _on_phrase(text: String) -> void:
+	var actor := _speaker()
+	if actor == null:
+		return
+	var kind := "speed"
+	if _chat != null and not _chat.phrase_is_speedchat:
+		kind = "plus"
+	actor.set_meta("chat_line", text)
+	actor.set_meta("chat_kind", kind)
+	actor.set_meta("chat_until", Time.get_ticks_msec() + maxi(2800, text.length() * 45))
+	ToonSpeech.speak(actor, text)
+
+
+func _speaker() -> Node3D:
+	if _shop != null and is_instance_valid(_shop) and _shop.has_method("speaker"):
+		var shown: Variant = _shop.call("speaker")
+		if shown is Node3D:
+			return shown as Node3D
+	if _game != null and is_instance_valid(_game):
+		var rider: Variant = _game.get("_toon")
+		if rider is Node3D:
+			return rider as Node3D
+	return null
 
 
 func _on_net_game(channel: String) -> void:
@@ -73,7 +123,16 @@ func _arm() -> void:
 func _process(delta: float) -> void:
 	if _rules == null:
 		return
-	_rules_left -= delta
+	var state := ToonNet.latest("trolley:%d" % ToonNet.district_id())
+	if bool(state.get("skipped", false)):
+		_apply_skip()
+		return
+	var until := int(state.get("rules_until", 0))
+	if until > 0:
+		_rules_left = maxf((float(until) - Time.get_unix_time_from_system() * 1000.0) / 1000.0, 0.0)
+	else:
+		_rules_left -= delta
+	_paint_skip(state)
 	if _clock != null:
 		var whole := maxi(int(ceil(_rules_left)), 0)
 		if _clock.text != str(whole):
@@ -85,12 +144,20 @@ func _process(delta: float) -> void:
 		_start()
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if _rules == null or not (event is InputEventKey):
 		return
 	var key := event as InputEventKey
-	if key.pressed and not key.echo and (key.keycode == KEY_ENTER or key.keycode == KEY_KP_ENTER):
-		_start()
+	if not key.pressed or key.echo:
+		return
+	if key.keycode != KEY_ENTER and key.keycode != KEY_KP_ENTER and key.physical_keycode != KEY_ENTER:
+		return
+	if get_viewport().gui_get_focus_owner() is LineEdit:
+		return
+	if _chat != null and _chat.is_open():
+		return
+	get_viewport().set_input_as_handled()
+	_ask_ready()
 
 
 func _pick() -> Dictionary:
@@ -106,6 +173,9 @@ func _pick() -> Dictionary:
 
 func _show_rules() -> void:
 	_rules_left = 16.0
+	_asked_skip = false
+	_asked_ready = false
+	_did_skip = false
 	var script := load(String(_choice["script"])) as GDScript
 	_game = script.new()
 	add_child(_game)
@@ -153,7 +223,7 @@ func _show_rules() -> void:
 	_rules_play.focus_mode = Control.FOCUS_NONE
 	# self_modulate tints the pill and leaves the PLAY word white.
 	_rules_play.self_modulate = Color(0.0, 0.9, 0.1)
-	_rules_play.pressed.connect(_start)
+	_rules_play.pressed.connect(_ask_ready)
 	ToonGui.button_sounds(_rules_play)
 	var caption := Label.new()
 	caption.text = "PLAY"
@@ -172,7 +242,7 @@ func _show_rules() -> void:
 	_rules_skip.focus_mode = Control.FOCUS_NONE
 	_rules_skip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_rules_skip.self_modulate = Color(0.86, 0.22, 0.18)
-	_rules_skip.pressed.connect(_skip)
+	_rules_skip.pressed.connect(_ask_skip)
 	ToonGui.button_sounds(_rules_skip)
 	var skip_caption := Label.new()
 	skip_caption.text = "Skip"
@@ -188,6 +258,46 @@ func _show_rules() -> void:
 	_layout_rules()
 
 
+func _ask_ready() -> void:
+	if _rules == null or _asked_ready:
+		return
+	if players <= 1:
+		_start()
+		return
+	_asked_ready = true
+	if _rules_play != null:
+		_rules_play.disabled = true
+	ToonNet.vote_trolley_ready()
+
+
+func _ask_skip() -> void:
+	if _rules == null or _asked_skip:
+		return
+	_asked_skip = true
+	if _rules_skip != null:
+		_rules_skip.disabled = true
+	if ToonNet.vote_trolley_skip():
+		_apply_skip()
+
+
+func _paint_skip(state: Dictionary) -> void:
+	if _rules_skip == null or _rules_skip.get_child_count() < 1:
+		return
+	var caption := _rules_skip.get_child(0) as Label
+	if caption == null:
+		return
+	var group := maxi(int(state.get("players", players)), 1)
+	var text := "Skip"
+	if group > 1:
+		var skips := 0
+		var raw: Variant = state.get("skips", [])
+		if raw is Array:
+			skips = (raw as Array).size()
+		text = "Skip %d/%d" % [skips, int(group / 2) + 1]
+	if caption.text != text:
+		caption.text = text
+
+
 func _start() -> void:
 	if _rules == null:
 		return
@@ -195,9 +305,12 @@ func _start() -> void:
 	_game.begin()
 
 
-## Skip still shows a score of 0, then Goofy's. It pays nothing and does not
-## count as a trolley ride.
-func _skip() -> void:
+## A skip still shows a score of 0, then Goofy's. It pays nothing and does not
+## count as a trolley ride. In a group, more than half the party has to skip.
+func _apply_skip() -> void:
+	if _did_skip:
+		return
+	_did_skip = true
 	if _rules == null:
 		return
 	_drop_rules()
@@ -234,8 +347,8 @@ func _drop_rules() -> void:
 
 
 func _reward(raw: int) -> void:
-	ToonNet.finish_trolley(raw)
 	var paid := clampi(int(round(float(raw) * _multiplier())), 0, 255)
+	ToonNet.finish_trolley(paid)
 	_TASKS.for_selected().note_trolley()
 	_quiet(self)
 	if _game != null:

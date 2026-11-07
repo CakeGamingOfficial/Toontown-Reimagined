@@ -478,15 +478,14 @@ func _sync_gm(item: Dictionary) -> void:
 		wanted = MagicWords.gm_type()
 	elif actor != null and actor.has_meta("gm"):
 		wanted = int(actor.get_meta("gm"))
-	if int(item.get("gm", -1)) == wanted:
-		return
-	item["gm"] = wanted
 	var panel := item["label"] as Control
 	var written := panel.get_child(0) as Label if panel != null else null
 	var plain := String(item.get("plain", ""))
-	var title := MagicWords.gm_title(wanted)
-	if written != null:
-		written.text = plain if title == "" else "%s %s" % [title, plain]
+	if written != null and written.text != plain:
+		written.text = plain
+	if int(item.get("gm", -1)) == wanted:
+		return
+	item["gm"] = wanted
 	if wanted <= 0:
 		var old: TextureRect = item.get("icon")
 		if old != null and is_instance_valid(old):
@@ -527,14 +526,26 @@ func _place_icon(item: Dictionary, panel: Control) -> void:
 		icon.visible = false
 		return
 	var written := panel.get_child(0) as Label
-	var side := 16.0
+	var px := 16.0
 	if written != null:
-		side = float(written.get_theme_font_size("font_size"))
+		px = float(written.get_theme_font_size("font_size"))
+	# Nametag3d draws the name at scale 0.9. setGMIcon scales whistleIcon by 4
+	# and drops it 2.5. The quad is 0.4847 wide and sits at z 0.920 to 1.405,
+	# so the badge is about twice the letters and centered on the name line.
+	var unit := px / 0.9
+	var side := 0.484686 * 4.0 * unit
+	var center_z := (0.920009 + 1.4047) * 0.5 * 4.0 - 2.5
+	var name_center_z := 2.0
+	var text_left := panel.position.x
+	if written != null:
+		text_left += written.position.x
+	var anchor_x := text_left - 0.2 * unit
+	var center := Vector2(anchor_x, panel.position.y + panel.size.y * 0.5 - (center_z - name_center_z) * unit)
 	icon.custom_minimum_size = Vector2(side, side)
 	icon.size = Vector2(side, side)
 	icon.pivot_offset = icon.size * 0.5
 	icon.rotation = fmod(float(Time.get_ticks_msec()) / 3000.0, 1.0) * TAU
-	icon.position = panel.position + Vector2(-side - 4.0, (panel.size.y - side) * 0.5)
+	icon.position = center - icon.size * 0.5
 	icon.visible = true
 
 

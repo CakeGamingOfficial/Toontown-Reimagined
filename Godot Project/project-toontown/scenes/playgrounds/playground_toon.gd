@@ -24,8 +24,10 @@ const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _MAILBOX := preload("res://scenes/estate/mailbox.gd")
+const _SURFACES := preload("res://scenes/interiors/house_surfaces.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
+const _TASK_TRACKER := preload("res://scenes/quests/task_tracker.gd")
 const _TRACK_CHOICE := preload("res://scenes/quests/track_choice.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _FISH := preload("res://scenes/fishing/fish_tank.gd")
@@ -113,6 +115,8 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
+var _quest_wait := false
+var _quest_advance := false
 var _quest_npc: Node3D
 var _quest_choice := false
 var _quest_cam_age := 0.0
@@ -351,6 +355,8 @@ func _ready() -> void:
 	_HALL.prepare(get_parent())
 	_LIB.prepare(get_parent())
 	_place_mailbox()
+	if _PLACES.is_house(_scene_path()):
+		_SURFACES.apply(get_parent())
 	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	var window := get_tree().root
@@ -483,11 +489,14 @@ func _process(delta: float) -> void:
 	if _battle_hold:
 		pass
 	elif _fish_open or _casting:
-		pass
+		if _casting and _remotes != null and _player != null and _player.has_meta("fish_anim"):
+			_remotes.note_fishing(_heading, String(_player.get_meta("fish_anim")), float(_player.get_meta("fish_pose", -1.0)), int(_player.get_meta("fish_rod", 0)))
 	elif MagicWords.detached_camera() and not book_open and not _bank_open and not _locked:
 		MagicWords.fly_camera(_camera, delta)
 	elif _trolley != null and _trolley.holds_camera():
 		_trolley.aim(_camera)
+	elif _minigolf != null and _minigolf.has_method("holds_camera") and bool(_minigolf.call("holds_camera")):
+		_minigolf.call("aim", _camera)
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
 	elif _quest_npc != null and is_instance_valid(_quest_npc):
@@ -538,6 +547,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _quest_wait and _quest_click(event):
+		_quest_advance = true
+		get_viewport().set_input_as_handled()
+		return
 	if _peek_hotkey(event):
 		return
 	if not _active or _casting:
@@ -886,7 +899,8 @@ func _try_trolley() -> void:
 	_body.velocity = Vector3.ZERO
 	if _player != null:
 		_player.set_locomotion(0.0, false, false, 0.016)
-	_trolley.board(_body, _player)
+	if not _trolley.board(_body, _player):
+		_locked = false
 
 
 func _try_bank() -> void:
@@ -1487,9 +1501,11 @@ const _TROPHY_FISH := "Wow! You collected %d of %d fish. That deserves a trophy 
 const _FISH_SLOW := "Need more time to think?"
 
 
-## DistributedFishingSpot.getSphereRadius. The sphere sits on the spot, at the
-## outer end of the pier. The planks behind it are not part of the trigger.
-const _DOCK_MARGIN := 1.5
+## DistributedFishingSpot sphere is 1.5. LocalAvatar's into-sphere is another
+## 1, so the centers can be 2.5 apart. The pier origin sits about 2 units back
+## from the end of the planks. A 1.5 check from this toon's feet misses that
+## end on every dock.
+const _DOCK_MARGIN := 2.5
 
 
 func aim_fishing(heading: float) -> void:
@@ -1805,8 +1821,11 @@ func _try_officer() -> void:
 		return
 	var card := _tasks.ready_hq()
 	var offers := _tasks.offers()
+	var pending := 0
 	if card.is_empty() and offers.is_empty():
-		return
+		pending = _tasks.pending_hq()
+		if pending == 0:
+			return
 	_officer_ready = false
 	_locked = true
 	_body.velocity = Vector3.ZERO
@@ -1814,16 +1833,26 @@ func _try_officer() -> void:
 		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(officer)
 	_begin_quest_shot(actor, false)
+	if pending != 0:
+		await _speak_pages(actor, _tasks.busy_pages(pending))
+		if not is_inside_tree():
+			return
+		_locked = false
+		return
 	if not card.is_empty():
-		_tasks.turn_in(int(card.get("id", 0)))
+		var finished_id := int(card.get("id", 0))
+		var finished := _tasks.after_pages(finished_id)
+		var given := _tasks.turn_in(finished_id)
 		_grant_task_reward(card)
 		if _book != null:
 			_book.refresh_tasks()
-		_say_clerk(actor, "Nice work! Here is your reward...", 3.2)
-		await get_tree().create_timer(3.2).timeout
+		await _speak_pages(actor, finished)
 		if not is_inside_tree():
 			return
-		_say_clerk(null, "", 0.0)
+		if given != 0:
+			await _speak_assign(actor, given)
+			if not is_inside_tree():
+				return
 		offers = _tasks.offers()
 	if offers.is_empty():
 		_locked = false
@@ -1845,7 +1874,7 @@ func _try_officer() -> void:
 		_tasks.assign(picked, 0, _pay_of(offers, picked))
 		if _book != null:
 			_book.refresh_tasks()
-		await _speak_pages(actor, _tasks.quest_pages(picked))
+		await _speak_assign(actor, picked)
 		if not is_inside_tree():
 			return
 	else:
@@ -1880,7 +1909,7 @@ func _try_quest_npc() -> void:
 	if card.is_empty():
 		shop_offers = _tasks.offers_for(npc_id)
 		if shop_offers.is_empty():
-			if npc_id == 2004:
+			if npc_id == 2004 or npc_id == 1007:
 				await _meet_tailor(npc)
 			return
 	_npc_ready = false
@@ -1941,7 +1970,7 @@ func _try_quest_npc() -> void:
 	if not is_inside_tree():
 		return
 	if given != 0:
-		await _speak_pages(actor, _tasks.quest_pages(given))
+		await _speak_assign(actor, given)
 	_locked = false
 	return
 
@@ -1981,7 +2010,7 @@ func _offer_from_npc(actor: Node3D, shop_offers: Array[Dictionary], npc_id: int)
 		_tasks.assign(picked, npc_id, _pay_of(shop_offers, picked))
 		if _book != null:
 			_book.refresh_tasks()
-		await _speak_pages(actor, _tasks.quest_pages(picked))
+		await _speak_assign(actor, picked)
 	_locked = false
 
 
@@ -2030,15 +2059,129 @@ func _nearest_quest_npc() -> Node3D:
 	return best
 
 
+func _speak_assign(actor: Node3D, quest_id: int) -> void:
+	if quest_id == 145:
+		await _speak_tunnel(actor)
+		return
+	if quest_id == 150:
+		await _speak_friends(actor)
+		return
+	await _speak_pages(actor, _tasks.quest_pages(quest_id))
+
+
 func _speak_pages(actor: Node3D, lines: PackedStringArray) -> void:
 	for line in lines:
 		if not is_inside_tree():
 			return
 		if line.is_empty():
 			continue
-		var hold := clampf(float(line.length()) * 0.05, 2.2, 6.5)
-		_say_clerk(actor, line, hold)
-		await get_tree().create_timer(hold).timeout
+		await _confirm_line(actor, line)
+	if is_inside_tree():
+		_say_clerk(null, "", 0.0)
+
+
+func _confirm_line(actor: Node3D, line: String) -> void:
+	_say_clerk(actor, line, 60.0)
+	_quest_advance = false
+	_quest_wait = true
+	while not _quest_advance:
+		await get_tree().process_frame
+		if not is_inside_tree():
+			_quest_wait = false
+			return
+	_quest_wait = false
+
+
+func _quest_click(event: InputEvent) -> bool:
+	if event.is_action_pressed("ui_accept"):
+		return true
+	if event is InputEventMouseButton:
+		var click := event as InputEventMouseButton
+		return click.pressed and click.button_index == MOUSE_BUTTON_LEFT
+	return false
+
+
+## quest_assign_145. The tunnel card pops up after "through one of the tunnels like this:".
+func _speak_tunnel(actor: Node3D) -> void:
+	for line in _tasks.quest_pages(145):
+		if not is_inside_tree():
+			return
+		if line.is_empty():
+			continue
+		await _confirm_line(actor, line)
+		if line.ends_with("like this:"):
+			_say_clerk(null, "", 0.0)
+			await _show_tunnel_card()
+	if is_inside_tree():
+		_say_clerk(null, "", 0.0)
+
+
+func _show_tunnel_card() -> void:
+	var frame_tex := load("res://assets/gui/tutorial/FrameBlankA.png") as Texture2D
+	var sign_tex := load("res://assets/gui/tutorial/tunnelSignA.png") as Texture2D
+	if frame_tex == null or sign_tex == null:
+		await get_tree().create_timer(3.0).timeout
+		return
+	var layer := Control.new()
+	layer.name = "TunnelCard"
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud().add_child(layer)
+	var view := get_viewport().get_visible_rect().size
+	var side := view.y * 0.62
+	var frame := TextureRect.new()
+	frame.texture = frame_tex
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.size = Vector2(side, side)
+	frame.position = view * 0.5 - frame.size * 0.5
+	frame.pivot_offset = frame.size * 0.5
+	frame.scale = Vector2(0.1, 0.1)
+	layer.add_child(frame)
+	var sign := TextureRect.new()
+	sign.texture = sign_tex
+	sign.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sign.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sign.size = frame.size * 0.8
+	sign.position = (frame.size - sign.size) * 0.5
+	frame.add_child(sign)
+	var grow := create_tween()
+	grow.tween_property(frame, "scale", Vector2.ONE, 1.0).set_trans(Tween.TRANS_LINEAR)
+	await grow.finished
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(3.0).timeout
+	if not is_inside_tree():
+		return
+	var shrink := create_tween()
+	shrink.tween_property(frame, "scale", Vector2(0.1, 0.1), 0.5).set_trans(Tween.TRANS_LINEAR)
+	await shrink.finished
+	if is_instance_valid(layer):
+		layer.queue_free()
+
+
+## quest_assign_150. The friends list opens for the New Friend line, then closes.
+func _speak_friends(actor: Node3D) -> void:
+	var friends := _hud().get_node_or_null("FriendsList")
+	var listed := false
+	for line in _tasks.quest_pages(150):
+		if not is_inside_tree():
+			return
+		if line.is_empty():
+			continue
+		if line.begins_with("To make friends"):
+			if friends != null:
+				friends.call("show_for_quest")
+			listed = true
+		await _confirm_line(actor, line)
+		if listed and line.begins_with("To make friends"):
+			if friends != null:
+				friends.call("hide_for_quest")
+			listed = false
+	if friends != null and listed:
+		friends.call("hide_for_quest")
 	if is_inside_tree():
 		_say_clerk(null, "", 0.0)
 
@@ -2176,7 +2319,8 @@ func _say_clerk(actor: Node3D, text: String, seconds: float) -> void:
 func _place_clerk_line(delta: float) -> void:
 	if _clerk_line == null or _camera == null:
 		return
-	_clerk_left = maxf(_clerk_left - delta, 0.0)
+	if not _quest_wait:
+		_clerk_left = maxf(_clerk_left - delta, 0.0)
 	if _clerk_left <= 0.0 or _clerk_mouth == null or not is_instance_valid(_clerk_mouth):
 		_clerk_line.visible = false
 		return
@@ -3556,6 +3700,10 @@ func _ready_hud() -> void:
 	_meter.follow(_loadout)
 	_hud().add_child(_meter)
 	_dock_laff()
+	var tracker = _TASK_TRACKER.new()
+	tracker.name = "TaskTracker"
+	_hud().add_child(tracker)
+	tracker.setup(_tasks)
 	var view_port := get_viewport()
 	if view_port != null and not view_port.size_changed.is_connected(_dock_laff):
 		view_port.size_changed.connect(_dock_laff)
@@ -3776,6 +3924,13 @@ func _begin_quest_shot(actor: Node3D, choice: bool) -> void:
 	_quest_choice = choice
 	_quest_cam_age = 0.0
 	_quest_cam_on = false
+	# setupAvatars turns the toon to face the officer before the choice camera.
+	if choice and _player != null and _body != null:
+		var toward := actor.global_position - _body.global_position
+		toward.y = 0.0
+		if toward.length_squared() > 0.0001:
+			_heading = _heading_toward(toward)
+			_face(_player, _heading)
 
 
 func _aim_quest_camera(delta: float) -> void:
@@ -3789,17 +3944,20 @@ func _aim_quest_camera(delta: float) -> void:
 	var along := clampf(_quest_cam_age, 0.0, 1.0)
 	var ease := 1.0 - pow(1.0 - along, 2.0)
 	var height := _npc_height(_quest_npc)
-	var forward := -_quest_npc.global_basis.z
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		forward = Vector3(0.0, 0.0, -1.0)
-	forward = forward.normalized()
-	var right := forward.cross(Vector3.UP).normalized()
+	# setupCamera. Choice stands at (5, 9) with HPR (155, -2, 0). Talk uses (-5, 9) and (-150, -2, 0).
+	# Those look back along the officer's forward, so the toon in front of them stays in frame.
+	var forward := _clerk_forward(_quest_npc)
+	var right := forward.cross(Vector3.UP)
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
 	var side := 5.0 if _quest_choice else -5.0
 	var dest := _quest_npc.global_position + right * side + forward * 9.0 + Vector3.UP * (height - 0.5)
-	var look := _quest_npc.global_position + Vector3.UP * (height * 0.5)
+	var look_local := Vector3(-0.422361, -0.905756, -0.034899) if _quest_choice else Vector3(0.499695, -0.865498, -0.034899)
+	var focus := dest + right * look_local.x + forward * look_local.y + Vector3.UP * look_local.z
 	var where := _quest_cam_from.lerp(dest, ease)
-	var look_at := _quest_cam_look.lerp(look, ease)
+	var look_at := _quest_cam_look.lerp(focus, ease)
 	_camera.global_position = where
 	if where.distance_squared_to(look_at) > 0.04:
 		_camera.look_at(look_at, Vector3.UP)
