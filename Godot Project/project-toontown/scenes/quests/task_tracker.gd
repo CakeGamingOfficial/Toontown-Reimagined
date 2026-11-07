@@ -1,8 +1,8 @@
 extends Control
 
-## Held ToonTasks as one line along the bottom of the screen. A quest arrow
-## sits just above that line and turns toward the first task that still has
-## somewhere to go.
+## Held ToonTasks as one line along the bottom of the screen. The line and the
+## arrow follow the task picked on the ToonTasks page. Until one is picked,
+## that is the first task in the book.
 
 const _UI := preload("res://scenes/shticker/ui_settings.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
@@ -101,12 +101,12 @@ func _refresh() -> void:
 	var scene := get_tree().current_scene
 	if scene != null:
 		var here := _TITLES.zone_of(scene.scene_file_path)
-		for card in _tasks.entries():
+		var card := _tasks.tracked_card()
+		if not card.is_empty():
 			var point := _goal_for(card, scene, here)
 			if not is_inf(point.x):
 				_goal = point
 				_have = true
-				break
 	if text == _shown and _view == get_viewport_rect().size:
 		return
 	_shown = text
@@ -156,8 +156,8 @@ func _aim() -> void:
 	_arrow.visible = true
 
 
-## The first task that still has a place to walk to. A street task you can
-## already do here, or a friend or phone task, leaves the arrow for the next one.
+## Where the tracked task wants the toon to walk. A task that can be done
+## right here, or a friend or phone task, leaves the arrow hidden.
 func _goal_for(card: Dictionary, scene: Node, here: int) -> Vector3:
 	var kind := String(card.get("kind", ""))
 	var ready := bool(card.get("ready", false))
@@ -347,38 +347,38 @@ func _flat_gap(point: Vector3, player: Vector2) -> float:
 
 
 func _lines() -> String:
-	var blocks: PackedStringArray = []
-	for card in _tasks.entries():
-		var caption := String(card.get("caption", ""))
-		if caption.is_empty():
-			continue
-		var parts: PackedStringArray = [caption]
-		var building := String(card.get("building", ""))
-		var location := String(card.get("location", ""))
-		if bool(card.get("ready", false)):
-			var who := String(card.get("return_name", ""))
-			if who.is_empty():
-				who = "an HQ Officer"
-			parts.append("Return to " + who)
-		else:
-			var goal := int(card.get("goal", 1))
-			if goal > 1 or bool(card.get("show_count", false)):
-				parts.append("%d of %d" % [int(card.get("progress", 0)), goal])
-			var kind := String(card.get("kind", ""))
-			var where := String(card.get("where", ""))
-			if kind != "visit" and kind != "track" and not where.is_empty() and where != building:
-				parts.append(where)
-		var street := _street_name(location)
-		if not street.is_empty():
-			parts.append(street)
-		var playground := _playground_name(location)
-		if not building.is_empty() and not playground.is_empty():
-			parts.append(building + "/" + playground)
-		elif not building.is_empty():
-			parts.append(building)
-		var ink := _UI.done_color() if bool(card.get("ready", false)) else _UI.progress_color()
-		blocks.append("[color=#%s]%s[/color]" % [ink.to_html(false), " · ".join(parts)])
-	return "    ".join(blocks)
+	var card := _tasks.tracked_card()
+	if card.is_empty():
+		return ""
+	var caption := String(card.get("caption", ""))
+	if caption.is_empty():
+		return ""
+	var parts: PackedStringArray = [caption]
+	var building := String(card.get("building", ""))
+	var location := String(card.get("location", ""))
+	if bool(card.get("ready", false)):
+		var who := String(card.get("return_name", ""))
+		if who.is_empty():
+			who = "an HQ Officer"
+		parts.append("Return to " + who)
+	else:
+		var goal := int(card.get("goal", 1))
+		if goal > 1 or bool(card.get("show_count", false)):
+			parts.append("%d of %d" % [int(card.get("progress", 0)), goal])
+		var kind := String(card.get("kind", ""))
+		var where := String(card.get("where", ""))
+		if kind != "visit" and kind != "track" and not where.is_empty() and where != building:
+			parts.append(where)
+	var street := _street_name(location)
+	if not street.is_empty():
+		parts.append(street)
+	var playground := _playground_name(location)
+	if not building.is_empty() and not playground.is_empty():
+		parts.append(building + "/" + playground)
+	elif not building.is_empty():
+		parts.append(building)
+	var ink := _UI.done_color() if bool(card.get("ready", false)) else _UI.progress_color()
+	return "[color=#%s]%s[/color]" % [ink.to_html(false), " · ".join(parts)]
 
 
 ## Loopy Lane counts. "Playground" and "Any Street" do not.

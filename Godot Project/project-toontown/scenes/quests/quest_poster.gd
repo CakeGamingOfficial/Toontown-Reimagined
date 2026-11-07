@@ -73,6 +73,10 @@ var _right_fit := 0.8
 var _complete := false
 var _split := false
 var _hovered := false
+var _trackable := false
+var _tracked := false
+var _task_id := 0
+var _tracking: Label
 var _hover_tween: Tween
 var _rest_pos := Vector2.ZERO
 var _rest_size := Vector2.ZERO
@@ -140,6 +144,10 @@ func _init() -> void:
 	_count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_count.mouse_filter = MOUSE_FILTER_IGNORE
 	_badge.add_child(_count)
+	_tracking = _label()
+	_tracking.text = "Tracking"
+	_tracking.visible = false
+	_tracking.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_headline = _label()
 	_caption = _label()
 	_where = _label()
@@ -160,6 +168,8 @@ func layout(card: Vector2) -> void:
 	custom_minimum_size = card
 	size = card
 	_card.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	_badge_box.bg_color = Color(0.78, 0.58, 0.12) if _tracked else Color(0.82, 0.16, 0.16)
+	_place_tracking(card)
 	_badge.size = card * Vector2(26.0 / 230.0, 26.0 / 180.0)
 	_place_quest_id(card)
 	_badge_box.set_corner_radius_all(maxi(int(_badge.size.x * 0.5), 1))
@@ -213,9 +223,35 @@ func layout(card: Vector2) -> void:
 	_right_icon.size = officer
 
 
+signal track_pressed(quest_id: int)
+
+
+## The journal page can be clicked. Choice cards and the briefing cannot.
+func allow_track() -> void:
+	_trackable = true
+
+
+func show_tracked(on: bool) -> void:
+	_tracked = on
+	if _tracking != null:
+		_tracking.visible = on
+	_badge_box.bg_color = Color(0.78, 0.58, 0.12) if on else Color(0.82, 0.16, 0.16)
+	if size.y > 1.0:
+		_place_tracking(size)
+
+
+func _gui_input(event: InputEvent) -> void:
+	if not _trackable or _task_id <= 0:
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		track_pressed.emit(_task_id)
+		accept_event()
+
+
 func show_task(task: Dictionary, choosing := false) -> void:
 	_choosing = choosing
 	var quest_id := int(task.get("id", 0))
+	_task_id = quest_id
 	_quest_id.text = str(quest_id) if quest_id > 0 else ""
 	_quest_id.visible = quest_id > 0
 	_reward_text = String(task.get("reward_line", ""))
@@ -812,6 +848,20 @@ func _place_quest_id(card: Vector2) -> void:
 	if _quest_id.visible:
 		badge_x = (origin.x + text_w + card.x * (6.0 / 230.0)) / card.x
 	_badge.position = Vector2(card.x * badge_x, card.y * (28.0 / 180.0))
+
+
+func _place_tracking(card: Vector2) -> void:
+	if _tracking == null:
+		return
+	_tracking.visible = _tracked
+	if not _tracked:
+		return
+	var px := maxi(int(card.y * 0.045 / 0.58), 10)
+	ToonGui.style_label(_tracking, Color(0.05, 0.38, 0.12), px, Color(0, 0, 0, 0), 0)
+	var width := card.x * 0.42
+	var height := float(px) * 1.3
+	_tracking.position = Vector2(card.x - width - card.x * (14.0 / 230.0), card.y * (20.0 / 180.0))
+	_tracking.size = Vector2(width, height)
 
 
 ## rewardText is left aligned at x -0.36. z is the first line's baseline, so the

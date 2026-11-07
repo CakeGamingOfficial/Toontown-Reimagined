@@ -20,6 +20,7 @@ const _NAMES := {
 	17: "Trolley Tracks",
 	19: "Silly Saturdays",
 	24: "Ides of March",
+	25: "Double Gag Experience",
 	26: "Halloween Decor",
 	28: "Winter Invasion",
 	29: "April Toons' Week",
@@ -75,6 +76,7 @@ const _NAMES := {
 	99: "Jellybean Week",
 	101: "Top Toons New Year's Day Marathon",
 	105: "Toons go GREEN!",
+	200: "Double Jellybeans",
 }
 
 ## NewsManager.setSystemMessage lines. A missing end falls back to the holiday name.
@@ -83,6 +85,7 @@ const _HOLIDAY_LINES := {
 	4: ["It's Winter Holiday time in Toontown!", "Winter Holiday is over - Happy New Year!"],
 	7: ["It's time for Fish Bingo!  Go to any available pier to play!", "Hope you had fun playing Fish Bingo."],
 	9: ["Create a Black Cat - Today only!", "Black Cat day has ended!"],
+	25: ["Good news! Double gag experience time has started.", "Double gag experience time has ended."],
 	14: ["The Toontown Grand Prix at Goofy Speedway is about to begin!  To win, collect the most points in three consecutive races!", "That's all for today's Toontown Grand Prix at Goofy Speedway.  See you next week!"],
 	16: ["It's Grand Prix Weekend at Goofy Speedway! Free and paid players collect the most points in three consecutive races.", "That's all for Grand Prix Weekend. See you next year."],
 	17: ["Trolley Tracks is about to begin!  Board any trolley with 2 or more toons to play.", "That's all for today's Trolley Tracks.  See you next week!"],
@@ -96,6 +99,7 @@ const _HOLIDAY_LINES := {
 	99: ["It's Jellybean Week! Get Double Jellybean rewards!", "That's all for Jellybean Week. See you next year."],
 	101: ["The Top Toons New Year's Day Marathon has begun!", "The Top Toons New Year's Day Marathon has ended."],
 	105: ["Toons go GREEN!", ""],
+	200: ["Double Jellybeans have begun!", "Double Jellybeans have ended!"],
 }
 
 const _DEPT_NAME := {"c": "Bossbot", "l": "Lawbot", "m": "Cashbot", "s": "Sellbot"}
@@ -243,9 +247,27 @@ static func resolve(text: String) -> int:
 
 static func bean_scale(kind: String) -> int:
 	var on := _on()
+	# Double Jellybeans covers every payout. The older holidays stay specific.
+	if on.has(200):
+		return 2
 	if kind == "fish" and (on.has(98) or on.has(49) or on.has(99)):
 		return 2
 	if kind == "trolley" and (on.has(97) or on.has(49) or on.has(99)):
+		return 2
+	return 1
+
+
+## ToontownBattleGlobals.getInvasionMultiplier. Welcome Valley never has one.
+static func invasion_scale(district: int) -> int:
+	if district <= 0 or plan_for(district).is_empty():
+		return 1
+	return 2
+
+
+## ToontownBattleGlobals.getMoreXpHolidayMultiplier. This multiplies whatever
+## credit the fight already has, including a building floor and an invasion.
+static func exp_scale() -> int:
+	if _on().has(25):
 		return 2
 	return 1
 

@@ -125,6 +125,7 @@ static func capture() -> Dictionary:
 		"visited": tasks.visited.duplicate(),
 		"active": active,
 		"done": tasks.finished_ids(),
+		"tracked": tasks.tracked(),
 	}
 
 

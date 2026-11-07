@@ -315,6 +315,8 @@ var visited: Array[int] = []
 var _slot := -1
 var _active: Array[Dictionary] = []
 var _done: Array[int] = []
+## The task the bottom tracker and its arrow follow. 0 means the first one.
+var tracked_id := 0
 ## Reward lines live on the class. note_cog_defeat and the victory screen each
 ## load their own journal, so an instance array would be thrown away.
 static var _battle_notes: PackedStringArray = PackedStringArray()
@@ -405,6 +407,8 @@ func assign(quest_id: int, from_npc: int = 0, pay: int = 0) -> void:
 	if pay > 0:
 		row["pay"] = pay
 	_active.append(row)
+	if tracked_id == 0:
+		tracked_id = quest_id
 	save()
 
 
@@ -860,6 +864,29 @@ func entries() -> Array[Dictionary]:
 	return shown
 
 
+func tracked() -> int:
+	return tracked_id
+
+
+## The poster the toon clicked in the book. The tracker follows this task.
+func track(quest_id: int) -> void:
+	if quest_id == tracked_id or not _is_active(quest_id):
+		return
+	tracked_id = quest_id
+	save()
+
+
+## The chosen task, or the first one when nothing has been picked yet.
+func tracked_card() -> Dictionary:
+	var cards := entries()
+	if cards.is_empty():
+		return {}
+	for card in cards:
+		if int(card.get("id", 0)) == tracked_id:
+			return card
+	return cards[0]
+
+
 func _card(entry: Dictionary) -> Dictionary:
 	var quest_id := int(entry["id"])
 	var info: Dictionary = _info(quest_id)
@@ -1283,6 +1310,7 @@ func apply_dict(record: Dictionary) -> void:
 		var quest_num := int(entry.get("id", 0))
 		if _known(quest_num):
 			_active.append(_kept(quest_num, int(entry.get("progress", 0)), int(entry.get("to_npc", 0)), int(entry.get("pay", 0)), int(entry.get("misses", 0))))
+	tracked_id = int(record.get("tracked", 0))
 
 
 func save() -> void:
@@ -1319,6 +1347,7 @@ func save() -> void:
 		"visited": visited.duplicate(),
 		"active": active,
 		"done": _done.duplicate(),
+		"tracked": tracked_id,
 	}
 	root["slots"] = slots
 	var file := FileAccess.open(_PATH, FileAccess.WRITE)
@@ -1696,6 +1725,7 @@ func _load() -> void:
 		if not _known(quest_id) or _done.has(quest_id):
 			continue
 		_active.append(_kept(quest_id, int(entry.get("progress", 0)), int(entry.get("to_npc", 0)), int(entry.get("pay", 0)), int(entry.get("misses", 0))))
+	tracked_id = int(stored.get("tracked", 0))
 	var repaired := false
 	# Finishing the Flunky task is what ends the toontorial. A save that kept
 	# that and lost the playground flag must not start Tom's lesson over.

@@ -46,7 +46,7 @@ var _ack_done := false
 var _dialog: TextureRect
 var _name: Label
 var _quest_title: Label
-var _quest_line: Label
+var _quest_line: RichTextLabel
 var _frames: Array[ColorRect] = []
 var _fills: Array[ColorRect] = []
 var _amounts: Array[Label] = []
@@ -194,7 +194,7 @@ func _show_quest(line: String) -> void:
 		body = "\n".join(names)
 	_quest_title.text = title
 	_quest_line.bbcode_enabled = false
-	_quest_line.add_theme_color_override("font_color", _DONE)
+	_quest_line.add_theme_color_override("default_color", _DONE)
 	_quest_line.text = body
 	_quest_line.visible = true
 	_layout()
@@ -211,7 +211,7 @@ func _tick_quests(quests: Array) -> void:
 	_quest_title.text = "ToonTasks"
 	_quest_title.visible = true
 	_quest_line.bbcode_enabled = true
-	_quest_line.add_theme_color_override("font_color", _INK)
+	_quest_line.add_theme_color_override("default_color", _INK)
 	_quest_line.visible = true
 	_quest_line.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	var shown: Array = []
@@ -284,10 +284,18 @@ func _build() -> void:
 	_quest_title = _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
 	_quest_title.text = "ToonTasks"
 	_quest_title.visible = false
-	_quest_line = _ink_label(HORIZONTAL_ALIGNMENT_LEFT)
+	_quest_line = RichTextLabel.new()
+	_quest_line.bbcode_enabled = false
+	_quest_line.scroll_active = false
+	_quest_line.fit_content = false
 	_quest_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_quest_line.add_theme_color_override("font_color", _DONE)
+	_quest_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_quest_line.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_quest_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_quest_line.add_theme_font_override("normal_font", ToonGui.font())
+	_quest_line.add_theme_color_override("default_color", _DONE)
 	_quest_line.visible = false
+	add_child(_quest_line)
 	for track in ToonLoadout.TRACK_COUNT:
 		var frame := ColorRect.new()
 		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -385,7 +393,7 @@ func _layout() -> void:
 	_put(_dialog, _DIALOG_AT, _DIALOG_SIZE)
 	_style(_name, 0.0, _PANEL_Z + 0.3, 1.5, 0.08, HORIZONTAL_ALIGNMENT_CENTER)
 	_style(_quest_title, 0.0, _PANEL_Z + 0.2, 1.2, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
-	_style(_quest_line, -0.1, _PANEL_Z - 0.15, 1.5, 0.22, HORIZONTAL_ALIGNMENT_LEFT)
+	_place_quest_line()
 	for track in ToonLoadout.TRACK_COUNT:
 		var row_z := _FRAME_Z - _ROW * float(track)
 		_put(_frames[track], Vector2(_BAR_AT.x, row_z), _BAR_SIZE)
@@ -416,13 +424,21 @@ func _shown(track: int) -> int:
 	return int(_before.get(track, _loadout.experience_of(track)))
 
 
+func _place_quest_line() -> void:
+	var text_scale := 0.22
+	var px := maxi(int(round(text_scale * size.y * 0.5)), 1)
+	_quest_line.add_theme_font_override("normal_font", ToonGui.font())
+	_quest_line.add_theme_font_size_override("normal_font_size", px)
+	_quest_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ToonGui.place(_quest_line, size, -0.1, _PANEL_Z - 0.15 + text_scale * 0.35, 1.5, text_scale * 1.45)
+
+
 func _style(label: Label, x: float, baseline: float, width: float, text_scale: float, align: HorizontalAlignment) -> void:
 	var px := maxi(int(round(text_scale * size.y * 0.5)), 1)
-	var color := _DONE if label == _quest_line else _INK
 	if label == _skip_caption:
 		ToonGui.style_label(label, Color(1, 1, 1), px, _INK, maxi(int(round(float(px) * 0.16)), 1))
 	else:
-		ToonGui.style_label(label, color, px, Color(0, 0, 0, 0), 0)
+		ToonGui.style_label(label, _INK, px, Color(0, 0, 0, 0), 0)
 	label.horizontal_alignment = align
 	ToonGui.place(label, size, x, baseline + text_scale * 0.35, width, text_scale * 1.45)
 

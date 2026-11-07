@@ -1075,7 +1075,28 @@ func _fill_tasks() -> void:
 			var poster := QuestPoster.new()
 			sheet.add_child(poster)
 			poster.show_task(task)
+			poster.allow_track()
+			poster.track_pressed.connect(_pick_task)
+			poster.show_tracked(int(task.get("id", 0)) == _tracked_id(cards))
 	_layout_tasks(sheet.size)
+
+
+func _tracked_id(cards: Array[Dictionary]) -> int:
+	if _tasks == null or cards.is_empty():
+		return 0
+	var chosen := _tasks.tracked()
+	if chosen != 0:
+		for card in cards:
+			if int(card.get("id", 0)) == chosen:
+				return chosen
+	return int(cards[0].get("id", 0))
+
+
+func _pick_task(quest_id: int) -> void:
+	if _tasks == null:
+		return
+	_tasks.track(quest_id)
+	call_deferred("_fill_tasks")
 
 
 func _back_to_hood() -> void:
