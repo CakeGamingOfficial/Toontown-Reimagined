@@ -52,6 +52,17 @@ static func complete_pages(quest_id: int, av: String, npc: String, building: Str
 	return pages
 
 
+## QuestsDefaultGreeting. An NPC with nothing to hand over picks one of these.
+static func idle_greeting(av: String) -> String:
+	_load()
+	var pool: Variant = _defaults.get("greeting", [])
+	if pool is Array and not (pool as Array).is_empty():
+		var pages := _choice(pool, av, "", "", "", "")
+		if not pages.is_empty():
+			return pages[0]
+	return "Hello, %s!" % av
+
+
 static func _load() -> void:
 	if _loaded:
 		return

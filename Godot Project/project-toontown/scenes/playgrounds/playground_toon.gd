@@ -28,6 +28,7 @@ const _MAILBOX := preload("res://scenes/estate/mailbox.gd")
 const _SURFACES := preload("res://scenes/interiors/house_surfaces.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
+const _QUEST_DIALOG := preload("res://scenes/quests/quest_dialog.gd")
 const _TASK_TRACKER := preload("res://scenes/quests/task_tracker.gd")
 const _TRACK_CHOICE := preload("res://scenes/quests/track_choice.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
@@ -1854,6 +1855,8 @@ func _try_officer() -> void:
 	if card.is_empty() and offers.is_empty() and choosing == 0:
 		pending = _tasks.pending_hq()
 		if pending == 0:
+			_officer_ready = false
+			_greet_idle(_clerk_actor(officer))
 			return
 	_officer_ready = false
 	_locked = true
@@ -1965,6 +1968,9 @@ func _try_quest_npc() -> void:
 		if shop_offers.is_empty():
 			if npc_id == 2004 or npc_id == 1007 or npc_id == 3008 or npc_id == 4008 or npc_id == 5007 or npc_id == 9010:
 				await _meet_tailor(npc)
+			else:
+				_npc_ready = false
+				_greet_idle(_clerk_actor(npc))
 			return
 	_npc_ready = false
 	_locked = true
@@ -2023,6 +2029,20 @@ func _try_quest_npc() -> void:
 		await _speak_assign(actor, given)
 	_locked = false
 	return
+
+
+func _greet_idle(actor: Node3D) -> void:
+	if actor == null:
+		return
+	_say_clerk(actor, _QUEST_DIALOG.idle_greeting(_toon_called()), 5.0)
+
+
+func _toon_called() -> String:
+	var style := ToonRoster.selected_style()
+	if style == null:
+		return "Toon"
+	var called := style.display_name()
+	return called if not called.is_empty() else "Toon"
 
 
 func _meet_tailor(clerk: Node3D) -> void:
