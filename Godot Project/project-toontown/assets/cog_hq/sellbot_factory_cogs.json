@@ -12,7 +12,8 @@
       "path": 20078,
       "level": 3,
       "skeleton": 0,
-      "cell": 0
+      "cell": 0,
+      "boss": 0
     },
     {
       "parent": 10014,
@@ -26,7 +27,8 @@
       "path": 20009,
       "level": 5,
       "skeleton": 0,
-      "cell": 0
+      "cell": 0,
+      "boss": 0
     },
     {
       "parent": 10014,
@@ -40,7 +42,8 @@
       "path": 20079,
       "level": 3,
       "skeleton": 0,
-      "cell": 0
+      "cell": 0,
+      "boss": 0
     },
     {
       "parent": 10030,
@@ -54,7 +57,8 @@
       "path": 20076,
       "level": 3,
       "skeleton": 0,
-      "cell": 1
+      "cell": 1,
+      "boss": 0
     },
     {
       "parent": 10030,
@@ -68,7 +72,8 @@
       "path": 20077,
       "level": 5,
       "skeleton": 0,
-      "cell": 1
+      "cell": 1,
+      "boss": 0
     },
     {
       "parent": 10030,
@@ -82,7 +87,8 @@
       "path": 0,
       "level": 6,
       "skeleton": 0,
-      "cell": 1
+      "cell": 1,
+      "boss": 0
     },
     {
       "parent": 10034,
@@ -96,7 +102,8 @@
       "path": 60133,
       "level": 4,
       "skeleton": 0,
-      "cell": 4
+      "cell": 4,
+      "boss": 0
     },
     {
       "parent": 10034,
@@ -110,7 +117,8 @@
       "path": 60134,
       "level": 5,
       "skeleton": 0,
-      "cell": 4
+      "cell": 4,
+      "boss": 0
     },
     {
       "parent": 10034,
@@ -124,7 +132,8 @@
       "path": 60135,
       "level": 5,
       "skeleton": 0,
-      "cell": 4
+      "cell": 4,
+      "boss": 0
     },
     {
       "parent": 10037,
@@ -138,7 +147,8 @@
       "path": 20039,
       "level": 5,
       "skeleton": 1,
-      "cell": 5
+      "cell": 5,
+      "boss": 0
     },
     {
       "parent": 10037,
@@ -152,7 +162,8 @@
       "path": 20049,
       "level": 6,
       "skeleton": 1,
-      "cell": 5
+      "cell": 5,
+      "boss": 0
     },
     {
       "parent": 10037,
@@ -166,7 +177,8 @@
       "path": 20075,
       "level": 5,
       "skeleton": 1,
-      "cell": 5
+      "cell": 5,
+      "boss": 0
     },
     {
       "parent": 20095,
@@ -180,7 +192,8 @@
       "path": 20103,
       "level": 6,
       "skeleton": 0,
-      "cell": 7
+      "cell": 7,
+      "boss": 0
     },
     {
       "parent": 20095,
@@ -194,7 +207,8 @@
       "path": 0,
       "level": 9,
       "skeleton": 1,
-      "cell": 7
+      "cell": 7,
+      "boss": 1
     },
     {
       "parent": 20095,
@@ -208,7 +222,8 @@
       "path": 20104,
       "level": 6,
       "skeleton": 0,
-      "cell": 7
+      "cell": 7,
+      "boss": 0
     },
     {
       "parent": 20095,
@@ -222,7 +237,8 @@
       "path": 20105,
       "level": 6,
       "skeleton": 0,
-      "cell": 7
+      "cell": 7,
+      "boss": 0
     },
     {
       "parent": 20094,
@@ -236,7 +252,8 @@
       "path": 20097,
       "level": 6,
       "skeleton": 0,
-      "cell": 9
+      "cell": 9,
+      "boss": 0
     },
     {
       "parent": 20094,
@@ -250,7 +267,8 @@
       "path": 20098,
       "level": 6,
       "skeleton": 0,
-      "cell": 9
+      "cell": 9,
+      "boss": 0
     },
     {
       "parent": 20094,
@@ -264,7 +282,8 @@
       "path": 20099,
       "level": 7,
       "skeleton": 0,
-      "cell": 9
+      "cell": 9,
+      "boss": 0
     },
     {
       "parent": 20096,
@@ -278,7 +297,8 @@
       "path": 20100,
       "level": 6,
       "skeleton": 0,
-      "cell": 10
+      "cell": 10,
+      "boss": 0
     },
     {
       "parent": 20096,
@@ -292,7 +312,8 @@
       "path": 20101,
       "level": 6,
       "skeleton": 0,
-      "cell": 10
+      "cell": 10,
+      "boss": 0
     },
     {
       "parent": 20096,
@@ -306,7 +327,8 @@
       "path": 20102,
       "level": 7,
       "skeleton": 0,
-      "cell": 10
+      "cell": 10,
+      "boss": 0
     },
     {
       "parent": 10023,
@@ -320,7 +342,8 @@
       "path": 20109,
       "level": 5,
       "skeleton": 1,
-      "cell": 2
+      "cell": 2,
+      "boss": 0
     },
     {
       "parent": 10023,
@@ -334,7 +357,8 @@
       "path": 20110,
       "level": 4,
       "skeleton": 1,
-      "cell": 2
+      "cell": 2,
+      "boss": 0
     },
     {
       "parent": 10023,
@@ -348,7 +372,8 @@
       "path": 20111,
       "level": 4,
       "skeleton": 1,
-      "cell": 2
+      "cell": 2,
+      "boss": 0
     },
     {
       "parent": 10032,
@@ -362,7 +387,8 @@
       "path": 20106,
       "level": 4,
       "skeleton": 1,
-      "cell": 3
+      "cell": 3,
+      "boss": 0
     },
     {
       "parent": 10032,
@@ -376,7 +402,8 @@
       "path": 20107,
       "level": 5,
       "skeleton": 1,
-      "cell": 3
+      "cell": 3,
+      "boss": 0
     },
     {
       "parent": 10032,
@@ -390,7 +417,8 @@
       "path": 20108,
       "level": 4,
       "skeleton": 1,
-      "cell": 3
+      "cell": 3,
+      "boss": 0
     },
     {
       "parent": 10036,
@@ -404,7 +432,8 @@
       "path": 20038,
       "level": 3,
       "skeleton": 0,
-      "cell": 6
+      "cell": 6,
+      "boss": 0
     },
     {
       "parent": 10036,
@@ -418,7 +447,8 @@
       "path": 20067,
       "level": 5,
       "skeleton": 0,
-      "cell": 6
+      "cell": 6,
+      "boss": 0
     },
     {
       "parent": 10036,
@@ -432,7 +462,8 @@
       "path": 20068,
       "level": 4,
       "skeleton": 0,
-      "cell": 6
+      "cell": 6,
+      "boss": 0
     },
     {
       "parent": 20058,
@@ -446,7 +477,8 @@
       "path": 0,
       "level": 4,
       "skeleton": 0,
-      "cell": 8
+      "cell": 8,
+      "boss": 0
     },
     {
       "parent": 20058,
@@ -460,7 +492,8 @@
       "path": 0,
       "level": 5,
       "skeleton": 0,
-      "cell": 8
+      "cell": 8,
+      "boss": 0
     },
     {
       "parent": 20058,
@@ -474,7 +507,8 @@
       "path": 0,
       "level": 4,
       "skeleton": 0,
-      "cell": 8
+      "cell": 8,
+      "boss": 0
     },
     {
       "parent": 20058,
@@ -488,7 +522,8 @@
       "path": 0,
       "level": 6,
       "skeleton": 0,
-      "cell": 8
+      "cell": 8,
+      "boss": 0
     }
   ],
   "paths": {

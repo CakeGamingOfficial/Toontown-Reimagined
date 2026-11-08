@@ -6,6 +6,8 @@ extends Node
 ## before choosing. The clock is BBbattleInputTimeout, not a delay before the fight.
 
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
+const _FACTORY := preload("res://scenes/cog_hq/factory_props.gd")
+const _MINT := preload("res://scenes/cog_hq/mint_props.gd")
 const INPUT_TIME := 20.0
 const REWARD_TIME := 120.0
 ## BattleBase.FLOOR_REWARD_TIMEOUT. A cleared floor dances, then the elevator.
@@ -239,7 +241,7 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 
 
 ## A factory battle cell. The cogs are already chosen; they are not street suits.
-func open_group(district: int, slug: String, cogs: Array, peer: int, toon_name: String, hp: int, max_hp: int, origin: Vector3, yaw: float) -> void:
+func open_group(district: int, slug: String, cogs: Array, peer: int, toon_name: String, hp: int, max_hp: int, origin: Vector3, yaw: float, mint_id: int = 0) -> void:
 	if not ToonNet.is_authority() or cogs.is_empty() or peer < 0:
 		return
 	var lead := 0
@@ -269,6 +271,8 @@ func open_group(district: int, slug: String, cogs: Array, peer: int, toon_name: 
 		"origin": [origin.x, origin.y, origin.z],
 		"yaw": yaw,
 	}
+	if mint_id != 0:
+		fight["mint"] = mint_id
 	_next += 1
 	_fights.append(fight)
 	for cog in cogs:
@@ -458,7 +462,19 @@ func _earned_for(fight: Dictionary, peer: int) -> Array:
 
 func _credit_mult(fight: Dictionary) -> float:
 	var building := int(fight.get("building", 0)) != 0
-	return _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
+	var mult := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
+	# ToontownBattleGlobals.getFactoryCreditMultiplier. Factory gag credit is doubled.
+	if String(fight.get("slug", "")) == "sellbot_factory":
+		mult *= 2.0
+	# ToontownBattleGlobals.getMintCreditMultiplier.
+	var minted := int(fight.get("mint", 0))
+	if minted == 12600:
+		mult *= 2.5
+	elif minted == 12700:
+		mult *= 3.0
+	elif minted == 12500:
+		mult *= 2.0
+	return mult
 
 
 func _grant(fight: Dictionary, peer: int, track: int, level: int) -> void:
@@ -1001,9 +1017,20 @@ func _finish_movie(fight: Dictionary) -> void:
 	fight["hurt"] = 0.0 if total_max <= 0 else 100.0 - float(total_hp) / float(total_max) * 100.0
 	var kept: Array = []
 	var traffic := get_parent()
+	var factory := String(fight.get("slug", "")) == "sellbot_factory"
+	var mint := String(fight.get("slug", "")) == "cashbot_mint"
+	var boss_down := bool(fight.get("boss_down", false))
 	for item in cogs:
 		var cog: Dictionary = item
 		if int(cog.get("hp", 0)) <= 0:
+			if factory:
+				_FACTORY.remember(int(cog.get("level", 1)))
+				if bool(cog.get("boss", false)):
+					boss_down = true
+			if mint:
+				_MINT.remember(int(cog.get("level", 1)))
+				if bool(cog.get("boss", false)):
+					boss_down = true
 			if int(fight.get("building", 0)) == 0:
 				_HOLIDAYS.note_cog(int(fight.get("district", 0)), String(cog.get("code", "")), bool(cog.get("skeleton", false)))
 			if traffic != null and traffic.has_method("dismiss_cog"):
@@ -1013,6 +1040,7 @@ func _finish_movie(fight: Dictionary) -> void:
 		if traffic != null and traffic.has_method("park_cog"):
 			traffic.call("park_cog", int(fight.get("district", 0)), String(fight.get("slug", "")), int(cog.get("id", 0)), cog.get("slot", []))
 	fight["cogs"] = kept
+	fight["boss_down"] = boss_down
 	var toons: Array = []
 	for member in fight["toons"]:
 		var toon: Dictionary = member
@@ -1023,6 +1051,10 @@ func _finish_movie(fight: Dictionary) -> void:
 			toons.append(toon)
 		_persist_one(toon)
 	fight["toons"] = toons
+	if factory and boss_down and kept.is_empty() and not toons.is_empty():
+		fight["factory_won"] = true
+	if mint and boss_down and kept.is_empty() and not toons.is_empty():
+		fight["mint_won"] = true
 	_place(fight)
 	var building := int(fight.get("building", 0))
 	if toons.is_empty():
@@ -1357,6 +1389,7 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 		"trap": {},
 		"dept": String(cog.get("dept", "c")),
 		"skeleton": bool(cog.get("skeleton", false)),
+		"boss": bool(cog.get("boss", false)),
 		"revives": int(cog.get("revives", 0)),
 		"body": String(cog.get("body", "c")),
 		"height": float(cog.get("height", 4.0)),

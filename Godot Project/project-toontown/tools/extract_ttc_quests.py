@@ -1,7 +1,7 @@
 """Build scenes/quests/ttc_quests.json from the original QuestDict.
 
-Covers TT_TIER + 2 and TT_TIER + 3: the Central reward track and the
-final gag-training chain. Donald's Dock and later playgrounds stay out.
+Covers the Toontown Central reward track, then Donald's Dock, Daisy
+Gardens, and Minnie's Melodyland. Later playgrounds stay out.
 """
 
 import ast
@@ -34,6 +34,7 @@ HOODS = {
     4000: ("in", "Minnie's Melodyland"),
     3000: ("in", "The Brrrgh"),
     9000: ("in", "Donald's Dreamland"),
+    11000: ("in", "Sellbot HQ"),
 }
 
 TRACKS = {
@@ -165,6 +166,10 @@ def load_shops():
 
 def subst_quest(body):
     reps = [
+        ("MM_TIER + 2", "10"),
+        ("MM_TIER + 1", "9"),
+        ("MM_TIER", "8"),
+        ("DG_TIER", "7"),
         ("DD_TIER + 2", "6"),
         ("DD_TIER + 1", "5"),
         ("DD_TIER", "4"),
@@ -180,6 +185,8 @@ def subst_quest(body):
         ("ToontownGlobals.ToontownCentral", "2000"),
         ("ToontownGlobals.DonaldsDock", "1000"),
         ("ToontownGlobals.DaisyGardens", "5000"),
+        ("ToontownGlobals.SellbotFactoryInt", "11500"),
+        ("ToontownGlobals.SellbotHQ", "11000"),
         ("ToontownGlobals.MinniesMelodyland", "4000"),
         ("ToontownGlobals.TheBrrrgh", "3000"),
         ("ToontownGlobals.DonaldsDreamland", "9000"),
@@ -207,6 +214,10 @@ def subst_quest(body):
         ("BuildingNewbieQuest", "'BuildingNewbieQuest'"),
         ("BuildingQuest", "'BuildingQuest'"),
         ("TrackChoiceQuest", "'TrackChoiceQuest'"),
+        ("SkelecogLevelQuest", "'SkelecogLevelQuest'"),
+        ("SkelecogQuest", "'SkelecogQuest'"),
+        ("ForemanQuest", "'ForemanQuest'"),
+        ("FactoryQuest", "'FactoryQuest'"),
         ("VisitQuest", "'VisitQuest'"),
         ("CogQuest", "'CogQuest'"),
     ]
@@ -230,7 +241,7 @@ def parse_quests(text):
         try:
             quests[qid] = ast.literal_eval(replaced)
         except Exception as exc:
-            if "DD_TIER" in body or "TT_TIER + 2" in body or "TT_TIER + 3" in body:
+            if "MM_TIER" in body or "DG_TIER" in body or "DD_TIER" in body or "TT_TIER + 2" in body or "TT_TIER + 3" in body:
                 print("skip", qid, exc)
     return quests
 
@@ -463,6 +474,68 @@ def quest_info(qid, kind_name, desc, ns, suits, items, loc_where, loc_phrase, np
         info["speech"] = "I need to choose between %s and %s." % (names[left], names[right])
         info["choice"] = ["Are you ready to choose?"]
         return info
+    if kind_name in ("SkelecogQuest", "SkelecogLevelQuest"):
+        loc, num = args[0], int(args[1])
+        info["kind"] = "skelecog"
+        info["headline"] = ns.get("QuestsCogQuestHeadline", "WANTED")
+        info["goal"] = num
+        info["cog"] = "any"
+        info["hood"] = int(loc) if loc in HOODS else 0
+        info["zone"] = int(loc) if loc not in HOODS and loc != ANYWHERE else 0
+        info["where"] = loc_where(loc)
+        single = ns.get("ASkeleton", "a Skelecog")
+        plural = ns.get("SkeletonP", "Skelecogs")
+        if kind_name == "SkelecogLevelQuest":
+            level = int(args[2])
+            info["level"] = level
+            info["headline"] = ns.get("QuestsCogLevelQuestHeadline", "WANTED")
+            name = "Skelecog" if num == 1 else "Skelecogs"
+            pattern = ns["QuestsCogLevelQuestDesc"] if num == 1 else ns["QuestsCogLevelQuestDescC"]
+            info["caption"] = cap_first(pattern % {"count": num, "level": level, "name": name})
+        elif num == 1:
+            info["caption"] = cap_first(single)
+        else:
+            info["caption"] = ns["QuestsCogQuestDefeatDesc"] % {"numCogs": num, "cogName": plural}
+        loc_bit = (" " + loc_phrase(loc)) if loc_phrase(loc) else ""
+        info["speech"] = "I need to defeat %s%s." % (
+            info["caption"][0].lower() + info["caption"][1:],
+            loc_bit,
+        )
+        return info
+    if kind_name == "ForemanQuest":
+        loc, num = args[0], int(args[1])
+        info["kind"] = "foreman"
+        info["headline"] = ns.get("QuestsCogQuestHeadline", "WANTED")
+        info["goal"] = num
+        info["cog"] = "any"
+        info["hood"] = int(loc) if loc in HOODS else 0
+        info["zone"] = int(loc) if loc not in HOODS and loc != ANYWHERE else 0
+        info["where"] = loc_where(loc)
+        single = ns.get("AForeman", "a Factory Foreman")
+        plural = ns.get("ForemanP", "Factory Foremen")
+        shown = single if num == 1 else "%d %s" % (num, plural)
+        info["caption"] = cap_first(shown)
+        loc_bit = (" " + loc_phrase(loc)) if loc_phrase(loc) else ""
+        info["speech"] = "I need to defeat %s%s." % (shown, loc_bit)
+        return info
+    if kind_name == "FactoryQuest":
+        loc, num = args[0], int(args[1])
+        info["kind"] = "factory"
+        info["headline"] = ns.get("QuestsFactoryQuestHeadline", "DEFEAT")
+        info["goal"] = num
+        info["hood"] = int(loc) if loc in HOODS else 0
+        info["where"] = loc_where(loc)
+        factory_type = ns.get("Cog", "Cog")
+        shown = ns.get("QuestsFactoryQuestDesc", "a %(type)s Factory") % {"type": factory_type}
+        if num != 1:
+            shown = "%d %s Factories" % (num, factory_type)
+        info["caption"] = cap_first(shown)
+        loc_bit = (" " + loc_phrase(loc)) if loc_phrase(loc) else ""
+        info["speech"] = ns.get("QuestsFactoryQuestSCString", "I need to defeat %(objective)s%(location)s.") % {
+            "objective": shown,
+            "location": loc_bit,
+        }
+        return info
     if kind_name == "VisitQuest":
         info["kind"] = "visit"
         info["headline"] = ns.get("QuestsVisitQuestHeadline", "VISIT")
@@ -574,7 +647,8 @@ def main(tiers=(2, 3), out_path=OUT):
             continue
         info["tier"] = int(_tier)
         info["start"] = bool(start == 1)
-        if src == SAME:
+        if src == SAME or src is None:
+            # A blank from-npc never matches, so the original never offers it.
             info["from"] = -1
         elif src == ANY:
             info["from"] = 0
@@ -634,7 +708,7 @@ def main(tiers=(2, 3), out_path=OUT):
         info["lines"] = lines
         info["busy"] = busy
         info["after"] = after
-        info["show_count"] = int(info.get("goal", 1)) > 1 and info["kind"] in ("cog", "recover", "gag")
+        info["show_count"] = int(info.get("goal", 1)) > 1 and info["kind"] in ("cog", "recover", "gag", "skelecog", "foreman")
         out_quests[str(qid)] = info
         if info["start"] and info["final"] not in (0,):
             key = "any" if info["final"] == "any" else str(info["final"])
@@ -655,5 +729,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "dd":
         dock = os.path.join(os.path.dirname(__file__), "..", "scenes", "quests", "dd_quests.json")
         main((4, 5, 6), dock)
+    elif len(sys.argv) > 1 and sys.argv[1] == "dg":
+        garden = os.path.join(os.path.dirname(__file__), "..", "scenes", "quests", "dg_quests.json")
+        main((7,), garden)
+    elif len(sys.argv) > 1 and sys.argv[1] == "mm":
+        melody = os.path.join(os.path.dirname(__file__), "..", "scenes", "quests", "mm_quests.json")
+        main((8, 9, 10), melody)
     else:
         main()

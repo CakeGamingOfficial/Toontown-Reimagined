@@ -1052,6 +1052,22 @@ func _ask_factory(district: int, cog_id: int, where: Vector3, yaw: float, toon_n
 		_request_factory.rpc_id(1, district, cog_id, where.x, where.y, where.z, yaw, toon_name, hp, max_hp)
 
 
+func _ask_mint(district: int, cog_id: int, where: Vector3, yaw: float, toon_name: String, hp: int, max_hp: int) -> void:
+	if is_authority():
+		_open_mint(district, cog_id, where, yaw, peer_id(), toon_name, hp, max_hp)
+		return
+	if _role == "client":
+		_request_mint.rpc_id(1, district, cog_id, where.x, where.y, where.z, yaw, toon_name, hp, max_hp)
+
+
+func _ask_mint_roster(district: int, mint: int, floor_num: int, ride: int) -> void:
+	if is_authority():
+		_open_mint_roster(district, peer_id(), mint, floor_num, ride)
+		return
+	if _role == "client":
+		_request_mint_roster.rpc_id(1, district, mint, floor_num, ride)
+
+
 func _ask_factory_switch(kind: int, ent_id: int, on: bool) -> void:
 	if _role == "client":
 		_request_factory_switch.rpc_id(1, kind, ent_id, on)
@@ -1069,6 +1085,18 @@ func _open_factory(district: int, cog_id: int, where: Vector3, yaw: float, peer:
 	var board := get_node_or_null("/root/StreetTraffic/FactoryBoard")
 	if board != null and board.has_method("engage"):
 		board.call("engage", district, cog_id, where, yaw, peer, toon_name, hp, max_hp)
+
+
+func _open_mint(district: int, cog_id: int, where: Vector3, yaw: float, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
+	var board := get_node_or_null("/root/StreetTraffic/MintBoard")
+	if board != null and board.has_method("engage"):
+		board.call("engage", district, peer, cog_id, where, yaw, peer, toon_name, hp, max_hp)
+
+
+func _open_mint_roster(district: int, owner: int, mint: int, floor_num: int, ride: int) -> void:
+	var board := get_node_or_null("/root/StreetTraffic/MintBoard")
+	if board != null and board.has_method("ensure"):
+		board.call("ensure", district, owner, mint, floor_num, ride)
 
 
 func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
@@ -1532,6 +1560,20 @@ static func ask_factory(district: int, cog_id: int, where: Vector3, yaw: float, 
 	if net == null:
 		return
 	net._ask_factory(district, cog_id, where, yaw, toon_name, hp, max_hp)
+
+
+static func ask_mint(district: int, cog_id: int, where: Vector3, yaw: float, toon_name: String, hp: int, max_hp: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_mint(district, cog_id, where, yaw, toon_name, hp, max_hp)
+
+
+static func request_mint(district: int, mint: int, floor_num: int, ride: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._ask_mint_roster(district, mint, floor_num, ride)
 
 
 static func ask_factory_switch(kind: int, ent_id: int, on: bool) -> void:
@@ -2281,6 +2323,26 @@ func _request_factory(district: int, cog_id: int, x: float, y: float, z: float, 
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_open_factory(district, cog_id, Vector3(x, y, z), yaw, sender, toon_name, hp, max_hp)
+
+
+@rpc("any_peer", "reliable")
+func _request_mint(district: int, cog_id: int, x: float, y: float, z: float, yaw: float, toon_name: String, hp: int, max_hp: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_open_mint(district, cog_id, Vector3(x, y, z), yaw, sender, toon_name, hp, max_hp)
+
+
+@rpc("any_peer", "reliable")
+func _request_mint_roster(district: int, mint: int, floor_num: int, ride: int) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	_open_mint_roster(district, sender, mint, floor_num, ride)
 
 
 @rpc("any_peer", "reliable")

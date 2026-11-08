@@ -17,6 +17,9 @@ const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
+const _FACTORY := preload("res://scenes/cog_hq/factory_props.gd")
+const _MINT := preload("res://scenes/cog_hq/mint_props.gd")
+const _MINT_RIDE := preload("res://scenes/cog_hq/mint_elevator.gd")
 ## Toon.getDiedInterval: lose, ENC_Lose at 2s, then a 1.5s shrink starting at 5.333.
 const _LOSE_SHRINK := 5.333
 const _LOSE_END := 6.833
@@ -52,6 +55,8 @@ var _saved_fov := -1.0
 var _reward_seq := -1
 var _reward_token := 0
 var _paid_key := ""
+var _factory_key := ""
+var _mint_key := ""
 var _dance := 0.0
 var _win: AudioStreamPlayer
 var _dying := false
@@ -301,6 +306,11 @@ func _touch_cog(cog: Node, hp: Vector2i) -> void:
 		var here := _point()
 		ToonNet.ask_factory(_street_district(), cog_id, body.global_position, _yaw(here, body.global_position), toon_name, hp.x, hp.y)
 		return
+	if _street_slug() == "cashbot_mint" and cog is Node3D:
+		var mint_body := cog as Node3D
+		var mint_here := _point()
+		ToonNet.ask_mint(_street_district(), cog_id, mint_body.global_position, _yaw(mint_here, mint_body.global_position), toon_name, hp.x, hp.y)
+		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), cog_id, toon_name, hp.x, hp.y)
 
 
@@ -312,6 +322,8 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 	var here := _point()
 	if absf(origin.y - here.y) > 8.0:
 		return
+	if _on_sidewalk(here, origin.y):
+		return
 	if Vector2(origin.x - here.x, origin.z - here.z).length() > JOIN_REACH:
 		return
 	var toon := _toon()
@@ -321,6 +333,9 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 	_ask_wait = 1.2
 	if _street_slug() == "sellbot_factory":
 		ToonNet.ask_factory(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
+		return
+	if _street_slug() == "cashbot_mint":
+		ToonNet.ask_mint(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
 		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), _first_cog(fight), str(toon.call("battle_name")), hp.x, hp.y)
 
@@ -718,15 +733,17 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 	var code := ""
 	var dept := ""
 	var level := -1
+	var skeleton := false
 	for item in fight.get("cogs", []):
 		if item is Dictionary and int((item as Dictionary).get("id", 0)) == cog_id:
 			code = String((item as Dictionary).get("code", ""))
 			dept = String((item as Dictionary).get("dept", ""))
 			level = int((item as Dictionary).get("level", -1))
+			skeleton = bool((item as Dictionary).get("skeleton", false))
 			break
 	var tasks := ToonTasks.for_selected()
 	if tasks != null:
-		tasks.note_cog_defeat(code, _battle_hood(), dept, level)
+		tasks.note_cog_defeat(code, _battle_hood(), dept, level, skeleton)
 
 
 ## DistributedToon.died starts Toon.getDiedInterval at the hit. Every client
@@ -794,6 +811,24 @@ func _grant_sad_skill(beat: Dictionary) -> void:
 	for track in mini(skill.size(), ToonLoadout.TRACK_COUNT):
 		loadout.add_experience(track, int(skill[track]))
 	sad_fight = fight_id
+
+
+func _ride_factory() -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var ride := scene.get_node_or_null("FactoryElevators")
+	if ride != null and ride.has_method("win_leave"):
+		ride.call("win_leave")
+
+
+func _ride_mint() -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var ride := scene.get_node_or_null("MintElevators")
+	if ride != null and ride.has_method("win_leave"):
+		ride.call("win_leave")
 
 
 func _leave_sad() -> void:
@@ -1172,8 +1207,37 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 	var recovered := ""
 	var quests: Array = []
 	var tasks := ToonTasks.for_selected()
+	var leaving := false
+	if bool(fight.get("factory_won", false)):
+		var win_key := "factory:%s" % fight.get("id", 0)
+		if _factory_key != win_key:
+			_factory_key = win_key
+			leaving = true
+			var part_line := DisguisePage.grant_factory(_FACTORY.collect())
+			if tasks != null:
+				tasks.note_factory(11000)
+				tasks.note_foreman(11000)
+			recovered = part_line
+	if String(fight.get("slug", "")) == "cashbot_mint":
+		var mint_key := "mint:%s" % fight.get("id", 0)
+		if _mint_key != mint_key:
+			_mint_key = mint_key
+			var supervisor := bool(fight.get("mint_won", false))
+			if supervisor:
+				leaving = true
+			var which := int(fight.get("mint", 0))
+			if which == 0:
+				which = _MINT_RIDE.mint_id
+			var buck_line := DisguisePage.grant_mint(_MINT.collect(), which, supervisor)
+			if supervisor and tasks != null:
+				tasks.note_mint(which)
+				tasks.note_supervisor(which)
+			if buck_line != "":
+				recovered = buck_line if recovered == "" else "%s\n%s" % [recovered, buck_line]
 	if tasks != null:
-		recovered = tasks.take_battle_notes()
+		var notes := tasks.take_battle_notes()
+		if notes != "":
+			recovered = notes if recovered == "" else "%s\n%s" % [recovered, notes]
 		quests = tasks.take_quest_gains()
 	for item in rows:
 		if token != _reward_token or not is_inside_tree():
@@ -1201,6 +1265,10 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 	if token != _reward_token or not is_inside_tree():
 		return
 	ToonNet.finish_reward(int(fight.get("id", 0)))
+	if leaving and bool(fight.get("mint_won", false)):
+		_ride_mint()
+	elif leaving:
+		_ride_factory()
 
 
 func _apply_my_reward(fight: Dictionary) -> void:
@@ -1449,6 +1517,8 @@ func _nearest_cog(reach: float) -> Node:
 		# must not start a fight with a suit on the sidewalk below.
 		if absf(cog.global_position.y - here.y) > 8.0:
 			continue
+		if _on_sidewalk(here, cog.global_position.y):
+			continue
 		var dist := Vector2(cog.global_position.x - here.x, cog.global_position.z - here.z).length()
 		if dist <= best_dist:
 			best = child
@@ -1661,6 +1731,14 @@ func _vec(value: Variant) -> Vector3:
 	return Vector3.ZERO
 
 
+## Street curbs rise 0.5. Suit points sit on the road. Feet on the sidewalk
+## are that step higher, and a fight does not start from there.
+func _on_sidewalk(here: Vector3, street_y: float) -> bool:
+	if _street_slug() == "sellbot_factory" or _street_slug() == "cashbot_mint":
+		return false
+	return here.y > street_y + 0.35
+
+
 func _point() -> Vector3:
 	var toon := _toon()
 	if toon == null:
@@ -1672,6 +1750,11 @@ func _battle_hood() -> int:
 	var scene := get_parent()
 	if scene == null:
 		return 0
+	if scene.scene_file_path.get_file() == "cashbot_mint.tscn":
+		var which := int(_fight.get("mint", 0))
+		if which == 0:
+			which = _MINT_RIDE.mint_id
+		return which
 	return _TITLES.zone_of(scene.scene_file_path)
 
 

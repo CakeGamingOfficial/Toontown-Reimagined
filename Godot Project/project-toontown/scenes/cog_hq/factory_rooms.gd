@@ -7,6 +7,7 @@ extends Node3D
 const _VIS := "res://assets/cog_hq/sellbot_factory_zones.json"
 const _ELEVATOR := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _DOORS := preload("res://scenes/cog_hq/factory_doors.gd")
+const _PROPS := preload("res://scenes/cog_hq/factory_props.gd")
 const _BATCH := preload("res://scenes/playgrounds/street_batch.gd")
 const _WALK := 1
 const _SENSE := 2
@@ -41,6 +42,7 @@ func _ready() -> void:
 	var host := get_parent()
 	if host != null:
 		_DOORS.place(host)
+		_PROPS.place(host)
 		_collect(host)
 		_drop_empty(host)
 	_arm_sensors()

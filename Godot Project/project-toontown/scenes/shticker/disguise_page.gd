@@ -437,3 +437,154 @@ func _book_point(book_x: float, book_z: float, page_size: Vector2) -> Vector2:
 
 func _book_span(scale: float, page_size: Vector2) -> Vector2:
 	return _book_point(0.0, 0.0, page_size) - _book_point(0.0, scale * _SCALE, page_size)
+
+
+## CogSuitManagerAI.recoverPart for a full Sellbot suit, then merits.
+## Merits count only once every required part is in. The page's first
+## Sellbot promotion is 20 merits, so the dial stops there.
+const _SELLBOT := 3
+const _PART_GROUPS: PackedInt32Array = [7, 56, 1984, 14336, 114688]
+
+
+static func grant_factory(levels: Array) -> String:
+	var record := _read_disk()
+	var parts := _four(record.get("parts", []))
+	var merits := _four(record.get("merits", []))
+	var lines: PackedStringArray = []
+	var bit := _next_part(parts[_SELLBOT])
+	if bit != 0:
+		parts[_SELLBOT] = parts[_SELLBOT] | bit
+		lines.append("You recovered a Sellbot %s." % _part_label(bit))
+	if _suit_complete(parts[_SELLBOT]):
+		var gained := 0
+		for level in levels:
+			gained += _py_round(float(level) * 0.5) * 4
+		if gained > 0:
+			var before := int(merits[_SELLBOT])
+			merits[_SELLBOT] = mini(before + gained, int(_MERIT[_SELLBOT]))
+			var added := int(merits[_SELLBOT]) - before
+			if added > 0:
+				lines.append("You got %d Sellbot merits." % added)
+	record["parts"] = parts
+	record["merits"] = merits
+	if not record.has("types"):
+		record["types"] = [0, 0, 0, 0]
+	if not record.has("levels"):
+		record["levels"] = [0, 0, 0, 0]
+	_write_disk(record)
+	return "\n".join(lines)
+
+
+## PromotionManagerAI.recoverMerits for a Cashbot mint. No suit part. Cogbucks
+## are paid only when the Cashbot suit is already complete, and the first
+## promotion on this page stops at 40.
+const _CASHBOT := 2
+
+
+static func grant_mint(levels: Array, mint_id: int, supervisor: bool) -> String:
+	var mask := int(_MASKS[_CASHBOT])
+	var record := _read_disk()
+	var parts := _four(record.get("parts", []))
+	if (int(parts[_CASHBOT]) & mask) != mask:
+		return ""
+	var merits := _four(record.get("merits", []))
+	var mult := 2.0
+	var bonus := 8
+	if mint_id == 12600:
+		mult = 2.5
+		bonus = 14
+	elif mint_id == 12700:
+		mult = 3.0
+		bonus = 20
+	var gained := 0
+	for level in levels:
+		var base := _py_round(float(level) * 0.5)
+		gained += _py_round(float(base) * mult)
+	if supervisor:
+		gained += bonus
+	if gained <= 0:
+		return ""
+	var before := int(merits[_CASHBOT])
+	merits[_CASHBOT] = mini(before + gained, int(_MERIT[_CASHBOT]))
+	var added := int(merits[_CASHBOT]) - before
+	if added <= 0:
+		return ""
+	record["merits"] = merits
+	if not record.has("parts"):
+		record["parts"] = parts
+	if not record.has("types"):
+		record["types"] = [0, 0, 0, 0]
+	if not record.has("levels"):
+		record["levels"] = [0, 0, 0, 0]
+	_write_disk(record)
+	return "You got %d Cogbucks." % added
+
+
+static func _next_part(have: int) -> int:
+	var mask := int(_MASKS[_SELLBOT])
+	for group in _PART_GROUPS:
+		var missing := (mask & int(group)) & ~have
+		if missing == 0:
+			continue
+		return missing & -missing
+	return 0
+
+
+static func _suit_complete(have: int) -> bool:
+	var mask := int(_MASKS[_SELLBOT])
+	return (have & mask) == mask
+
+
+static func _part_label(bit: int) -> String:
+	var names: PackedStringArray = [
+		"upper left leg", "lower left leg", "left foot",
+		"upper right leg", "lower right leg", "right foot",
+		"left shoulder", "right shoulder", "chest", "health meter", "pelvis",
+		"upper left arm", "lower left arm", "left hand",
+		"upper right arm", "lower right arm", "right hand",
+	]
+	var flag := 1
+	for label in names:
+		if bit == flag:
+			return label
+		flag = flag << 1
+	return "suit part"
+
+
+static func _py_round(value: float) -> int:
+	var base := int(value)
+	var frac := value - float(base)
+	if frac < 0.0:
+		frac = -frac
+	if frac > 0.5:
+		return base + (1 if value > 0.0 else -1)
+	if frac < 0.5:
+		return base
+	if base % 2 == 0:
+		return base
+	return base + (1 if value > 0.0 else -1)
+
+
+static func _four(raw: Variant) -> Array:
+	var out: Array = [0, 0, 0, 0]
+	if raw is Array:
+		var values: Array = raw
+		for index in mini(4, values.size()):
+			out[index] = int(values[index])
+	return out
+
+
+static func _read_disk() -> Dictionary:
+	if not FileAccess.file_exists(_SAVE):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SAVE))
+	if parsed is Dictionary:
+		return parsed
+	return {}
+
+
+static func _write_disk(record: Dictionary) -> void:
+	var file := FileAccess.open(_SAVE, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify(record))

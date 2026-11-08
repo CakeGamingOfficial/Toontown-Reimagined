@@ -101,9 +101,10 @@ def write_json() -> None:
             "h": round(float(spec.get("h", 0.0)), 3),
             "behavior": str(spec.get("behavior", "walk")),
             "path": int(path_id) if path_id else 0,
-			"level": int(spec.get("level", 1)),
-			"skeleton": int(spec.get("skeleton", 0)),
-			"cell": int(spec.get("battleCell", 0)),
+            "level": int(spec.get("level", 1)),
+            "skeleton": int(spec.get("skeleton", 0)),
+            "boss": int(spec.get("boss", 0)),
+            "cell": int(spec.get("battleCell", 0)),
         })
         if not path_id:
             continue

@@ -1,0 +1,389 @@
+{
+ "stompers": [
+  {
+   "id": 20001,
+   "motion": 3,
+   "period": 4.0,
+   "phase": 0.0,
+   "range": 30.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20002,
+   "motion": 3,
+   "period": 2.0,
+   "phase": 0.0,
+   "range": 10.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20003,
+   "motion": 3,
+   "period": 2.0,
+   "phase": 0.5,
+   "range": 10.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20004,
+   "motion": 3,
+   "period": 3.0001373423482587,
+   "phase": 0.0,
+   "range": 15.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20005,
+   "motion": 3,
+   "period": 1.5,
+   "phase": 0.0,
+   "range": 15.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20006,
+   "motion": 3,
+   "period": 1.5,
+   "phase": 0.5,
+   "range": 15.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20007,
+   "motion": 3,
+   "period": 3.0,
+   "phase": 0.5,
+   "range": 15.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20029,
+   "motion": 5,
+   "period": 2.0,
+   "phase": 0.0,
+   "range": 12.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20030,
+   "motion": 5,
+   "period": 2.0,
+   "phase": 0.0,
+   "range": 12.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20031,
+   "motion": 5,
+   "period": 2.0,
+   "phase": 0.0,
+   "range": 12.0,
+   "damage": 3,
+   "style": "vertical"
+  },
+  {
+   "id": 20032,
+   "motion": 5,
+   "period": 2.0,
+   "phase": 0.0,
+   "range": 12.0,
+   "damage": 3,
+   "style": "vertical"
+  }
+ ],
+ "gears": [
+  {
+   "id": 10006,
+   "deg": 20.0,
+   "phase": 0.0,
+   "orientation": "vertical"
+  },
+  {
+   "id": 10007,
+   "deg": 30.0,
+   "phase": 0.0,
+   "orientation": "vertical"
+  },
+  {
+   "id": 10008,
+   "deg": 40.0,
+   "phase": 0.0,
+   "orientation": "vertical"
+  },
+  {
+   "id": 10009,
+   "deg": 47.0,
+   "phase": 0.0,
+   "orientation": "vertical"
+  }
+ ],
+ "barrels": [
+  {
+   "id": 10003,
+   "kind": "beanBarrel",
+   "grab": 25
+  },
+  {
+   "id": 10011,
+   "kind": "beanBarrel",
+   "grab": 25
+  },
+  {
+   "id": 20017,
+   "kind": "beanBarrel",
+   "grab": 35
+  },
+  {
+   "id": 10021,
+   "kind": "gagBarrel",
+   "grab": 3,
+   "track": 0,
+   "level": 2
+  },
+  {
+   "id": 10024,
+   "kind": "gagBarrel",
+   "grab": 4,
+   "track": 4,
+   "level": 4
+  },
+  {
+   "id": 10025,
+   "kind": "gagBarrel",
+   "grab": 3,
+   "track": 0,
+   "level": 0
+  },
+  {
+   "id": 10026,
+   "kind": "gagBarrel",
+   "grab": 4,
+   "track": 5,
+   "level": 4
+  },
+  {
+   "id": 20020,
+   "kind": "gagBarrel",
+   "grab": 5,
+   "track": 3,
+   "level": 4
+  },
+  {
+   "id": 20021,
+   "kind": "gagBarrel",
+   "grab": 5,
+   "track": 5,
+   "level": 4
+  },
+  {
+   "id": 20085,
+   "kind": "gagBarrel",
+   "grab": 5,
+   "track": 4,
+   "level": 5
+  },
+  {
+   "id": 20093,
+   "kind": "gagBarrel",
+   "grab": 5,
+   "track": 0,
+   "level": 0
+  },
+  {
+   "id": 20011,
+   "kind": "healBarrel",
+   "grab": 10
+  },
+  {
+   "id": 20092,
+   "kind": "healBarrel",
+   "grab": 5
+  }
+ ],
+ "lifts": [
+  {
+   "id": 10041,
+   "duration": 7.0,
+   "wait": 5.0,
+   "start": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "end": [
+    0.0,
+    0.0,
+    165.0
+   ]
+  },
+  {
+   "id": 10048,
+   "duration": 7.0,
+   "wait": 5.0,
+   "start": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "end": [
+    0.0,
+    0.0,
+    165.0
+   ]
+  }
+ ],
+ "belts": [
+  {
+   "id": 10005,
+   "speed": 2.0,
+   "length": 78.81881352704218
+  }
+ ],
+ "crates": [
+  {
+   "id": 20081
+  },
+  {
+   "id": 20091
+  }
+ ],
+ "goons": [
+  {
+   "id": 20013,
+   "speed": 4.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.25,
+   "fov": 70.0
+  },
+  {
+   "id": 20014,
+   "speed": 4.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.25,
+   "fov": 70.0
+  },
+  {
+   "id": 20016,
+   "speed": 4.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.25,
+   "fov": 70.0
+  },
+  {
+   "id": 20041,
+   "speed": 6.0,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 80.0
+  },
+  {
+   "id": 20043,
+   "speed": 5.0,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 80.0
+  },
+  {
+   "id": 20046,
+   "speed": 6.0,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 70.0
+  },
+  {
+   "id": 20047,
+   "speed": 6.0,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 80.0
+  },
+  {
+   "id": 20052,
+   "speed": 4.0,
+   "reach": 12.0,
+   "strength": 3,
+   "scale": 1.5,
+   "fov": 70.0
+  },
+  {
+   "id": 20054,
+   "speed": 5.5,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 80.0
+  },
+  {
+   "id": 20056,
+   "speed": 6.0,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 70.0
+  },
+  {
+   "id": 20060,
+   "speed": 6.5,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 90.0
+  },
+  {
+   "id": 20062,
+   "speed": 7.5,
+   "reach": 15.0,
+   "strength": 10,
+   "scale": 1.5,
+   "fov": 70.0
+  },
+  {
+   "id": 20071,
+   "speed": 6.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.5,
+   "fov": 70.0
+  },
+  {
+   "id": 20072,
+   "speed": 6.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.5,
+   "fov": 80.0
+  },
+  {
+   "id": 20074,
+   "speed": 4.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.25,
+   "fov": 70.0
+  },
+  {
+   "id": 20089,
+   "speed": 4.0,
+   "reach": 15.0,
+   "strength": 7,
+   "scale": 1.5,
+   "fov": 70.0
+  }
+ ]
+}

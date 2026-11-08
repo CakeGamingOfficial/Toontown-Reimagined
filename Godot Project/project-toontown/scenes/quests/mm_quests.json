@@ -1,0 +1,4680 @@
+{
+ "quests": {
+  "902": {
+   "headline": "VISIT",
+   "caption": "Leo",
+   "where": "Leo's Fenders\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Leo.",
+   "show_count": false,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 4303,
+   "reward": 0,
+   "final": 900,
+   "next": 4903,
+   "lines": [
+    "Go see Leo.",
+    "He needs someone to deliver a message for him."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4001": {
+   "headline": "TRAINING",
+   "caption": "Trap or Toon-up",
+   "where": "Toon Headquarters",
+   "kind": "track",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to choose between Trap and Toon-up.",
+   "show_count": false,
+   "tracks": [
+    1,
+    0
+   ],
+   "choice": [
+    "Are you ready to choose?"
+   ],
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 400,
+   "final": 400,
+   "next": 0,
+   "lines": [
+    "Now you get to choose the next gag track you want to learn.",
+    "Take your time deciding, and come back here when you are ready to choose."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ]
+  },
+  "4002": {
+   "headline": "TRAINING",
+   "caption": "Trap or Sound",
+   "where": "Toon Headquarters",
+   "kind": "track",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to choose between Trap and Sound.",
+   "show_count": false,
+   "tracks": [
+    1,
+    3
+   ],
+   "choice": [
+    "Are you ready to choose?"
+   ],
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 400,
+   "final": 400,
+   "next": 0,
+   "lines": [
+    "Now you get to choose the next gag track you want to learn.",
+    "Take your time deciding, and come back here when you are ready to choose."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ]
+  },
+  "4010": {
+   "headline": "WANTED",
+   "caption": "16 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4011": {
+   "headline": "WANTED",
+   "caption": "18 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 18,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4012": {
+   "headline": "WANTED",
+   "caption": "20 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4013": {
+   "headline": "WANTED",
+   "caption": "22 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 22,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4014": {
+   "headline": "WANTED",
+   "caption": "24 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4015": {
+   "headline": "WANTED",
+   "caption": "26 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 26,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4016": {
+   "headline": "WANTED",
+   "caption": "28 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 28,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4017": {
+   "headline": "WANTED",
+   "caption": "30 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 30,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4018": {
+   "headline": "WANTED",
+   "caption": "32 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 32,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4019": {
+   "headline": "WANTED",
+   "caption": "34 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 34,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4020": {
+   "headline": "WANTED",
+   "caption": "20 Level 3+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 3+ Cogs.",
+   "level": 3,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 3+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4021": {
+   "headline": "WANTED",
+   "caption": "25 Level 3+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 25,
+   "speech": "I need to defeat 25 Level 3+ Cogs.",
+   "level": 3,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 25 Level 3+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4022": {
+   "headline": "WANTED",
+   "caption": "16 Level 4+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat 16 Level 4+ Cogs.",
+   "level": 4,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 16 Level 4+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4023": {
+   "headline": "WANTED",
+   "caption": "20 Level 4+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 4+ Cogs.",
+   "level": 4,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 4+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4024": {
+   "headline": "WANTED",
+   "caption": "10 Level 5+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat 10 Level 5+ Cogs.",
+   "level": 5,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 10 Level 5+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4025": {
+   "headline": "WANTED",
+   "caption": "20 Level 5+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 5+ Cogs.",
+   "level": 5,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 5+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4026": {
+   "headline": "WANTED",
+   "caption": "16 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat 16 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 16 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4027": {
+   "headline": "WANTED",
+   "caption": "18 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 18,
+   "speech": "I need to defeat 18 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 18 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4028": {
+   "headline": "WANTED",
+   "caption": "20 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4029": {
+   "headline": "WANTED",
+   "caption": "24 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat 24 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 24 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4030": {
+   "headline": "WANTED",
+   "caption": "45 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 45,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": 1000,
+   "next": 4031,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4031": {
+   "headline": "DELIVER",
+   "caption": "Tailor Harmony",
+   "where": "Clothing Shop\nPlayground",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tailor Harmony.",
+   "tier": 8,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 4008,
+   "reward": 1000,
+   "final": 1000,
+   "next": 0,
+   "lines": [
+    "I need to see Tailor Harmony."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "4040": {
+   "headline": "WANTED",
+   "caption": "6 Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat some Cogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4041": {
+   "headline": "WANTED",
+   "caption": "6 Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat some Cogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4042": {
+   "headline": "WANTED",
+   "caption": "3 Level 4+ Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 Level 4+ Cogs in Sellbot HQ.",
+   "level": 4,
+   "hood": 11000,
+   "zone": 0,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 Level 4+ Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4043": {
+   "headline": "WANTED",
+   "caption": "3 Skelecogs",
+   "where": "In the Sellbot Factory",
+   "kind": "skelecog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 Skelecogs in the Sellbot Factory.",
+   "hood": 0,
+   "zone": 11500,
+   "tier": 8,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 Skelecogs in the Sellbot Factory."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4101": {
+   "headline": "WANTED",
+   "caption": "16 Cogs",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat some Cogs in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4102": {
+   "headline": "WANTED",
+   "caption": "18 Cogs",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 18,
+   "speech": "I need to defeat some Cogs in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4103": {
+   "headline": "WANTED",
+   "caption": "20 Cogs",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat some Cogs in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4104": {
+   "headline": "WANTED",
+   "caption": "24 Cogs",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Cogs in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4105": {
+   "headline": "WANTED",
+   "caption": "28 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 28,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4106": {
+   "headline": "WANTED",
+   "caption": "32 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 32,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4107": {
+   "headline": "WANTED",
+   "caption": "20 Flunkies",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "f",
+   "goal": 20,
+   "speech": "I need to defeat some Flunkies.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Flunkies."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4108": {
+   "headline": "WANTED",
+   "caption": "16 Pencil Pushers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "p",
+   "goal": 16,
+   "speech": "I need to defeat some Pencil Pushers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Pencil Pushers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4109": {
+   "headline": "WANTED",
+   "caption": "16 Yesmen",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "ym",
+   "goal": 16,
+   "speech": "I need to defeat some Yesmen.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Yesmen."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4110": {
+   "headline": "WANTED",
+   "caption": "12 Micromanagers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "mm",
+   "goal": 12,
+   "speech": "I need to defeat some Micromanagers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Micromanagers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4111": {
+   "headline": "WANTED",
+   "caption": "12 Downsizers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "ds",
+   "goal": 12,
+   "speech": "I need to defeat some Downsizers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Downsizers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4112": {
+   "headline": "WANTED",
+   "caption": "12 Head Hunters",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "hh",
+   "goal": 12,
+   "speech": "I need to defeat some Head Hunters.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Head Hunters."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4113": {
+   "headline": "WANTED",
+   "caption": "20 Cold Callers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "cc",
+   "goal": 20,
+   "speech": "I need to defeat some Cold Callers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cold Callers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4114": {
+   "headline": "WANTED",
+   "caption": "16 Telemarketers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tm",
+   "goal": 16,
+   "speech": "I need to defeat some Telemarketers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Telemarketers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4115": {
+   "headline": "WANTED",
+   "caption": "16 Name Droppers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "nd",
+   "goal": 16,
+   "speech": "I need to defeat some Name Droppers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Name Droppers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4116": {
+   "headline": "WANTED",
+   "caption": "12 Glad Handers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "gh",
+   "goal": 12,
+   "speech": "I need to defeat some Glad Handers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Glad Handers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4117": {
+   "headline": "WANTED",
+   "caption": "12 Movers & Shakers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "ms",
+   "goal": 12,
+   "speech": "I need to defeat some Movers & Shakers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": -1,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Movers & Shakers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4118": {
+   "headline": "WANTED",
+   "caption": "12 Two-Faces",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tf",
+   "goal": 12,
+   "speech": "I need to defeat some Two-Faces.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": -1,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Two-Faces."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4119": {
+   "headline": "WANTED",
+   "caption": "20 Short Changes",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "sc",
+   "goal": 20,
+   "speech": "I need to defeat some Short Changes.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Short Changes."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4120": {
+   "headline": "WANTED",
+   "caption": "16 Penny Pinchers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "pp",
+   "goal": 16,
+   "speech": "I need to defeat some Penny Pinchers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Penny Pinchers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4121": {
+   "headline": "WANTED",
+   "caption": "16 Tightwads",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "tw",
+   "goal": 16,
+   "speech": "I need to defeat some Tightwads.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Tightwads."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4122": {
+   "headline": "WANTED",
+   "caption": "12 Bean Counters",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bc",
+   "goal": 12,
+   "speech": "I need to defeat some Bean Counters.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bean Counters."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4123": {
+   "headline": "WANTED",
+   "caption": "12 Number Crunchers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "nc",
+   "goal": 12,
+   "speech": "I need to defeat some Number Crunchers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Number Crunchers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4124": {
+   "headline": "WANTED",
+   "caption": "12 Money Bags",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "mb",
+   "goal": 12,
+   "speech": "I need to defeat some Money Bags.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Money Bags."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4125": {
+   "headline": "WANTED",
+   "caption": "20 Bottom Feeders",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bf",
+   "goal": 20,
+   "speech": "I need to defeat some Bottom Feeders.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bottom Feeders."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4126": {
+   "headline": "WANTED",
+   "caption": "16 Bloodsuckers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "b",
+   "goal": 16,
+   "speech": "I need to defeat some Bloodsuckers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bloodsuckers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4127": {
+   "headline": "WANTED",
+   "caption": "16 Double Talkers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "dt",
+   "goal": 16,
+   "speech": "I need to defeat some Double Talkers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Double Talkers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4128": {
+   "headline": "WANTED",
+   "caption": "12 Ambulance Chasers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "ac",
+   "goal": 12,
+   "speech": "I need to defeat some Ambulance Chasers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Ambulance Chasers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4129": {
+   "headline": "WANTED",
+   "caption": "12 Back Stabbers",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "bs",
+   "goal": 12,
+   "speech": "I need to defeat some Back Stabbers.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Back Stabbers."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4130": {
+   "headline": "WANTED",
+   "caption": "12 Spin Doctors",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "sd",
+   "goal": 12,
+   "speech": "I need to defeat some Spin Doctors.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Spin Doctors."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4131": {
+   "headline": "WANTED",
+   "caption": "20 Level 3+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 3+ Cogs.",
+   "level": 3,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 3+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4132": {
+   "headline": "WANTED",
+   "caption": "25 Level 3+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 25,
+   "speech": "I need to defeat 25 Level 3+ Cogs.",
+   "level": 3,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 25 Level 3+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4133": {
+   "headline": "WANTED",
+   "caption": "16 Level 4+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat 16 Level 4+ Cogs.",
+   "level": 4,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 16 Level 4+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4134": {
+   "headline": "WANTED",
+   "caption": "20 Level 4+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 4+ Cogs.",
+   "level": 4,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 4+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4135": {
+   "headline": "WANTED",
+   "caption": "10 Level 5+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat 10 Level 5+ Cogs.",
+   "level": 5,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 10 Level 5+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4136": {
+   "headline": "WANTED",
+   "caption": "20 Level 5+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 5+ Cogs.",
+   "level": 5,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 5+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4137": {
+   "headline": "WANTED",
+   "caption": "16 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat 16 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 16 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4138": {
+   "headline": "WANTED",
+   "caption": "24 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat 24 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 24 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4139": {
+   "headline": "WANTED",
+   "caption": "15 Cashbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 15,
+   "speech": "I need to defeat some Cashbots in Minnie's Melodyland.",
+   "dept": "m",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cashbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4140": {
+   "headline": "WANTED",
+   "caption": "15 Sellbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 15,
+   "speech": "I need to defeat some Sellbots in Minnie's Melodyland.",
+   "dept": "s",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Sellbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4141": {
+   "headline": "WANTED",
+   "caption": "15 Bossbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 15,
+   "speech": "I need to defeat some Bossbots in Minnie's Melodyland.",
+   "dept": "c",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bossbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4142": {
+   "headline": "WANTED",
+   "caption": "15 Lawbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 15,
+   "speech": "I need to defeat some Lawbots in Minnie's Melodyland.",
+   "dept": "l",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Lawbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4143": {
+   "headline": "WANTED",
+   "caption": "24 Cashbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Cashbots in Minnie's Melodyland.",
+   "dept": "m",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cashbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4144": {
+   "headline": "WANTED",
+   "caption": "24 Sellbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Sellbots in Minnie's Melodyland.",
+   "dept": "s",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Sellbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4145": {
+   "headline": "WANTED",
+   "caption": "24 Bossbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Bossbots in Minnie's Melodyland.",
+   "dept": "c",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bossbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4146": {
+   "headline": "WANTED",
+   "caption": "24 Lawbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Lawbots in Minnie's Melodyland.",
+   "dept": "l",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Lawbots in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4147": {
+   "headline": "WANTED",
+   "caption": "30 Cashbots",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 30,
+   "speech": "I need to defeat some Cashbots.",
+   "dept": "m",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cashbots."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4148": {
+   "headline": "WANTED",
+   "caption": "30 Sellbots",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 30,
+   "speech": "I need to defeat some Sellbots.",
+   "dept": "s",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Sellbots."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4149": {
+   "headline": "WANTED",
+   "caption": "30 Bossbots",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 30,
+   "speech": "I need to defeat some Bossbots.",
+   "dept": "c",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Bossbots."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4150": {
+   "headline": "WANTED",
+   "caption": "30 Lawbots",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 30,
+   "speech": "I need to defeat some Lawbots.",
+   "dept": "l",
+   "hood": 0,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Lawbots."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4151": {
+   "headline": "DEFEAT",
+   "caption": "A three+ story Cog Building",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a three+ story Cog Building.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a three+ story Cog Building."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4152": {
+   "headline": "DEFEAT",
+   "caption": "2 three+ story Cog Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 2,
+   "speech": "I need to defeat 2 three+ story Cog Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 2 three+ story Cog Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4153": {
+   "headline": "DEFEAT",
+   "caption": "3 three+ story Cog Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 three+ story Cog Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 three+ story Cog Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4154": {
+   "headline": "DEFEAT",
+   "caption": "4 three+ story Cog Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to defeat 4 three+ story Cog Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 4 three+ story Cog Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4155": {
+   "headline": "DEFEAT",
+   "caption": "3 three+ story Cashbot Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 three+ story Cashbot Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "m",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 three+ story Cashbot Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4156": {
+   "headline": "DEFEAT",
+   "caption": "3 three+ story Sellbot Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 three+ story Sellbot Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "s",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 three+ story Sellbot Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4157": {
+   "headline": "DEFEAT",
+   "caption": "3 three+ story Bossbot Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 three+ story Bossbot Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "c",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 three+ story Bossbot Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4158": {
+   "headline": "DEFEAT",
+   "caption": "3 three+ story Lawbot Buildings",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 three+ story Lawbot Buildings.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "l",
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 three+ story Lawbot Buildings."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4160": {
+   "headline": "WANTED",
+   "caption": "10 Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat some Cogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4161": {
+   "headline": "WANTED",
+   "caption": "12 Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 12,
+   "speech": "I need to defeat some Cogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4162": {
+   "headline": "WANTED",
+   "caption": "6 Level 4+ Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 6,
+   "speech": "I need to defeat 6 Level 4+ Cogs in Sellbot HQ.",
+   "level": 4,
+   "hood": 11000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 6 Level 4+ Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4163": {
+   "headline": "DEFEAT",
+   "caption": "A Cog Factory",
+   "where": "In Sellbot HQ",
+   "kind": "factory",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Cog Factory in Sellbot HQ.",
+   "hood": 11000,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Cog Factory in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4164": {
+   "headline": "DEFEAT",
+   "caption": "A Cog Factory",
+   "where": "In Sellbot HQ",
+   "kind": "factory",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Cog Factory in Sellbot HQ.",
+   "hood": 11000,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Cog Factory in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4165": {
+   "headline": "WANTED",
+   "caption": "4 Skelecogs",
+   "where": "In the Sellbot Factory",
+   "kind": "skelecog",
+   "cog": "any",
+   "goal": 4,
+   "speech": "I need to defeat 4 Skelecogs in the Sellbot Factory.",
+   "hood": 0,
+   "zone": 11500,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 4 Skelecogs in the Sellbot Factory."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4166": {
+   "headline": "WANTED",
+   "caption": "A Factory Foreman",
+   "where": "In Sellbot HQ",
+   "kind": "foreman",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Factory Foreman in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Factory Foreman in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4200": {
+   "headline": "VISIT",
+   "caption": "Tom",
+   "where": "Tom-Tom's Drums\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tom.",
+   "show_count": false,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 4101,
+   "reward": 0,
+   "final": 203,
+   "next": 4201,
+   "lines": [
+    "I bet Tom could use some help with some research he's doing."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4201": {
+   "headline": "VISIT",
+   "caption": "Tina",
+   "where": "Tina's Concertina Concerts\nBaritone Boulevard",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tina.",
+   "show_count": false,
+   "tier": 9,
+   "start": true,
+   "from": 4101,
+   "same": false,
+   "npc": 4201,
+   "reward": 0,
+   "final": 203,
+   "next": 4202,
+   "lines": [
+    "I'm very concerned about a rash of musical instrument theft.",
+    "I'm conducting a survey among my fellow merchants.",
+    "Perhaps I can find a pattern to help me crack this case.",
+    "Stop by and ask Tina for a concertina inventory."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4202": {
+   "headline": "DELIVER",
+   "caption": "Tom",
+   "where": "Tom-Tom's Drums\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tom.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4101,
+   "reward": 0,
+   "final": 203,
+   "next": 4203,
+   "lines": [
+    "Yes, I talked to Tom this morning.",
+    "I have the inventory right here.",
+    "Bring it right back to him, ok?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4203": {
+   "headline": "VISIT",
+   "caption": "Yuki",
+   "where": "Yuki's Ukeleles\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Yuki.",
+   "show_count": false,
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4301,
+   "reward": 0,
+   "final": 203,
+   "next": 4204,
+   "lines": [
+    "Great! One down...",
+    "Now swing by and get Yuki's."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4204": {
+   "headline": "WANTED",
+   "caption": "10 Cogs",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat some Cogs in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 203,
+   "next": 4205,
+   "lines": [
+    "Oh! The inventory!",
+    "I forgot all about it.",
+    "I bet I can have it done by the time you defeat 10 Cogs.",
+    "Stop in after that and I promise it will be ready."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4205": {
+   "headline": "DELIVER",
+   "caption": "Tom",
+   "where": "Tom-Tom's Drums\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tom.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4101,
+   "reward": 0,
+   "final": 203,
+   "next": 4206,
+   "lines": [
+    "Ah, there you are.",
+    "Thanks for giving me some time.",
+    "Take this to Tom and tell him I said Hello."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4206": {
+   "headline": "VISIT",
+   "caption": "Fifi",
+   "where": "Fifi's Fiddles\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Fifi.",
+   "show_count": false,
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4102,
+   "reward": 0,
+   "final": 203,
+   "next": 4207,
+   "lines": [
+    "Hmmm, very interesting.",
+    "Now we are getting somewhere.",
+    "Ok, the last inventory is Fifi's."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4207": {
+   "headline": "VISIT",
+   "caption": "Cleff",
+   "where": "Notations\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Cleff.",
+   "show_count": false,
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4108,
+   "reward": 0,
+   "final": 203,
+   "next": 4208,
+   "lines": [
+    "Inventory?",
+    "How can I do an inventory if I don't have the form?",
+    "Go see Cleff and see if he has one for me."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4208": {
+   "headline": "DELIVER",
+   "caption": "A Whole Cream Pie",
+   "where": "Anywhere",
+   "kind": "gag",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to deliver a Whole Cream Pie.",
+   "gag_track": 4,
+   "gag_level": 4,
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 203,
+   "next": 4209,
+   "lines": [
+    "Sure I got an inventory form, mon!",
+    "But dey ain't free, you know.",
+    "I'll tell you woht. I trade you for a whole cream pie."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4209": {
+   "headline": "DELIVER",
+   "caption": "Fifi",
+   "where": "Fifi's Fiddles\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Fifi.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4102,
+   "reward": 0,
+   "final": 203,
+   "next": 4210,
+   "lines": [
+    "Mmmm...",
+    "Dem mighty nice!",
+    "Here be your form for Fifi."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4210": {
+   "headline": "DELIVER",
+   "caption": "Tom",
+   "where": "Tom-Tom's Drums\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tom.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4101,
+   "reward": 203,
+   "final": 203,
+   "next": 0,
+   "lines": [
+    "Thank you. That's a big help.",
+    "Let's see...Fiddles: 2",
+    "All done! Off you go!"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "4211": {
+   "headline": "VISIT",
+   "caption": "Dr. Fret",
+   "where": "Dr. Fret's Dentistry\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Dr. Fret.",
+   "show_count": false,
+   "tier": 9,
+   "start": true,
+   "from": 1000,
+   "same": false,
+   "npc": 4103,
+   "reward": 0,
+   "final": 303,
+   "next": 4212,
+   "lines": [
+    "Say, Dr. Fret keeps calling every five minutes. Can you go see what his problem is?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4212": {
+   "headline": "WANTED",
+   "caption": "10 Number Crunchers",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "nc",
+   "goal": 10,
+   "speech": "I need to defeat some Number Crunchers in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 4103,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 303,
+   "next": 4213,
+   "lines": [
+    "Whew! I'm glad Toon HQ finally sent somebody.",
+    "I haven't had a customer in days.",
+    "It's these darned Number Crunchers every where.",
+    "I think they are teaching our residents bad oral hygiene.",
+    "Defeat ten of them and let's see if business picks up."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4213": {
+   "headline": "WANTED",
+   "caption": "20 Cashbots",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat some Cashbots in Minnie's Melodyland.",
+   "dept": "m",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 303,
+   "next": 4214,
+   "lines": [
+    "You know maybe it wasn't the Number Crunchers after all.",
+    "Maybe it's just the Cashbots in general.",
+    "Take out twenty of them and hopefully someone will come in for at least a checkup."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4214": {
+   "headline": "DEFEAT",
+   "caption": "A Cashbot Building",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Cashbot Building.",
+   "floors": 1,
+   "hood": 0,
+   "zone": 0,
+   "track": "m",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 303,
+   "final": 303,
+   "next": 0,
+   "lines": [
+    "I just don't understand it!",
+    "Still not a SINGLE customer.",
+    "Maybe we need to go to the source.",
+    "Try reclaiming a Cashbot Cog building.",
+    "That Should do the trick..."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "4215": {
+   "headline": "VISIT",
+   "caption": "Anna",
+   "where": "Anna's Cruises\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Anna.",
+   "show_count": false,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 4302,
+   "reward": 0,
+   "final": 703,
+   "next": 4216,
+   "lines": [
+    "Anna desperately needs someone to help her.",
+    "Why don't you drop in and see what you can do."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4216": {
+   "headline": "RECOVER",
+   "caption": "Lumber Jack's Ticket",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "gh",
+   "goal": 1,
+   "speech": "I need to recover lumber Jack's Ticket from Glad Handers.",
+   "chance": 20,
+   "hood": 0,
+   "zone": 0,
+   "holder": "gh",
+   "holder_name": "Glad Handers",
+   "tier": 9,
+   "start": true,
+   "from": 4302,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 703,
+   "next": 4217,
+   "lines": [
+    "Thanks for coming so quickly!",
+    "Seems like the Cogs have made off with several of my customers' cruise tickets.",
+    "Yuki said she saw a Glad Hander leaving here with his glad hands full of them.",
+    "See if you can get Lumber Jack's ticket to Alaska back."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4217": {
+   "headline": "DELIVER",
+   "caption": "Lumber Jack",
+   "where": "Timbre! Equipment for the Singing Lumberjack\nBaritone Boulevard",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Lumber Jack.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4203,
+   "reward": 0,
+   "final": 703,
+   "next": 4218,
+   "lines": [
+    "Oh, great. You found it!",
+    "Now be a trooper and run in by Jack's for me, would you?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4218": {
+   "headline": "VISIT",
+   "caption": "Anna",
+   "where": "Anna's Cruises\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Anna.",
+   "show_count": false,
+   "tier": 9,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 4302,
+   "reward": 0,
+   "final": 703,
+   "next": 4219,
+   "lines": [
+    "Great Googely Moogely!",
+    "Alaska here I come!",
+    "I can't take these infernal Cogs anymore.",
+    "Say, I think Anna needs you again."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4219": {
+   "headline": "RECOVER",
+   "caption": "Tabitha's Ticket",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "gh",
+   "goal": 1,
+   "speech": "I need to recover tabitha's Ticket from Glad Handers.",
+   "chance": 20,
+   "hood": 0,
+   "zone": 0,
+   "holder": "gh",
+   "holder_name": "Glad Handers",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 703,
+   "next": 4220,
+   "lines": [
+    "Yup, you guessed it.",
+    "I need you to shake down those pesky Glad Handers for Tabitha's ticket to Jazzfest.",
+    "You know the procedure..."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4220": {
+   "headline": "DELIVER",
+   "caption": "Tabitha",
+   "where": "Ursatz for Kool Katz\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tabitha.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4308,
+   "reward": 0,
+   "final": 703,
+   "next": 4221,
+   "lines": [
+    "Sweet!",
+    "Could you swing this one by his place for me too?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4221": {
+   "headline": "VISIT",
+   "caption": "Anna",
+   "where": "Anna's Cruises\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Anna.",
+   "show_count": false,
+   "tier": 9,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 4302,
+   "reward": 0,
+   "final": 703,
+   "next": 4222,
+   "lines": [
+    "Cool, daddio!",
+    "Now I'm in fat city, friend.",
+    "Before you split, you better go check out Anna Banana again..."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4222": {
+   "headline": "RECOVER",
+   "caption": "Barry's Ticket",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "gh",
+   "goal": 1,
+   "speech": "I need to recover barry's Ticket from Glad Handers.",
+   "chance": 20,
+   "hood": 0,
+   "zone": 0,
+   "holder": "gh",
+   "holder_name": "Glad Handers",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 703,
+   "next": 4223,
+   "lines": [
+    "This is the last one, I promise!",
+    "Now you are looking for Barry's ticket to the big singing contest."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4223": {
+   "headline": "DELIVER",
+   "caption": "Barry",
+   "where": "The Baritone Barber\nBaritone Boulevard",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Barry.",
+   "tier": 9,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4202,
+   "reward": 0,
+   "final": 703,
+   "next": 4224,
+   "lines": [
+    "This should put a smile on Barry's face."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4224": {
+   "headline": "VISIT",
+   "caption": "Anna",
+   "where": "Anna's Cruises\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Anna.",
+   "show_count": false,
+   "tier": 9,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 4302,
+   "reward": 703,
+   "final": 703,
+   "next": 0,
+   "lines": [
+    "Hello, Hello, HELLO!",
+    "Terrific!",
+    "I just know me and the boys are going to clean up this year.",
+    "Anna says to swing back by and get your reward.",
+    "Goodbye, Goodbye, GOODBYE!"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ]
+  },
+  "4500": {
+   "headline": "WANTED",
+   "caption": "40 Cogs",
+   "where": "In Minnie's Melodyland",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 40,
+   "speech": "I need to defeat some Cogs in Minnie's Melodyland.",
+   "hood": 4000,
+   "zone": 0,
+   "tier": 9,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": 1000,
+   "next": 4501,
+   "lines": [
+    "I need to defeat some Cogs in Minnie's Melodyland."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4501": {
+   "headline": "DELIVER",
+   "caption": "Tailor Harmony",
+   "where": "Clothing Shop\nPlayground",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tailor Harmony.",
+   "tier": 9,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 4008,
+   "reward": 1000,
+   "final": 1000,
+   "next": 0,
+   "lines": [
+    "I need to see Tailor Harmony."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "4810": {
+   "headline": "WANTED",
+   "caption": "16 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4811": {
+   "headline": "WANTED",
+   "caption": "18 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 18,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4812": {
+   "headline": "WANTED",
+   "caption": "20 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4813": {
+   "headline": "WANTED",
+   "caption": "22 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 22,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4814": {
+   "headline": "WANTED",
+   "caption": "24 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4815": {
+   "headline": "WANTED",
+   "caption": "26 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 26,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4816": {
+   "headline": "WANTED",
+   "caption": "28 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 28,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4817": {
+   "headline": "WANTED",
+   "caption": "30 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 30,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4818": {
+   "headline": "WANTED",
+   "caption": "32 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 32,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4819": {
+   "headline": "WANTED",
+   "caption": "34 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 34,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4820": {
+   "headline": "WANTED",
+   "caption": "20 Level 3+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 3+ Cogs.",
+   "level": 3,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 3+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4821": {
+   "headline": "WANTED",
+   "caption": "25 Level 3+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 25,
+   "speech": "I need to defeat 25 Level 3+ Cogs.",
+   "level": 3,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 25 Level 3+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4822": {
+   "headline": "WANTED",
+   "caption": "16 Level 4+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat 16 Level 4+ Cogs.",
+   "level": 4,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 16 Level 4+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4823": {
+   "headline": "WANTED",
+   "caption": "20 Level 4+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 4+ Cogs.",
+   "level": 4,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 4+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4824": {
+   "headline": "WANTED",
+   "caption": "10 Level 5+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat 10 Level 5+ Cogs.",
+   "level": 5,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 10 Level 5+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4825": {
+   "headline": "WANTED",
+   "caption": "20 Level 5+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 5+ Cogs.",
+   "level": 5,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 5+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4826": {
+   "headline": "WANTED",
+   "caption": "16 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 16,
+   "speech": "I need to defeat 16 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 16 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4827": {
+   "headline": "WANTED",
+   "caption": "18 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 18,
+   "speech": "I need to defeat 18 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 18 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4828": {
+   "headline": "WANTED",
+   "caption": "20 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 20,
+   "speech": "I need to defeat 20 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 20 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4829": {
+   "headline": "WANTED",
+   "caption": "24 Level 6+ Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 24,
+   "speech": "I need to defeat 24 Level 6+ Cogs.",
+   "level": 6,
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 24 Level 6+ Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4830": {
+   "headline": "WANTED",
+   "caption": "45 Cogs",
+   "where": "Anywhere",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 45,
+   "speech": "I need to defeat some Cogs.",
+   "hood": 0,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": 1000,
+   "next": 4831,
+   "lines": [
+    "I need to defeat some Cogs."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4831": {
+   "headline": "DELIVER",
+   "caption": "Tailor Harmony",
+   "where": "Clothing Shop\nPlayground",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Tailor Harmony.",
+   "tier": 10,
+   "start": false,
+   "from": 0,
+   "same": false,
+   "npc": 4008,
+   "reward": 1000,
+   "final": 1000,
+   "next": 0,
+   "lines": [
+    "I need to see Tailor Harmony."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  },
+  "4840": {
+   "headline": "WANTED",
+   "caption": "12 Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 12,
+   "speech": "I need to defeat some Cogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4841": {
+   "headline": "WANTED",
+   "caption": "15 Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 15,
+   "speech": "I need to defeat some Cogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat some Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4842": {
+   "headline": "WANTED",
+   "caption": "12 Level 4+ Cogs",
+   "where": "In Sellbot HQ",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 12,
+   "speech": "I need to defeat 12 Level 4+ Cogs in Sellbot HQ.",
+   "level": 4,
+   "hood": 11000,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 12 Level 4+ Cogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4843": {
+   "headline": "WANTED",
+   "caption": "10 Level 5+ Cogs",
+   "where": "In the Sellbot Factory",
+   "kind": "cog",
+   "cog": "any",
+   "goal": 10,
+   "speech": "I need to defeat 10 Level 5+ Cogs in the Sellbot Factory.",
+   "level": 5,
+   "hood": 0,
+   "zone": 11500,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 10 Level 5+ Cogs in the Sellbot Factory."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4844": {
+   "headline": "DEFEAT",
+   "caption": "A Cog Factory",
+   "where": "In Sellbot HQ",
+   "kind": "factory",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Cog Factory in Sellbot HQ.",
+   "hood": 11000,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Cog Factory in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4845": {
+   "headline": "DEFEAT",
+   "caption": "A Cog Factory",
+   "where": "In Sellbot HQ",
+   "kind": "factory",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Cog Factory in Sellbot HQ.",
+   "hood": 11000,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Cog Factory in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4846": {
+   "headline": "WANTED",
+   "caption": "5 Skelecogs",
+   "where": "In the Sellbot Factory",
+   "kind": "skelecog",
+   "cog": "any",
+   "goal": 5,
+   "speech": "I need to defeat 5 Skelecogs in the Sellbot Factory.",
+   "hood": 0,
+   "zone": 11500,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 5 Skelecogs in the Sellbot Factory."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4847": {
+   "headline": "WANTED",
+   "caption": "3 Level 5+ Skelecogs",
+   "where": "In Sellbot HQ",
+   "kind": "skelecog",
+   "cog": "any",
+   "goal": 3,
+   "speech": "I need to defeat 3 Level 5+ Skelecogs in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "level": 5,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat 3 Level 5+ Skelecogs in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": true
+  },
+  "4848": {
+   "headline": "WANTED",
+   "caption": "A Factory Foreman",
+   "where": "In Sellbot HQ",
+   "kind": "foreman",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Factory Foreman in Sellbot HQ.",
+   "hood": 11000,
+   "zone": 0,
+   "tier": 10,
+   "start": true,
+   "from": 0,
+   "same": false,
+   "npc": 1000,
+   "reward": 0,
+   "final": "any",
+   "next": 0,
+   "lines": [
+    "I need to defeat a Factory Foreman in Sellbot HQ."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4903": {
+   "headline": "DELIVER",
+   "caption": "Carlos",
+   "where": "Casa De Castanets\nAlto Avenue",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Carlos.",
+   "tier": 10,
+   "start": true,
+   "from": 4303,
+   "same": false,
+   "npc": 4109,
+   "reward": 0,
+   "final": 900,
+   "next": 4904,
+   "lines": [
+    "Dude!",
+    "My castanets are all cloudy and I have a big show tonight.",
+    "Take them to Carlos and see if he can polish them up."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4904": {
+   "headline": "RECOVER",
+   "caption": "Some Blue Squid Ink",
+   "where": "Anywhere",
+   "kind": "recover",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to recover some Blue Squid Ink from a fish.",
+   "chance": 20,
+   "hood": 0,
+   "zone": 0,
+   "holder": "fish",
+   "holder_name": "a fish",
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 4905,
+   "lines": [
+    "Jes, I tink I can polish dees.",
+    "But I need soma de blue ink from de squid."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4905": {
+   "headline": "DEFEAT",
+   "caption": "A Cog Building",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a Cog Building.",
+   "floors": 1,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 4906,
+   "lines": [
+    "Jes! Dat's it!",
+    "Now I need a leetle time to polish dees.",
+    "Why don juo go takeover a one story beelding while I work?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4906": {
+   "headline": "DELIVER",
+   "caption": "Leo",
+   "where": "Leo's Fenders\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Leo.",
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4303,
+   "reward": 0,
+   "final": 900,
+   "next": 4907,
+   "lines": [
+    "Bery good!",
+    "Here are de castanets for Leo."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4907": {
+   "headline": "VISIT",
+   "caption": "Hedy",
+   "where": "Lousy Lyrics\nBaritone Boulevard",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Hedy.",
+   "show_count": false,
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4208,
+   "reward": 0,
+   "final": 900,
+   "next": 4908,
+   "lines": [
+    "Cool, dude!",
+    "They look awesome!",
+    "Now I need you to get a copy of the lyrics to 'A Beat Christmas' from Hedy."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": []
+  },
+  "4908": {
+   "headline": "DEFEAT",
+   "caption": "A two+ story Cog Building",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a two+ story Cog Building.",
+   "floors": 2,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 4909,
+   "lines": [
+    "Hello there!",
+    "Hmmm, I don't have a copy of that song handy.",
+    "If you give me a little while I could transcribe it from memory.",
+    "Why don't you run along and reclaim a two story building while I write?"
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4909": {
+   "headline": "DEFEAT",
+   "caption": "A three+ story Cog Building",
+   "where": "Anywhere",
+   "kind": "building",
+   "cog": "any",
+   "goal": 1,
+   "speech": "I need to defeat a three+ story Cog Building.",
+   "floors": 3,
+   "hood": 0,
+   "zone": 0,
+   "track": "any",
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": true,
+   "npc": 0,
+   "reward": 0,
+   "final": 900,
+   "next": 4910,
+   "lines": [
+    "I'm sorry.",
+    "My memory is getting a little fuzzy.",
+    "If you go reclaim a three story building I'm sure I'll be done when you get back..."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [],
+   "show_count": false
+  },
+  "4910": {
+   "headline": "DELIVER",
+   "caption": "Leo",
+   "where": "Leo's Fenders\nTenor Terrace",
+   "kind": "visit",
+   "cog": "",
+   "goal": 1,
+   "speech": "I need to see Leo.",
+   "tier": 10,
+   "start": false,
+   "from": -1,
+   "same": false,
+   "npc": 4303,
+   "reward": 900,
+   "final": 900,
+   "next": 0,
+   "lines": [
+    "All done!",
+    "Sorry it took so long.",
+    "Take this back to Leo."
+   ],
+   "busy": [
+    "Come back when you are finished with your ToonTask."
+   ],
+   "after": [
+    "Nice work! Here is your reward..."
+   ],
+   "show_count": false
+  }
+ },
+ "npcs": {
+  "4303": {
+   "name": "Leo",
+   "where": "Leo's Fenders\nTenor Terrace",
+   "zone": 4853,
+   "live": true
+  },
+  "4008": {
+   "name": "Tailor Harmony",
+   "where": "Clothing Shop\nPlayground",
+   "zone": 4506,
+   "live": true
+  },
+  "4101": {
+   "name": "Tom",
+   "where": "Tom-Tom's Drums\nAlto Avenue",
+   "zone": 4603,
+   "live": true
+  },
+  "4201": {
+   "name": "Tina",
+   "where": "Tina's Concertina Concerts\nBaritone Boulevard",
+   "zone": 4704,
+   "live": true
+  },
+  "4301": {
+   "name": "Yuki",
+   "where": "Yuki's Ukeleles\nTenor Terrace",
+   "zone": 4819,
+   "live": true
+  },
+  "4102": {
+   "name": "Fifi",
+   "where": "Fifi's Fiddles\nAlto Avenue",
+   "zone": 4605,
+   "live": true
+  },
+  "4108": {
+   "name": "Cleff",
+   "where": "Notations\nAlto Avenue",
+   "zone": 4626,
+   "live": true
+  },
+  "4103": {
+   "name": "Dr. Fret",
+   "where": "Dr. Fret's Dentistry\nAlto Avenue",
+   "zone": 4612,
+   "live": true
+  },
+  "4302": {
+   "name": "Anna",
+   "where": "Anna's Cruises\nTenor Terrace",
+   "zone": 4821,
+   "live": true
+  },
+  "4203": {
+   "name": "Lumber Jack",
+   "where": "Timbre! Equipment for the Singing Lumberjack\nBaritone Boulevard",
+   "zone": 4702,
+   "live": true
+  },
+  "4308": {
+   "name": "Tabitha",
+   "where": "Ursatz for Kool Katz\nTenor Terrace",
+   "zone": 4835,
+   "live": true
+  },
+  "4202": {
+   "name": "Barry",
+   "where": "The Baritone Barber\nBaritone Boulevard",
+   "zone": 4725,
+   "live": true
+  },
+  "4109": {
+   "name": "Carlos",
+   "where": "Casa De Castanets\nAlto Avenue",
+   "zone": 4606,
+   "live": true
+  },
+  "4208": {
+   "name": "Hedy",
+   "where": "Lousy Lyrics\nBaritone Boulevard",
+   "zone": 4730,
+   "live": true
+  }
+ },
+ "by_reward": {
+  "900": [
+   902,
+   4903
+  ],
+  "400": [
+   4001,
+   4002
+  ],
+  "any": [
+   4010,
+   4011,
+   4012,
+   4013,
+   4014,
+   4015,
+   4016,
+   4017,
+   4018,
+   4019,
+   4020,
+   4021,
+   4022,
+   4023,
+   4024,
+   4025,
+   4026,
+   4027,
+   4028,
+   4029,
+   4040,
+   4041,
+   4042,
+   4043,
+   4101,
+   4102,
+   4103,
+   4104,
+   4105,
+   4106,
+   4107,
+   4108,
+   4109,
+   4110,
+   4111,
+   4112,
+   4113,
+   4114,
+   4115,
+   4116,
+   4117,
+   4118,
+   4119,
+   4120,
+   4121,
+   4122,
+   4123,
+   4124,
+   4125,
+   4126,
+   4127,
+   4128,
+   4129,
+   4130,
+   4131,
+   4132,
+   4133,
+   4134,
+   4135,
+   4136,
+   4137,
+   4138,
+   4139,
+   4140,
+   4141,
+   4142,
+   4143,
+   4144,
+   4145,
+   4146,
+   4147,
+   4148,
+   4149,
+   4150,
+   4151,
+   4152,
+   4153,
+   4154,
+   4155,
+   4156,
+   4157,
+   4158,
+   4160,
+   4161,
+   4162,
+   4163,
+   4164,
+   4165,
+   4166,
+   4810,
+   4811,
+   4812,
+   4813,
+   4814,
+   4815,
+   4816,
+   4817,
+   4818,
+   4819,
+   4820,
+   4821,
+   4822,
+   4823,
+   4824,
+   4825,
+   4826,
+   4827,
+   4828,
+   4829,
+   4840,
+   4841,
+   4842,
+   4843,
+   4844,
+   4845,
+   4846,
+   4847,
+   4848
+  ],
+  "1000": [
+   4030,
+   4500,
+   4830
+  ],
+  "203": [
+   4200,
+   4201
+  ],
+  "303": [
+   4211,
+   4212
+  ],
+  "703": [
+   4215,
+   4216
+  ]
+ }
+}

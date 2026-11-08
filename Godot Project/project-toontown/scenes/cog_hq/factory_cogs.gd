@@ -145,7 +145,7 @@ func _spawn(row: Dictionary) -> Walker:
 	cog.stand = parent.global_transform * Vector3(float(spot[0]), float(spot[1]), float(spot[2]))
 	cog.stand_yaw = _heading(parent, float(suit.get("h", 0.0)))
 	cog.behavior = str(suit.get("behavior", "walk"))
-	cog.points = _route(int(suit.get("path", 0)), _paths, _nodes)
+	cog.points = _route(int(suit.get("path", 0)), parent, _paths, _nodes)
 	_cogs.append(cog)
 	if cog.points.size() >= 2:
 		cog.seg = 0
@@ -156,9 +156,11 @@ func _spawn(row: Dictionary) -> Walker:
 	return cog
 
 
-func _route(path_id: int, paths: Dictionary, nodes: Dictionary) -> PackedVector3Array:
+## DistributedFactorySuit.setPath reparents the path onto the cog's marker
+## and keeps the path's own transform. The points stay in that local space.
+func _route(path_id: int, marker: Node3D, paths: Dictionary, nodes: Dictionary) -> PackedVector3Array:
 	var points := PackedVector3Array()
-	if path_id == 0:
+	if path_id == 0 or marker == null:
 		return points
 	var holder := nodes.get("path-%d" % path_id) as Node3D
 	var info: Variant = paths.get(str(path_id))
@@ -166,10 +168,11 @@ func _route(path_id: int, paths: Dictionary, nodes: Dictionary) -> PackedVector3
 		return points
 	var spec: Dictionary = info
 	var scale := float(spec.get("scale", 1.0))
+	var placed := marker.global_transform * holder.transform
 	for item in spec.get("points", []):
 		if item is Array and (item as Array).size() >= 3:
 			var spot: Array = item
-			points.append(holder.global_transform * (Vector3(float(spot[0]), float(spot[1]), float(spot[2])) * scale))
+			points.append(placed * (Vector3(float(spot[0]), float(spot[1]), float(spot[2])) * scale))
 	return points
 
 

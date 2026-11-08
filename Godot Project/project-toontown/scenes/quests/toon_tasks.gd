@@ -6,8 +6,11 @@ extends RefCounted
 ## gag training. After that, HQ and the shopkeepers offer the original Central
 ## quests from ttc_quests.json. The last of those is the gag-training finale.
 ## Battle code reports a defeat with note_cog_defeat. A cleared cog building
-## reports note_building. Fishing reports a catch with note_fish. Turning a
-## finished task in assigns whatever it points at next.
+## reports note_building. Fishing reports a catch with note_fish. Beating the
+## Sellbot Factory Foreman reports note_factory and note_foreman. Beating a
+## Cashbot Mint supervisor reports note_mint and note_supervisor. A defeated
+## Skelecog reports note_cog_defeat with the skeleton flag. Turning a finished
+## task in assigns whatever it points at next. Minnie's Melodyland follows Daisy Gardens.
 
 const COG := "cog"
 const TROLLEY := "trolley"
@@ -17,6 +20,11 @@ const TRACK := "track"
 const FRIEND := "friend"
 const PHONE := "phone"
 const BUILDING := "building"
+const FACTORY := "factory"
+const FOREMAN := "foreman"
+const MINT := "mint"
+const SUPERVISOR := "supervisor"
+const SKELE := "skelecog"
 const GAG := "gag"
 ## QuestPoster hides the reward on the tasks before Clarabelle.
 const _NO_POSTER_REWARD := [101, 110, 121, 131, 141, 145, 150, 160, 161, 162, 163]
@@ -275,6 +283,14 @@ const _TIER3: Array[int] = [900]
 const _TIER4: Array[int] = [400]
 const _TIER5: Array[int] = [100, 801, 802, 201, 803, 804, 101, 805, 806, 102, 807, 808, 100, 809, 810, 101, 811, 812, 701, 813, 814, 815, 301]
 const _TIER6: Array[int] = [900]
+## Daisy Gardens. One tier: laff, a Small Bag, a third ToonTask, a jellybean
+## jar, and teleport access. There is no gag-track choice here.
+const _TIER7: Array[int] = [100, 202, 101, 102, 100, 101, 501, 702, 302]
+## Minnie's Melodyland. Tier 8 is Trap, plus Toon-up or Sound, whichever is
+## still missing. Tier 9 trains that track. Tier 10 is its final frame.
+const _TIER8: Array[int] = [400]
+const _TIER9: Array[int] = [100, 801, 802, 203, 803, 804, 101, 805, 806, 102, 807, 808, 100, 809, 810, 101, 811, 812, 703, 813, 814, 815, 303]
+const _TIER10: Array[int] = [900]
 ## TeleportReward. 300 through 305 are the original playground rewards.
 ## 306 through 309 are reserved for the later Cog HQ taskline.
 const _TELEPORT_ZONE: Dictionary = {
@@ -303,6 +319,8 @@ const _ZONE_NAME: Dictionary = {
 }
 const _QUEST_FILE := "res://scenes/quests/ttc_quests.json"
 const _DOCK_FILE := "res://scenes/quests/dd_quests.json"
+const _GARDEN_FILE := "res://scenes/quests/dg_quests.json"
+const _MELODY_FILE := "res://scenes/quests/mm_quests.json"
 const _DIALOG := preload("res://scenes/quests/quest_dialog.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
@@ -554,7 +572,7 @@ func note_phone() -> void:
 	_fill_kind(PHONE)
 
 
-func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1) -> void:
+func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1, skeleton: bool = false) -> void:
 	_keep_notes()
 	var code := cog.to_lower()
 	CogGallery.note(code)
@@ -583,6 +601,18 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			entry["progress"] = before + 1
 			_remember_gain(quest_id, before, int(entry["progress"]), info)
 			changed = true
+		elif kind == SKELE:
+			if not skeleton:
+				continue
+			var skele_level := int(info.get("level", 0))
+			if skele_level > 0 and level < skele_level:
+				continue
+			if int(entry["progress"]) >= int(info["goal"]):
+				continue
+			var before_bone := int(entry["progress"])
+			entry["progress"] = before_bone + 1
+			_remember_gain(quest_id, before_bone, int(entry["progress"]), info)
+			changed = true
 		elif kind == RECOVER:
 			if String(info.get("holder", "any")) == "fish":
 				continue
@@ -600,6 +630,86 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			else:
 				_battle_notes.append("Items Not Recovered: %s" % item_name)
 			changed = true
+	if changed:
+		save()
+
+
+## FactoryQuest. Defeating the Factory Foreman counts. Walking out does not.
+func note_factory(zone: int) -> void:
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != FACTORY:
+			continue
+		if not _place_ok(info, zone):
+			continue
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		entry["progress"] = int(entry["progress"]) + 1
+		changed = true
+	if changed:
+		save()
+
+
+## MintQuest. The supervisor battle counts. Walking out of the mint does not.
+func note_mint(zone: int) -> void:
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != MINT:
+			continue
+		if not _place_ok(info, zone):
+			continue
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		entry["progress"] = int(entry["progress"]) + 1
+		changed = true
+	if changed:
+		save()
+
+
+## SupervisorQuest. The same win that clears the mint.
+func note_supervisor(zone: int) -> void:
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != SUPERVISOR:
+			continue
+		if not _place_ok(info, zone):
+			continue
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		entry["progress"] = int(entry["progress"]) + 1
+		changed = true
+	if changed:
+		save()
+
+
+## ForemanQuest. The same win that clears the factory.
+func note_foreman(zone: int) -> void:
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != FOREMAN:
+			continue
+		if not _place_ok(info, zone):
+			continue
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		entry["progress"] = int(entry["progress"]) + 1
+		changed = true
 	if changed:
 		save()
 
@@ -1183,10 +1293,18 @@ func _carry_limit(reward_id: int) -> int:
 		return 25
 	if reward_id == 201:
 		return 30
+	if reward_id == 202:
+		return 35
+	if reward_id == 203:
+		return 40
 	return 0
 
 
 func _carry_name(limit: int) -> String:
+	if limit >= 40:
+		return "Medium Bag"
+	if limit >= 35:
+		return "Small Bag"
 	if limit >= 30:
 		return "Large Pouch"
 	return "Medium Pouch"
@@ -1197,6 +1315,10 @@ func _bean_limit(reward_id: int) -> int:
 		return 50
 	if reward_id == 701:
 		return 60
+	if reward_id == 702:
+		return 80
+	if reward_id == 703:
+		return 100
 	return 0
 
 
@@ -1217,6 +1339,8 @@ func _poster_reward(quest_id: int, reward_id: int) -> String:
 		return "Reward: Gag training"
 	if reward_id == 500:
 		return "Reward: Carry 2 ToonTasks"
+	if reward_id == 501:
+		return "Reward: Carry 3 ToonTasks"
 	var beans := _bean_limit(reward_id)
 	if beans > 0:
 		return "Reward: Carry %d jellybeans" % beans
@@ -1244,6 +1368,8 @@ func _reward_line(quest_id: int) -> String:
 		return "You can now train for \"%s\" gags." % track
 	if reward_id == 500:
 		return "You can now have 2 ToonTasks."
+	if reward_id == 501:
+		return "You can now have 3 ToonTasks."
 	var beans := _bean_limit(reward_id)
 	if beans > 0:
 		return "You can now carry %d jellybeans." % beans
@@ -1572,6 +1698,14 @@ func _required(tier: int) -> Array[int]:
 		return _TIER5.duplicate()
 	if tier == 6:
 		return _TIER6.duplicate()
+	if tier == 7:
+		return _TIER7.duplicate()
+	if tier == 8:
+		return _TIER8.duplicate()
+	if tier == 9:
+		return _TIER9.duplicate()
+	if tier == 10:
+		return _TIER10.duplicate()
 	return []
 
 
@@ -1606,7 +1740,23 @@ func _next_rewards() -> Array[int]:
 	return picked
 
 
+## Quest 4002 is Trap or Sound. Quest 4001 is Trap or Toon-up. Sound is track 3.
+func _melody_choice() -> int:
+	var loadout := ToonLoadout.for_selected()
+	var toonup := loadout != null and loadout.unlocked(ToonLoadout.TOON_UP, 0)
+	var sound := loadout != null and loadout.unlocked(3, 0)
+	if toonup or not sound:
+		return 4002
+	return 4001
+
+
 func _pick_quest(reward_id: int, npc_id: int, used: Dictionary) -> int:
+	# chooseTrackChoiceQuest. Toon-up already owned offers Trap or Sound.
+	# Sound already owned offers Trap or Toon-up.
+	if reward_id == 400 and reward_tier == 8:
+		var chosen := _melody_choice()
+		if chosen != 0 and not bool(used.get(chosen, false)) and not _is_active(chosen) and not _done.has(chosen):
+			return chosen
 	var specific := _candidates(str(reward_id), npc_id, used, false)
 	if not specific.is_empty():
 		return specific[randi() % specific.size()]
@@ -1659,7 +1809,7 @@ func _giver_ok(info: Dictionary, npc_id: int) -> bool:
 	if dest > 1000 and not _npc_live(dest):
 		return false
 	var kind := String(info.get("kind", ""))
-	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == GAG or kind == TRACK
+	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == FACTORY or kind == FOREMAN or kind == MINT or kind == SUPERVISOR or kind == SKELE or kind == GAG or kind == TRACK
 
 
 func _npc_live(npc_id: int) -> bool:
@@ -1688,11 +1838,18 @@ func _place_ok(info: Dictionary, zone: int) -> bool:
 	var need_hood := int(info.get("hood", 0))
 	if need_zone == 0 and need_hood == 0:
 		return true
+	# SellbotFactoryInt is 11500. The front entrance scene is numbered 11200.
+	if need_zone != 0 and _factory_room(need_zone) and _factory_room(zone):
+		return true
 	var playground := zone - posmod(zone, 1000)
 	if need_zone != 0:
 		var street := zone - posmod(zone, 100)
 		return zone == need_zone or street == need_zone
 	return playground == need_hood
+
+
+func _factory_room(zone: int) -> bool:
+	return zone == 11200 or zone == 11500
 
 
 func _holder_ok(info: Dictionary, code: String, dept: String, level: int) -> bool:
@@ -1735,6 +1892,8 @@ static func _load_pool() -> void:
 	_pool_ready = true
 	_read_quest_file(_QUEST_FILE)
 	_read_quest_file(_DOCK_FILE)
+	_read_quest_file(_GARDEN_FILE)
+	_read_quest_file(_MELODY_FILE)
 
 
 static func _read_quest_file(path: String) -> void:
@@ -1808,6 +1967,8 @@ func _collect(info: Dictionary) -> void:
 		track_progress = track_progress | (1 << 15)
 	if reward_id == 500:
 		quest_carry = maxi(quest_carry, 2)
+	if reward_id == 501:
+		quest_carry = maxi(quest_carry, 3)
 	if reward_id == 1000:
 		clothing_tickets += 1
 	grant_teleport(_teleport_zone(reward_id))

@@ -21,6 +21,7 @@ const _TELLER := preload("res://scenes/interiors/bank_door.gd")
 const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
+const _MINT := preload("res://scenes/cog_hq/mint_elevator.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
@@ -210,6 +211,7 @@ var _tunnels: Array[Dictionary] = []
 var _bldg_trip := ""
 var _factory_trip := ""
 var _factory_entrance := 0
+var _mint_trip := ""
 var _bldg_ready := false
 var _shot := false
 var _shot_origin: Node3D
@@ -256,7 +258,7 @@ static func expects_avatar() -> bool:
 		return true
 	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "" or String(_LIB.trip) != "" or String(_TELLER.trip) != "":
 		return true
-	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "":
+	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "":
 		return true
 	return false
 
@@ -326,8 +328,9 @@ func _ready() -> void:
 	var from_bldg := String(_BLDG.trip)
 	var from_tunnel := _LINKS.arriving()
 	var from_factory := _FACTORY.trip
+	var from_mint := _MINT.trip
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -352,6 +355,8 @@ func _ready() -> void:
 	_factory_trip = from_factory
 	_factory_entrance = _FACTORY.entrance
 	_FACTORY.trip = ""
+	_mint_trip = from_mint
+	_MINT.trip = ""
 	if not restoring and not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
@@ -825,6 +830,11 @@ func _arrival_spot() -> Dictionary:
 		_factory_trip = ""
 		if not ride.is_empty():
 			return {"point": _snap_drop(ride["point"]), "heading": float(ride["heading"])}
+	if _mint_trip != "":
+		var mint_ride: Dictionary = _MINT.arrival(get_parent(), _mint_trip == "in")
+		_mint_trip = ""
+		if not mint_ride.is_empty():
+			return {"point": _snap_drop(mint_ride["point"]), "heading": float(mint_ride["heading"])}
 	if _shop_trip == "out":
 		return _shop_outside_drop()
 	if _pet_trip == "out":

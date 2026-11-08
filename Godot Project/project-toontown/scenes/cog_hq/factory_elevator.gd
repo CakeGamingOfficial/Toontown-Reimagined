@@ -253,11 +253,33 @@ func _begin_close() -> void:
 	_play_music()
 
 
+## DistributedFactory.enterForemanReward sends the toon out after the win.
+func win_leave() -> void:
+	if _phase != "" and _phase != "offer":
+		return
+	var fallback: Node3D = null
+	for car in _cars:
+		if car == null or bool(car.get_meta("outside")):
+			continue
+		if fallback == null:
+			fallback = car
+		if int(car.get_meta("entrance")) != entrance:
+			continue
+		_car = car
+		_depart()
+		return
+	if fallback == null:
+		return
+	_car = fallback
+	_depart()
+
+
 func _depart() -> void:
 	if _car == null:
 		_release()
 		return
 	var outside := bool(_car.get_meta("outside"))
+	# Walking out does not finish the factory. The foreman battle does.
 	trip = "in" if outside else "out"
 	entrance = int(_car.get_meta("entrance"))
 	ToonLoading.change_to(_INTERIOR if outside else _EXTERIOR)

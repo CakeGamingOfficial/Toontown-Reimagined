@@ -74,6 +74,8 @@ func _battle_cog(row: Dictionary, origin: Vector3) -> Dictionary:
 		"dept": String(spec.get("dept", "s")),
 		"body": String(spec.get("body", "c")),
 		"height": float(spec.get("height", 4.0)),
+		"skeleton": bool(spec.get("skeleton", false)),
+		"boss": bool(spec.get("boss", false)),
 		"pos": [origin.x, origin.y, origin.z],
 	}
 
@@ -111,6 +113,7 @@ func _roll_factory() -> Array:
 		suit["behavior"] = str(spec.get("behavior", "walk"))
 		suit["path"] = int(spec.get("path", 0))
 		suit["cell"] = int(spec.get("cell", 0))
+		suit["boss"] = int(spec.get("boss", 0)) == 1
 		roster.append({
 			"do_id": next_id,
 			"phase": 1,
