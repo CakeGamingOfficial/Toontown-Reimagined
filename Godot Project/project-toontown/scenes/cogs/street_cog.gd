@@ -27,6 +27,7 @@ const _DEPT_NAMES := {
 static var _clip_files: Dictionary = {}
 static var _index_cursor := 0
 static var _bake_done := false
+static var _pose_seq := 0
 const _INDEX_PATHS: PackedStringArray = [
 	"res://assets/cogs/anims/a/walk.walk",
 	"res://assets/cogs/anims/a/neutral.walk",
@@ -615,12 +616,17 @@ func march(walking: bool) -> void:
 func begin_react(key: String, elapsed: float) -> void:
 	if _lose_on:
 		return
+	var changed := key != _fight_key
 	_fight_key = key
 	_fight_time = elapsed
 	# The movie asks for this pose on its own clock. Posing here keeps the
 	# attack up even when this cog already idled earlier in the frame.
 	if key != "" and bool(get_meta("in_fight", false)):
 		play_attack(key, elapsed)
+	elif changed and bool(get_meta("in_fight", false)):
+		# A hit pose can leave the head joint wide. Idle again on the same
+		# neutral frame, or that joint stays at the react.
+		_idle(0.0)
 
 
 ## Suit.getLoseActor. The live suit hides and suit-lose-mod plays for 6 seconds.
@@ -762,9 +768,10 @@ func _copy_head(lose: Node, suit: Node) -> void:
 		return
 	# Suit.getLoseActor.instanceTo(joint_head). The lose body has an empty
 	# neck. The standing head, glasses included, is what blows up.
+	# The fly-in propeller stays parented here after it hides. It is not a head part.
 	for child in src.get_children():
 		var part := _node3d(child)
-		if part == null or String(part.name).begins_with("joint"):
+		if part == null or String(part.name).begins_with("joint") or part.name == "Propeller":
 			continue
 		var copy := part.duplicate()
 		dst.add_child(copy)
@@ -806,7 +813,7 @@ func _keep_lose_face() -> void:
 		head.transform = posed
 	for child in head.get_children():
 		var part := _node3d(child)
-		if part != null:
+		if part != null and part.name != "Propeller":
 			part.visible = not popped
 
 
@@ -1875,9 +1882,16 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
 			posed_frame.basis = _blend_basis(posed_frame.basis, nxt.basis, fraction)
 		var stamp := frame * 1000 + int(fraction * 20.0)
-		if int(record.get("stamp", -1)) == stamp:
+		# The stamp only means this clip already wrote this pose. A hit clip
+		# writes the same joint in between, and skipping here left that pose on.
+		if int(record.get("pose_id", 0)) == 0:
+			_pose_seq += 1
+			record["pose_id"] = _pose_seq
+		var pose_id := int(record["pose_id"])
+		if int(record.get("stamp", -1)) == stamp and int(joint.get_meta("pose_owner", 0)) == pose_id:
 			continue
 		record["stamp"] = stamp
+		joint.set_meta("pose_owner", pose_id)
 		# The clip stores the joint in the same space as the posed body.
 		# The head stays on the neck when that matrix is used as the pose.
 		joint.transform = posed_frame

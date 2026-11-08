@@ -530,6 +530,126 @@ def export_added() -> int:
     return 0
 
 
+# Actor props. MovieThrow, MovieSquirt, MovieDrop, MovieTrap, MovieLure, and
+# MovieHeal play these channels. The glb stays on the bind pose.
+GAG_ANIMS = [
+    ("banana", "phase_5/models/props/banana-peel-mod.bam", "phase_5/models/props/banana-peel-chan.bam"),
+    ("rake", "phase_5/models/props/rake-mod.bam", "phase_5/models/props/rake-chan.bam"),
+    ("marbles", "phase_5/models/props/marbles-mod.bam", "phase_5/models/props/marbles-chan.bam"),
+    ("tnt", "phase_5/models/props/tnt-mod.bam", "phase_5/models/props/tnt-chan.bam"),
+    ("birthday-cake", "phase_5/models/props/birthday-cake-mod.bam", "phase_5/models/props/birthday-cake-chan.bam"),
+    ("splat", "phase_3.5/models/props/splat-mod.bam", "phase_3.5/models/props/splat-chan.bam"),
+    ("flowerpot", "phase_5/models/props/flowerpot-mod.bam", "phase_5/models/props/flowerpot-chan.bam"),
+    ("sandbag", "phase_5/models/props/sandbag-mod.bam", "phase_5/models/props/sandbag-chan.bam"),
+    ("anvil", "phase_4/models/props/anvil-mod.bam", "phase_4/models/props/anvil-chan.bam"),
+    ("weight", "phase_5/models/props/weight-mod.bam", "phase_5/models/props/weight-chan.bam"),
+    ("safe", "phase_5/models/props/safe-mod.bam", "phase_5/models/props/safe-chan.bam"),
+    ("piano", "phase_5/models/props/piano-mod.bam", "phase_5/models/props/piano-chan.bam"),
+    ("stormcloud", "phase_4/models/props/stormcloud-mod.bam", "phase_4/models/props/stormcloud-chan.bam"),
+    ("glass", "phase_5/models/props/glass-mod.bam", "phase_5/models/props/glass-chan.bam"),
+    ("firehose", "phase_5/models/props/firehose-mod.bam", "phase_5/models/props/firehose-chan.bam"),
+    ("feather", "phase_5/models/props/feather-mod.bam", "phase_5/models/props/feather-chan.bam"),
+    ("cubes", "phase_5/models/props/cubes-mod.bam", "phase_5/models/props/cubes-chan.bam"),
+    ("fishing-pole", "phase_4/models/props/fishing-pole-mod.bam", "phase_4/models/props/fishing-pole-chan.bam"),
+    ("1dollar", "phase_5/models/props/1dollar-bill-mod.bam", "phase_5/models/props/1dollar-bill-chan.bam"),
+    ("hypno-goggles", "phase_5/models/props/hypnotize-mod.bam", "phase_5/models/props/hypnotize-chan.bam"),
+]
+
+
+def _local_matrix(path) -> list[float]:
+    mat = path.getTransform(path.getParent()).getMat()
+    return [mat.getCell(row, col) for row in range(4) for col in range(4)]
+
+
+def _moved(before: list[float], after: list[float], tol: float = 0.0008) -> bool:
+    return any(abs(left - right) > tol for left, right in zip(before, after))
+
+
+def export_gag_clip(name: str, model_rel: str, anim_rel: str) -> None:
+    from panda3d.core import GeomNode
+
+    model = load_prop(model_rel)
+    if model is None:
+        print("missing gag", model_rel, flush=True)
+        return
+    saved = walk_export.snapshot(model)
+    control = walk_export.bind_anim(model, anim_rel)
+    bundle = model.find("**/+Character").node().getBundle(0)
+    named = []
+    seen = set()
+    for path in model.findAllMatches("**"):
+        label = path.getName()
+        if not label or label.endswith(".egg") or label in seen:
+            continue
+        seen.add(label)
+        named.append(path)
+    parents = []
+
+    def walk_parents(node) -> None:
+        if node.node().isOfType(GeomNode.getClassType()) and walk_export.surface_attributes(node):
+            parents.append(node.getParent().getName() or "node")
+        for child in exporter.visit_children(node):
+            walk_parents(child)
+
+    walk_parents(model)
+    frame_count = control.getNumFrames()
+    joint_frames = {path.getName(): [] for path in named}
+    vertex_frames = []
+    for frame in range(frame_count):
+        walk_export.restore(model, saved)
+        bundle.setControlEffect(control, 1.0)
+        control.pose(frame)
+        bundle.forceUpdate()
+        for path in named:
+            joint_frames[path.getName()].append(_local_matrix(path))
+        toon_export.bake_skinning(model)
+        vertex_frames.append(walk_export.collect_named(model))
+    joints = []
+    for path in named:
+        frames = joint_frames[path.getName()]
+        if any(_moved(frames[0], frame) for frame in frames[1:]):
+            joints.append((path.getName(), frames[0], frames))
+    nodes = []
+    used = {}
+    for index, (node_name, surfaces) in enumerate(vertex_frames[0]):
+        parent = parents[index] if index < len(parents) else node_name
+        moves = False
+        for posed in vertex_frames[1:]:
+            for surface, other in zip(surfaces, posed[index][1]):
+                for left, right in zip(surface[0], other[0]):
+                    if _moved(left, right, 0.002):
+                        moves = True
+                        break
+                if moves:
+                    break
+            if moves:
+                break
+        if not moves:
+            continue
+        slot = used.get(parent, 0)
+        used[parent] = slot + 1
+        label = parent if slot == 0 else "%s#%d" % (parent, slot)
+        packed = []
+        for surface_index, (_base, uvs) in enumerate(surfaces):
+            frames = [posed[index][1][surface_index][0] for posed in vertex_frames]
+            packed.append((uvs, frames))
+        nodes.append((label, packed))
+    walk_export.write_walk(PROPS / f"{name}.walk", frame_count, nodes, joints)
+    print(f"gag {name} frames={frame_count} joints={len(joints)} meshes={len(nodes)}", flush=True)
+
+
+def export_gag_anims() -> int:
+    loadPrcFileData("", "window-type none")
+    loadPrcFileData("", "audio-library-name null")
+    getModelPath().prependDirectory(toon_export.ASSETS)
+    PROPS.mkdir(parents=True, exist_ok=True)
+    # The planted rake is rake-step-mod. The throw plays rake-chan on the other model.
+    write_prop("phase_5/models/props/rake-step-mod.bam", "rake-react", 1.0)
+    for name, model_rel, anim_rel in GAG_ANIMS:
+        export_gag_clip(name, model_rel, anim_rel)
+    return 0
+
+
 def main() -> int:
     loadPrcFileData("", "window-type none")
     loadPrcFileData("", "audio-library-name null")
@@ -561,4 +681,6 @@ if __name__ == "__main__":
         sys.exit(export_added())
     if len(sys.argv) > 1 and sys.argv[1] == "book":
         sys.exit(export_shticker_book())
+    if len(sys.argv) > 1 and sys.argv[1] == "gag-anims":
+        sys.exit(export_gag_anims())
     sys.exit(main())

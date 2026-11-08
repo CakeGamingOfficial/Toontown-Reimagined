@@ -8,6 +8,8 @@ extends Node
 const _PROPS := "res://assets/battle/props/"
 const _SFX := "res://assets/audio/battle/"
 const _HEIGHT := 4.88
+# Panda Z-up into Godot Y-up. Storm-cloud bolts are cards in local X/Z, so this stands them up.
+const _Z_UP := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
 # MovieUtil.SPRAY_LEN. The spray mesh runs along local +Y, and Panda's lookAt aims that axis.
 const _SPRAY_LEN := 1.5
 const _SPRAY_SCALE: Array[float] = [0.2, 0.3, 0.1, 0.6, 0.8, 1.0, 2.0]
@@ -112,6 +114,7 @@ const _SHOTS: Dictionary = {
 }
 
 var _spawned: Array[Node] = []
+var _prop_sources: Dictionary = {}
 var _traps: Dictionary = {}
 var _sprung: Array = []
 var _fired: Dictionary = {}
@@ -382,6 +385,8 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 	await _run(seconds("gag", 4, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action("throw", elapsed)
 		# tPieLeavesHand 2.7, tPieHitsSuit 3.0, tSuitDodges 2.45.
+		if pie_name == "birthday-cake":
+			_pose_prop(pie, pie_name, elapsed)
 		if elapsed < 2.7:
 			pie.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed, 0.0, 1.0))
 		elif level == 6 and marks.size() > 1:
@@ -397,7 +402,7 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 					continue
 				var cog := _node3d(row.get("cog"))
 				var splat := _make("splat")
-				_tint(splat, _splat_color(pie_name))
+				_tint(splat, _splat_color(pie_name), true)
 				splat.scale = Vector3.ONE * _splat_scale(pie_name)
 				if cog != null:
 					splat.global_position = cog.global_position + Vector3(0.0, _HEIGHT, 0.0)
@@ -406,7 +411,16 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 		if pie.has_meta("splats"):
 			for shown in pie.get_meta("splats"):
 				if _live(shown) and shown is Node3D:
-					_face_camera(shown)
+					var card := shown as Node3D
+					var age := elapsed - 3.0
+					_pose_prop(card, "splat", age)
+					# ActorInterval plays the clip, then removeProp. 24 fps, last frame included.
+					var frames := 10
+					if card.has_meta("prop_bank"):
+						frames = int((card.get_meta("prop_bank") as Dictionary).get("frames", frames))
+					card.visible = age <= float(maxi(frames - 1, 1)) / 24.0
+					if card.visible:
+						_face_camera(card)
 		_react_marks(marks, elapsed, 3.0, "pie-small", 2.45)
 		_once("throw", elapsed, 2.6, "AA_pie_throw_only.ogg")
 		if hit:
@@ -488,6 +502,9 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 	var gate := {}
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
+		if prop_name == "glass" or prop_name == "firehose":
+			var started := 0.7 if level == 4 else 0.0
+			_pose_prop(prop, prop_name, maxf(elapsed - started, 0.0))
 		if level != 4:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.5, 0.0, 1.0))
 		if elapsed >= spray_at and elapsed < spray_at + hold and aim != null:
@@ -512,11 +529,22 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 	var hit := _any_hit(marks)
 	var gate := {}
 	var cloud := level == 5
+	if cloud:
+		var button := _make("button")
+		_hand(button, actor, "def_joint_left_hold")
+		button.scale = Vector3.ONE
+		prop.global_basis = _Z_UP
+		_cloud_rain(prop)
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action("pushbutton", elapsed)
 		if cloud:
+			# pose(0) through the grow, then the bolt clip starts one second in.
+			_pose_prop(prop, "stormcloud", 0.0 if elapsed < 2.5 else 1.0 + (elapsed - 2.5))
 			# A hit holds the rain. A miss shrinks after the short 1.7s hold.
 			var hold_until := 6.2 if hit else 4.2
+			if aim != null:
+				prop.global_position = aim.global_position + Vector3(0.0, _HEIGHT + 3.0, 0.0)
+			prop.global_basis = _Z_UP
 			if elapsed < 1.5:
 				prop.visible = true
 				prop.scale = Vector3.ONE * lerpf(0.05, 3.0, elapsed / 1.5)
@@ -525,8 +553,7 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 				prop.scale = Vector3.ONE * 3.0
 			else:
 				prop.scale = Vector3.ONE * lerpf(3.0, 0.05, clampf((elapsed - hold_until) / 0.5, 0.0, 1.0))
-			if aim != null:
-				prop.global_position = aim.global_position + Vector3(0.0, _HEIGHT + 3.0, 0.0)
+			_cloud_rain_step(prop, elapsed, hit, hold_until)
 		elif elapsed >= 1.0:
 			prop.visible = true
 			var column := clampf((elapsed - 1.0) / 0.5, 0.0, 1.0)
@@ -541,6 +568,70 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 			contact.call()
 	)
 	actor.end_action("pushbutton")
+
+
+# MovieSquirt storm cloud. liquidate.ptf is parented to the cloud, so the
+# sphere and the speed scale with it, while the raindrop card does not.
+func _cloud_rain(cloud: Node3D) -> void:
+	cloud.add_child(_rain_system("trickle", 15))
+	cloud.add_child(_rain_system("rain", 30))
+	cloud.add_child(_rain_system("rain2", 30))
+	cloud.add_child(_rain_system("rain3", 30))
+
+
+func _rain_system(node_name: String, amount: int) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.name = node_name
+	# liquidate setPos (0, 0, -0.2), just under the cloud.
+	particles.position = Vector3(0.0, 0.0, -0.2)
+	particles.amount = amount
+	particles.lifetime = 0.4
+	particles.explosiveness = 0.0
+	particles.local_coords = true
+	particles.emitting = false
+	particles.visibility_aabb = AABB(Vector3(-4.0, -4.0, -24.0), Vector3(8.0, 8.0, 26.0))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	# Radius 0.45 and speed 16, times the cloud's scale of 3. The node scale below undoes that for the card.
+	process.emission_sphere_radius = 1.35
+	process.direction = Vector3(0.0, 0.0, -1.0)
+	process.spread = 8.0
+	process.initial_velocity_min = 48.0
+	process.initial_velocity_max = 48.0
+	process.gravity = Vector3.ZERO
+	particles.process_material = process
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.06, 0.225)
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true
+	mat.albedo_texture = load("res://assets/battle/props/raindrop.png")
+	quad.material = mat
+	particles.draw_pass_1 = quad
+	return particles
+
+
+func _cloud_rain_step(cloud: Node3D, elapsed: float, hit: bool, hold_until: float) -> void:
+	var cloud_hold := 4.7 if hit else 1.7
+	var trickle_for := cloud_hold * 0.25
+	var rain_at := 2.5 + trickle_for * 2.0
+	var particle_scale := 1.0 / maxf(cloud.scale.x, 0.05)
+	var names: PackedStringArray = ["trickle", "rain", "rain2", "rain3"]
+	for node_name in names:
+		var system := cloud.get_node(node_name) as GPUParticles3D
+		if system == null:
+			continue
+		system.scale = Vector3.ONE * particle_scale
+	var trickle := cloud.get_node("trickle") as GPUParticles3D
+	if trickle != null:
+		trickle.emitting = elapsed >= 2.5 and elapsed < 2.5 + trickle_for
+	for i in 3:
+		var system := cloud.get_node(names[i + 1]) as GPUParticles3D
+		if system == null:
+			continue
+		system.emitting = elapsed >= rain_at + float(i) * 0.3 and elapsed < hold_until
 
 
 func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
@@ -589,16 +680,39 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 				falling.visible = false
 				continue
 			falling.visible = true
-			var fallen := clampf((elapsed - 4.3) / fall, 0.0, 1.0)
-			var above := rest + Vector3(0.0, 5.0, 0.0)
-			falling.global_position = above.lerp(rest, fallen) + Vector3(0.0, _drop_hop(elapsed - (4.3 + fall)), 0.0)
-			var shrink_at := 4.3 + fall + 0.4
-			var shrink_for := 0.3 if (not missed or level == 1 or level == 2) else 0.1
+			if prop_name == "ship":
+				var fallen := clampf((elapsed - 4.3) / fall, 0.0, 1.0)
+				var above := rest + Vector3(0.0, 5.0, 0.0)
+				falling.global_position = above.lerp(rest, fallen) + Vector3(0.0, _drop_hop(elapsed - (4.3 + fall)), 0.0)
+				var shrink_at := 4.3 + fall + 0.4
+				var shrink_for := 0.3 if (not missed or level == 1 or level == 2) else 0.1
+				if elapsed < shrink_at:
+					falling.scale = Vector3.ONE
+				else:
+					var faded := clampf((elapsed - shrink_at) / shrink_for, 0.0, 1.0)
+					falling.scale = Vector3.ONE * maxf(1.0 - faded, 0.01)
+				continue
+			# The channel is the fall. The root stays on the cog the way posObject does.
+			falling.global_position = _drop_root(cog, level, missed)
+			falling.global_basis = cog.global_basis.orthonormalized()
+			var full := not missed or level == 1 or level == 2
+			var shown := elapsed - 4.3
+			if not full:
+				shown = minf(shown, fall)
+			_pose_prop(falling, prop_name, shown)
+			var clip_len := float(maxi(_prop_frames(prop_name) - 1, 1)) / 24.0
+			var shrink_at := 4.3 + (clip_len - 0.3 if full else fall + 1.0)
+			var shrink_for := 0.3 if full else 0.1
+			var base := 1.0
+			if prop_name == "weight":
+				base = 0.75
+			elif prop_name == "safe":
+				base = 0.85
 			if elapsed < shrink_at:
-				falling.scale = Vector3.ONE
+				falling.scale = Vector3.ONE * base
 			else:
 				var faded := clampf((elapsed - shrink_at) / shrink_for, 0.0, 1.0)
-				falling.scale = Vector3.ONE * maxf(1.0 - faded, 0.01)
+				falling.scale = Vector3.ONE * base * maxf(1.0 - faded, 0.01)
 		_react_marks(marks, elapsed, 4.3, react, 4.3)
 		if elapsed >= 4.3 + fall and _latch(gate, "land"):
 			_sfx(_DROP_HIT[level] if hit else _DROP_MISS[level])
@@ -625,6 +739,8 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 			if cog == null:
 				continue
 			_throw_trap(prop, actor, cog, level, elapsed)
+			if prop_name == "banana" or prop_name == "rake" or prop_name == "marbles" or prop_name == "tnt":
+				_pose_prop(prop, prop_name, elapsed)
 		_once("trap", elapsed, 0.2, _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg")
 		if elapsed >= 3.5 and _latch(gate, "hit"):
 			contact.call()
@@ -633,7 +749,14 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		var mark: Dictionary = marks[index]
 		var cog := _node3d(mark.get("cog"))
 		if cog != null:
-			_plant(cog, props[index], int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
+			var planted := props[index]
+			if level == 1:
+				# The rake left on the cog is rake-step-mod, not the thrown rake.
+				var react := _make("rake-react")
+				react.global_transform = planted.global_transform
+				planted.visible = false
+				planted = react
+			_plant(cog, planted, int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
 	actor.end_action(clip)
 
 
@@ -675,6 +798,10 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		lure_at = 2.4
 	await _run(seconds("gag", 2, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
+		if prop_name == "fishing-pole" or prop_name == "hypno-goggles":
+			_pose_prop(prop, prop_name, elapsed)
+		if bill != null:
+			_pose_prop(bill, "1dollar", elapsed)
 		if level == 1 or level == 3 or level == 5:
 			var held: Vector3 = prop.get_meta("grow")
 			prop.scale = held
@@ -778,6 +905,8 @@ func _heal(actor: ToonActor, prop_name: String, level: int, beats: Array, actor_
 	var gate := {}
 	await _run(dur, still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
+		if prop != null and (prop_name == "feather" or prop_name == "cubes"):
+			_pose_prop(prop, prop_name, elapsed)
 		if prop != null and level != 5:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.4, 0.0, 1.0))
 		if hat != null:
@@ -997,6 +1126,12 @@ func _pose_sprung(elapsed: float) -> void:
 			continue
 		var age := elapsed - float(record.get("born", elapsed))
 		var level := int(record.get("level", 0))
+		if level == 0:
+			_pose_prop(node, "banana", 3.1 + age)
+		elif level == 2:
+			_pose_prop(node, "marbles", 3.1 + age)
+		elif level == 5:
+			_pose_prop(node, "tnt", age)
 		if level == 1:
 			if age >= 0.5 and age < 0.6:
 				node.rotation_degrees.x = lerpf(-90.0, 0.0, (age - 0.5) / 0.1)
@@ -1330,7 +1465,8 @@ func _begin_camera(lead: Dictionary, actor: ToonActor, marks: Array) -> void:
 			_aim_open_name = "group_low" if seed % 2 == 0 else "suit_behind"
 			_aim_close_name = "suit_behind" if seed % 2 == 0 else "group_low"
 			return
-		var sound_open: Array[String] = ["three_wide", "group_low", "suit_behind"] if level >= 6 else ["three_right", "group_low", "suit_behind"]
+		var sound_open: Array[String] = []
+		sound_open.assign(["three_wide", "group_low", "suit_behind"] if level >= 6 else ["three_right", "group_low", "suit_behind"])
 		_assign_shot(true, sound_open[seed % sound_open.size()], "toon")
 		var sound_close: Array[String] = ["throw_close", "three_left", "group_low", "suit_behind"]
 		_assign_shot(false, sound_close[(seed / 5) % sound_close.size()], "cog")
@@ -1390,6 +1526,279 @@ func _shadow() -> MeshInstance3D:
 	add_child(mesh)
 	_spawned.append(mesh)
 	return mesh
+
+
+## MovieDrop.posObject. Small drops sit at shoulder height. The clip itself falls.
+func _drop_root(cog: Node3D, level: int, missed: bool) -> Vector3:
+	var rest := cog.global_position
+	if missed and level >= 3:
+		rest += _forward(cog) * 5.0
+	var lift := 0.0
+	if level <= 1:
+		lift += 0.75
+	if level < 3 and not missed:
+		var body := "c"
+		if "body" in cog:
+			body = String(cog.body)
+		var shoulder := 2.505
+		if body == "a":
+			shoulder = 3.32
+		elif body == "b":
+			shoulder = 3.435
+		lift += shoulder * cog.scale.y
+	rest.y += lift
+	return rest
+
+
+func _prop_frames(clip_name: String) -> int:
+	return int(_prop_source(clip_name).get("frames", 0))
+
+
+## Play a BattleProps actor channel. Joints carry the drop and the splat.
+## A few props, the peel and the hose, move their vertices instead.
+func _pose_prop(prop: Node3D, clip_name: String, elapsed: float) -> void:
+	if prop == null or clip_name == "":
+		return
+	var bank: Dictionary = prop.get_meta("prop_bank", {}) if prop.has_meta("prop_bank") else {}
+	if String(bank.get("clip", "")) != clip_name:
+		bank = _bind_prop(prop, clip_name)
+		prop.set_meta("prop_bank", bank)
+	var frames := int(bank.get("frames", 0))
+	if frames <= 1:
+		return
+	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
+	var frame := mini(int(time), frames - 1)
+	var following := mini(frame + 1, frames - 1)
+	var blend := 0.0 if following == frame else time - float(frame)
+	for item in bank.get("joints", []):
+		var record: Dictionary = item
+		var node := record.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		node.transform = _prop_matrix(_blended_cells(record["frames"] as Array, frame, following, blend))
+	for item in bank.get("meshes", []):
+		var record: Dictionary = item
+		var instance := record.get("instance") as MeshInstance3D
+		if instance == null or not is_instance_valid(instance):
+			continue
+		var posed := _prop_surface(record, frame, following, blend)
+		if posed != null and instance.mesh != posed:
+			instance.mesh = posed
+
+
+func _bind_prop(prop: Node3D, clip_name: String) -> Dictionary:
+	var source := _prop_source(clip_name)
+	var bank := {"clip": clip_name, "frames": int(source.get("frames", 0)), "joints": [], "meshes": []}
+	for item in source.get("joints", []):
+		var record: Dictionary = item
+		var node := prop.find_child(String(record.get("name", "")), true, false) as Node3D
+		if node == null:
+			continue
+		bank["joints"].append({"node": node, "frames": record["frames"]})
+	for item in source.get("meshes", []):
+		var record: Dictionary = item
+		var mesh := _mesh_under(prop, String(record.get("parent", "")))
+		if mesh == null:
+			continue
+		var poses: Array = []
+		poses.resize(int(source.get("frames", 0)))
+		bank["meshes"].append({
+			"instance": mesh,
+			"original": mesh.mesh,
+			"surfaces": record["surfaces"],
+			"bytes": record["bytes"],
+			"poses": poses,
+		})
+	return bank
+
+
+func _mesh_under(prop: Node, parent_name: String) -> MeshInstance3D:
+	var parent := prop.find_child(parent_name, true, false)
+	if parent == null:
+		return null
+	for child in parent.get_children():
+		if child is MeshInstance3D and (child as MeshInstance3D).mesh != null:
+			return child as MeshInstance3D
+	if parent is MeshInstance3D and (parent as MeshInstance3D).mesh != null:
+		return parent as MeshInstance3D
+	return null
+
+
+func _prop_source(clip_name: String) -> Dictionary:
+	if _prop_sources.has(clip_name):
+		return _prop_sources[clip_name]
+	var parsed := _parse_prop(_PROPS + clip_name + ".walk")
+	_prop_sources[clip_name] = parsed
+	return parsed
+
+
+func _parse_prop(path: String) -> Dictionary:
+	var empty := {"frames": 0, "joints": [], "meshes": []}
+	if not FileAccess.file_exists(path):
+		return empty
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() < 16 or bytes.slice(0, 6).get_string_from_ascii() != "TWALK3":
+		return empty
+	var at := 8
+	var frame_count := bytes.decode_u32(at)
+	at += 4
+	var node_count := bytes.decode_u32(at)
+	at += 4
+	var meshes: Array = []
+	for _node_index in node_count:
+		var name_len := bytes.decode_u16(at)
+		at += 2
+		var parent_name := bytes.slice(at, at + name_len).get_string_from_utf8()
+		at += name_len
+		var surface_count := bytes.decode_u32(at)
+		at += 4
+		var surfaces: Array = []
+		for _surface_index in surface_count:
+			var vertex_count := bytes.decode_u32(at)
+			at += 4
+			var has_uv := bytes.decode_u8(at)
+			at += 1
+			var uvs := PackedVector2Array()
+			if has_uv != 0:
+				uvs.resize(vertex_count)
+				for index in vertex_count:
+					var u := bytes.decode_float(at)
+					at += 4
+					var v := bytes.decode_float(at)
+					at += 4
+					uvs[index] = Vector2(u, v)
+			var base := at
+			at += frame_count * vertex_count * 12
+			surfaces.append({"uv": uvs, "verts": vertex_count, "base": base})
+		meshes.append({"parent": parent_name, "surfaces": surfaces, "bytes": bytes})
+	var joints: Array = []
+	if at + 4 <= bytes.size():
+		var joint_count := bytes.decode_u32(at)
+		at += 4
+		for _joint_index in joint_count:
+			if at + 2 > bytes.size():
+				break
+			var name_len := bytes.decode_u16(at)
+			at += 2
+			var joint_name := bytes.slice(at, at + name_len).get_string_from_utf8()
+			at += name_len
+			at += 64
+			var frames: Array = []
+			frames.resize(frame_count)
+			for frame in frame_count:
+				var cells := PackedFloat32Array()
+				cells.resize(16)
+				for cell in 16:
+					cells[cell] = bytes.decode_float(at)
+					at += 4
+				frames[frame] = cells
+			joints.append({"name": joint_name, "frames": frames})
+	return {"frames": frame_count, "joints": joints, "meshes": meshes}
+
+
+func _blended_cells(frames: Array, frame: int, following: int, blend: float) -> PackedFloat32Array:
+	var current: PackedFloat32Array = frames[frame]
+	if blend <= 0.001 or following == frame:
+		return current
+	var nxt: PackedFloat32Array = frames[following]
+	var mixed := PackedFloat32Array()
+	mixed.resize(16)
+	for index in 16:
+		mixed[index] = lerpf(current[index], nxt[index], blend)
+	return mixed
+
+
+## Keep the scale in the basis. Orthonormalizing would flatten the anvil and the splat.
+func _prop_matrix(cells: PackedFloat32Array) -> Transform3D:
+	return Transform3D(Basis(
+		Vector3(cells[0], cells[1], cells[2]),
+		Vector3(cells[4], cells[5], cells[6]),
+		Vector3(cells[8], cells[9], cells[10])
+	), Vector3(cells[12], cells[13], cells[14]))
+
+
+func _prop_surface(record: Dictionary, frame: int, following: int, blend: float) -> ArrayMesh:
+	var poses: Array = record["poses"]
+	var posed: ArrayMesh = null
+	if frame < poses.size():
+		posed = poses[frame] as ArrayMesh
+	if posed == null:
+		posed = _build_prop_mesh(record, frame)
+		if frame < poses.size():
+			poses[frame] = posed
+	if blend <= 0.001 or following == frame or posed == null:
+		return posed
+	var nxt := poses[following] as ArrayMesh
+	if nxt == null:
+		nxt = _build_prop_mesh(record, following)
+		if following < poses.size():
+			poses[following] = nxt
+	if nxt == null:
+		return posed
+	return _blend_prop_mesh(posed, nxt, blend)
+
+
+func _build_prop_mesh(record: Dictionary, frame: int) -> ArrayMesh:
+	var bytes: PackedByteArray = record["bytes"]
+	var original: Mesh = record.get("original") as Mesh
+	var mesh := ArrayMesh.new()
+	var surfaces: Array = record["surfaces"]
+	for surface_index in surfaces.size():
+		var surface: Dictionary = surfaces[surface_index]
+		var count := int(surface["verts"])
+		var base := int(surface["base"]) + frame * count * 12
+		var positions := PackedVector3Array()
+		positions.resize(count)
+		var at := base
+		for index in count:
+			positions[index] = Vector3(bytes.decode_float(at), bytes.decode_float(at + 4), bytes.decode_float(at + 8))
+			at += 12
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
+		arrays[Mesh.ARRAY_NORMAL] = _face_normals(positions)
+		var uvs: PackedVector2Array = surface["uv"]
+		if uvs.size() == count:
+			arrays[Mesh.ARRAY_TEX_UV] = uvs
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		if original != null and surface_index < original.get_surface_count():
+			mesh.surface_set_material(surface_index, original.surface_get_material(surface_index))
+	return mesh
+
+
+func _blend_prop_mesh(current: ArrayMesh, nxt: ArrayMesh, blend: float) -> ArrayMesh:
+	var mixed := ArrayMesh.new()
+	for index in current.get_surface_count():
+		var left: Array = current.surface_get_arrays(index)
+		var right: Array = nxt.surface_get_arrays(index)
+		var positions: PackedVector3Array = left[Mesh.ARRAY_VERTEX]
+		var next_positions: PackedVector3Array = right[Mesh.ARRAY_VERTEX]
+		var blended := PackedVector3Array()
+		blended.resize(positions.size())
+		for vertex in positions.size():
+			blended[vertex] = positions[vertex].lerp(next_positions[vertex], blend)
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = blended
+		arrays[Mesh.ARRAY_NORMAL] = _face_normals(blended)
+		arrays[Mesh.ARRAY_TEX_UV] = left[Mesh.ARRAY_TEX_UV]
+		mixed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		mixed.surface_set_material(index, current.surface_get_material(index))
+	return mixed
+
+
+func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
+	var normals := PackedVector3Array()
+	normals.resize(positions.size())
+	var index := 0
+	while index + 2 < positions.size():
+		var edge := (positions[index + 1] - positions[index]).cross(positions[index + 2] - positions[index])
+		var normal := edge.normalized() if edge.length_squared() > 0.000001 else Vector3.UP
+		normals[index] = normal
+		normals[index + 1] = normal
+		normals[index + 2] = normal
+		index += 3
+	return normals
 
 
 func _prop_name(track: int, level: int) -> String:
@@ -1642,18 +2051,38 @@ func _face_camera(node: Node3D) -> void:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
-	node.look_at(camera.global_position, Vector3.UP)
+	# setBillboardPointWorld. The splat card lies in local XZ, front toward local -Y, up local +Z.
+	var to_cam := camera.global_position - node.global_position
+	if to_cam.length_squared() < 0.0001:
+		return
+	to_cam = to_cam.normalized()
+	var up := Vector3.UP
+	if absf(to_cam.dot(up)) > 0.98:
+		up = Vector3.FORWARD
+	var right := up.cross(to_cam).normalized()
+	var kept := node.scale
+	node.global_basis = Basis(right, -to_cam, right.cross(-to_cam).normalized())
+	node.scale = kept
 
 
-func _tint(node: Node, color: Color) -> void:
+func _tint(node: Node, color: Color, textured := false) -> void:
 	for child in node.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := child as MeshInstance3D
 		if mesh_node.mesh == null:
 			continue
 		var tint := StandardMaterial3D.new()
 		tint.albedo_color = color
-		tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		tint.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if textured:
+			var source := mesh_node.get_active_material(0)
+			if source is StandardMaterial3D:
+				tint.albedo_texture = (source as StandardMaterial3D).albedo_texture
+			# splat-mod is an alpha-mask card. setColor tints it; it does not replace the graphic.
+			tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+			tint.alpha_scissor_threshold = 0.5
+			tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		else:
+			tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mesh_node.material_override = tint
 
 

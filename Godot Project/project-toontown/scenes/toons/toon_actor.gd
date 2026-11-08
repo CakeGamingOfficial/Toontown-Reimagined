@@ -248,7 +248,7 @@ func _build_lod(lod: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = str(lod)
 	root.add_child(legs)
-		hips.add_child(torso)
+	hips.add_child(torso)
 	var look := Node3D.new()
 	look.name = "head_look"
 	neck.add_child(look)
@@ -355,7 +355,7 @@ func hold_parcel(carry: bool) -> void:
 		return
 	var hand := find_child("def_joint_right_hold", true, false) as Node3D
 	if hand == null:
-			return
+		return
 	if _parcel == null or not is_instance_valid(_parcel):
 		var mesh := MeshInstance3D.new()
 		mesh.name = "Parcel"
@@ -975,7 +975,7 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	var frame := mini(int(time), frames - 1)
 	var following := mini(frame + 1, frames - 1)
 	var blend: float = 0.0 if following == frame else time - float(frame)
-		_posing = true
+	_posing = true
 	_clip = suffix
 	var drawn := _pose_target(suffix, clips, bank["joints"])
 	if drawn.is_empty():
@@ -1495,31 +1495,31 @@ func _mesh_for_frame(clip: Dictionary, frame: int, amount: float) -> ArrayMesh:
 	if instance == null or not is_instance_valid(source) or not (source is Mesh):
 		return null
 	var original := source as Mesh
-		var surfaces: Array = clip["surfaces"]
-		var posed := ArrayMesh.new()
+	var surfaces: Array = clip["surfaces"]
+	var posed := ArrayMesh.new()
 	var part := String(instance.name)
-		for surface_index in surfaces.size():
-			var surface: Dictionary = surfaces[surface_index]
-			var frames: Array = surface["frames"]
-			if frames.is_empty():
-				continue
+	for surface_index in surfaces.size():
+		var surface: Dictionary = surfaces[surface_index]
+		var frames: Array = surface["frames"]
+		if frames.is_empty():
+			continue
 		var frame_index := frame % frames.size()
 		var next_index := (frame_index + 1) % frames.size()
 		var positions := _blend_positions(surface, frame_index, next_index, amount)
-			var arrays: Array = []
-			arrays.resize(Mesh.ARRAY_MAX)
-			arrays[Mesh.ARRAY_VERTEX] = positions
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
 		arrays[Mesh.ARRAY_NORMAL] = _blend_normals(surface, frame_index, next_index, amount, part)
-			var uvs: PackedVector2Array = surface["uv"]
-			if uvs.size() == positions.size():
-				arrays[Mesh.ARRAY_TEX_UV] = uvs
+		var uvs: PackedVector2Array = surface["uv"]
+		if uvs.size() == positions.size():
+			arrays[Mesh.ARRAY_TEX_UV] = uvs
 		if surface_index < original.get_surface_count():
 			var colors := _corner_colors(original, surface_index, positions.size())
 			if colors.size() == positions.size():
 				arrays[Mesh.ARRAY_COLOR] = colors
-			posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-			if surface_index < original.get_surface_count():
-				posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
+		posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		if surface_index < original.get_surface_count():
+			posed.surface_set_material(surface_index, original.surface_get_material(surface_index))
 	if posed.get_surface_count() == 0:
 		return null
 	return posed
@@ -1879,7 +1879,7 @@ func _bottom_texture(style: ToonStyle) -> Texture2D:
 
 func _part_name(mesh: MeshInstance3D) -> String:
 	var part := String(mesh.name)
-		var parent := mesh.get_parent()
+	var parent := mesh.get_parent()
 	# Pupil cards are unnamed meshes. A second card is renamed node2 on import.
 	if parent and _is_pupil_joint(String(parent.name)):
 		return String(parent.name)
