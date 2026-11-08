@@ -84,7 +84,9 @@ func _ready() -> void:
 	_products(book, floor, packed)
 	_blocks(floor)
 	var spawn: Array = floor.get("spawn", [0.0, 0.0, 0.0])
-	set_meta("spawn", _vec(spawn))
+	# The entrance sheet sits at this height. Start a step above it so the
+	# first physics frame lands on the solid floor instead of inside it.
+	set_meta("spawn", _vec(spawn) + Vector3(0.0, 0.2, 0.0))
 	set_meta("spawn_h", float(floor.get("spawn_h", 0.0)))
 	_collide(self)
 
@@ -133,10 +135,57 @@ func _collide(node: Node) -> void:
 		return
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
-		if mesh.visible and mesh.mesh != null and not _cutout(mesh):
-			mesh.create_trimesh_collision()
+		if mesh.visible and mesh.mesh != null:
+			# The mint floors are single sheets. A trimesh of that sheet has no
+			# thickness, and the toon falls through it on the first step.
+			if _slab(mesh):
+				_thicken(mesh)
+			elif not _cutout(mesh):
+				mesh.create_trimesh_collision()
+				var body := mesh.get_node_or_null(String(mesh.name) + "_col") as StaticBody3D
+				if body != null:
+					body.collision_layer = 1
+					body.collision_mask = 0
+					_backs(body)
 	for child in node.get_children():
 		_collide(child)
+
+
+## A walk surface whose local Z (up, inside the mint model) is paper thin.
+func _slab(mesh: MeshInstance3D) -> bool:
+	var label := String(mesh.name).to_lower()
+	if label.contains("gear"):
+		return false
+	var walk := label.contains("floor") or label.begins_with("moltenlava") or label == "platform"
+	if not walk:
+		return false
+	var bounds := mesh.get_aabb()
+	return bounds.size.z < 0.25 and bounds.size.x > 4.0 and bounds.size.y > 4.0
+
+
+## A box two units thick, with its top on the sheet, so the step cannot tunnel.
+func _thicken(mesh: MeshInstance3D) -> void:
+	var bounds := mesh.global_transform * mesh.get_aabb()
+	var top := bounds.position.y + bounds.size.y
+	var body := StaticBody3D.new()
+	body.name = String(mesh.name) + "Solid"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(maxf(bounds.size.x, 0.2), 2.0, maxf(bounds.size.z, 0.2))
+	shape.shape = box
+	body.add_child(shape)
+	add_child(body)
+	body.global_position = Vector3(bounds.get_center().x, top - 1.0, bounds.get_center().z)
+
+
+func _backs(body: StaticBody3D) -> void:
+	for child in body.get_children():
+		if child is CollisionShape3D:
+			var shape := (child as CollisionShape3D).shape
+			if shape is ConcavePolygonShape3D:
+				(shape as ConcavePolygonShape3D).backface_collision = true
 
 
 func _cutout(mesh: MeshInstance3D) -> bool:
