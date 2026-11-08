@@ -351,6 +351,7 @@ func play(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, c
 	_clear_spawned()
 	if kind == "gag":
 		await _cog_death(marks, still)
+		_finish_revives(marks)
 	_rest(actor, marks)
 
 
@@ -367,6 +368,7 @@ func _marks(beats: Array, cog_of: Callable) -> Array:
 			"id": cog_id,
 			"hit": bool(beat.get("hit", false)),
 			"hp": int(beat.get("cog_hp", 1)),
+			"revived": bool(beat.get("revived", false)),
 		})
 	return marks
 
@@ -1059,6 +1061,17 @@ func _cog_death(marks: Array, still: Callable) -> void:
 		if elapsed >= 5.0 and _latch(gate, "crash"):
 			_sfx("ENC_cogfall_apart.ogg")
 	)
+
+
+## removeReviveSuit. The lose actor comes off and the same cog stands up as a Skelecog.
+func _finish_revives(marks: Array) -> void:
+	for mark in marks:
+		var row: Dictionary = mark
+		if not bool(row.get("revived", false)):
+			continue
+		var cog: Variant = row.get("cog")
+		if _live(cog) and cog is Node and (cog as Node).has_method("finish_revive"):
+			(cog as Node).call("finish_revive")
 
 
 func _react_one(cog: Variant, key: String, elapsed: float) -> void:

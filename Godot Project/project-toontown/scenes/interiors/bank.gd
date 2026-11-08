@@ -64,6 +64,7 @@ func _place_bob() -> void:
 		return
 	var body := StaticBody3D.new()
 	body.name = "BankerBob"
+	body.set_meta("npc_id", 2002)
 	add_child(body)
 	body.global_position = origin.global_position + Vector3(0.0, 0.02, 0.0)
 	var actor := ToonActor.new()

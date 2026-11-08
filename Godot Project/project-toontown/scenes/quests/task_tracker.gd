@@ -15,6 +15,9 @@ const _ARROW_TEX := preload("res://assets/gui/questmap/tt_t_gui_qst_arrow.png")
 const _ARROW_SIZE := 40.0
 const _ARROW_GAP := 4.0
 const _ARRIVED := 10.0
+# Stay aimed at a toon until you are standing with them. A shop floor is
+# shorter than the distance that counts as arriving at a door.
+const _BESIDE := 4.0
 const _MISS := Vector3(INF, INF, INF)
 
 var _tasks: ToonTasks
@@ -26,6 +29,7 @@ var _wait := 0.0
 var _view := Vector2.ZERO
 var _goal := Vector3.ZERO
 var _have := false
+var _at_npc := false
 var _tunnel_scene: Node
 var _tunnels: Array[Node3D] = []
 var _npc_scene: Node
@@ -141,7 +145,8 @@ func _aim() -> void:
 		_arrow.visible = false
 		return
 	var flat := Vector2(_goal.x - body.global_position.x, _goal.z - body.global_position.z)
-	if flat.length() < _ARRIVED:
+	var arrived: float = _BESIDE if _at_npc else _ARRIVED
+	if flat.length() < arrived:
 		_arrow.visible = false
 		return
 	var forward := -cam.global_basis.z
@@ -159,6 +164,7 @@ func _aim() -> void:
 ## Where the tracked task wants the toon to walk. A task that can be done
 ## right here, or a friend or phone task, leaves the arrow hidden.
 func _goal_for(card: Dictionary, scene: Node, here: int) -> Vector3:
+	_at_npc = false
 	var kind := String(card.get("kind", ""))
 	var ready := bool(card.get("ready", false))
 	if ready or kind == "visit" or kind == "deliver" or kind == "track":
@@ -184,15 +190,24 @@ func _turn_in_point(card: Dictionary, scene: Node, here: int) -> Vector3:
 	var npc_id := int(card.get("npc", 0))
 	var npc := _npc_at(scene, npc_id)
 	if npc != null:
+		_at_npc = true
 		return npc.global_position
 	var turn := String(card.get("turn_in", ""))
 	if turn == "hq" or npc_id == 0 or npc_id == 1000:
 		if _PLACES.is_toon_hq(scene.scene_file_path):
+			var officer := _nearest_officer(scene)
+			if officer == null:
+				return _MISS
+			_at_npc = true
+			return officer.global_position
+		# The landmark root sits at the playground origin. The doors are on the
+		# building, and a toon in another zone has to be walked there tunnel by tunnel.
+		var step := _LINKS.hq_step(here)
+		if step == 0:
 			return _MISS
-		var hq := _hq_at(scene)
-		if hq != null:
-			return hq.global_position
-		return _nearest_street(scene, here)
+		if _LINKS.branch_of(here) == step:
+			return _hq_door_point(scene)
+		return _tunnel_toward(scene, here, step)
 	if turn.is_valid_int():
 		var zone := int(turn)
 		var building := _DOOR.find_for_zone(zone)
@@ -237,7 +252,6 @@ func _npc_at(scene: Node, npc_id: int) -> Node3D:
 	if is_instance_valid(_npc_scene) and _npc_scene == scene and _npc_id == npc_id:
 		if _npc != null and is_instance_valid(_npc):
 			return _npc
-		return null
 	_npc_scene = scene
 	_npc_id = npc_id
 	_npc = null
@@ -247,6 +261,42 @@ func _npc_at(scene: Node, npc_id: int) -> Node3D:
 		_npc = node as Node3D
 		return _npc
 	return null
+
+
+## Any HQ officer can take the hand-in. The closest one is the one to walk to.
+func _nearest_officer(scene: Node) -> Node3D:
+	var player := scene.get_node_or_null("Player") as Node3D
+	var best: Node3D = null
+	var best_gap := INF
+	for node in scene.find_children("Officer*", "StaticBody3D", true, false):
+		var body := node as Node3D
+		if player == null:
+			return body
+		var flat := Vector2(body.global_position.x - player.global_position.x, body.global_position.z - player.global_position.z)
+		var gap := flat.length_squared()
+		if gap < best_gap:
+			best_gap = gap
+			best = body
+	return best
+
+
+## The closer of the two outdoor doors. The DNA root is not that doorway.
+func _hq_door_point(scene: Node) -> Vector3:
+	var building := _hq_at(scene)
+	if building == null:
+		return _MISS
+	var player := _player_flat(scene)
+	var best := _MISS
+	var best_gap := INF
+	for index in 2:
+		var door := _HQ.find_exterior_door(building, index)
+		if door == null:
+			continue
+		var gap := _flat_gap(door.global_position, player)
+		if gap < best_gap:
+			best = door.global_position
+			best_gap = gap
+	return best
 
 
 func _hq_at(scene: Node) -> Node3D:
@@ -284,8 +334,24 @@ func _tunnel_toward(scene: Node, here: int, dest: int) -> Vector3:
 			hood_gap = gap
 	var chosen := exact if exact != null else hood_hit
 	if chosen == null:
+		chosen = _raw_shaft(scene, dest_branch)
+	if chosen == null:
 		return _MISS
 	return chosen.global_position
+
+
+## Cashbot and Lawbot keep the model's shaft name. Sellbot and Bossbot are
+## renamed to linktunnel_ before this runs.
+func _raw_shaft(scene: Node, dest_branch: int) -> Node3D:
+	var file := scene.scene_file_path.get_file()
+	var wanted := ""
+	if file == "cashbot_trainyard.tscn" and dest_branch == 9200:
+		wanted = "LinkTunnel1"
+	elif file == "lawbot_courtyard.tscn" and dest_branch == 3300:
+		wanted = "LinkTunnel1"
+	if wanted.is_empty():
+		return null
+	return scene.find_child(wanted, true, false) as Node3D
 
 
 func _nearest_street(scene: Node, here: int) -> Vector3:

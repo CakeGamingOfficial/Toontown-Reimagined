@@ -624,11 +624,16 @@ func established_suit_buildings() -> int:
 ## the range that cog type can actually be.
 func summon_named(query: String, level: int, near: Vector3) -> String:
 	var parsed := parse_summon(query)
+	var conflict := String(parsed.get("conflict", ""))
+	if conflict != "":
+		return conflict
 	if String(parsed["name"]).is_empty():
 		return "Name a cog. Try ~suit flunky, ~suit pp 5, or ~suit cold caller skelecog."
 	var cog := _find_named(String(parsed["name"]))
 	if cog.is_empty():
 		return "Unknown cog \"%s\"." % String(parsed["name"])
+	if bool(parsed.get("waiter", false)) and String(cog.get("dept", "")) != "c":
+		return "Only Bossbots wear the waiter suit."
 	if _route.size() < 2 or _points.is_empty():
 		return "This street has no cog spawn points."
 	var cog_type := int(cog.get("type", 1))
@@ -638,12 +643,18 @@ func summon_named(query: String, level: int, near: Vector3) -> String:
 	elif not _levels.is_empty():
 		rolled = int(_levels[randi() % _levels.size()])
 	cog["level"] = clampi(rolled, cog_type, cog_type + 4)
-	if bool(parsed["skeleton"]):
-		dress_skeleton(cog)
+	dress_summon(cog, parsed)
+	var shown := String(cog["name"])
+	if bool(parsed.get("laser", false)):
+		shown = "Laser Skelecog"
+	elif bool(parsed.get("waiter", false)):
+		shown = "Waiter %s" % shown
+	if bool(parsed["revives"]):
+		shown += " v2.0"
 	# A client does not create the suit. The district AI does, then everyone plays it.
 	if not ToonNet.is_authority():
 		ToonNet.ask_summon(district_id, street_slug, query, int(cog["level"]), near)
-		return "A Level %d %s is flying in." % [int(cog["level"]), String(cog["name"])]
+		return "A Level %d %s is flying in." % [int(cog["level"]), shown]
 	if not visuals:
 		return _summon_parked(cog, near)
 	var net_id := ToonNet.next_id()
@@ -654,20 +665,45 @@ func summon_named(query: String, level: int, near: Vector3) -> String:
 		"slot": _closest_slot(near),
 		"phase": -1,
 	})
-	return "A Level %d %s is flying in." % [int(cog["level"]), String(cog["name"])]
+	return "A Level %d %s is flying in." % [int(cog["level"]), shown]
 
 
 ## ~suit flunky skelecog. createNewSuit's skelecog flag, then Suit.makeSkeleton.
+## ~suit flunky v2 sets skeleRevives. A suited cog can be one or the other.
+## ~suit flunky laser is that skelecog drawn with setVirtual. ~suit flunky waiter
+## is Suit.makeWaiter, and only a Bossbot has that suit.
 static func parse_summon(query: String) -> Dictionary:
 	var skeleton := false
+	var revives := false
+	var laser := false
+	var waiter := false
 	var names := PackedStringArray()
 	for part in query.split(" ", false):
 		var key := part.to_lower()
 		if key == "skelecog" or key == "skele" or key == "skeleton" or key == "sk":
 			skeleton = true
+		elif key == "laser" or key == "lasers" or key == "virtual":
+			laser = true
+			skeleton = true
+		elif key == "waiter" or key == "waiters":
+			waiter = true
+		elif key == "v2" or key == "v2.0" or key == "version2" or key == "revive":
+			revives = true
 		else:
 			names.append(part)
-	return {"name": " ".join(names), "skeleton": skeleton}
+	var conflict := ""
+	if skeleton and revives:
+		conflict = "A v2.0 Cog can't be a Skelecog."
+	elif waiter and skeleton:
+		conflict = "A waiter Cog can't be a Skelecog."
+	return {
+		"name": " ".join(names),
+		"skeleton": skeleton,
+		"revives": revives,
+		"laser": laser,
+		"waiter": waiter,
+		"conflict": conflict,
+	}
 
 
 ## Suit.makeSkeleton. The robot mesh already includes the 1.0173 scale. The
@@ -681,6 +717,49 @@ static func dress_skeleton(cog: Dictionary) -> void:
 	cog["neutral"] = "res://assets/cogs/anims/robot_%s/neutral.walk" % suit_body
 	cog["landing"] = "res://assets/cogs/anims/robot_%s/landing.walk" % suit_body
 	cog["scale"] = float(cog.get("scale", 1.0))
+	cog["laser"] = false
+	cog["waiter"] = false
+
+
+## setVirtual on a skelecog. Same robot body. The red additive pass is the laser.
+static func dress_laser(cog: Dictionary) -> void:
+	dress_skeleton(cog)
+	cog["laser"] = true
+
+
+## setSkeleRevives. The suit stays dressed. The name card gains " v2.0".
+## The first time it is defeated it comes back as a Skelecog.
+static func dress_v2(cog: Dictionary) -> void:
+	cog["revives"] = 1
+	cog["skeleton"] = false
+	cog["laser"] = false
+
+
+## Suit.makeWaiter. The white jacket, sleeves, and legs replace the business suit.
+static func dress_waiter(cog: Dictionary) -> void:
+	cog["waiter"] = true
+
+
+static func dress_summon(cog: Dictionary, parsed: Dictionary) -> void:
+	if bool(parsed.get("laser", false)):
+		dress_laser(cog)
+	elif bool(parsed.get("skeleton", false)):
+		dress_skeleton(cog)
+	elif bool(parsed.get("revives", false)):
+		dress_v2(cog)
+	if bool(parsed.get("waiter", false)):
+		dress_waiter(cog)
+
+
+static func dress_plan(cog: Dictionary, plan: Dictionary) -> void:
+	if bool(plan.get("laser", false)):
+		dress_laser(cog)
+	elif bool(plan.get("skeleton", false)):
+		dress_skeleton(cog)
+	elif bool(plan.get("revives", false)):
+		dress_v2(cog)
+	if bool(plan.get("waiter", false)):
+		dress_waiter(cog)
 
 
 ## ~spawnbuilding sellbot 1 takes the closest toon building and makes it that
@@ -1573,8 +1652,7 @@ func _apply_invasion(cog: Dictionary) -> Dictionary:
 		forced = _pick_track(dept)
 		if forced.is_empty():
 			return cog
-	if bool(plan.get("skeleton", false)):
-		dress_skeleton(forced)
+	dress_plan(forced, plan)
 	return forced
 
 
@@ -1592,8 +1670,7 @@ static func invade(cog: Dictionary, district: int, catalog: Array) -> Dictionary
 			var picked := _from_dept(catalog, cog, dept)
 			if not picked.is_empty():
 				cog = picked
-		if bool(plan.get("skeleton", false)):
-			dress_skeleton(cog)
+		dress_plan(cog, plan)
 		return cog
 	var forced := {}
 	for item in catalog:
@@ -1604,8 +1681,7 @@ static func invade(cog: Dictionary, district: int, catalog: Array) -> Dictionary
 		return cog
 	var cog_type := int(forced.get("type", 1))
 	forced["level"] = clampi(int(cog.get("level", cog_type)), cog_type, cog_type + 4)
-	if bool(plan.get("skeleton", false)):
-		dress_skeleton(forced)
+	dress_plan(forced, plan)
 	return forced
 
 

@@ -17,8 +17,8 @@ const _TELEPORT_ALL: Array[int] = [
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
-~invasion start flunky 1000   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
+~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
@@ -97,6 +97,7 @@ const _WORDS: Dictionary = {
 	"holiday": "holiday",
 	"holidays": "holiday",
 	"invasion": "invasion",
+	"invasions": "invasion",
 	"spawninvasion": "invasion",
 	"deptinvasion": "deptinvasion",
 	"invasionstatus": "invasionstatus",
@@ -759,29 +760,45 @@ static func _invasion_word(args: PackedStringArray) -> String:
 	var command := args[0].to_lower()
 	var amount := 1000
 	var skeleton := false
+	var revives := false
+	var laser := false
+	var waiter := false
 	var names := PackedStringArray()
 	for index in range(1, args.size()):
 		var token := args[index]
 		var key := token.to_lower()
-		if key == "true" or key == "yes" or key == "skelecog" or key == "skele" or key == "skeleton":
+		if _laser_word(key):
+			laser = true
 			skeleton = true
+		elif _skeleton_word(key):
+			skeleton = true
+		elif _revive_word(key):
+			revives = true
+		elif _waiter_word(key):
+			waiter = true
 		elif key == "false" or key == "no":
 			skeleton = false
+			revives = false
+			laser = false
+			waiter = false
 		elif token.is_valid_int():
 			amount = int(token)
 		else:
 			names.append(token)
+	var clash := _variant_clash(skeleton, revives, laser, waiter)
+	if clash != "":
+		return clash
 	if amount < 10 or amount > 25000:
 		return "Can't the invasion amount to %d! Specify a value between 10 and 25,000." % amount
 	if command == "start":
 		var query := "f" if names.is_empty() else " ".join(names)
 		var dept := "" if names.is_empty() else _HOLIDAYS.dept_named(query)
 		if dept != "" and not _exact_cog(query):
-			return _HOLIDAYS.begin_dept_invasion(dept, amount, skeleton)
+			return _HOLIDAYS.begin_dept_invasion(dept, amount, skeleton, revives, laser, waiter)
 		var cog := _cog_named(query)
 		if cog.is_empty():
 			return "This cog does not exist!"
-		return _HOLIDAYS.begin_invasion(cog, amount, skeleton)
+		return _HOLIDAYS.begin_invasion(cog, amount, skeleton, revives, laser, waiter)
 	if command == "stop" or command == "end":
 		return _HOLIDAYS.end_invasion()
 	return "You didn't enter a valid command! Commands are ~invasion start or stop."
@@ -792,23 +809,63 @@ static func _dept_invasion_word(args: PackedStringArray) -> String:
 		return "Use ~deptinvasion sellbot. Departments are Bossbot, Lawbot, Cashbot, and Sellbot."
 	var amount := 1000
 	var skeleton := false
+	var revives := false
+	var laser := false
+	var waiter := false
 	var names := PackedStringArray()
 	for token in args:
 		var key := token.to_lower()
-		if key == "true" or key == "yes" or key == "skelecog" or key == "skele" or key == "skeleton":
+		if _laser_word(key):
+			laser = true
 			skeleton = true
+		elif _skeleton_word(key):
+			skeleton = true
+		elif _revive_word(key):
+			revives = true
+		elif _waiter_word(key):
+			waiter = true
 		elif key == "false" or key == "no":
 			skeleton = false
+			revives = false
+			laser = false
+			waiter = false
 		elif token.is_valid_int():
 			amount = int(token)
 		else:
 			names.append(token)
+	var clash := _variant_clash(skeleton, revives, laser, waiter)
+	if clash != "":
+		return clash
 	if amount < 10 or amount > 25000:
 		return "Can't the invasion amount to %d! Specify a value between 10 and 25,000." % amount
 	var dept := _HOLIDAYS.dept_named(" ".join(names))
 	if dept == "":
 		return "That department does not exist! Departments are Bossbot, Lawbot, Cashbot, and Sellbot."
-	return _HOLIDAYS.begin_dept_invasion(dept, amount, skeleton)
+	return _HOLIDAYS.begin_dept_invasion(dept, amount, skeleton, revives, laser, waiter)
+
+
+static func _skeleton_word(key: String) -> bool:
+	return key == "true" or key == "yes" or key == "skelecog" or key == "skele" or key == "skeleton"
+
+
+static func _revive_word(key: String) -> bool:
+	return key == "v2" or key == "v2.0" or key == "version2" or key == "revive"
+
+
+static func _laser_word(key: String) -> bool:
+	return key == "laser" or key == "lasers" or key == "virtual"
+
+
+static func _waiter_word(key: String) -> bool:
+	return key == "waiter" or key == "waiters"
+
+
+static func _variant_clash(skeleton: bool, revives: bool, laser: bool, waiter: bool) -> String:
+	if (skeleton or laser) and revives:
+		return "A v2.0 Cog can't be a Skelecog."
+	if waiter and (skeleton or laser):
+		return "A waiter Cog can't be a Skelecog."
+	return ""
 
 
 static func _exact_cog(query: String) -> bool:

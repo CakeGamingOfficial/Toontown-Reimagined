@@ -40,6 +40,16 @@ const _CLERKS: Dictionary = {
 	],
 }
 
+# NPCToons ids in the same origin order as _CLERKS.
+const _CLERK_IDS: Dictionary = {
+	1000: [1001, 1002],
+	2000: [2006, 2011],
+	3000: [3006, 3007],
+	4000: [4006, 4007],
+	5000: [5005, 5006],
+	9000: [9008, 9009],
+}
+
 const _MUSIC: Dictionary = {
 	1000: "res://assets/neighborhoods/donalds_dock/audio/DD_nbrhood.ogg",
 	2000: "res://assets/neighborhoods/toontown_central/audio/TC_SZ_activity.mp3",
@@ -81,6 +91,9 @@ func _place_clerks() -> void:
 		var row: Array = rows[index]
 		var body := StaticBody3D.new()
 		body.name = "Clerk%d" % index
+		var ids: Array = _CLERK_IDS.get(_DOOR.hood, [])
+		if index < ids.size():
+			body.set_meta("npc_id", int(ids[index]))
 		add_child(body)
 		body.global_position = origin.global_position + Vector3(0.0, 0.02, 0.0)
 		var actor := ToonActor.new()

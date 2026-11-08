@@ -314,7 +314,10 @@ static func invasion_sig(district: int) -> String:
 	if plan.is_empty():
 		return ""
 	var skeleton := "1" if bool(plan.get("skeleton", false)) else "0"
-	return "%s|%s|%s" % [String(plan.get("code", "")), skeleton, String(plan.get("dept", ""))]
+	var revives := "1" if bool(plan.get("revives", false)) else "0"
+	var laser := "1" if bool(plan.get("laser", false)) else "0"
+	var waiter := "1" if bool(plan.get("waiter", false)) else "0"
+	return "%s|%s|%s|%s|%s|%s" % [String(plan.get("code", "")), skeleton, String(plan.get("dept", "")), revives, laser, waiter]
 
 
 ## The department a Cog building shows and is taken as during this invasion.
@@ -384,12 +387,18 @@ static func plan_for(district: int) -> Dictionary:
 		return {
 			"code": String(row.get("code", "")),
 			"skeleton": bool(row.get("skeleton", false)),
+			"revives": bool(row.get("revives", false)),
+			"laser": bool(row.get("laser", false)),
+			"waiter": bool(row.get("waiter", false)),
 		}
 	var commanded := _command_for(district)
 	if not commanded.is_empty():
 		var plan := {
 			"code": String(commanded.get("code", "")),
 			"skeleton": bool(commanded.get("skeleton", false)),
+			"revives": bool(commanded.get("revives", false)),
+			"laser": bool(commanded.get("laser", false)),
+			"waiter": bool(commanded.get("waiter", false)),
 		}
 		var dept := String(commanded.get("dept", ""))
 		if dept != "":
@@ -488,9 +497,17 @@ static func _county_live() -> Dictionary:
 	return _county
 
 
-static func begin_invasion(cog: Dictionary, amount: int, skeleton: bool) -> String:
+static func begin_invasion(cog: Dictionary, amount: int, skeleton: bool, revives: bool = false, laser: bool = false, waiter: bool = false) -> String:
 	if amount < 10 or amount > 25000:
 		return "Can't the invasion amount to %d! Specify a value between 10 and 25,000." % amount
+	if laser:
+		skeleton = true
+	if skeleton and revives:
+		return "A v2.0 Cog can't be a Skelecog."
+	if waiter and skeleton:
+		return "A waiter Cog can't be a Skelecog."
+	if waiter and String(cog.get("dept", "")) != "c":
+		return "Only Bossbots wear the waiter suit."
 	var district := ToonNet.district_id()
 	if is_county(district):
 		return "Corporate County's invasion keeps cycling. It can't be stopped."
@@ -501,23 +518,22 @@ static func begin_invasion(cog: Dictionary, amount: int, skeleton: bool) -> Stri
 	if cog.is_empty() or String(cog.get("code", "")) == "":
 		return "This cog does not exist!"
 	var cog_name := String(cog.get("name", "Cog"))
-	var shown := cog_name
-	var plural := _plural(cog_name)
-	if skeleton:
-		shown = "Skelecog %s" % cog_name
-		plural = "Skelecog %s" % _plural(cog_name)
+	var titled := _titled(cog_name, _plural(cog_name), skeleton, revives, laser, waiter)
 	var rows := _read_rows()
 	rows.append({
 		"district": district,
 		"code": String(cog.get("code", "")),
-		"name": shown,
-		"plural": plural,
+		"name": String(titled["name"]),
+		"plural": String(titled["plural"]),
 		"skeleton": skeleton,
+		"revives": revives,
+		"laser": laser,
+		"waiter": waiter,
 		"remaining": amount,
 		"total": amount,
 	})
 	_write_rows(rows)
-	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % plural
+	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % String(titled["plural"])
 
 
 static func dept_named(query: String) -> String:
@@ -553,9 +569,17 @@ static func dept_named(query: String) -> String:
 	return String(aliases.get(key, ""))
 
 
-static func begin_dept_invasion(dept: String, amount: int, skeleton: bool) -> String:
+static func begin_dept_invasion(dept: String, amount: int, skeleton: bool, revives: bool = false, laser: bool = false, waiter: bool = false) -> String:
 	if amount < 10 or amount > 25000:
 		return "Can't the invasion amount to %d! Specify a value between 10 and 25,000." % amount
+	if laser:
+		skeleton = true
+	if skeleton and revives:
+		return "A v2.0 Cog can't be a Skelecog."
+	if waiter and skeleton:
+		return "A waiter Cog can't be a Skelecog."
+	if waiter and dept != "c":
+		return "Only Bossbots wear the waiter suit."
 	if not _DEPT_NAME.has(dept):
 		return "That department does not exist! Departments are Bossbot, Lawbot, Cashbot, and Sellbot."
 	var district := ToonNet.district_id()
@@ -566,24 +590,23 @@ static func begin_dept_invasion(dept: String, amount: int, skeleton: bool) -> St
 	if invading():
 		return "There is already an invasion on the current AI!"
 	var cog_name := String(_DEPT_NAME[dept])
-	var plural := String(_DEPT_PLURAL[dept])
-	var shown := cog_name
-	if skeleton:
-		shown = "Skelecog %s" % cog_name
-		plural = "Skelecog %s" % plural
+	var titled := _titled(cog_name, String(_DEPT_PLURAL[dept]), skeleton, revives, laser, waiter)
 	var rows := _read_rows()
 	rows.append({
 		"district": district,
 		"code": "",
 		"dept": dept,
-		"name": shown,
-		"plural": plural,
+		"name": String(titled["name"]),
+		"plural": String(titled["plural"]),
 		"skeleton": skeleton,
+		"revives": revives,
+		"laser": laser,
+		"waiter": waiter,
 		"remaining": amount,
 		"total": amount,
 	})
 	_write_rows(rows)
-	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % plural
+	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % String(titled["plural"])
 
 
 static func end_invasion() -> String:
@@ -840,23 +863,25 @@ static func _face_from_plan(plan: Dictionary) -> Dictionary:
 		return {}
 	var code := String(plan.get("code", ""))
 	var skeleton := bool(plan.get("skeleton", false))
+	var revives := bool(plan.get("revives", false))
+	var laser := bool(plan.get("laser", false))
+	var waiter := bool(plan.get("waiter", false))
 	var dept := String(plan.get("dept", ""))
 	if code != "":
 		var cog := _cog_by_code(code)
 		var cog_name := String(cog.get("name", "Cog"))
-		var shown := cog_name
-		var plural := _plural(cog_name)
-		if skeleton:
-			shown = "Skelecog %s" % cog_name
-			plural = "Skelecog %s" % plural
-		return {"code": code, "name": shown, "plural": plural, "skeleton": skeleton}
+		var titled := _titled(cog_name, _plural(cog_name), skeleton, revives, laser, waiter)
+		return {"code": code, "name": String(titled["name"]), "plural": String(titled["plural"]), "skeleton": skeleton}
+	if laser:
+		return {"code": "", "name": "Laser Skelecog", "plural": "Laser Skelecogs", "skeleton": true}
 	if skeleton:
 		return {"code": "", "name": "Skelecog", "plural": "Skelecogs", "skeleton": true}
 	if _DEPT_NAME.has(dept):
+		var titled := _titled(String(_DEPT_NAME[dept]), String(_DEPT_PLURAL[dept]), false, revives, false, waiter)
 		return {
 			"code": "",
-			"name": String(_DEPT_NAME[dept]),
-			"plural": String(_DEPT_PLURAL[dept]),
+			"name": String(titled["name"]),
+			"plural": String(titled["plural"]),
 			"skeleton": false,
 		}
 	return {}
@@ -896,6 +921,27 @@ static func _plural(cog_name: String) -> String:
 	if cog_name.ends_with("s") or cog_name.ends_with("x") or cog_name.ends_with("z") or cog_name.ends_with("ch") or cog_name.ends_with("sh"):
 		return cog_name + "es"
 	return cog_name + "s"
+
+
+static func _titled(cog_name: String, plural: String, skeleton: bool, revives: bool, laser: bool, waiter: bool) -> Dictionary:
+	var shown := cog_name
+	var many := plural
+	if laser:
+		shown = "Laser Skelecog %s" % cog_name
+		many = "Laser Skelecog %s" % plural
+	elif waiter and revives:
+		shown = "Waiter v2.0 %s" % cog_name
+		many = "Waiter v2.0 %s" % plural
+	elif waiter:
+		shown = "Waiter %s" % cog_name
+		many = "Waiter %s" % plural
+	elif revives:
+		shown = "v2.0 %s" % cog_name
+		many = "v2.0 %s" % plural
+	elif skeleton:
+		shown = "Skelecog %s" % cog_name
+		many = "Skelecog %s" % plural
+	return {"name": shown, "plural": many}
 
 
 static func _publish() -> void:

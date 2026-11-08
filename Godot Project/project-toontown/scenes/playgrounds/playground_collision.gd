@@ -171,10 +171,21 @@ func _add_recorded_solid(landmark: Node3D, record: Dictionary) -> void:
 	body.collision_mask = 0
 	var raw: Array = record.get("faces", [])
 	var faces := PackedVector3Array()
+	var gag := String(landmark.name).to_lower().contains("gag_shop")
 	var index := 0
-	while index + 2 < raw.size():
-		faces.append(Vector3(float(raw[index]), float(raw[index + 1]), float(raw[index + 2])))
-		index += 3
+	while index + 8 < raw.size():
+		var a := Vector3(float(raw[index]), float(raw[index + 1]), float(raw[index + 2]))
+		var b := Vector3(float(raw[index + 3]), float(raw[index + 4]), float(raw[index + 5]))
+		var c := Vector3(float(raw[index + 6]), float(raw[index + 7]), float(raw[index + 8]))
+		index += 9
+		# That quad is the line between the awning supports, from the ground
+		# to above the canvas. A toon who steps into it cannot step back out.
+		# The supports and the canvas are solid on their own.
+		if gag and _tent_mouth(a, b, c):
+			continue
+		faces.append(a)
+		faces.append(b)
+		faces.append(c)
 	if faces.size() >= 3 and _shop_landmark(String(landmark.name)):
 		_thicken_faces(body, faces)
 	elif faces.size() >= 3:
@@ -201,6 +212,16 @@ func _record(buildings: Dictionary, building_name: String) -> Dictionary:
 	if typeof(record) != TYPE_DICTIONARY:
 		return {}
 	return record
+
+
+func _tent_mouth(a: Vector3, b: Vector3, c: Vector3) -> bool:
+	var top_y := maxf(a.y, maxf(b.y, c.y))
+	var low_y := minf(a.y, minf(b.y, c.y))
+	if top_y - low_y > 0.2 or low_y < 8.0:
+		return false
+	var span_x := maxf(a.x, maxf(b.x, c.x)) - minf(a.x, minf(b.x, c.x))
+	var span_z := maxf(a.z, maxf(b.z, c.z)) - minf(a.z, minf(b.z, c.z))
+	return span_x > 6.0 and span_z > 8.0
 
 
 func _shop_landmark(node_name: String) -> bool:
@@ -256,8 +277,9 @@ func _add_detail_solid(landmark: Node3D) -> void:
 	var faces: PackedVector3Array = bag["faces"]
 	if faces.size() >= 3:
 		var shape := ConcavePolygonShape3D.new()
-		# Winding on the shop trim faces the street or the wall. Either side stops a toon.
-		shape.backface_collision = true
+		# The bank bases need both sides. The shop shell points outward, and
+		# the inside has to stay open or a toon who touches it is locked in.
+		shape.backface_collision = bank
 		shape.set_faces(faces)
 		var collision := CollisionShape3D.new()
 		collision.shape = shape
@@ -308,9 +330,16 @@ func _detail_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, 
 			_append_surface(bag, verts, ids, to_local)
 		return
 	var thin := minf(size.x, minf(size.y, size.z))
+	# Thickness in the mesh's own space. A turned wall has a fat world box
+	# and still no depth, so the world box cannot decide this.
+	var local_thin := _local_thin(mesh, verts)
 	# A closed piece (the weight, the tent, a crate, a support) keeps its shape.
-	if thin >= 0.18:
-		_append_surface(bag, verts, ids, to_local)
+	# Both sides of that shape turn the hollow inside into a cage.
+	if local_thin >= 0.18:
+		if _shop_shell(size):
+			_append_surface(bag, verts, ids, to_local)
+		else:
+			_add_hull(body, verts, ids, to_local)
 		return
 	# The storefront is one flat wall. A floor card or a small picture is not.
 	if size.y <= thin + 0.001:
@@ -326,6 +355,12 @@ func _detail_surface(mesh: MeshInstance3D, surface: int, to_local: Transform3D, 
 	if wide_a < 2.0 or wide_b < 2.0:
 		return
 	_thicken_surface(body, verts, ids, to_local, local_up)
+
+
+## The storefront is one hollow shell from the sidewalk to the roof.
+## Filling that shell would brick the building. The weight and the tent are smaller.
+func _shop_shell(size: Vector3) -> bool:
+	return size.y > 20.0 and size.x > 14.0 and size.z > 14.0
 
 
 ## Green bases are wider than the column shaft. A round capsule leaves the
@@ -346,6 +381,18 @@ func _cutout_surface(mesh: MeshInstance3D, surface: int) -> bool:
 		var mode := (material as BaseMaterial3D).transparency
 		return mode != BaseMaterial3D.TRANSPARENCY_DISABLED and mode != BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 	return false
+
+
+func _local_thin(mesh: MeshInstance3D, verts: PackedVector3Array) -> float:
+	var low := Vector3(INF, INF, INF)
+	var high := Vector3(-INF, -INF, -INF)
+	for point in verts:
+		low = low.min(point)
+		high = high.max(point)
+	var span := high - low
+	var thin := minf(span.x, minf(span.y, span.z))
+	var scale := mesh.global_transform.basis.get_scale()
+	return thin * minf(scale.x, minf(scale.y, scale.z))
 
 
 func _world_bounds(mesh: MeshInstance3D, verts: PackedVector3Array) -> AABB:
@@ -379,6 +426,28 @@ func _append_surface(bag: Dictionary, verts: PackedVector3Array, ids: PackedInt3
 		faces.append(to_local * verts[i1])
 		faces.append(to_local * verts[i2])
 	bag["faces"] = faces
+
+
+## The outside of the prop. A toon is pushed away from it, never into the hollow.
+func _add_hull(body: StaticBody3D, verts: PackedVector3Array, ids: PackedInt32Array, to_local: Transform3D) -> void:
+	var points := PackedVector3Array()
+	var seen := {}
+	if ids.size() >= 3:
+		for index in ids:
+			if index < 0 or index >= verts.size() or seen.has(index):
+				continue
+			seen[index] = true
+			points.append(to_local * verts[index])
+	else:
+		for point in verts:
+			points.append(to_local * point)
+	if points.size() < 4:
+		return
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = points
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	body.add_child(collision)
 
 
 func _thicken_surface(body: StaticBody3D, verts: PackedVector3Array, ids: PackedInt32Array, to_local: Transform3D, local_up: Vector3) -> void:

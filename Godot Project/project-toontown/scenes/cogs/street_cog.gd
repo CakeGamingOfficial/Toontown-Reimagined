@@ -49,6 +49,11 @@ const _INDEX_PATHS: PackedStringArray = [
 	"res://assets/cogs/anims/robot_c/landing.walk",
 ]
 const _SHADE := preload("res://scenes/cogs/cog_shade.gdshader")
+## DistributedFactorySuit.setVirtual. Additive red, no depth write.
+const _LASER := preload("res://scenes/cogs/cog_laser.gdshader")
+const _WAITER_BLAZER := "res://assets/cogs/suits/waiter_m_blazer.png"
+const _WAITER_SLEEVE := "res://assets/cogs/suits/waiter_m_sleeve.png"
+const _WAITER_LEG := "res://assets/cogs/suits/waiter_m_leg.png"
 const _CORP_ICON := preload("res://assets/gui/cogs/CorpIcon.png")
 const _LEGAL_ICON := preload("res://assets/gui/cogs/LegalIcon.png")
 const _MONEY_ICON := preload("res://assets/gui/cogs/MoneyIcon.png")
@@ -158,6 +163,9 @@ var _lose_age := 0.0
 ## The server drops a defeated cog when its movie timer ends. A client is
 ## still playing the lose-mod, so the body stays until that clip finishes.
 var _dismissed := false
+var _revives := 0
+var _laser := false
+var _waiter := false
 var _lose_bank: Dictionary = {}
 var _fight_time := 0.0
 var _take: Dictionary = {}
@@ -187,13 +195,18 @@ func _apply_suit_scale(cog: Dictionary) -> void:
 func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, start: int, timing: Dictionary, propeller: Dictionary, resume: Dictionary = {}) -> void:
 	_clear_lose()
 	var paths := _suit_paths(cog)
-	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"]) and _model_path == String(paths["model"])
+	var want_laser := bool(cog.get("laser", false))
+	var want_waiter := bool(cog.get("waiter", false))
+	var same := get_node_or_null("Suit") != null and cog_code == str(cog["code"]) and _model_path == String(paths["model"]) and _laser == want_laser and _waiter == want_waiter
 	cog_code = str(cog["code"])
 	cog_name = str(cog["name"])
 	dept = str(cog["dept"])
 	body = str(cog["body"])
 	height = float(cog["height"])
 	cog_level = int(cog.get("level", 1))
+	_revives = int(cog.get("revives", 0))
+	_laser = want_laser
+	_waiter = want_waiter
 	name = cog_name
 	_model_path = String(paths["model"])
 	_apply_suit_scale(cog)
@@ -248,6 +261,7 @@ func setup(cog: Dictionary, points: Array[Vector3], route: PackedInt32Array, sta
 		_quiet_shadows(actor)
 		if bool(cog.get("skeleton", false)):
 			_paint_medallion(actor)
+		_dress_look(actor)
 	_release_nametag()
 	_add_nametag()
 	if not same or _walk.is_empty():
@@ -644,6 +658,7 @@ func _start_lose() -> void:
 		_dress_lose(lose, suit)
 		_copy_head(lose, suit)
 		suit.visible = false
+	_dress_look(lose)
 	_release_nametag()
 	_lose_bank = _read_bank("res://assets/cogs/lose/%s.lose" % body, lose)
 	if int(_lose_bank.get("frames", 0)) <= 1:
@@ -652,6 +667,50 @@ func _start_lose() -> void:
 			suit.visible = true
 		return
 	_lose_on = true
+
+
+## Suit.makeSkeleton after the lose. The v2.0 card comes off with the old suit.
+func finish_revive() -> void:
+	if _source.is_empty():
+		return
+	StreetSuits.dress_skeleton(_source)
+	_source["revives"] = 0
+	_revives = 0
+	_laser = false
+	_waiter = false
+	cog_name = str(_source.get("name", "Skelecog"))
+	name = cog_name
+	_clear_lose()
+	_attacks.clear()
+	_fight_key = ""
+	var previous := get_node_or_null("Suit")
+	if previous != null:
+		_drop_health()
+		previous.free()
+	var paths := _suit_paths(_source)
+	_model_path = String(paths["model"])
+	_apply_suit_scale(_source)
+	var packed := load(_model_path) as PackedScene
+	if packed == null:
+		return
+	var actor := packed.instantiate()
+	actor.name = "Suit"
+	add_child(actor)
+	_materials.clear()
+	_own_materials(actor)
+	_paint_hands(actor)
+	_quiet_shadows(actor)
+	_paint_medallion(actor)
+	_release_nametag()
+	_add_nametag()
+	_walk = _read_bank(String(paths["walk"]))
+	_neutral = _read_bank(String(paths["neutral"]))
+	_landing = _read_bank(String(paths["landing"]))
+	if bool(get_meta("in_fight", false)):
+		var maximum := maxi(_max_hp, 1)
+		set_battle_hp(maximum, maximum)
+	var frames := maxi(int(_neutral.get("frames", 1)), 1)
+	_pose_clip(_neutral, 0, 1 % frames, 0.0)
 
 
 func _clear_lose() -> void:
@@ -865,6 +924,9 @@ func present(cog: Dictionary, timing: Dictionary) -> void:
 	body = str(cog["body"])
 	height = float(cog["height"])
 	cog_level = int(cog.get("level", 1))
+	_revives = int(cog.get("revives", 0))
+	_laser = bool(cog.get("laser", false))
+	_waiter = bool(cog.get("waiter", false))
 	name = cog_name
 	_source = cog
 	set_meta("factory", true)
@@ -894,6 +956,9 @@ func present(cog: Dictionary, timing: Dictionary) -> void:
 	_own_materials(actor)
 	_paint_hands(actor)
 	_quiet_shadows(actor)
+	if bool(cog.get("skeleton", false)):
+		_paint_medallion(actor)
+	_dress_look(actor)
 	var walk_file := str(cog.get("walk", "res://assets/cogs/anims/%s/walk.walk" % body))
 	var neutral_file := str(cog.get("neutral", "res://assets/cogs/anims/%s/neutral.walk" % body))
 	_walk = _read_bank(walk_file)
@@ -1444,8 +1509,11 @@ func _add_nametag() -> void:
 	if board == null or not board.has_method("add"):
 		return
 	var dept_name := str(_DEPT_NAMES.get(dept, "Bossbot"))
+	var level_text := "Level %d" % cog_level
+	if _revives > 0:
+		level_text += " v2.0"
 	# SuitBaseNameWithLevel: name, department, level, on the translucent suit card.
-	var tag: Variant = board.call("add", self, "%s\n%s\nLevel %d" % [cog_name, dept_name, cog_level], "cog")
+	var tag: Variant = board.call("add", self, "%s\n%s\n%s" % [cog_name, dept_name, level_text], "cog")
 	var panel := tag as Control
 	if panel != null:
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1606,6 +1674,82 @@ func _paint_hand_node(node: Node, tint: Color) -> void:
 			material.set_shader_parameter("albedo_color", tint)
 	for child in node.get_children():
 		_paint_hand_node(child, tint)
+
+
+## Laser is a skelecog drawn as red light. A waiter keeps the cog and wears
+## the white suit from phase_3.5/maps/waiter_m_*.png.
+func _dress_look(actor: Node) -> void:
+	if _laser:
+		_paint_laser(actor)
+	elif _waiter:
+		_paint_waiter(actor)
+
+
+func _paint_laser(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh_node := node as MeshInstance3D
+		if not str(mesh_node.name).to_lower().contains("shadow") and mesh_node.mesh != null:
+			for index in mesh_node.mesh.get_surface_count():
+				var material := mesh_node.get_surface_override_material(index) as ShaderMaterial
+				if material == null:
+					var source := mesh_node.mesh.surface_get_material(index)
+					if source is BaseMaterial3D:
+						material = _shade_material(source as BaseMaterial3D)
+						mesh_node.set_surface_override_material(index, material)
+				if material == null:
+					continue
+				var tint: Variant = material.get_shader_parameter("albedo_color")
+				var color := Color(1, 0, 0, 1)
+				if tint is Color:
+					color = tint
+					color.r = 1.0
+					color.g = 0.0
+					color.b = 0.0
+				material.shader = _LASER
+				material.set_shader_parameter("albedo_color", color)
+	for child in node.get_children():
+		_paint_laser(child)
+
+
+func _paint_waiter(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh_node := node as MeshInstance3D
+		var cloth := _waiter_texture(str(mesh_node.name))
+		if cloth != null and mesh_node.mesh != null:
+			for index in mesh_node.mesh.get_surface_count():
+				var material := mesh_node.get_surface_override_material(index) as ShaderMaterial
+				if material == null:
+					var source := mesh_node.mesh.surface_get_material(index)
+					if source is BaseMaterial3D:
+						material = _shade_material(source as BaseMaterial3D)
+						mesh_node.set_surface_override_material(index, material)
+				if material == null:
+					continue
+				material.set_shader_parameter("albedo_texture", cloth)
+				material.set_shader_parameter("use_albedo_texture", 1.0)
+	for child in node.get_children():
+		_paint_waiter(child)
+
+
+func _waiter_texture(part: String) -> Texture2D:
+	var path := ""
+	match part:
+		"torso":
+			path = _WAITER_BLAZER
+		"arms":
+			path = _WAITER_SLEEVE
+		"legs":
+			path = _WAITER_LEG
+	if path == "":
+		return null
+	if ResourceLoader.exists(path):
+		var loaded := load(path)
+		if loaded is Texture2D:
+			return loaded as Texture2D
+	var image := Image.new()
+	if image.load(ProjectSettings.globalize_path(path)) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 func _quiet_shadows(node: Node) -> void:

@@ -145,11 +145,14 @@ func summon(district: int, slug: String, query: String, level: int, near: Vector
 		return
 	var record: Dictionary = _streets[key]
 	var parsed := StreetSuits.parse_summon(query)
+	if String(parsed.get("conflict", "")) != "":
+		return
 	var cog := StreetSuits.match_cog(record.get("catalog", []), String(parsed["name"]))
 	if cog.is_empty():
 		return
-	if bool(parsed["skeleton"]):
-		StreetSuits.dress_skeleton(cog)
+	if bool(parsed.get("waiter", false)) and String(cog.get("dept", "")) != "c":
+		return
+	StreetSuits.dress_summon(cog, parsed)
 	var cog_type := int(cog.get("type", 1))
 	var rolled := cog_type
 	var levels: Array = record.get("levels", [])

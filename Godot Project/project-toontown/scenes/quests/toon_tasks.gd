@@ -979,7 +979,9 @@ func _card(entry: Dictionary) -> Dictionary:
 		_stamp_reward(card, pay)
 	card["reward_line"] = _poster_reward(quest_id, pay)
 	var dest := _dest(entry)
-	if String(info.get("kind", "")) == GAG and int(card.get("npc", 0)) == 0 and dest > 1000:
+	# dest is the toon you visit or hand the task back to. The template npc
+	# stays 0 on a quest you return to whoever gave it.
+	if dest > 1000:
 		card["npc"] = dest
 	var npc := {}
 	if dest > 0 and dest != 1000:

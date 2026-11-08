@@ -641,10 +641,15 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		_hurt_cog(suit, dealt)
 		if track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT:
 			_clear_lure(suit)
+		var revived := _revive_suit(suit)
 		var line := "%s used a %s on the %s for %d damage." % [who, gag, cog_name, dealt]
-		if int(suit.get("hp", 0)) <= 0:
+		if not revived and int(suit.get("hp", 0)) <= 0:
 			line += " The %s is defeated." % cog_name
-		beats.append(_beat(line, track, level, toon, suit, true, dealt))
+		var beat := _beat(line, track, level, toon, suit, true, dealt)
+		if revived:
+			beat["cog_hp"] = 0
+			beat["revived"] = true
+		beats.append(beat)
 		landed = true
 	if landed and track != 1:
 		_grant(fight, int(toon.get("id", 0)), track, level)
@@ -668,10 +673,15 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 	var damage := int(laid.get("damage", 0))
 	suit["trap"] = {}
 	_hurt_cog(suit, damage)
+	var revived := _revive_suit(suit)
 	var line := "The %s hit the %s for %d damage." % [String(laid.get("gag", "trap")), cog_name, damage]
-	if int(suit.get("hp", 0)) <= 0:
+	if not revived and int(suit.get("hp", 0)) <= 0:
 		line += " The %s is defeated." % cog_name
-	beats.append(_beat(line, 1, 0, toon, suit, true, damage))
+	var beat := _beat(line, 1, 0, toon, suit, true, damage)
+	if revived:
+		beat["cog_hp"] = 0
+		beat["revived"] = true
+	beats.append(beat)
 	_grant(fight, int(laid.get("owner", 0)), 1, int(laid.get("level", 0)))
 	return true
 
@@ -1264,6 +1274,21 @@ func _hurt_cog(suit: Dictionary, damage: int) -> void:
 	suit["hp"] = maxi(int(suit.get("hp", 0)) - maxi(damage, 0), 0)
 
 
+## useSkeleRevive. The killing hit plays the lose, then the suit stands back
+## up as a Skelecog with full health. A cog that is already a Skelecog stays down.
+func _revive_suit(suit: Dictionary) -> bool:
+	if int(suit.get("hp", 1)) > 0 or bool(suit.get("skeleton", false)):
+		return false
+	if int(suit.get("revives", 0)) < 1:
+		return false
+	suit["revives"] = int(suit.get("revives", 0)) - 1
+	suit["had_revives"] = true
+	suit["hp"] = int(suit.get("max_hp", 1))
+	suit["skeleton"] = true
+	suit["name"] = "Skelecog"
+	return true
+
+
 func _add_toon(fight: Dictionary, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
 	if not _toon(fight, peer).is_empty():
 		return
@@ -1332,6 +1357,7 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 		"trap": {},
 		"dept": String(cog.get("dept", "c")),
 		"skeleton": bool(cog.get("skeleton", false)),
+		"revives": int(cog.get("revives", 0)),
 		"body": String(cog.get("body", "c")),
 		"height": float(cog.get("height", 4.0)),
 		"from": cog.get("pos", [0.0, 0.0, 0.0]),
@@ -1540,6 +1566,7 @@ func _cog_info(row: Variant) -> Dictionary:
 		"level": int(body.get("level", 1)),
 		"dept": String(body.get("dept", "c")),
 		"skeleton": bool(body.get("skeleton", false)),
+		"revives": int(body.get("revives", 0)),
 		"body": String(body.get("body", "c")),
 		"height": float(body.get("height", 4.0)),
 		"phase": int(source.get("phase", -1)),

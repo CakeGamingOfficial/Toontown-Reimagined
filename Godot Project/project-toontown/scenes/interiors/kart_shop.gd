@@ -21,6 +21,9 @@ const _CLERKS: Array = [
 	["Phil Errup", "pls", "ms", "l", "m", 16, 0, 16, 16, 0, 11, 2, 10],
 ]
 
+# NPCToons 8001-8004, the same order as _CLERKS.
+const _CLERK_IDS: Array[int] = [8001, 8002, 8003, 8004]
+
 
 func _ready() -> void:
 	_build_room()
@@ -49,6 +52,8 @@ func _place_clerks() -> void:
 		var row: Array = _CLERKS[index]
 		var body := StaticBody3D.new()
 		body.name = "Clerk%d" % index
+		if index < _CLERK_IDS.size():
+			body.set_meta("npc_id", _CLERK_IDS[index])
 		add_child(body)
 		body.global_position = origin.global_position + Vector3(0.0, 0.02, 0.0)
 		var actor := ToonActor.new()

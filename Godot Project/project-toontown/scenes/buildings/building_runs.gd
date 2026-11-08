@@ -404,7 +404,7 @@ func _suit(run: Dictionary, level: int, index: int, spot: Vector3, story: int) -
 	var cog := _invade(String(run.get("track", "c")), int(run.get("district", 0)), level)
 	if cog.is_empty():
 		return {}
-	return {
+	var row := {
 		"id": 700000 + int(run.get("block", 0)) * 16 + story * 8 + index,
 		"code": String(cog.get("code", "f")),
 		"name": String(cog.get("name", "Cog")),
@@ -413,8 +413,18 @@ func _suit(run: Dictionary, level: int, index: int, spot: Vector3, story: int) -
 		"height": float(cog.get("height", 4.0)),
 		"level": int(cog.get("level", level)),
 		"skeleton": bool(cog.get("skeleton", false)),
+		"revives": int(cog.get("revives", 0)),
+		"laser": bool(cog.get("laser", false)),
+		"waiter": bool(cog.get("waiter", false)),
 		"pos": [spot.x, spot.y, spot.z],
 	}
+	if String(cog.get("model", "")) != "":
+		row["model"] = String(cog["model"])
+		row["walk"] = String(cog.get("walk", ""))
+		row["neutral"] = String(cog.get("neutral", ""))
+		row["landing"] = String(cog.get("landing", ""))
+		row["scale"] = float(cog.get("scale", 1.0))
+	return row
 
 
 ## SuitPlannerInteriorAI.__setupSuitInfo. A named invasion replaces every floor
@@ -440,8 +450,7 @@ func _invade(track: String, district: int, level: int) -> Dictionary:
 			var forced := _pick_cog(dept, level)
 			if not forced.is_empty():
 				chosen = forced.duplicate()
-		if bool(plan.get("skeleton", false)):
-			StreetSuits.dress_skeleton(chosen)
+		StreetSuits.dress_plan(chosen, plan)
 	chosen["level"] = shown
 	return chosen
 

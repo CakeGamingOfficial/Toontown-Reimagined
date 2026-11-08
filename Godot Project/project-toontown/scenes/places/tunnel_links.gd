@@ -121,6 +121,86 @@ static func branch_of(zone_id: int) -> int:
 	return branch
 
 
+## Street or playground branches that have a Toon HQ building.
+const _HQ_BRANCH: Array[int] = [
+	1000, 1100, 1200, 1300,
+	2000, 2100, 2200, 2300,
+	3000, 3100, 3200, 3300,
+	4000, 4100, 4200, 4300,
+	5000, 5100, 5200, 5300,
+	9000, 9100, 9200,
+]
+
+## Where each branch's tunnels come out. Cog HQ shafts that the loader renames
+## are included, so a toon in the factory can be walked back to Oak Street.
+const _EXITS: Dictionary = {
+	1000: [1100, 1200, 1300, 6000],
+	1100: [1000, 2300],
+	1200: [1000, 5200],
+	1300: [1000, 3100],
+	2000: [2100, 2200, 2300, 8000],
+	2100: [2000, 5100],
+	2200: [2000, 4100],
+	2300: [2000, 1100],
+	3000: [3100, 3200, 3300],
+	3100: [3000, 1300],
+	3200: [3000, 4200],
+	3300: [3000, 13000],
+	4000: [4100, 4200, 4300],
+	4100: [4000, 2200],
+	4200: [4000, 3200],
+	4300: [4000, 9100],
+	5000: [5100, 5200, 5300],
+	5100: [5000, 2100],
+	5200: [5000, 1200],
+	5300: [5000, 11000],
+	6000: [1000, 17000],
+	8000: [2000],
+	9000: [9100, 9200],
+	9100: [9000, 4300],
+	9200: [9000, 12000],
+	10000: [17000],
+	11000: [5300, 11200],
+	11200: [11000],
+	12000: [9200],
+	13000: [3300],
+	17000: [6000, 10000],
+}
+
+
+static func has_toon_hq(zone_id: int) -> bool:
+	return _HQ_BRANCH.has(branch_of(zone_id))
+
+
+## The next branch toward the nearest Toon HQ. The current branch, when it
+## already has one. Zero when the zone is not on the map.
+static func hq_step(zone_id: int) -> int:
+	var start := branch_of(zone_id)
+	if _HQ_BRANCH.has(start):
+		return start
+	if not _EXITS.has(start):
+		return 0
+	var queue: Array[int] = [start]
+	var prev := {start: start}
+	var head := 0
+	while head < queue.size():
+		var zone: int = queue[head]
+		head += 1
+		var exits: Array = _EXITS[zone]
+		for next in exits:
+			var dest := int(next)
+			if prev.has(dest):
+				continue
+			prev[dest] = zone
+			if _HQ_BRANCH.has(dest):
+				var step := dest
+				while int(prev[step]) != start:
+					step = int(prev[step])
+				return step
+			queue.append(dest)
+	return 0
+
+
 static func scene_for_zone(zone_id: int) -> String:
 	var branch := branch_of(zone_id)
 	if _BRANCH.has(branch):
