@@ -28,6 +28,8 @@ var _save_wait := 2.0
 ## Set while the Reload button is putting the same suits back. The street
 ## that is closing must not park an empty roster over them.
 var _keep_spawns := false
+## A parked street whose saved invasion was already gone when this process started.
+var _invasion_adopted: Dictionary = {}
 
 
 func _ready() -> void:
@@ -1026,8 +1028,15 @@ func _tick(record: Dictionary, points: Array, route: PackedInt32Array, delta: fl
 
 func _retire_invasion(record: Dictionary) -> void:
 	var district := int(record.get("district", 1))
+	var key := _key(district, String(record.get("slug", "")))
 	var sig := _HOLIDAYS.invasion_sig(district)
 	var previous := String(record.get("invasion", ""))
+	if not bool(_invasion_adopted.get(key, false)):
+		# Saved walkers include the ordinary street cogs. The first look
+		# after a restart only remembers which invasion is up now.
+		_invasion_adopted[key] = true
+		record["invasion"] = sig
+		return
 	if previous == sig:
 		return
 	record["invasion"] = sig

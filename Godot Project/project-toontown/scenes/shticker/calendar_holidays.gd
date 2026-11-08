@@ -343,6 +343,9 @@ static var _cog_rows: Array = []
 ## The half hour already rolled for each ordinary district. A stopped invasion stays quiet until the next :00 or :30.
 static var _natural_given: Dictionary = {}
 static var _spawn_pool: Array = []
+## The half-hour invasion has to survive a restart, or the street reads it as over and flies every cog away.
+const _INVASION_PATH := "user://invasion_state.json"
+static var _invasion_loaded := false
 
 
 ## What the district page draws between the name and the population.
@@ -401,6 +404,7 @@ static func republish_county() -> void:
 static func tick_county(_delta: float) -> void:
 	if not ToonNet.is_authority():
 		return
+	_load_invasion()
 	_tick_natural()
 
 
@@ -450,6 +454,10 @@ static func _tick_natural() -> void:
 		var cog_district := _is_cog_county(district_name)
 		if cog_district and have.has(id):
 			_natural_given[id] = slot
+			continue
+		# This half hour already started. A Cog District waits for the next one
+		# instead of replacing the cogs that were walking when the game opened.
+		if cog_district and String(_natural_given.get(id, "")) == slot and not have.has(id):
 			continue
 		if not cog_district and (String(_natural_given.get(id, "")) == slot or have.has(id)):
 			if have.has(id):
@@ -777,10 +785,12 @@ static func snapshot() -> Dictionary:
 		"county": _county_live().duplicate(true),
 		"rows": _read_rows().duplicate(true),
 		"queue": _queue.duplicate(true),
+		"given": _natural_given.duplicate(true),
 	}
 
 
 static func restore(saved: Dictionary) -> void:
+	_invasion_loaded = true
 	var county: Variant = saved.get("county", {})
 	if county is Dictionary and bool((county as Dictionary).get("active", false)):
 		_county = (county as Dictionary).duplicate(true)
@@ -788,6 +798,9 @@ static func restore(saved: Dictionary) -> void:
 	var waiting: Variant = saved.get("queue", [])
 	if waiting is Array:
 		_queue = (waiting as Array).duplicate(true)
+	var given: Variant = saved.get("given", {})
+	if given is Dictionary:
+		_natural_given = (given as Dictionary).duplicate(true)
 	var rows: Variant = saved.get("rows", [])
 	if rows is Array:
 		_write_rows(rows)
@@ -953,8 +966,69 @@ static func _write_rows(rows: Array) -> void:
 	_rows = rows.duplicate(true)
 	if _rows.is_empty() and _queue.is_empty():
 		_publish_command({"active": false, "rows": [], "queue": []})
+	else:
+		_publish_command({"active": true, "rows": _rows, "queue": _queue.duplicate(true)})
+	_save_invasion()
+
+
+static func _load_invasion() -> void:
+	if _invasion_loaded:
+		return
+	_invasion_loaded = true
+	if not FileAccess.file_exists(_INVASION_PATH):
+		_remember_half_hour()
+		_save_invasion()
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_INVASION_PATH))
+	if not (parsed is Dictionary):
+		_remember_half_hour()
+		_save_invasion()
+		return
+	var root: Dictionary = parsed
+	var waiting: Variant = root.get("queue", [])
+	if waiting is Array:
+		_queue = (waiting as Array).duplicate(true)
+	var raw: Variant = root.get("rows", [])
+	if raw is Array:
+		_rows = (raw as Array).duplicate(true)
+	var given: Variant = root.get("given", {})
+	if given is Dictionary:
+		_natural_given = {}
+		for key in (given as Dictionary).keys():
+			_natural_given[int(String(key))] = String((given as Dictionary)[key])
+	if _rows.is_empty() and _natural_given.is_empty():
+		_remember_half_hour()
+		_save_invasion()
+	if _rows.is_empty() and _queue.is_empty():
+		_publish_command({"active": false, "rows": [], "queue": []})
 		return
 	_publish_command({"active": true, "rows": _rows, "queue": _queue.duplicate(true)})
+
+
+## Opening the game in the middle of a half hour is not a new invasion.
+static func _remember_half_hour() -> void:
+	var slot := _half_slot()
+	for district in ToonNet.district_rows():
+		var id := int(district.get("id", 0))
+		if id > 0 and not _natural_given.has(id):
+			_natural_given[id] = slot
+
+
+static func _save_invasion() -> void:
+	if not ToonNet.is_authority():
+		return
+	var given := {}
+	for key in _natural_given.keys():
+		given[str(int(key))] = String(_natural_given[key])
+	var file := FileAccess.open(_INVASION_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify({
+		"rows": _rows,
+		"queue": _queue,
+		"given": given,
+	}))
+	file.close()
 
 
 ## A start while one is already running waits. The next one begins when that one ends.

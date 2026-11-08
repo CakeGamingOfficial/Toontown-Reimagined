@@ -85,6 +85,7 @@ var _adjust := 0
 var _upkeep := 10.0
 var _adjust_left := 300.0
 var _invasion_sig := ""
+var _invasion_checked := false
 var _refilling := false
 var _queue: Array[Dictionary] = []
 var _pool: Dictionary = {}
@@ -1243,6 +1244,12 @@ func _watch_invasion() -> void:
 	if district_id < 0:
 		return
 	var sig := _HOLIDAYS.invasion_sig(district_id)
+	# The cogs saved with this street are already walking. Opening the game
+	# is not an invasion starting, so the ordinary ones stay out too.
+	if not _invasion_checked:
+		_invasion_checked = true
+		_invasion_sig = sig
+		return
 	var first := _invasion_sig == ""
 	if sig == _invasion_sig and not first:
 		return
