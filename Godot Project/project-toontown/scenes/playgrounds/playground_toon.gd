@@ -22,6 +22,8 @@ const _HQ := preload("res://scenes/interiors/toon_hq_door.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _MINT := preload("res://scenes/cog_hq/mint_elevator.gd")
+const _OFFICE := preload("res://scenes/cog_hq/office_elevator.gd")
+const _OFFICE_RUN := preload("res://scenes/cog_hq/office_run.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
@@ -212,6 +214,7 @@ var _bldg_trip := ""
 var _factory_trip := ""
 var _factory_entrance := 0
 var _mint_trip := ""
+var _office_trip := ""
 var _bldg_ready := false
 var _shot := false
 var _shot_origin: Node3D
@@ -258,7 +261,7 @@ static func expects_avatar() -> bool:
 		return true
 	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "" or String(_LIB.trip) != "" or String(_TELLER.trip) != "":
 		return true
-	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "":
+	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "" or String(_OFFICE_RUN.trip) != "":
 		return true
 	return false
 
@@ -329,8 +332,9 @@ func _ready() -> void:
 	var from_tunnel := _LINKS.arriving()
 	var from_factory := _FACTORY.trip
 	var from_mint := _MINT.trip
+	var from_office := String(_OFFICE_RUN.trip)
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -357,6 +361,8 @@ func _ready() -> void:
 	_FACTORY.trip = ""
 	_mint_trip = from_mint
 	_MINT.trip = ""
+	_office_trip = from_office
+	_OFFICE_RUN.trip = ""
 	if not restoring and not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
@@ -384,7 +390,7 @@ func _ready() -> void:
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
 	_collect_tunnels(get_parent())
-	_spawn(arriving or logging_in or from_factory == "in")
+	_spawn(arriving or logging_in or from_factory == "in" or from_office == "in")
 	if _player != null and _is_sad():
 		_player.set_sad(true)
 	_ready_hud()
@@ -401,7 +407,7 @@ func _ready() -> void:
 		_minigolf = null
 	# setFactoryInteriorZone. The exterior doors close, then enterTeleportIn
 	# plays on the factory floor. The toon does not ride the interior car.
-	if from_factory == "in":
+	if from_factory == "in" or from_office == "in":
 		await _portal_in()
 		if sad_arrival:
 			await _death_ack()
@@ -835,6 +841,11 @@ func _arrival_spot() -> Dictionary:
 		_mint_trip = ""
 		if not mint_ride.is_empty():
 			return {"point": _snap_drop(mint_ride["point"]), "heading": float(mint_ride["heading"])}
+	if _office_trip != "":
+		var office_ride: Dictionary = _OFFICE.arrival(get_parent(), _office_trip == "in")
+		_office_trip = ""
+		if not office_ride.is_empty():
+			return {"point": _snap_drop(office_ride["point"]), "heading": float(office_ride["heading"])}
 	if _shop_trip == "out":
 		return _shop_outside_drop()
 	if _pet_trip == "out":

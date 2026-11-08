@@ -404,6 +404,54 @@ func _bit_count(value: int) -> int:
 	return sum
 
 
+static func grant_notices(amount: int) -> int:
+	# PromotionManagerAI pays jury notices only for a finished Lawbot suit.
+	# This book stores the first promotion tier, so the meter stops at 60.
+	if amount <= 0:
+		return 0
+	var record := {}
+	if FileAccess.file_exists(_SAVE):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SAVE))
+		if parsed is Dictionary:
+			record = parsed
+	var parts: Array = record.get("parts", [0, 0, 0, 0])
+	var merits: Array = record.get("merits", [0, 0, 0, 0])
+	while parts.size() < 4:
+		parts.append(0)
+	while merits.size() < 4:
+		merits.append(0)
+	if (int(parts[1]) & _MASKS[1]) != _MASKS[1]:
+		return 0
+	var have := int(merits[1])
+	var filled := mini(have + amount, _MERIT[1])
+	var gained := filled - have
+	if gained <= 0:
+		return 0
+	merits[1] = filled
+	record["parts"] = parts
+	record["merits"] = merits
+	if not record.has("types"):
+		record["types"] = [0, 0, 0, 0]
+	if not record.has("levels"):
+		record["levels"] = [0, 0, 0, 0]
+	var file := FileAccess.open(_SAVE, FileAccess.WRITE)
+	if file == null:
+		return 0
+	file.store_string(JSON.stringify(record))
+	file.close()
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		var page := tree.root.find_child("CogDisguise", true, false)
+		if page != null and page.has_method("reload_notices"):
+			page.call("reload_notices")
+	return gained
+
+
+func reload_notices() -> void:
+	_load_save()
+	_show_dept()
+
+
 func _load_save() -> void:
 	_parts = [0, 0, 0, 0]
 	_merits = [0, 0, 0, 0]

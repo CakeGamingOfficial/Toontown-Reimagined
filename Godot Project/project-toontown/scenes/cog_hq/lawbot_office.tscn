@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/playgrounds/neighborhood.gd" id="1_hood"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="2_fly"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.28, 0.32, 0.38, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="LawbotOffice" type="Node3D"]
+script = ExtResource("1_hood")
+music_path = "res://assets/cog_hq/audio/CHQ_FACT_bg.ogg"
+sky_kind = "cog"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 24)
+current = true
+far = 4000.0
+script = ExtResource("2_fly")

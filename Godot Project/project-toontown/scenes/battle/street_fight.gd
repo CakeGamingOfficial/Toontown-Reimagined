@@ -311,6 +311,11 @@ func _touch_cog(cog: Node, hp: Vector2i) -> void:
 		var mint_here := _point()
 		ToonNet.ask_mint(_street_district(), cog_id, mint_body.global_position, _yaw(mint_here, mint_body.global_position), toon_name, hp.x, hp.y)
 		return
+	if _street_slug() == "lawbot_office" and cog is Node3D:
+		var office_body := cog as Node3D
+		var office_here := _point()
+		ToonNet.ask_office(_street_district(), cog_id, office_body.global_position, _yaw(office_here, office_body.global_position), toon_name, hp.x, hp.y)
+		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), cog_id, toon_name, hp.x, hp.y)
 
 
@@ -336,6 +341,9 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 		return
 	if _street_slug() == "cashbot_mint":
 		ToonNet.ask_mint(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
+		return
+	if _street_slug() == "lawbot_office":
+		ToonNet.ask_office(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
 		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), _first_cog(fight), str(toon.call("battle_name")), hp.x, hp.y)
 
@@ -1505,6 +1513,8 @@ func _nearest_cog(reach: float) -> Node:
 	var best_dist := reach
 	for child in suits.get_children():
 		if not child.has_method("on_lane") or not bool(child.call("on_lane")):
+			continue
+		if bool(child.get_meta("office_hidden", false)):
 			continue
 		if int(child.get_meta("do_id", 0)) == 0:
 			continue

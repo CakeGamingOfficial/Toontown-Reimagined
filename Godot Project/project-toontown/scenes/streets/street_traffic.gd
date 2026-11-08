@@ -51,6 +51,9 @@ func _ready() -> void:
 	var mint: Node = load("res://scenes/cog_hq/mint_board.gd").new()
 	mint.name = "MintBoard"
 	add_child(mint)
+	var office: Node = load("res://scenes/cog_hq/office_board.gd").new()
+	office.name = "OfficeBoard"
+	add_child(office)
 	var runs: Node = load("res://scenes/buildings/building_runs.gd").new()
 	runs.name = "BuildingRuns"
 	add_child(runs)
@@ -222,6 +225,11 @@ func ensure(district: int, slug: String) -> void:
 			board.call("ensure", district)
 		return
 	if slug == "cashbot_mint":
+		return
+	if slug == "lawbot_office":
+		var office := get_node_or_null("OfficeBoard")
+		if office != null and office.has_method("ensure"):
+			office.call("ensure", district)
 		return
 	remember_state()
 	var key := _key(district, slug)
@@ -1303,6 +1311,11 @@ func cog_rows(district: int, slug: String) -> Array:
 		if mint_board != null and mint_board.has_method("rows_for"):
 			return mint_board.call("rows_for", district, ToonNet.peer_id())
 		return []
+	if slug == "lawbot_office":
+		var office := get_node_or_null("OfficeBoard")
+		if office != null and office.has_method("rows"):
+			return office.call("rows", district)
+		return []
 	var scene := get_tree().current_scene
 	if scene != null:
 		var suits := scene.get_node_or_null("StreetSuits")
@@ -1346,6 +1359,11 @@ func dismiss_cog(district: int, slug: String, cog_id: int) -> void:
 		var mint_board := get_node_or_null("MintBoard")
 		if mint_board != null and mint_board.has_method("dismiss"):
 			mint_board.call("dismiss", district, cog_id)
+		return
+	if slug == "lawbot_office":
+		var office := get_node_or_null("OfficeBoard")
+		if office != null and office.has_method("dismiss"):
+			office.call("dismiss", district, cog_id)
 		return
 	var scene := get_tree().current_scene
 	if scene != null:

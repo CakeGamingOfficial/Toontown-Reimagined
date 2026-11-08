@@ -107,6 +107,10 @@ func _attach_returning_toon() -> void:
 	preload("res://scenes/cog_hq/factory_cogs.gd").place(self)
 	preload("res://scenes/cog_hq/mint_cogs.gd").place(self)
 	preload("res://scenes/cog_hq/mint_props.gd").place(self)
+	preload("res://scenes/cog_hq/office_floor.gd").place(self)
+	preload("res://scenes/cog_hq/office_elevator.gd").place(self)
+	preload("res://scenes/cog_hq/office_cogs.gd").place(self)
+	preload("res://scenes/cog_hq/office_puzzles.gd").place(self)
 	# A playground always has someone to walk. A street does too when a door,
 	# a tunnel, or a factory car is bringing them back.
 	if places.hood_for_scene(scene_file_path) == 0 and not toon.expects_avatar():

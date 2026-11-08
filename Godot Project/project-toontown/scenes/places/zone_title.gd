@@ -52,6 +52,7 @@ const _ZONE: Dictionary = {
 	"res://scenes/cog_hq/lawbot_courtyard.tscn": 13000,
 	"res://scenes/cog_hq/lawbot_lobby.tscn": 13100,
 	"res://scenes/cog_hq/lawbot_da_lobby.tscn": 13200,
+	"res://scenes/cog_hq/lawbot_office.tscn": 13300,
 	"res://scenes/playgrounds/toon_estate.tscn": 16000,
 	"res://scenes/playgrounds/chip_n_dales_minigolf.tscn": 17000,
 }
@@ -108,6 +109,10 @@ const _PLACE: Dictionary = {
 	13000: "Lawbot HQ Courtyard",
 	13100: "Courthouse Lobby",
 	13200: "DA's Office Lobby",
+	13300: "Lawbot A Office",
+	13400: "Lawbot B Office",
+	13500: "Lawbot C Office",
+	13600: "Lawbot D Office",
 }
 
 const _PLACE_BY_SCENE: Dictionary = {
@@ -158,6 +163,8 @@ static func caption(scene_path: String) -> Dictionary:
 
 
 static func _zone(scene_path: String) -> int:
+	if scene_path.ends_with("lawbot_office.tscn"):
+		return preload("res://scenes/cog_hq/office_run.gd").zone()
 	if _ZONE.has(scene_path):
 		return int(_ZONE[scene_path])
 	var linked := _LINKS.zone_for_scene(scene_path)
