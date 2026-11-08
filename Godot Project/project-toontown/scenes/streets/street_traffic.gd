@@ -283,6 +283,8 @@ func prepare_buildings(district: int, slug: String, data: Dictionary) -> void:
 		_plans[key] = saved
 	if not _blocks.has(key):
 		_blocks[key] = []
+	if _HOLIDAYS.is_county(district):
+		_fill_cog_district(district, slug)
 	keep_buildings(district, slug, building_rows(district, slug))
 
 
@@ -351,6 +353,68 @@ func retake_building(district: int, slug: String, block: int) -> void:
 			continue
 		rows.append(item)
 	keep_buildings(district, slug, rows)
+	if _HOLIDAYS.is_county(district):
+		_replace_cog_building(district, slug, block)
+
+
+## A Cog District keeps every takeover shop as a Cog building. Toon HQs are not in the block list.
+func _fill_cog_district(district: int, slug: String) -> void:
+	var plan: Dictionary = _plans.get(_key(district, slug), {})
+	var blocks: Array = plan.get("blocks", [])
+	if blocks.is_empty():
+		return
+	var used := {}
+	for item in building_rows(district, slug):
+		if item is Dictionary:
+			used[int((item as Dictionary).get("block", 0))] = true
+	var rows: Array = building_rows(district, slug).duplicate()
+	var added := false
+	while true:
+		var picked: Dictionary = _BUILDINGS.plan_one(blocks, plan.get("tracks", []), plan.get("levels", []), used)
+		if picked.is_empty():
+			break
+		var forced := _HOLIDAYS.building_track(district)
+		if forced != "":
+			picked["track"] = forced
+		used[int(picked.get("block", 0))] = true
+		rows.append(_cog_building_row(picked, "suit"))
+		added = true
+	if added:
+		keep_buildings(district, slug, rows)
+
+
+func _replace_cog_building(district: int, slug: String, block: int) -> void:
+	var plan: Dictionary = _plans.get(_key(district, slug), {})
+	var blocks: Array = plan.get("blocks", [])
+	var used := {}
+	for item in blocks:
+		if item is Dictionary and int((item as Dictionary).get("block", 0)) != block:
+			used[int((item as Dictionary).get("block", 0))] = true
+	for item in building_rows(district, slug):
+		if item is Dictionary:
+			used[int((item as Dictionary).get("block", 0))] = true
+	var picked: Dictionary = _BUILDINGS.plan_one(blocks, plan.get("tracks", []), plan.get("levels", []), used)
+	if picked.is_empty():
+		return
+	var forced := _HOLIDAYS.building_track(district)
+	if forced != "":
+		picked["track"] = forced
+	var rows: Array = building_rows(district, slug).duplicate()
+	var row := _cog_building_row(picked, "becoming")
+	row["since"] = int(Time.get_unix_time_from_system() * 1000.0)
+	rows.append(row)
+	keep_buildings(district, slug, rows)
+
+
+func _cog_building_row(plan: Dictionary, state: String) -> Dictionary:
+	return {
+		"block": int(plan.get("block", 0)),
+		"track": String(plan.get("track", "c")),
+		"difficulty": int(plan.get("difficulty", 0)),
+		"floors": int(plan.get("floors", 1)),
+		"title": String(plan.get("title", "")),
+		"state": state,
+	}
 
 
 func block_pos(district: int, slug: String, block: int) -> Array:

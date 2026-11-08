@@ -290,14 +290,13 @@ static func invasion() -> Dictionary:
 	return plan
 
 
-## ~invasion start. One invasion per district. Corporate County is never one of them.
+## ~invasion start. One invasion runs per district. Another start waits until it ends.
 static var _rows: Array = []
+static var _queue: Array = []
 
 
 static func invading() -> bool:
 	var district := ToonNet.district_id()
-	if is_county(district) and not _county_live().is_empty():
-		return true
 	if not _command_for(district).is_empty():
 		return true
 	return district > 0 and not is_county(district) and not invasion().is_empty()
@@ -341,6 +340,9 @@ const _COUNTY_COUNT := 1000
 
 static var _county: Dictionary = {}
 static var _cog_rows: Array = []
+## The half hour already rolled for each ordinary district. A stopped invasion stays quiet until the next :00 or :30.
+static var _natural_given: Dictionary = {}
+static var _spawn_pool: Array = []
 
 
 ## What the district page draws between the name and the population.
@@ -348,49 +350,32 @@ static var _cog_rows: Array = []
 static func district_invasion(district: int) -> Dictionary:
 	if district <= 0:
 		return {}
-	if is_county(district):
-		var county := _county_live()
-		if county.is_empty():
-			return {}
-		var until := float(county.get("until", 0.0))
-		var seconds := maxi(int(ceil(until - ToonNet.now())), 0)
-		return {
-			"code": String(county.get("code", "")),
-			"dept": _dept_of(String(county.get("code", ""))),
-			"name": String(county.get("name", "Cog")),
-			"left": "%d:%02d" % [seconds / 60, seconds % 60],
-		}
 	var commanded := _command_for(district)
 	if commanded.is_empty():
 		return {}
 	var dept := String(commanded.get("dept", ""))
 	if dept == "":
 		dept = _dept_of(String(commanded.get("code", "")))
+	var left := "%d left" % int(commanded.get("remaining", 0))
+	if bool(commanded.get("timed", false)):
+		var until := float(commanded.get("until", 0.0))
+		var seconds := maxi(int(ceil(until - ToonNet.now())), 0)
+		left = "%d:%02d" % [int(seconds / 60), seconds % 60]
 	return {
 		"code": String(commanded.get("code", "")),
 		"dept": dept,
 		"name": String(commanded.get("name", "Cog")),
-		"left": "%d left" % int(commanded.get("remaining", 0)),
+		"left": left,
 	}
 
 
+## A Cog District's name ends in County, like Corporate County. Welcome Valley does not.
 static func is_county(district: int) -> bool:
-	return district > 0 and ToonNet.name_of(district) == COUNTY
+	return district > 0 and _is_cog_county(ToonNet.name_of(district))
 
 
-## Corporate County ignores the other districts' invasion and uses its own.
+## Every district, including a Cog District, reads the invasion row for that district.
 static func plan_for(district: int) -> Dictionary:
-	if is_county(district):
-		var row := _county_live()
-		if row.is_empty():
-			return {}
-		return {
-			"code": String(row.get("code", "")),
-			"skeleton": bool(row.get("skeleton", false)),
-			"revives": bool(row.get("revives", false)),
-			"laser": bool(row.get("laser", false)),
-			"waiter": bool(row.get("waiter", false)),
-		}
 	var commanded := _command_for(district)
 	if not commanded.is_empty():
 		var plan := {
@@ -414,12 +399,9 @@ static func republish_county() -> void:
 
 
 static func tick_county(_delta: float) -> void:
-	if not ToonNet.is_authority() or ToonNet.id_named(COUNTY) < 0:
+	if not ToonNet.is_authority():
 		return
-	var row := _county_live()
-	var until := float(row.get("until", 0.0))
-	if row.is_empty() or Time.get_unix_time_from_system() >= until:
-		_roll_county()
+	_tick_natural()
 
 
 ## The next :00 or :30 on this machine. Corporate County follows the host clock.
@@ -432,6 +414,175 @@ static func _next_half_hour() -> float:
 	if left <= 0:
 		left = 30 * 60
 	return now + float(left)
+
+
+## Every district except Welcome Valley draws from this pool at :00 and :30.
+## A Cog District always has one. If it is missing, the next check starts another.
+## A department invasion is one eighth as likely as any one Cog in that same suit.
+## Each step down the suit scale is twice as rare as the one above it.
+static func _tick_natural() -> void:
+	var slot := _half_slot()
+	var until := _next_half_hour()
+	var rows := _read_rows()
+	var next: Array = []
+	var have := {}
+	var changed := false
+	for item in rows:
+		if not item is Dictionary:
+			continue
+		var row: Dictionary = item
+		var id := int(row.get("district", 0))
+		if bool(row.get("timed", false)):
+			if String(_natural_given.get(id, "")) != slot:
+				changed = true
+				continue
+			next.append(row)
+			have[id] = true
+			continue
+		next.append(row)
+		have[id] = true
+		_natural_given[id] = slot
+	for district in ToonNet.district_rows():
+		var id := int(district.get("id", 0))
+		var district_name := String(district.get("name", ""))
+		if id <= 0:
+			continue
+		var cog_district := _is_cog_county(district_name)
+		if cog_district and have.has(id):
+			_natural_given[id] = slot
+			continue
+		if not cog_district and (String(_natural_given.get(id, "")) == slot or have.has(id)):
+			if have.has(id):
+				_natural_given[id] = slot
+				continue
+			if not _can_promote(id):
+				continue
+			var held := _pull_queue(id)
+			if held.is_empty():
+				continue
+			next.append(held)
+			changed = true
+			continue
+		if _can_promote(id):
+			var held_next := _pull_queue(id)
+			if not held_next.is_empty():
+				next.append(held_next)
+				_natural_given[id] = slot
+				changed = true
+				continue
+		var rolled := _natural_row(id, until)
+		if rolled.is_empty():
+			continue
+		next.append(rolled)
+		_natural_given[id] = slot
+		changed = true
+	if changed:
+		_write_rows(next)
+
+
+static func _half_slot() -> String:
+	var clock := Time.get_datetime_dict_from_system()
+	var half := int(int(clock.get("minute", 0)) / 30)
+	return "%s-%s-%s-%s-%s" % [clock.get("year", 0), clock.get("month", 0), clock.get("day", 0), clock.get("hour", 0), half]
+
+
+static func _is_cog_county(district_name: String) -> bool:
+	return district_name.to_lower().ends_with("county")
+
+
+## The screenshot pool. Six suits are legal for every department and every cog.
+## v2.0 with a Skelecog, and a waiter with a Skelecog, are not in the pool.
+## A named Cog's base is 8 and a department's base is 1. The suit multiplier
+## is applied to that base, and each step is half the weight of the step above it:
+## Common 16, Uncommon 8, Rare 4, Very Rare 2, Ultra Rare 1.
+const _DEPT_BASE := 1
+const _COG_BASE := 8
+static func _invasion_pool() -> Array:
+	if not _spawn_pool.is_empty():
+		return _spawn_pool
+	_ensure_cogs()
+	var suits: Array[Dictionary] = [
+		{"skeleton": false, "laser": false, "revives": false, "waiter": false, "rarity": 16},
+		{"skeleton": true, "laser": false, "revives": false, "waiter": false, "rarity": 8},
+		{"skeleton": true, "laser": true, "revives": false, "waiter": false, "rarity": 1},
+		{"skeleton": false, "laser": false, "revives": true, "waiter": false, "rarity": 4},
+		{"skeleton": false, "laser": false, "revives": false, "waiter": true, "rarity": 2},
+		{"skeleton": false, "laser": false, "revives": true, "waiter": true, "rarity": 1},
+	]
+	for dept in ["s", "m", "l", "c"]:
+		_add_spawn_rows(dept, "", "", _DEPT_BASE, suits)
+	for item in _cog_rows:
+		if not item is Dictionary:
+			continue
+		var cog: Dictionary = item
+		_add_spawn_rows(String(cog.get("dept", "")), String(cog.get("code", "")), String(cog.get("name", "Cog")), _COG_BASE, suits)
+	return _spawn_pool
+
+
+static func _add_spawn_rows(dept: String, code: String, cog_name: String, base: int, suits: Array[Dictionary]) -> void:
+	for suit in suits:
+		var entry := suit.duplicate()
+		entry["dept"] = dept
+		entry["code"] = code
+		entry["cog_name"] = cog_name
+		entry["weight"] = base * int(suit.get("rarity", 1))
+		_spawn_pool.append(entry)
+
+
+static func _pick_spawn() -> Dictionary:
+	var pool := _invasion_pool()
+	var total := 0
+	for item in pool:
+		if item is Dictionary:
+			total += int((item as Dictionary).get("weight", 1))
+	if total <= 0:
+		return {}
+	var roll := randi() % total
+	for item in pool:
+		if not item is Dictionary:
+			continue
+		var row: Dictionary = item
+		roll -= int(row.get("weight", 1))
+		if roll < 0:
+			return row
+	return {}
+
+
+static func _natural_row(district: int, until: float) -> Dictionary:
+	var pick := _pick_spawn()
+	if pick.is_empty():
+		return {}
+	var code := String(pick.get("code", ""))
+	var dept := String(pick.get("dept", ""))
+	var skeleton := bool(pick.get("skeleton", false))
+	var revives := bool(pick.get("revives", false))
+	var laser := bool(pick.get("laser", false))
+	var waiter := bool(pick.get("waiter", false))
+	var cog_name := String(pick.get("cog_name", ""))
+	var plural := ""
+	if code == "":
+		cog_name = String(_DEPT_NAME.get(dept, "Cog"))
+		plural = String(_DEPT_PLURAL.get(dept, "Cogs"))
+	else:
+		plural = _plural(cog_name)
+	var titled := _titled(cog_name, plural, skeleton, revives, laser, waiter)
+	var row := {
+		"district": district,
+		"code": code,
+		"name": String(titled["name"]),
+		"plural": String(titled["plural"]),
+		"skeleton": skeleton,
+		"revives": revives,
+		"laser": laser,
+		"waiter": waiter,
+		"timed": true,
+		"until": until,
+		"remaining": 1,
+		"total": 1,
+	}
+	if code == "":
+		row["dept"] = dept
+	return row
 
 
 static func _roll_county() -> void:
@@ -509,18 +660,13 @@ static func begin_invasion(cog: Dictionary, amount: int, skeleton: bool, revives
 	if waiter and String(cog.get("dept", "")) != "c":
 		return "Only Bossbots wear the waiter suit."
 	var district := ToonNet.district_id()
-	if is_county(district):
-		return "Corporate County's invasion keeps cycling. It can't be stopped."
 	if district <= 0:
 		return "There is no invasion on the current AI!"
-	if invading():
-		return "There is already an invasion on the current AI!"
 	if cog.is_empty() or String(cog.get("code", "")) == "":
 		return "This cog does not exist!"
 	var cog_name := String(cog.get("name", "Cog"))
 	var titled := _titled(cog_name, _plural(cog_name), skeleton, revives, laser, waiter)
-	var rows := _read_rows()
-	rows.append({
+	return _hold_or_start(district, {
 		"district": district,
 		"code": String(cog.get("code", "")),
 		"name": String(titled["name"]),
@@ -532,8 +678,6 @@ static func begin_invasion(cog: Dictionary, amount: int, skeleton: bool, revives
 		"remaining": amount,
 		"total": amount,
 	})
-	_write_rows(rows)
-	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % String(titled["plural"])
 
 
 static func dept_named(query: String) -> String:
@@ -583,16 +727,11 @@ static func begin_dept_invasion(dept: String, amount: int, skeleton: bool, reviv
 	if not _DEPT_NAME.has(dept):
 		return "That department does not exist! Departments are Bossbot, Lawbot, Cashbot, and Sellbot."
 	var district := ToonNet.district_id()
-	if is_county(district):
-		return "Corporate County's invasion keeps cycling. It can't be stopped."
 	if district <= 0:
 		return "There is no invasion on the current AI!"
-	if invading():
-		return "There is already an invasion on the current AI!"
 	var cog_name := String(_DEPT_NAME[dept])
 	var titled := _titled(cog_name, String(_DEPT_PLURAL[dept]), skeleton, revives, laser, waiter)
-	var rows := _read_rows()
-	rows.append({
+	return _hold_or_start(district, {
 		"district": district,
 		"code": "",
 		"dept": dept,
@@ -605,14 +744,12 @@ static func begin_dept_invasion(dept: String, amount: int, skeleton: bool, reviv
 		"remaining": amount,
 		"total": amount,
 	})
-	_write_rows(rows)
-	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % String(titled["plural"])
 
 
 static func end_invasion() -> String:
 	var district := ToonNet.district_id()
 	if is_county(district):
-		return "Corporate County's invasion keeps cycling. It can't be stopped."
+		return "This Cog District's invasion keeps cycling. It can't be stopped."
 	var commanded := _command_for(district)
 	if commanded.is_empty():
 		if district > 0 and not invasion().is_empty():
@@ -623,7 +760,15 @@ static func end_invasion() -> String:
 	for item in _read_rows():
 		if item is Dictionary and int((item as Dictionary).get("district", 0)) != district:
 			kept.append(item)
+	var started := ""
+	if _can_promote(district):
+		var waiting := _pull_queue(district)
+		if not waiting.is_empty():
+			kept.append(waiting)
+			started = String(waiting.get("plural", "Cogs"))
 	_write_rows(kept)
+	if started != "":
+		return "Toon HQ: The %s Invasion has ended!!!\nToon HQ: %s have taken over Toontown!!!" % [shown, started]
 	return "Toon HQ: The %s Invasion has ended!!!\nToon HQ: The Toons have saved the day once again!!!" % shown
 
 
@@ -631,6 +776,7 @@ static func snapshot() -> Dictionary:
 	return {
 		"county": _county_live().duplicate(true),
 		"rows": _read_rows().duplicate(true),
+		"queue": _queue.duplicate(true),
 	}
 
 
@@ -639,6 +785,9 @@ static func restore(saved: Dictionary) -> void:
 	if county is Dictionary and bool((county as Dictionary).get("active", false)):
 		_county = (county as Dictionary).duplicate(true)
 		ToonNet.share_county(_county)
+	var waiting: Variant = saved.get("queue", [])
+	if waiting is Array:
+		_queue = (waiting as Array).duplicate(true)
 	var rows: Variant = saved.get("rows", [])
 	if rows is Array:
 		_write_rows(rows)
@@ -684,24 +833,20 @@ static func take_alerts() -> PackedStringArray:
 	if street_changed:
 		_append_invasion(lines, _seen_street, street)
 		_seen_street = street
-	if _face_key(county) != _face_key(_seen_county):
-		if is_county(ToonNet.district_id()):
-			_append_invasion(lines, _seen_county, county)
-		_seen_county = county
+	_seen_county = county
 	return PackedStringArray(lines)
 
 
 static func invasion_status() -> String:
-	if is_county(ToonNet.district_id()):
-		var county := _county_live()
-		if county.is_empty():
-			return "There is no invasion in progress!"
-		return "Toon HQ: The Cog Invasion is now at %s Cogs!!!\nToon HQ: We must defeat those %s!!!" % [str(int(county.get("remaining", 0))), String(county.get("plural", "Cogs"))]
 	var commanded := _command_for(ToonNet.district_id())
 	if commanded.is_empty():
 		if ToonNet.district_id() > 0 and not invasion().is_empty():
 			return "Toon HQ: There is a Cog Invasion in progress!!!"
 		return "There is no invasion in progress!"
+	if bool(commanded.get("timed", false)):
+		var until := float(commanded.get("until", 0.0))
+		var seconds := maxi(int(ceil(until - ToonNet.now())), 0)
+		return "Toon HQ: The Cog Invasion is now at %d:%02d!!!\nToon HQ: We must defeat those %s!!!" % [int(seconds / 60), seconds % 60, String(commanded.get("plural", "Cogs"))]
 	return "Toon HQ: The Cog Invasion is now at %s Cogs!!!\nToon HQ: We must defeat those %s!!!" % [str(int(commanded.get("remaining", 0))), String(commanded.get("plural", "Cogs"))]
 
 
@@ -709,17 +854,18 @@ static func invasion_status() -> String:
 static func note_cog(district: int, code: String, skeleton: bool) -> void:
 	if not ToonNet.is_authority():
 		return
-	if is_county(district):
-		_note_county(code, skeleton)
-		return
 	var rows := _read_rows()
 	var next: Array = []
 	var changed := false
+	var ended := {}
 	for item in rows:
 		if not item is Dictionary:
 			continue
 		var row: Dictionary = item
 		if int(row.get("district", 0)) != district:
+			next.append(row)
+			continue
+		if bool(row.get("timed", false)):
 			next.append(row)
 			continue
 		if not _row_matches(row, code, skeleton):
@@ -728,9 +874,18 @@ static func note_cog(district: int, code: String, skeleton: bool) -> void:
 		var left := int(row.get("remaining", 0)) - 1
 		changed = true
 		if left <= 0:
+			ended[district] = true
 			continue
 		row["remaining"] = left
 		next.append(row)
+	for district_id in ended.keys():
+		var ended_id := int(district_id)
+		if _active_for(next, ended_id) or not _can_promote(ended_id):
+			continue
+		var waiting := _pull_queue(ended_id)
+		if waiting.is_empty():
+			continue
+		next.append(waiting)
 	if changed:
 		_write_rows(next)
 
@@ -762,7 +917,7 @@ static func _note_county(code: String, skeleton: bool) -> void:
 
 
 static func _command_for(district: int) -> Dictionary:
-	if district <= 0 or is_county(district):
+	if district <= 0:
 		return {}
 	for item in _read_rows():
 		if item is Dictionary and int((item as Dictionary).get("district", 0)) == district:
@@ -772,10 +927,16 @@ static func _command_for(district: int) -> Dictionary:
 
 static func _read_rows() -> Array:
 	var snap := ToonNet.latest("invasion")
-	if snap.has("rows") or snap.has("active"):
+	if snap.has("rows") or snap.has("active") or snap.has("queue"):
 		if not bool(snap.get("active", false)):
 			_rows = []
+			_queue = []
 			return []
+		var waiting: Variant = snap.get("queue", [])
+		if waiting is Array:
+			_queue = (waiting as Array).duplicate(true)
+		else:
+			_queue = []
 		var raw: Variant = snap.get("rows", [])
 		if raw is Array:
 			_rows = (raw as Array).duplicate(true)
@@ -790,10 +951,51 @@ static func _read_rows() -> Array:
 
 static func _write_rows(rows: Array) -> void:
 	_rows = rows.duplicate(true)
-	if _rows.is_empty():
-		_publish_command({"active": false, "rows": []})
+	if _rows.is_empty() and _queue.is_empty():
+		_publish_command({"active": false, "rows": [], "queue": []})
 		return
-	_publish_command({"active": true, "rows": _rows})
+	_publish_command({"active": true, "rows": _rows, "queue": _queue.duplicate(true)})
+
+
+## A start while one is already running waits. The next one begins when that one ends.
+static func _hold_or_start(district: int, row: Dictionary) -> String:
+	var shown := String(row.get("plural", "Cogs"))
+	var rows := _read_rows()
+	if invading():
+		_queue.append(row)
+		_write_rows(rows)
+		return "Toon HQ: %s will invade after the current Cog Invasion ends!!!" % shown
+	rows.append(row)
+	_write_rows(rows)
+	return "Toon HQ: A Cog Invasion has begun!!!\nToon HQ: %s have taken over Toontown!!!" % shown
+
+
+static func _pull_queue(district: int) -> Dictionary:
+	var kept: Array = []
+	var found := {}
+	for item in _queue:
+		if found.is_empty() and item is Dictionary and int((item as Dictionary).get("district", 0)) == district:
+			found = (item as Dictionary).duplicate(true)
+			continue
+		kept.append(item)
+	if not found.is_empty():
+		_queue = kept
+	return found
+
+
+static func _active_for(rows: Array, district: int) -> bool:
+	for item in rows:
+		if item is Dictionary and int((item as Dictionary).get("district", 0)) == district:
+			return true
+	return false
+
+
+## A holiday invasion is still the current one, so a queued start waits for it too.
+## A Cog District's own invasion is the one that has to finish.
+static func _can_promote(district: int) -> bool:
+	if is_county(district):
+		return true
+	return invasion().is_empty()
 
 
 static func _publish_command(state: Dictionary) -> void:
@@ -832,7 +1034,7 @@ static func _holiday_written(holiday_id: int, slot: int) -> String:
 
 static func _street_face() -> Dictionary:
 	var district := ToonNet.district_id()
-	if district <= 0 or is_county(district):
+	if district <= 0:
 		return {}
 	var commanded := _command_for(district)
 	if not commanded.is_empty():
@@ -841,6 +1043,7 @@ static func _street_face() -> Dictionary:
 			"name": String(commanded.get("name", "Cog")),
 			"plural": String(commanded.get("plural", "Cogs")),
 			"skeleton": bool(commanded.get("skeleton", false)),
+			"until": float(commanded.get("until", 0.0)),
 		}
 	return _face_from_plan(invasion())
 
