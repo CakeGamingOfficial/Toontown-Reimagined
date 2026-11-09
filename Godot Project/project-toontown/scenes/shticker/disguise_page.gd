@@ -527,12 +527,12 @@ static func grant_factory(levels: Array) -> String:
 
 
 ## PromotionManagerAI.recoverMerits for a Cashbot mint. No suit part. Cogbucks
-## are paid only when the Cashbot suit is already complete, and the first
-## promotion on this page stops at 40.
+## are paid only when the Cashbot suit is already complete. DistributedMintBattleAI
+## adds MintCogBuckRewards on every battle the toons win.
 const _CASHBOT := 2
 
 
-static func grant_mint(levels: Array, mint_id: int, supervisor: bool) -> String:
+static func grant_mint(levels: Array, mint_id: int) -> String:
 	var mask := int(_MASKS[_CASHBOT])
 	var record := _read_disk()
 	var parts := _four(record.get("parts", []))
@@ -551,8 +551,7 @@ static func grant_mint(levels: Array, mint_id: int, supervisor: bool) -> String:
 	for level in levels:
 		var base := _py_round(float(level) * 0.5)
 		gained += _py_round(float(base) * mult)
-	if supervisor:
-		gained += bonus
+	gained += bonus
 	if gained <= 0:
 		return ""
 	var before := int(merits[_CASHBOT])

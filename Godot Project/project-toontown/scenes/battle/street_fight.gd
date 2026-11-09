@@ -4,6 +4,8 @@ extends Node
 ## face-off, the gag each toon picked, and then plays the movie.
 
 const REACH := 6.0
+## BattleBase.suitSpeed. createAdjustInterval times each suit by its own distance.
+const SUIT_SPEED := 4.8
 const JOIN_REACH := 20.0
 ## Movie.play runs for anyone who can see the battle. The camera track is
 ## added only when the local toon is pending or active.
@@ -1127,12 +1129,15 @@ func _is_joining(fight: Dictionary, cog_id: int) -> bool:
 
 func _walk_cog(fight: Dictionary, suit: Dictionary, cog: Node, toon_center: Vector3) -> void:
 	var taunt_for := float(fight.get("taunt_for", 3.5))
-	var walk := maxf(float(fight.get("walk", 0.1)), 0.1)
-	var along := 0.0
-	if _face_elapsed > taunt_for:
-		along = clampf((_face_elapsed - taunt_for) / walk, 0.0, 1.0)
 	var start := _vec(suit.get("from", suit.get("slot", [])))
 	var slot := _vec(suit.get("slot", []))
+	# One shared face-off clock would make a short walk creep. Each suit
+	# moves at suitSpeed, and the longest one is what ends the face-off.
+	var travel := Vector2(slot.x - start.x, slot.z - start.z).length()
+	var walk := travel / SUIT_SPEED
+	var along := 0.0
+	if _face_elapsed > taunt_for:
+		along = 1.0 if walk < 0.05 else clampf((_face_elapsed - taunt_for) / walk, 0.0, 1.0)
 	var spot := start.lerp(slot, along)
 	var facing := _yaw(start, slot)
 	if along <= 0.001:
@@ -1282,7 +1287,7 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 			var which := int(fight.get("mint", 0))
 			if which == 0:
 				which = _MINT_RIDE.mint_id
-			var buck_line := DisguisePage.grant_mint(_MINT.collect(), which, supervisor)
+			var buck_line := DisguisePage.grant_mint(_MINT.collect(), which)
 			if supervisor and tasks != null:
 				tasks.note_mint(which)
 				tasks.note_supervisor(which)
@@ -1547,6 +1552,41 @@ func _place_track(node: Node) -> AudioStreamPlayer:
 			if player != null and str(player.name).ends_with("Music") and player.name != "BattleMusic":
 				return player
 		current = current.get_parent()
+	return null
+
+
+## BattleBlocker.__handleToonEnter. Walking into the cell sphere starts that
+## cell's battle. The sphere does not stop the toon.
+func touch_cell(cell: int) -> void:
+	if _street_slug() != "cashbot_mint":
+		return
+	if _cool > 0.0 or _ask_wait > 0.0 or _busy():
+		return
+	var cog := _cell_cog(cell)
+	if cog == null:
+		return
+	var toon := _toon()
+	if toon == null:
+		return
+	var hp: Vector2i = toon.call("battle_hp")
+	_ask_wait = 1.2
+	_touch_cog(cog, hp)
+
+
+func _cell_cog(cell: int) -> Node:
+	var suits := get_parent().get_node_or_null("StreetSuits")
+	if suits == null:
+		return null
+	for child in suits.get_children():
+		if int(child.get_meta("cell", -1)) != cell:
+			continue
+		if not child.has_method("on_lane") or not bool(child.call("on_lane")):
+			continue
+		if bool(child.get_meta("office_hidden", false)):
+			continue
+		if bool(child.get_meta("in_fight", false)):
+			continue
+		return child
 	return null
 
 

@@ -46,6 +46,7 @@ func _process(_delta: float) -> void:
 		_board.call("place")
 	_apply_net()
 	_open_blocks()
+	_hide_far()
 
 
 func _apply_net() -> void:
@@ -125,6 +126,23 @@ func _open_blocks() -> void:
 		block.queue_free()
 
 
+func _hide_far() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var floor := host.get_node_or_null("MintFloor")
+	if floor == null or not floor.has_method("shows_room"):
+		return
+	for cog_id in _spawned.keys():
+		var actor: Node3D = _spawned[cog_id]
+		if actor == null or not is_instance_valid(actor):
+			continue
+		var room := int(int(actor.get_meta("cell", 0)) / 100)
+		var show := bool(floor.call("shows_room", room))
+		actor.visible = show
+		actor.set_meta("office_hidden", not show)
+
+
 func _prepare_nametags() -> void:
 	var script := load("res://scenes/toons/nametags.gd") as GDScript
 	var board := script.new() as Node
@@ -140,6 +158,8 @@ func _prepare_nametags() -> void:
 
 
 func _blocked(actor: Node3D, point: Vector3) -> bool:
+	if bool(actor.get_meta("office_hidden", false)):
+		return true
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return false

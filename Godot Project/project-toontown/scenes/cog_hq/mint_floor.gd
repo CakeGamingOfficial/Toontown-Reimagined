@@ -9,6 +9,11 @@ const _RIDE := preload("res://scenes/cog_hq/mint_elevator.gd")
 
 static var _book: Dictionary = {}
 
+var _pieces: Array[Node3D] = []
+var _shown := -1
+var _vis_min := 0
+var _vis_max := 0
+
 
 static func data() -> Dictionary:
 	if not _book.is_empty():
@@ -33,6 +38,13 @@ static func layout() -> Dictionary:
 	if floor is Dictionary:
 		return floor
 	return {}
+
+
+# JSON.parse_string keeps whole numbers as floats, and str(0.0) is "0.0".
+static func piece_key(value: Variant) -> String:
+	if value is float or value is int:
+		return str(int(value))
+	return str(value)
 
 
 static func place(host: Node) -> void:
@@ -62,15 +74,18 @@ func _ready() -> void:
 		if not (item is Dictionary):
 			continue
 		var piece: Dictionary = item
-		var info: Variant = rooms.get(str(piece.get("id", "")), {})
+		var info: Variant = rooms.get(piece_key(piece.get("id", "")), {})
 		if not (info is Dictionary):
 			continue
 		var path := String((info as Dictionary).get("file", ""))
 		var room := _instance(packed, path)
 		if room == null:
+			push_error("Mint piece %s %s did not load from %s" % [piece.get("kind", ""), piece_key(piece.get("id", "")), path])
 			continue
-		room.name = "Mint%s%s" % [piece.get("kind", "room"), piece.get("id", 0)]
+		room.name = "Mint%s%s" % [piece.get("kind", "room"), piece_key(piece.get("id", 0))]
 		add_child(room)
+		room.set_meta("piece", _pieces.size())
+		_pieces.append(room)
 		_apply(room, piece)
 		# The stored frame is the door's transform inside this piece. The glb
 		# wrapper already carries the piece, so the frame stays parented to it.
@@ -81,6 +96,8 @@ func _ready() -> void:
 				door.name = "DoorFrame"
 				room.add_child(door)
 				_apply(door, frame)
+	for shell in _pieces:
+		shell.set_meta("box", _mesh_box(shell))
 	_products(book, floor, packed)
 	_blocks(floor)
 	var spawn: Array = floor.get("spawn", [0.0, 0.0, 0.0])
@@ -89,6 +106,9 @@ func _ready() -> void:
 	set_meta("spawn", _vec(spawn) + Vector3(0.0, 0.2, 0.0))
 	set_meta("spawn_h", float(floor.get("spawn_h", 0.0)))
 	_collide(self)
+	# DistributedMint.camEnterRoom starts on the entrance. Even room numbers
+	# show one piece either side, so the first hallway is already up.
+	_show(0)
 
 
 func _products(book: Dictionary, floor: Dictionary, packed: Dictionary) -> void:
@@ -107,6 +127,7 @@ func _products(book: Dictionary, floor: Dictionary, packed: Dictionary) -> void:
 		mesh.name = String(prop.get("kind", "product"))
 		add_child(mesh)
 		_apply(mesh, prop)
+		mesh.set_meta("piece", _piece_at(mesh.global_position))
 
 
 func _blocks(floor: Dictionary) -> void:
@@ -117,16 +138,14 @@ func _blocks(floor: Dictionary) -> void:
 		if not (item is Dictionary):
 			continue
 		var spec: Dictionary = item
-		var body := StaticBody3D.new()
-		body.name = "Block"
-		var shape := SphereShape3D.new()
-		shape.radius = maxf(float(spec.get("radius", 10.0)), 1.0)
-		var owner := CollisionShape3D.new()
-		owner.shape = shape
-		body.add_child(owner)
-		holder.add_child(body)
-		body.position = _vec(spec.get("pos", [0.0, 0.0, 0.0]))
-		body.set_meta("cell", int(spec.get("room", 0)) * 100 + int(spec.get("cell", 0)))
+		# BattleBlocker.initCollisionGeom sets the sphere tangible 0. It starts
+		# the battle. It is not a wall.
+		var mark := Node3D.new()
+		mark.name = "Block"
+		holder.add_child(mark)
+		mark.position = _vec(spec.get("pos", [0.0, 0.0, 0.0]))
+		mark.set_meta("cell", int(spec.get("room", 0)) * 100 + int(spec.get("cell", 0)))
+		mark.set_meta("radius", maxf(float(spec.get("radius", 10.0)), 1.0))
 
 
 func _collide(node: Node) -> void:
@@ -156,7 +175,7 @@ func _slab(mesh: MeshInstance3D) -> bool:
 	var label := String(mesh.name).to_lower()
 	if label.contains("gear"):
 		return false
-	var walk := label.contains("floor") or label.begins_with("moltenlava") or label == "platform"
+	var walk := label.contains("floor") or label.begins_with("moltenlava") or label == "platform" or label == "paint"
 	if not walk:
 		return false
 	var bounds := mesh.get_aabb()
@@ -178,6 +197,12 @@ func _thicken(mesh: MeshInstance3D) -> void:
 	body.add_child(shape)
 	add_child(body)
 	body.global_position = Vector3(bounds.get_center().x, top - 1.0, bounds.get_center().z)
+	body.set_meta("piece", _owner(mesh))
+	# The ouch tag sat on the floor collision of the lava room and the paint
+	# mixer. Those sheets are moltenlava and paint. The hallway lava is not.
+	var label := String(mesh.name).to_lower()
+	if label == "moltenlava" or label == "paint":
+		body.set_meta("ouch", true)
 
 
 func _backs(body: StaticBody3D) -> void:
@@ -193,6 +218,184 @@ func _cutout(mesh: MeshInstance3D) -> bool:
 	if material is BaseMaterial3D:
 		return (material as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 	return false
+
+
+func _physics_process(_delta: float) -> void:
+	_watch()
+	_trip()
+
+
+## DistributedMint.camEnterRoom. Odd pieces (halls) show two rooms either
+## side. Even pieces show the hall on each side.
+func shows_room(room_index: int) -> bool:
+	var piece := room_index * 2
+	return piece >= _vis_min and piece <= _vis_max
+
+
+func shows_at(point: Vector3) -> bool:
+	if _pieces.is_empty():
+		return true
+	for shell in _pieces:
+		var index := int(shell.get_meta("piece", 0))
+		if index < _vis_min or index > _vis_max:
+			continue
+		var box: AABB = shell.get_meta("box", AABB())
+		if box.grow(2.0).has_point(point):
+			return true
+	return false
+
+
+func _watch() -> void:
+	if _pieces.is_empty():
+		return
+	var toon := _player()
+	if toon == null:
+		return
+	var here := toon.global_position
+	var best := _shown
+	var best_dist := INF
+	var inside := false
+	for shell in _pieces:
+		var plan := int(shell.get_meta("piece", 0))
+		var box: AABB = shell.get_meta("box", AABB())
+		if not box.grow(1.5).has_point(here):
+			continue
+		inside = true
+		var dist := box.get_center().distance_squared_to(here)
+		if dist < best_dist:
+			best_dist = dist
+			best = plan
+	if not inside:
+		best = 0
+		best_dist = INF
+		for shell in _pieces:
+			var plan := int(shell.get_meta("piece", 0))
+			var box: AABB = shell.get_meta("box", AABB())
+			var dist := box.get_center().distance_squared_to(here)
+			if dist < best_dist:
+				best_dist = dist
+				best = plan
+	if best != _shown:
+		_show(best)
+
+
+func _show(room_num: int) -> void:
+	_shown = room_num
+	var min_vis := room_num - 1
+	var max_vis := room_num + 1
+	if room_num % 2 == 1:
+		min_vis = room_num - 2
+		max_vis = room_num + 2
+	_vis_min = min_vis
+	_vis_max = max_vis
+	for child in get_children():
+		if not child.has_meta("piece") or String(child.name) == "MintBlocks":
+			continue
+		var index := int(child.get_meta("piece", -1))
+		var show := index >= min_vis and index <= max_vis
+		if child is Node3D:
+			(child as Node3D).visible = show
+		_arm(child, show)
+
+
+func _trip() -> void:
+	var holder := get_node_or_null("MintBlocks")
+	var body := _player()
+	if holder == null or body == null:
+		return
+	var fight := get_parent().get_node_or_null("StreetFight")
+	if fight == null or not fight.has_method("touch_cell"):
+		return
+	var feet := body.global_position
+	var chest := feet + Vector3(0.0, 2.0, 0.0)
+	for block in holder.get_children():
+		if not (block is Node3D):
+			continue
+		var mark := block as Node3D
+		var radius := float(mark.get_meta("radius", 0.0))
+		var center := mark.global_position
+		if chest.distance_to(center) > radius and feet.distance_to(center) > radius:
+			continue
+		fight.call("touch_cell", int(mark.get_meta("cell", -1)))
+		return
+
+
+func _arm(node: Node, enabled: bool) -> void:
+	if node is CollisionObject3D:
+		(node as CollisionObject3D).collision_layer = 1 if enabled else 0
+	for child in node.get_children():
+		_arm(child, enabled)
+
+
+func _piece_at(point: Vector3) -> int:
+	var best := 0
+	var best_dist := INF
+	var inside := false
+	for shell in _pieces:
+		var plan := int(shell.get_meta("piece", 0))
+		var box: AABB = shell.get_meta("box", AABB())
+		if not box.grow(1.5).has_point(point):
+			continue
+		inside = true
+		var dist := box.get_center().distance_squared_to(point)
+		if dist < best_dist:
+			best_dist = dist
+			best = plan
+	if inside:
+		return best
+	best_dist = INF
+	for shell in _pieces:
+		var plan := int(shell.get_meta("piece", 0))
+		var box: AABB = shell.get_meta("box", AABB())
+		var dist := box.get_center().distance_squared_to(point)
+		if dist < best_dist:
+			best_dist = dist
+			best = plan
+	return best
+
+
+func _owner(node: Node) -> int:
+	var current := node
+	while current != null and current != self:
+		if current.has_meta("piece"):
+			return int(current.get_meta("piece"))
+		current = current.get_parent()
+	return 0
+
+
+func _player() -> Node3D:
+	var host := get_parent()
+	if host == null:
+		return null
+	var body := host.get_node_or_null("Player")
+	if body is Node3D:
+		return body as Node3D
+	return null
+
+
+func _mesh_box(root: Node) -> AABB:
+	var found: Array = [AABB(), false]
+	_merge_box(root, found)
+	if not bool(found[1]):
+		var origin := Vector3.ZERO
+		if root is Node3D:
+			origin = (root as Node3D).global_position
+		return AABB(origin, Vector3.ONE)
+	return found[0]
+
+
+func _merge_box(node: Node, found: Array) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null and mesh.visible:
+			var global_box := mesh.global_transform * mesh.mesh.get_aabb()
+			if not bool(found[1]):
+				found[0] = global_box
+				found[1] = true
+			else:
+				found[0] = (found[0] as AABB).merge(global_box)
+	for child in node.get_children():
+		_merge_box(child, found)
 
 
 func _instance(packed: Dictionary, path: String) -> Node3D:

@@ -101,6 +101,12 @@ func engage(district: int, owner: int, cog_id: int, origin: Vector3, yaw: float,
 
 func _battle_cog(row: Dictionary, origin: Vector3) -> Dictionary:
 	var spec: Dictionary = row.get("cog", {})
+	# DistributedLevelBattle face-off walks each suit from its own getPos.
+	# The battle line is still built around the cog that was touched.
+	var spot: Array = [origin.x, origin.y, origin.z]
+	var stood: Variant = spec.get("pos", [])
+	if stood is Array and (stood as Array).size() >= 3:
+		spot = stood
 	return {
 		"id": int(row.get("do_id", 0)),
 		"code": String(spec.get("code", "")),
@@ -111,7 +117,7 @@ func _battle_cog(row: Dictionary, origin: Vector3) -> Dictionary:
 		"height": float(spec.get("height", 4.0)),
 		"skeleton": bool(spec.get("skeleton", false)),
 		"boss": bool(spec.get("boss", false)),
-		"pos": [origin.x, origin.y, origin.z],
+		"pos": spot,
 	}
 
 

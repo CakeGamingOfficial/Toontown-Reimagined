@@ -611,6 +611,14 @@ static func _light_mat(color: Color, glow: bool) -> StandardMaterial3D:
 
 func march(walking: bool) -> void:
 	_fight_key = "walk" if walking else ""
+	# The battle moves the suit after this cog has already processed, and a
+	# culled suit leaves _detail at 0, which skips the pose. The face-off
+	# walk is loop('walk') for the whole adjust, so pose it on this call.
+	if not walking or not bool(get_meta("in_fight", false)):
+		return
+	if is_visible_in_tree():
+		_detail = 2
+	_march(0.0)
 
 
 func begin_react(key: String, elapsed: float) -> void:
@@ -991,6 +999,8 @@ func _process(delta: float) -> void:
 	if bool(get_meta("in_fight", false)):
 		_tick_health(delta)
 		if _fight_key == "walk":
+			if is_visible_in_tree():
+				_detail = 2
 			_march(delta)
 		elif _fight_key != "":
 			play_attack(_fight_key, _fight_time)

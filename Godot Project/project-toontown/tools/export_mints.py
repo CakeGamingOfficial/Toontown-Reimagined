@@ -464,11 +464,21 @@ def cog_rows(model: NodePath, entities: dict, cog_data: list, cells: dict) -> tu
 
 
 def entrance_point(entities: dict) -> list:
+    # EntrancePoint.placeToon for one toon. The rotator stays at H=0 and the
+    # placer steps back by radius, so the toon stands behind the marker.
     for spec in entities.values():
         if isinstance(spec, dict) and spec.get("type") == "entrancePoint":
             pos = vec3(spec.get("pos"), 0.0)
-            return [pos[0], pos[1], pos[2], float(vec3(spec.get("hpr"), 0.0)[0])]
-    return [0.0, 6.0, 0.0, 0.0]
+            heading = float(vec3(spec.get("hpr"), 0.0)[0])
+            radius = float(spec.get("radius", 15.0))
+            rad = math.radians(heading)
+            return [
+                pos[0] + math.sin(rad) * radius,
+                pos[1] - math.cos(rad) * radius,
+                pos[2],
+                heading,
+            ]
+    return [0.0, -9.0, 0.0, 0.0]
 
 
 def attach(world: NodePath, other_exit: NodePath, options: list, rng: random.Random) -> tuple[NodePath, NodePath]:

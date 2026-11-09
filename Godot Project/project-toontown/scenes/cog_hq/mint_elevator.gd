@@ -69,7 +69,9 @@ static func arrival(host: Node, into_mint: bool) -> Dictionary:
 	if host == null:
 		return {}
 	if into_mint:
-		var floor := host.get_node_or_null("MintFloor") as Node3D
+		# MintFloor is a plain Node. Casting it to Node3D drops the spawn and
+		# the toon falls back to the Cashbot HQ courtyard point.
+		var floor := host.get_node_or_null("MintFloor")
 		if floor == null or not floor.has_meta("spawn"):
 			return {}
 		return {

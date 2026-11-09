@@ -7,6 +7,9 @@ extends Node
 const _FLOORS := preload("res://scenes/cog_hq/mint_floor.gd")
 const _MOTION := "res://assets/cog_hq/facility_motion.json"
 const _GOON := "res://assets/cog_hq/goon.glb"
+const _WALK := "res://assets/cog_hq/goon_walk.json"
+## GoonGlobals.ANIM_WALK_RATE. The clip plays at velocity / (rate * scale).
+const _WALK_RATE := 2.8
 const _SMALL := "res://assets/cog_hq/audio/CHQ_FACT_stomper_small.ogg"
 const _MED := "res://assets/cog_hq/audio/CHQ_FACT_stomper_med.ogg"
 const _LARGE := "res://assets/cog_hq/audio/CHQ_FACT_stomper_large.ogg"
@@ -15,6 +18,8 @@ const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 
 static var _levels: Array[int] = []
+static var _walk: Dictionary = {}
+static var _walk_joints: Dictionary = {}
 
 var _time := 0.0
 var _leaving := false
@@ -79,6 +84,7 @@ func _physics_process(delta: float) -> void:
 	_time += delta
 	var body := _body()
 	var busy := _busy()
+	_lava(body)
 	_move_stompers(body, busy)
 	_spin_gears(delta, body, busy)
 	_move_platforms(body, delta, busy)
@@ -111,7 +117,7 @@ func _read(found: Dictionary) -> void:
 		var piece: Dictionary = item
 		if String(piece.get("kind", "")) != "room":
 			continue
-		var room_id := str(piece.get("id", ""))
+		var room_id := _FLOORS.piece_key(piece.get("id", ""))
 		if seen.has(room_id):
 			continue
 		seen[room_id] = true
@@ -237,10 +243,13 @@ func _goons_from(host: Node) -> void:
 		var yaw := deg_to_rad(float(spec.get("yaw", 0.0)))
 		root.rotation.y = yaw
 		var mesh := packed.instantiate() as Node3D
+		var bones: Array = []
 		if mesh != null:
 			mesh.name = "Goon"
 			root.add_child(mesh)
 			mesh.scale = Vector3.ONE * float(spec.get("scale", 1.0))
+			_load_walk()
+			_bind_walk(mesh, bones)
 		var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
 		var goon_id := int(spec.get("id", 0))
 		var points := _route(root.global_position, yaw, goon_id)
@@ -263,6 +272,8 @@ func _goons_from(host: Node) -> void:
 			"index": 0,
 			"wait": 0.0,
 			"stun": 0.0,
+			"bones": bones,
+			"cycle": 0.0,
 		})
 
 
@@ -502,11 +513,13 @@ func _move_goons(body: Node3D, delta: float) -> void:
 		var root: Node3D = item["root"]
 		if root == null or not is_instance_valid(root):
 			continue
+		root.visible = _shown_goon(root.global_position)
 		var route: PackedVector3Array = item.get("points", PackedVector3Array())
 		if route.size() >= 2:
 			_walk_route(item, root, body, delta, route)
 			continue
 		if _stunned(item, root, body, delta):
+			_pose_goon(item, false, delta)
 			continue
 		var home: Vector3 = item["home"]
 		var face := home
@@ -525,7 +538,7 @@ func _move_goons(body: Node3D, delta: float) -> void:
 				item["alert"] = seen
 				if seen:
 					face = look
-					if dist <= 3.0:
+					if dist <= 3.0 and root.visible:
 						_hurt(int(item["strength"]), "goon-%s" % item["id"])
 						speed = 0.0
 		if speed > 0.0:
@@ -542,10 +555,13 @@ func _move_goons(body: Node3D, delta: float) -> void:
 		var base: Vector3 = item["forward"]
 		var angle := base.signed_angle_to(face, Vector3.UP)
 		root.global_transform = Transform3D(Basis(Vector3.UP, angle) * origin, root.global_position)
+		# DistributedGoon.enterBattle stops the walk. Closing in is that state.
+		_pose_goon(item, speed > 0.0, delta)
 
 
 func _walk_route(item: Dictionary, root: Node3D, body: Node3D, delta: float, points: PackedVector3Array) -> void:
 	if _stunned(item, root, body, delta):
+		_pose_goon(item, false, delta)
 		return
 	var index := int(item.get("index", 0))
 	var wait := float(item.get("wait", 0.0))
@@ -566,7 +582,9 @@ func _walk_route(item: Dictionary, root: Node3D, body: Node3D, delta: float, poi
 		elif dist > 0.001:
 			root.global_position += step * (speed * delta / dist)
 			_face_world(root, step)
-	if body == null:
+	# enterWalk keeps loop('walk') while the path pauses at a point.
+	_pose_goon(item, true, delta)
+	if body == null or not root.visible:
 		return
 	var toward := body.global_position - root.global_position
 	toward.y = 0.0
@@ -755,12 +773,151 @@ func _crush_goons(where: Vector3) -> void:
 	_goons = kept
 
 
-func _hurt(amount: int, key: String) -> void:
+func _lava(body: CharacterBody3D) -> void:
+	if body == null or not _on_ouch(body.global_position):
+		return
+	# startOuch repeats every 2 seconds. b_setOuch does nothing while stunToon
+	# is playing, and that track runs 3.5 seconds, so the next hit lands at 4.
+	_hurt(8, "ouch", 4.0, true)
+
+
+func _on_ouch(feet: Vector3) -> bool:
+	var host := get_parent()
+	if host == null:
+		return false
+	var floor := host.get_node_or_null("MintFloor")
+	if floor == null:
+		return false
+	var on_ouch := false
+	var ouch_top := -INF
+	var safe_top := -INF
+	for child in floor.get_children():
+		if not (child is StaticBody3D):
+			continue
+		var solid := child as StaticBody3D
+		if solid.collision_layer == 0:
+			continue
+		var shape_node := solid.get_child(0) as CollisionShape3D
+		if shape_node == null or not (shape_node.shape is BoxShape3D):
+			continue
+		var box := shape_node.shape as BoxShape3D
+		var center := solid.global_position
+		var half := box.size * 0.5
+		if absf(feet.x - center.x) > half.x or absf(feet.z - center.z) > half.z:
+			continue
+		var top := center.y + half.y
+		if feet.y < top - 0.4 or feet.y > top + 1.25:
+			continue
+		if bool(solid.get_meta("ouch", false)):
+			on_ouch = true
+			ouch_top = maxf(ouch_top, top)
+		else:
+			safe_top = maxf(safe_top, top)
+	# A platform over the lava is its own floor. The ouch tag is the lava sheet.
+	return on_ouch and safe_top < ouch_top + 0.35
+
+
+func _shown_goon(point: Vector3) -> bool:
+	var host := get_parent()
+	if host == null:
+		return true
+	var floor := host.get_node_or_null("MintFloor")
+	if floor == null or not floor.has_method("shows_at"):
+		return true
+	return bool(floor.call("shows_at", point))
+
+
+func _load_walk() -> void:
+	if not _walk_joints.is_empty() or not FileAccess.file_exists(_WALK):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_WALK))
+	if not (parsed is Dictionary):
+		return
+	_walk = parsed
+	var joints: Dictionary = (parsed as Dictionary).get("joints", {})
+	for name in joints.keys():
+		var frames: Array = joints[name]
+		var poses: Array = []
+		for frame in frames:
+			if frame is Array:
+				poses.append(_joint_pose(frame))
+		_walk_joints[String(name)] = poses
+
+
+func _bind_walk(node: Node, bones: Array) -> void:
+	if node is Node3D:
+		var poses: Array = _walk_joints.get(String(node.name), [])
+		if not poses.is_empty():
+			bones.append({
+				"node": node,
+				"rest": (node as Node3D).transform,
+				"poses": poses,
+			})
+	for child in node.get_children():
+		_bind_walk(child, bones)
+
+
+func _pose_goon(item: Dictionary, moving: bool, delta: float) -> void:
+	var bones: Array = item.get("bones", [])
+	if bones.is_empty():
+		return
+	var frame := 0
+	if moving:
+		var scale := maxf(float(item.get("scale", 1.0)), 0.01)
+		var fps := float(_walk.get("fps", 48.0))
+		item["cycle"] = float(item.get("cycle", 0.0)) + delta * fps * float(item.get("speed", 0.0)) / (_WALK_RATE * scale)
+		var count := 1
+		var sample: Array = (bones[0] as Dictionary).get("poses", [])
+		count = maxi(sample.size(), 1)
+		frame = posmod(int(floor(float(item["cycle"]))), count)
+	for bone in bones:
+		if not (bone is Dictionary):
+			continue
+		var record: Dictionary = bone
+		var joint: Node3D = record.get("node")
+		if joint == null or not is_instance_valid(joint):
+			continue
+		if not moving:
+			joint.transform = record.get("rest", Transform3D.IDENTITY)
+			continue
+		var poses: Array = record.get("poses", [])
+		if frame >= 0 and frame < poses.size() and poses[frame] is Transform3D:
+			joint.transform = poses[frame]
+
+
+static func _joint_pose(cells: Array) -> Transform3D:
+	if cells.size() < 16:
+		return Transform3D.IDENTITY
+	var x := Vector3(float(cells[0]), float(cells[1]), float(cells[2]))
+	var y := Vector3(float(cells[4]), float(cells[5]), float(cells[6]))
+	var z := Vector3(float(cells[8]), float(cells[9]), float(cells[10]))
+	var origin := Vector3(float(cells[12]), float(cells[13]), float(cells[14]))
+	var sx := x.length()
+	var sy := y.length()
+	var sz := z.length()
+	if sx < 0.05 or sy < 0.05 or sz < 0.05:
+		return Transform3D(Basis(x, y, z), origin)
+	var basis := Basis(x / sx, y / sy, z / sz)
+	basis = basis.orthonormalized().scaled(Vector3(sx, sy, sz))
+	return Transform3D(basis, origin)
+
+
+func _shout() -> void:
+	var body := _body()
+	if body == null:
+		return
+	for child in body.get_children():
+		if child is ToonActor:
+			ToonSpeech.speak(child, "!")
+			return
+
+
+func _hurt(amount: int, key: String, wait: float = 1.0, shout: bool = false) -> void:
 	if amount <= 0 or _leaving:
 		return
 	if _hurt_until.has(key) and float(_hurt_until[key]) > _time:
 		return
-	_hurt_until[key] = _time + 1.0
+	_hurt_until[key] = _time + wait
 	var toon := _toon()
 	if toon == null or not toon.has_method("battle_loadout"):
 		return
@@ -770,6 +927,8 @@ func _hurt(amount: int, key: String) -> void:
 	var left := maxi(loadout.hp - amount, 0)
 	loadout.set_hp(left, loadout.max_hp)
 	loadout.save()
+	if shout:
+		_shout()
 	if left > 0:
 		return
 	_leaving = true
