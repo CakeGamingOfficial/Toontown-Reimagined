@@ -337,6 +337,8 @@ static func building_track(district: int) -> String:
 const COUNTY := "Corporate County"
 ## A new cog at each half hour on the host clock. Defeating them does not end it early.
 const _COUNTY_COUNT := 1000
+## 48 chances in a day. One in 32 starts an invasion, which is one or two a day.
+const _NATURAL_ODDS := 32
 
 static var _county: Dictionary = {}
 static var _cog_rows: Array = []
@@ -420,10 +422,11 @@ static func _next_half_hour() -> float:
 	return now + float(left)
 
 
-## Every district except Welcome Valley draws from this pool at :00 and :30.
-## A Cog District always has one. If it is missing, the next check starts another.
-## A department invasion is one eighth as likely as any one Cog in that same suit.
-## Each step down the suit scale is twice as rare as the one above it.
+## Welcome Valley never rolls. A Cog District always has one, and it changes at
+## :00 and :30. Every other district rolls on its own then. A miss stays quiet
+## until the next one. A department invasion is one eighth as likely as any one
+## Cog in that same suit. Each step down the suit scale is twice as rare as
+## the one above it.
 static func _tick_natural() -> void:
 	var slot := _half_slot()
 	var until := _next_half_hour()
@@ -431,6 +434,7 @@ static func _tick_natural() -> void:
 	var next: Array = []
 	var have := {}
 	var changed := false
+	var noted := false
 	for item in rows:
 		if not item is Dictionary:
 			continue
@@ -455,10 +459,6 @@ static func _tick_natural() -> void:
 		if cog_district and have.has(id):
 			_natural_given[id] = slot
 			continue
-		# This half hour already started. A Cog District waits for the next one
-		# instead of replacing the cogs that were walking when the game opened.
-		if cog_district and String(_natural_given.get(id, "")) == slot and not have.has(id):
-			continue
 		if not cog_district and (String(_natural_given.get(id, "")) == slot or have.has(id)):
 			if have.has(id):
 				_natural_given[id] = slot
@@ -478,6 +478,10 @@ static func _tick_natural() -> void:
 				_natural_given[id] = slot
 				changed = true
 				continue
+		if not cog_district and randi() % _NATURAL_ODDS != 0:
+			_natural_given[id] = slot
+			noted = true
+			continue
 		var rolled := _natural_row(id, until)
 		if rolled.is_empty():
 			continue
@@ -486,6 +490,8 @@ static func _tick_natural() -> void:
 		changed = true
 	if changed:
 		_write_rows(next)
+	elif noted:
+		_save_invasion()
 
 
 static func _half_slot() -> String:

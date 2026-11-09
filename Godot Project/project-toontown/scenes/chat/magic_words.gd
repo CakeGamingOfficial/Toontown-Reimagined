@@ -17,6 +17,8 @@ const _TELEPORT_ALL: Array[int] = [
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
+## A shorter left press is a click. A longer one is a hold.
+const _FLY_CLICK := 0.25
 const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
 ~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
@@ -228,6 +230,10 @@ static var _hover_y := 0.0
 static var _fly_yaw := 0.0
 static var _fly_pitch := 0.0
 static var _fly_ready := false
+## A left click latches mouse look until the next click. Holding the left button looks only until it is released.
+static var _fly_look := true
+static var _fly_left := false
+static var _fly_held := 0.0
 static var _trolley_next := 0
 ## SetGM icon id. 0 is off. 1..4 are TOON COUNCIL, TOON TROOPER, RESISTANCE RANGER, GC.
 static var _gm := 0
@@ -399,9 +405,22 @@ static func fly_camera(camera: Camera3D, delta: float) -> void:
 	var owner := camera.get_viewport().gui_get_focus_owner()
 	if owner is LineEdit:
 		return
-	var motion := Input.get_last_mouse_velocity()
-	_fly_yaw -= motion.x * delta * 0.003
-	_fly_pitch = clampf(_fly_pitch - motion.y * delta * 0.003, deg_to_rad(-85.0), deg_to_rad(85.0))
+	var left := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	if left and not _fly_left:
+		_fly_held = 0.0
+	elif left:
+		_fly_held += delta
+	var released := _fly_left and not left
+	_fly_left = left
+	if released and _fly_held <= _FLY_CLICK:
+		_fly_look = not _fly_look
+	var looking := left or _fly_look
+	if not looking and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif looking:
+		var motion := Input.get_last_mouse_velocity()
+		_fly_yaw -= motion.x * delta * 0.003
+		_fly_pitch = clampf(_fly_pitch - motion.y * delta * 0.003, deg_to_rad(-85.0), deg_to_rad(85.0))
 	var basis := Basis.from_euler(Vector3(_fly_pitch, _fly_yaw, 0.0))
 	var wish := Vector3.ZERO
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
@@ -425,7 +444,12 @@ static func fly_camera(camera: Camera3D, delta: float) -> void:
 static func _toggle_oobe(scene: Node) -> String:
 	_oobe = not _oobe
 	_fly_ready = false
+	_fly_look = false
+	_fly_left = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	_fly_held = _FLY_CLICK + 1.0 if _fly_left else 0.0
 	if not _oobe:
+		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		return "Oobe mode is off."
 	var camera := _camera(scene)
 	if camera != null:
@@ -433,7 +457,7 @@ static func _toggle_oobe(scene: Node) -> String:
 		_fly_pitch = asin(clampf(facing.y, -1.0, 1.0))
 		_fly_yaw = atan2(facing.x, -facing.z)
 		_fly_ready = true
-	return "Oobe mode is on. Mouse looks, WASD flies, E and Q go up and down."
+	return "Oobe mode is on. Left click looks until you click again. Hold the left button to look, and release to stop. WASD flies, E and Q go up and down."
 
 
 static func _teleport(scene: Node, args: PackedStringArray) -> String:
