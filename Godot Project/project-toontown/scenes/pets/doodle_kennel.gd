@@ -41,19 +41,47 @@ static func save_pet(pet_name: String, dna: Array, zone: int, traits: Array = []
 	_write()
 
 
+static func battle_trick(trick_id: int) -> int:
+	# attemptBattleTrick, then TrickHeals lerped by aptitude.
+	var record := current()
+	if record.is_empty() or trick_id < 0 or trick_id > 6:
+		return 0
+	var tricks: Array = record.get("tricks", [])
+	var aptitude := 0.0
+	if trick_id < tricks.size():
+		aptitude = float(tricks[trick_id])
+	var mood: Dictionary = record.get("mood", {})
+	var rows: Array = record.get("traits", [])
+	var happy: bool = preload("res://scenes/pets/doodle_traits.gd").contented(mood, rows)
+	var low := 0.5 if happy else 0.1
+	var high := 0.97 if happy else 0.6
+	var accuracy := float([1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4][trick_id])
+	var cutoff := lerpf(low, high, aptitude) * accuracy
+	if randf() >= cutoff:
+		return 0
+	var heals := [[5, 10], [6, 12], [7, 14], [8, 16], [9, 18], [10, 20], [11, 22]]
+	var pair: Array = heals[trick_id]
+	var amount := int(round(lerpf(float(pair[0]), float(pair[1]), aptitude)))
+	while tricks.size() <= trick_id:
+		tricks.append(0.0)
+	tricks[trick_id] = minf(aptitude + 0.0005, 1.0)
+	update_life(mood, tricks)
+	return amount
+
+
 static func update_life(mood: Dictionary, tricks: Array) -> void:
 	_ensure()
 	var slot := _slot()
 	if slot < 0:
 		return
-	var record = _slots[slot]
-	if not (record is Dictionary) or not (record as Dictionary).has("dna"):
+	var kept = _slots[slot]
+	if not (kept is Dictionary) or not (kept as Dictionary).has("dna"):
 		return
-	var kept: Dictionary = record
-	kept["mood"] = mood
-	kept["tricks"] = tricks
-	kept["mood_at"] = Time.get_unix_time_from_system()
-	_slots[slot] = kept
+	var record: Dictionary = kept
+	record["mood"] = mood
+	record["tricks"] = tricks
+	record["mood_at"] = Time.get_unix_time_from_system()
+	_slots[slot] = record
 	_write()
 
 

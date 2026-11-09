@@ -18,9 +18,11 @@ const PAGE_TASKS := 4
 const PAGE_TRACKS := 5
 const PAGE_COGS := 6
 const PAGE_FISH := 7
-const PAGE_DISGUISE := 8
-const PAGE_EVENTS := 9
-const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Cog Disguise", "Events"]
+const PAGE_KARTS := 8
+const PAGE_DISGUISE := 9
+const PAGE_GARDEN := 10
+const PAGE_EVENTS := 11
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Cog Disguise", "Gardening", "Events"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
@@ -113,6 +115,8 @@ const _TAB_GEAR := preload("res://assets/gui/shticker/gallery/tab_gear.png")
 const _TAB_FISH := preload("res://assets/gui/shticker/fishing/tab_fish.png")
 const _TAB_DISGUISE := preload("res://assets/gui/shticker/disguise/tab_icon.png")
 const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
+const _KART_PAGE := preload("res://scenes/shticker/kart_page.gd")
+const _GARDEN_PAGE := preload("res://scenes/shticker/garden_page.gd")
 const _EVENTS_PAGE := preload("res://scenes/shticker/events_page.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
@@ -149,6 +153,8 @@ var _tasks: ToonTasks
 var _cogs: CogGallery
 var _tracks_page: TrackPage
 var _fish: Control
+var _karts: Control
+var _garden: Control
 var _disguise: DisguisePage
 var _events: Control
 var _districts_page: DistrictPage
@@ -412,14 +418,26 @@ func _build_book() -> void:
 	_fish = _FISH_PAGE.new()
 	_cover.add_child(_fish)
 	_pages.append(_fish)
+	_karts = _KART_PAGE.new()
+	_cover.add_child(_karts)
+	_pages.append(_karts)
 	_disguise = DisguisePage.new()
 	_cover.add_child(_disguise)
 	_pages.append(_disguise)
+	_garden = _GARDEN_PAGE.new()
+	_cover.add_child(_garden)
+	_pages.append(_garden)
 	_events = _EVENTS_PAGE.new()
 	_events.name = "EventsPage"
 	_cover.add_child(_events)
 	_pages.append(_events)
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, _TAB_DISGUISE, _EVENTS_PAGE.tab_icon()]
+	var kart_icon := load("res://assets/racing/maps/kart_icon.png") as Texture2D
+	if kart_icon == null:
+		kart_icon = _TAB_FISH
+	var flower := load("res://assets/neighborhoods/daisy_gardens/props/flower_treasure_0.png") as Texture2D
+	if flower == null:
+		flower = _TAB_FISH
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, kart_icon, _TAB_DISGUISE, flower, _EVENTS_PAGE.tab_icon()]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -871,8 +889,12 @@ func _show_page(index: int) -> void:
 		_cogs.refresh()
 	elif index == PAGE_FISH and _fish != null:
 		_fish.call("refresh")
+	elif index == PAGE_KARTS and _karts != null:
+		_karts.call("refresh")
 	elif index == PAGE_DISGUISE and _disguise != null:
 		_disguise.refresh()
+	elif index == PAGE_GARDEN and _garden != null:
+		_garden.call("refresh")
 	elif index == PAGE_EVENTS and _events != null:
 		_events.call("refresh")
 	for page_index in _pages.size():
@@ -1365,8 +1387,12 @@ func _layout() -> void:
 		_cogs.layout(page_size)
 	if _fish != null:
 		_fish.call("layout", page_size)
+	if _karts != null:
+		_karts.call("layout", page_size)
 	if _disguise != null:
 		_disguise.layout(page_size)
+	if _garden != null:
+		_garden.call("layout", page_size)
 	if _events != null:
 		_events.call("layout", page_size)
 	# pageTabFrame scale 1.25, each tab scale 0.06, frame ±0.575, step 0.07.

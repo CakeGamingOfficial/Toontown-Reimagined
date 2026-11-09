@@ -99,6 +99,7 @@ var _floor_out := false
 var _board_key := ""
 var _ride_token := ""
 var _ride_freed: Dictionary = {}
+var _maze: Node
 
 
 func _ready() -> void:
@@ -117,6 +118,9 @@ func _ready() -> void:
 	_layer.add_child(_banner)
 	_build_hop()
 	_build_clock()
+	_maze = load("res://scenes/buildings/field_maze.gd").new()
+	_maze.name = "FieldMaze"
+	add_child(_maze)
 	set_process(true)
 
 
@@ -327,6 +331,17 @@ func _show(run: Dictionary, delta: float) -> void:
 	elif state == "resting" or state == "floorboard":
 		_hold_street()
 		_play_music(_WAIT_MUSIC, _WAIT_VOL)
+	elif state == "maze":
+		_hold_street()
+		_banner.visible = true
+		_banner.text = "Sellbot Field Office"
+		var walker := _toon()
+		if walker != null:
+			walker.call("hold_for_battle", false)
+		if _maze != null and _maze.has_method("begin"):
+			_maze.call("begin", run, _RUNS.room_origin(block) + Vector3(90.0, 0.0, 90.0), walker)
+			_maze.call("play", delta, walker)
+		return
 	elif state == "victory" or state == "failed":
 		_hold_street()
 		_quiet()
@@ -474,6 +489,12 @@ func _credit_building(run: Dictionary) -> void:
 	if path == "" and get_tree().current_scene != null:
 		path = get_tree().current_scene.scene_file_path
 	var zone := int(preload("res://scenes/interiors/shop_door.gd").street_zone(path))
+	if bool(run.get("cogdo", false)):
+		var rewards = load("res://scenes/cog_hq/boss_rewards.gd")
+		var line := String(rewards.call("grant_field_sos", int(run.get("difficulty", 0))))
+		if line != "" and _banner != null:
+			_banner.text = line
+		return
 	tasks.note_building(String(run.get("track", "")), int(run.get("floors", 1)), zone)
 
 
@@ -1447,7 +1468,7 @@ func _mask_remotes(run: Dictionary) -> void:
 		var other: Dictionary = item
 		var together := mine > 0 and int(other.get("id", 0)) == mine
 		var state := String(other.get("state", ""))
-		var gone := state == "riding" or state == "battle" or state == "victory" or state == "failed" or state == "resting" or state == "floorboard"
+		var gone := state == "riding" or state == "battle" or state == "victory" or state == "failed" or state == "resting" or state == "floorboard" or state == "maze"
 		if together or not gone:
 			continue
 		for rider in other.get("toons", []):

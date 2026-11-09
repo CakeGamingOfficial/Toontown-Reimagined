@@ -192,6 +192,9 @@ func _set_button(ent_id: int, on: bool, tell: bool) -> void:
 	button.down = on
 	button.release = -1.0
 	_down[ent_id] = on
+	var props := get_parent().get_node_or_null("FactoryProps") if get_parent() != null else null
+	if props != null and props.has_method("note_switch"):
+		props.call("note_switch", ent_id, on)
 	_pose_button(button, on)
 	var stream: AudioStream = _POPUP
 	if on:

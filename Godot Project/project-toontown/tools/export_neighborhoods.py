@@ -234,6 +234,19 @@ JOBS = [
         "camera": (70, 22, 110),
     },
     {
+        "slug": "party_grounds",
+        "root": "PartyGrounds",
+        "scene_dir": "scenes/playgrounds",
+        "asset_dir": "assets/neighborhoods/party_grounds",
+        "sky": "tt",
+        "music": "phase_13/audio/bgm/party_original_theme.ogg",
+        "dna": [STORAGE, "phase_13/dna/storage_party_sz.dna", "phase_13/dna/party_sz.dna"],
+        "center": False,
+        "camera": (-10, 18, 40),
+        # PartyLoader.load clear color.
+        "clear": (0.47, 0.69, 0.3),
+    },
+    {
         "slug": "tutorial_zone",
         "root": "TutorialZone",
         "scene_dir": "scenes/playgrounds",
@@ -392,6 +405,7 @@ def write_scene(job: dict, music_rel: str, zones_rel: str) -> None:
     scene_path = ROOT / job["scene_dir"] / f"{job['slug']}.tscn"
     scene_path.parent.mkdir(parents=True, exist_ok=True)
     x, y, z = job["camera"]
+    red, green, blue = job.get("clear", (0.05098, 0.286275, 0.72549))
     zones_line = f'zones_path = "res://{zones_rel}"\n' if zones_rel else ""
     scene_path.write_text(
         "\n".join([
@@ -404,7 +418,7 @@ def write_scene(job: dict, music_rel: str, zones_rel: str) -> None:
             "",
             '[sub_resource type="Environment" id="Environment_day"]',
             "background_mode = 1",
-            "background_color = Color(0.05098, 0.286275, 0.72549, 1)",
+            f"background_color = Color({red}, {green}, {blue}, 1)",
             "ambient_light_source = 2",
             "ambient_light_color = Color(1, 1, 1, 1)",
             "",
@@ -462,6 +476,9 @@ def export_job(job: dict, force: bool) -> None:
         geom, store = load_geom(job["dna"][1:])
     if job["slug"] == "toon_estate":
         attach_estate_houses(geom)
+    if job["slug"] == "party_grounds":
+        # PartyLoader.createSafeZone shifts the safe zone 10 units west.
+        geom.setPos(-10.0, 0.0, 0.0)
     shift_x = 0.0
     shift_y = 0.0
     if job["center"]:

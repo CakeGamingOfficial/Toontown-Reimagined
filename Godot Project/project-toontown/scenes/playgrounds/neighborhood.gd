@@ -50,8 +50,15 @@ func _ready() -> void:
 	if preload("res://scenes/interiors/shop_door.gd").street_zone(scene_file_path) != 0:
 		preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
+	if estate_slot >= 0:
+		preload("res://scenes/estate/garden_plots.gd").place(self, estate_slot)
+	if scene_file_path.ends_with("party_grounds.tscn"):
+		preload("res://scenes/parties/toon_party.gd").place_grounds(self)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	preload("res://scenes/playgrounds/fishing_spots.gd").place(self)
+	if scene_file_path.ends_with("goofy_speedway.tscn"):
+		preload("res://scenes/racing/speedway_racing.gd").place(self)
+	preload("res://scenes/parties/toon_party.gd").place_gate(self)
 	_ready_playground_treasures()
 	_attach_returning_toon()
 	preload("res://scenes/cog_hq/factory_rooms.gd").place(self)
@@ -111,6 +118,12 @@ func _attach_returning_toon() -> void:
 	preload("res://scenes/cog_hq/office_elevator.gd").place(self)
 	preload("res://scenes/cog_hq/office_cogs.gd").place(self)
 	preload("res://scenes/cog_hq/office_puzzles.gd").place(self)
+	preload("res://scenes/cog_hq/course_floor.gd").place(self)
+	preload("res://scenes/cog_hq/course_kart.gd").place(self)
+	preload("res://scenes/cog_hq/course_cogs.gd").place(self)
+	preload("res://scenes/cog_hq/course_puzzles.gd").place(self)
+	preload("res://scenes/cog_hq/boss_gate.gd").place(self)
+	preload("res://scenes/cog_hq/dept_boss.gd").place(self)
 	# A playground always has someone to walk. A street does too when a door,
 	# a tunnel, or a factory car is bringing them back.
 	if places.hood_for_scene(scene_file_path) == 0 and not toon.expects_avatar():

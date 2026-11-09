@@ -387,7 +387,7 @@ func _tip_for(path: String) -> String:
 		tips = _MINIGAME
 	elif places.is_estate(path) or places.is_house(path):
 		tips = _ESTATE
-	elif path.contains("goofy_speedway") or path.contains("kart_shop"):
+	elif path.contains("goofy_speedway") or path.contains("kart_shop") or path.contains("kart_race"):
 		tips = _KARTING
 	elif path.contains("minigolf"):
 		tips = _GOLF

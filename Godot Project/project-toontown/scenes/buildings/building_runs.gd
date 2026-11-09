@@ -94,6 +94,7 @@ func board(district: int, slug: String, block: int, peer: int, toon_name: String
 			"track": String(building.get("track", "c")),
 			"difficulty": int(building.get("difficulty", 0)),
 			"floors": maxi(int(building.get("floors", 1)), 1),
+			"cogdo": bool(building.get("cogdo", false)),
 			"title": String(building.get("title", "")),
 			"floor": 0,
 			"room": "lobby",
@@ -180,6 +181,8 @@ func _tick(run: Dictionary, delta: float) -> void:
 		else:
 			_after_floor(run)
 		return
+	if state == "maze":
+		return
 	# DistributedSuitInterior enterResting. The toon walks to the far elevator.
 	if state == "resting":
 		return
@@ -225,7 +228,36 @@ func _tick(run: Dictionary, delta: float) -> void:
 	_mark(run)
 
 
+func maze_result(district: int, slug: String, run_id: int, made_it: bool) -> void:
+	if not ToonNet.is_authority():
+		return
+	for item in _runs:
+		if not (item is Dictionary):
+			continue
+		var run: Dictionary = item
+		if int(run.get("district", 0)) != district or String(run.get("slug", "")) != slug:
+			continue
+		if int(run.get("id", -1)) != run_id or String(run.get("state", "")) != "maze":
+			continue
+		if made_it:
+			run["maze_done"] = true
+			run["state"] = "resting"
+			run["left"] = 0.0
+		else:
+			run["state"] = "failed"
+			run["left"] = 2.0
+		_mark(run)
+		return
+
+
 func _begin_floor(run: Dictionary) -> void:
+	# CogdoLayout: floor 0 is the maze. The next floor is the executive battle.
+	if bool(run.get("cogdo", false)) and int(run.get("floor", 0)) == 0 and not bool(run.get("maze_done", false)):
+		run["state"] = "maze"
+		run["left"] = 240.0
+		run["room"] = "lobby"
+		_mark(run)
+		return
 	var plan := _floor_cogs(run)
 	var cogs: Array = plan.get("active", [])
 	if cogs.is_empty():

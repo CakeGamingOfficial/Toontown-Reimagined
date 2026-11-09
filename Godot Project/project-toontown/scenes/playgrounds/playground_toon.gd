@@ -24,6 +24,10 @@ const _FACTORY := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _MINT := preload("res://scenes/cog_hq/mint_elevator.gd")
 const _OFFICE := preload("res://scenes/cog_hq/office_elevator.gd")
 const _OFFICE_RUN := preload("res://scenes/cog_hq/office_run.gd")
+const _COURSE := preload("res://scenes/cog_hq/course_kart.gd")
+const _COURSE_RUN := preload("res://scenes/cog_hq/course_run.gd")
+const _BOSS := preload("res://scenes/cog_hq/dept_boss.gd")
+const _BOSS_GATE := preload("res://scenes/cog_hq/boss_gate.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
@@ -182,6 +186,8 @@ var _cast_ready := false
 var _shore: Node3D
 var _clerk_ready := false
 var _pet_clerk_ready := false
+var _kart_clerk_ready := false
+var _kart_shop_done := false
 var _fish_ready := false
 var _clerk_mouth: Node3D
 var _clerk_line: PanelContainer
@@ -215,6 +221,8 @@ var _factory_trip := ""
 var _factory_entrance := 0
 var _mint_trip := ""
 var _office_trip := ""
+var _course_trip := ""
+var _boss_trip := ""
 var _bldg_ready := false
 var _shot := false
 var _shot_origin: Node3D
@@ -261,7 +269,7 @@ static func expects_avatar() -> bool:
 		return true
 	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "" or String(_LIB.trip) != "" or String(_TELLER.trip) != "":
 		return true
-	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "" or String(_OFFICE_RUN.trip) != "":
+	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "" or String(_OFFICE_RUN.trip) != "" or String(_COURSE_RUN.trip) != "" or String(_BOSS_GATE.trip) != "":
 		return true
 	return false
 
@@ -284,6 +292,13 @@ func laff_missing() -> int:
 
 func _is_sad() -> bool:
 	return _loadout != null and _loadout.hp < 1
+
+
+## A race pad or kart stand holds the toon until the dialog is finished.
+func hold_for_race(holding: bool) -> void:
+	_locked = holding
+	if holding and _body != null:
+		_body.velocity = Vector3.ZERO
 
 
 func heal(amount: int) -> void:
@@ -333,8 +348,10 @@ func _ready() -> void:
 	var from_factory := _FACTORY.trip
 	var from_mint := _MINT.trip
 	var from_office := String(_OFFICE_RUN.trip)
+	var from_course := String(_COURSE_RUN.trip)
+	var from_boss := String(_BOSS_GATE.trip)
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != "" or from_course != "" or from_boss != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -363,6 +380,10 @@ func _ready() -> void:
 	_MINT.trip = ""
 	_office_trip = from_office
 	_OFFICE_RUN.trip = ""
+	_course_trip = from_course
+	_COURSE_RUN.trip = ""
+	_boss_trip = from_boss
+	_BOSS_GATE.trip = ""
 	if not restoring and not arriving and not logging_in and not incoming and not _tasks.in_playground:
 		queue_free()
 		return
@@ -390,7 +411,7 @@ func _ready() -> void:
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
 	_collect_tunnels(get_parent())
-	_spawn(arriving or logging_in or from_factory == "in" or from_office == "in")
+	_spawn(arriving or logging_in or from_factory == "in" or from_office == "in" or from_course == "in" or from_boss == "in")
 	if _player != null and _is_sad():
 		_player.set_sad(true)
 	_ready_hud()
@@ -407,7 +428,7 @@ func _ready() -> void:
 		_minigolf = null
 	# setFactoryInteriorZone. The exterior doors close, then enterTeleportIn
 	# plays on the factory floor. The toon does not ride the interior car.
-	if from_factory == "in" or from_office == "in":
+	if from_factory == "in" or from_office == "in" or from_course == "in" or from_boss == "in":
 		await _portal_in()
 		if sad_arrival:
 			await _death_ack()
@@ -572,6 +593,7 @@ func _physics_process(delta: float) -> void:
 	_try_building_door()
 	_try_clerk()
 	_try_pet_clerk()
+	_try_kart_clerk()
 	_try_officer()
 	_try_quest_npc()
 	_try_fisherman()
@@ -821,6 +843,10 @@ func plant(point: Vector3, heading: float) -> void:
 
 
 func _arrival_spot() -> Dictionary:
+	if _scene_path().ends_with("goofy_speedway.tscn"):
+		var race: Dictionary = preload("res://scenes/racing/speedway_racing.gd").take_drop()
+		if not race.is_empty():
+			return {"point": _snap_drop(race["point"]), "heading": float(race["heading"])}
 	var golf: Dictionary = _MINIGOLF.take_drop()
 	if not golf.is_empty() and _scene_path().contains("minigolf"):
 		return {"point": _snap_drop(golf["point"]), "heading": float(golf["heading"])}
@@ -846,6 +872,16 @@ func _arrival_spot() -> Dictionary:
 		_office_trip = ""
 		if not office_ride.is_empty():
 			return {"point": _snap_drop(office_ride["point"]), "heading": float(office_ride["heading"])}
+	if _course_trip != "":
+		var course_ride: Dictionary = _COURSE.arrival(get_parent(), _course_trip == "in")
+		_course_trip = ""
+		if not course_ride.is_empty():
+			return {"point": _snap_drop(course_ride["point"]), "heading": float(course_ride["heading"])}
+	if _boss_trip != "":
+		var boss_ride: Dictionary = _BOSS.arrival(get_parent()) if _boss_trip == "in" else _BOSS_GATE.arrival(get_parent())
+		_boss_trip = ""
+		if not boss_ride.is_empty():
+			return {"point": _snap_drop(boss_ride["point"]), "heading": float(boss_ride["heading"])}
 	if _shop_trip == "out":
 		return _shop_outside_drop()
 	if _pet_trip == "out":
@@ -1805,6 +1841,60 @@ func _try_pet_clerk() -> void:
 	if _player != null:
 		_player.set_locomotion(0.0, false, false, 0.016)
 	_shop_pets(clerk)
+
+
+func _try_kart_clerk() -> void:
+	if _body == null or not _PLACES.is_kart_shop(_scene_path()):
+		_kart_clerk_ready = true
+		return
+	var clerk := _nearest_clerk()
+	if clerk == null:
+		_kart_clerk_ready = true
+		return
+	if _book != null and _book.is_open():
+		_kart_clerk_ready = false
+		return
+	if not _kart_clerk_ready or _locked:
+		return
+	_kart_clerk_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_shop_karts(clerk)
+
+
+func _shop_karts(clerk: Node3D) -> void:
+	var actor := _clerk_actor(clerk)
+	var toward := actor.global_position - _body.global_position
+	toward.y = 0.0
+	if toward.length_squared() > 0.0001:
+		_heading = _heading_toward(toward)
+		_face(_player, _heading)
+	_say_clerk(actor, "Welcome to the Kart Shop!", 1.0)
+	await get_tree().create_timer(1.0).timeout
+	if not is_inside_tree():
+		return
+	_say_clerk(null, "", 0.0)
+	var panel: Node = load("res://scenes/racing/ticket_shop.gd").new()
+	panel.name = "TicketShop"
+	_hud().add_child(panel)
+	_kart_shop_done = false
+	panel.connect("finished", _finish_kart_shop)
+	while not _kart_shop_done and is_inside_tree():
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	if is_instance_valid(actor):
+		_say_clerk(actor, "Thanks for stopping by!", 1.2)
+		await get_tree().create_timer(1.2).timeout
+		if is_inside_tree():
+			_say_clerk(null, "", 0.0)
+	_locked = false
+
+
+func _finish_kart_shop() -> void:
+	_kart_shop_done = true
 
 
 func _shop_pets(clerk: Node3D) -> void:

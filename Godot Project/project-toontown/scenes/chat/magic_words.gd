@@ -17,7 +17,7 @@ const _TELEPORT_ALL: Array[int] = [
 const _RUN_SCALE := 4.0
 const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
 ~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
@@ -192,6 +192,8 @@ const _ZONES: Dictionary = {
 	"golf": 17000,
 	"gz": 17000,
 	"minigolf": 17000,
+	"party": 18000,
+	"partygrounds": 18000,
 }
 
 const _ZONE_NAMES: Dictionary = {
@@ -209,6 +211,7 @@ const _ZONE_NAMES: Dictionary = {
 	13000: "Lawbot HQ",
 	16000: "your estate",
 	17000: "Chip 'n Dale's Minigolf",
+	18000: "the Party Grounds",
 }
 
 static var _run := false
@@ -662,7 +665,7 @@ static func _spawn_building(scene: Node, args: PackedStringArray) -> String:
 	if suits == null or buildings == null or body == null or not suits.has_method("spawn_building"):
 		return "Cog buildings can only be spawned on a street."
 	if args.is_empty():
-		return "Use ~spawnbuilding sellbot 1, or ~spawnbuilding flunky."
+		return "Use ~spawnbuilding sellbot 1, ~spawnbuilding flunky, or ~spawnbuilding fieldoffice."
 	return String(suits.call("spawn_building", " ".join(args), body.global_position))
 
 

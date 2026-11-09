@@ -514,6 +514,12 @@ func _poll_goons(toon: Node, here: Vector3, delta: float) -> void:
 		var points: PackedVector3Array = goon["points"]
 		if node == null or points.size() < 2:
 			continue
+		goon["stun"] = maxf(float(goon.get("stun", 0.0)) - delta, 0.0)
+		var crown := node.global_position + Vector3.UP * (1.8 * maxf(float(goon.get("scale", 1.0)), 0.5))
+		if here.distance_to(crown) < 1.3:
+			goon["stun"] = 4.0
+		if float(goon["stun"]) > 0.0:
+			continue
 		var index := int(goon["index"])
 		var nxt := (index + 1) % points.size()
 		var goal := points[nxt]
@@ -660,6 +666,10 @@ func _make_mover(piece: Node3D, spec: Dictionary) -> Dictionary:
 func _make_goon(piece: Node3D, node: Node3D, spec: Dictionary) -> Dictionary:
 	_hide_hat(node, str(spec.get("goonType", "sg")))
 	var points := _goon_points(piece, node)
+	var scale := 1.0
+	var raw: Variant = spec.get("scale", 1.0)
+	if raw is float or raw is int:
+		scale = float(raw)
 	return {
 		"node": node,
 		"points": points,
@@ -668,6 +678,8 @@ func _make_goon(piece: Node3D, node: Node3D, spec: Dictionary) -> Dictionary:
 		"radius": float(spec.get("attackRadius", 15.0)),
 		"fov": float(spec.get("hFov", 70.0)),
 		"strength": int(spec.get("strength", 15)),
+		"scale": scale,
+		"stun": 0.0,
 	}
 
 

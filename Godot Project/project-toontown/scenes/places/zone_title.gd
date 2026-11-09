@@ -41,20 +41,26 @@ const _ZONE: Dictionary = {
 	"res://scenes/streets/lullaby_lane.tscn": 9100,
 	"res://scenes/streets/pajama_place.tscn": 9200,
 	"res://scenes/cog_hq/bossbot_country_club.tscn": 10000,
+	"res://scenes/cog_hq/bossbot_course.tscn": 10500,
 	"res://scenes/cog_hq/bossbot_lobby.tscn": 10100,
+	"res://scenes/cog_hq/bossbot_ceo.tscn": 10000,
 	"res://scenes/cog_hq/sellbot_courtyard.tscn": 11000,
 	"res://scenes/cog_hq/sellbot_lobby.tscn": 11100,
+	"res://scenes/cog_hq/sellbot_vp.tscn": 11000,
 	"res://scenes/cog_hq/sellbot_factory_exterior.tscn": 11200,
 	"res://scenes/cog_hq/sellbot_front_factory.tscn": 11200,
 	"res://scenes/cog_hq/sellbot_side_factory.tscn": 11500,
 	"res://scenes/cog_hq/cashbot_trainyard.tscn": 12000,
 	"res://scenes/cog_hq/cashbot_lobby.tscn": 12100,
+	"res://scenes/cog_hq/cashbot_cfo.tscn": 12000,
 	"res://scenes/cog_hq/lawbot_courtyard.tscn": 13000,
 	"res://scenes/cog_hq/lawbot_lobby.tscn": 13100,
+	"res://scenes/cog_hq/lawbot_cj.tscn": 13000,
 	"res://scenes/cog_hq/lawbot_da_lobby.tscn": 13200,
 	"res://scenes/cog_hq/lawbot_office.tscn": 13300,
 	"res://scenes/playgrounds/toon_estate.tscn": 16000,
 	"res://scenes/playgrounds/chip_n_dales_minigolf.tscn": 17000,
+	"res://scenes/playgrounds/party_grounds.tscn": 18000,
 }
 
 const _HOOD: Dictionary = {
@@ -72,6 +78,7 @@ const _HOOD: Dictionary = {
 	13000: "Lawbot HQ",
 	16000: "your house",
 	17000: "Chip 'n Dale's MiniGolf",
+	18000: "Party Grounds",
 }
 
 const _PLACE: Dictionary = {
@@ -100,6 +107,9 @@ const _PLACE: Dictionary = {
 	9200: "Pajama Place",
 	10000: "Bossbot HQ Country Club",
 	10100: "Bossbot HQ Lobby",
+	10500: "The Front Three",
+	10600: "The Middle Six",
+	10700: "The Back Nine",
 	11000: "Sellbot HQ Courtyard",
 	11100: "Sellbot HQ Lobby",
 	11200: "Sellbot Factory",
@@ -121,6 +131,7 @@ const _PLACE_BY_SCENE: Dictionary = {
 	"res://scenes/interiors/gag_shop.tscn": "Gag Shop",
 	"res://scenes/interiors/pet_shop.tscn": "Pet Shop",
 	"res://scenes/interiors/kart_shop.tscn": "Kart Shop",
+	"res://scenes/racing/kart_race.tscn": "Goofy Speedway",
 	"res://scenes/interiors/toon_hall.tscn": "Toon Hall",
 	"res://scenes/interiors/library.tscn": "Toontown Library",
 	"res://scenes/interiors/bank.tscn": "Toontown Bank",
@@ -165,6 +176,8 @@ static func caption(scene_path: String) -> Dictionary:
 static func _zone(scene_path: String) -> int:
 	if scene_path.ends_with("lawbot_office.tscn"):
 		return preload("res://scenes/cog_hq/office_run.gd").zone()
+	if scene_path.ends_with("bossbot_course.tscn"):
+		return preload("res://scenes/cog_hq/course_run.gd").zone()
 	if _ZONE.has(scene_path):
 		return int(_ZONE[scene_path])
 	var linked := _LINKS.zone_for_scene(scene_path)

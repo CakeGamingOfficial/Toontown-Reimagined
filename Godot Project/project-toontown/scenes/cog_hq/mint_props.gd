@@ -5,6 +5,7 @@ extends Node
 ## battle that defeated them.
 
 const _FLOORS := preload("res://scenes/cog_hq/mint_floor.gd")
+const _MOTION := "res://assets/cog_hq/facility_motion.json"
 const _GOON := "res://assets/cog_hq/goon.glb"
 const _SMALL := "res://assets/cog_hq/audio/CHQ_FACT_stomper_small.ogg"
 const _MED := "res://assets/cog_hq/audio/CHQ_FACT_stomper_med.ogg"
@@ -25,7 +26,9 @@ var _barrels: Array[Dictionary] = []
 var _crates: Array[Dictionary] = []
 var _belts: Array[Dictionary] = []
 var _platforms: Array[Dictionary] = []
+var _mixers: Array[Dictionary] = []
 var _goons: Array[Dictionary] = []
+var _motion: Dictionary = {}
 
 
 static func remember(level: int) -> void:
@@ -61,6 +64,8 @@ func _ready() -> void:
 	var found: Dictionary = {}
 	_index(host, found)
 	_read(found)
+	_motion = _load_motion()
+	_mixers_from(host)
 	_goons_from(host)
 
 
@@ -77,6 +82,7 @@ func _physics_process(delta: float) -> void:
 	_move_stompers(body, busy)
 	_spin_gears(delta, body, busy)
 	_move_platforms(body, delta, busy)
+	_move_mixers(body, busy)
 	if body != null and not busy:
 		_ride_belts(body, delta)
 		_push_crates(body, delta)
@@ -236,8 +242,12 @@ func _goons_from(host: Node) -> void:
 			root.add_child(mesh)
 			mesh.scale = Vector3.ONE * float(spec.get("scale", 1.0))
 		var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+		var goon_id := int(spec.get("id", 0))
+		var points := _route(root.global_position, yaw, goon_id)
+		if not points.is_empty():
+			root.global_position = points[0]
 		_goons.append({
-			"id": int(spec.get("id", 0)),
+			"id": goon_id,
 			"root": root,
 			"basis": root.global_transform.basis,
 			"forward": forward,
@@ -245,9 +255,14 @@ func _goons_from(host: Node) -> void:
 			"speed": float(spec.get("speed", 4.0)),
 			"reach": float(spec.get("reach", 15.0)),
 			"strength": int(spec.get("strength", 1)),
+			"scale": float(spec.get("scale", 1.0)),
 			"fov": float(spec.get("fov", 70.0)),
 			"walked": 0.0,
 			"alert": false,
+			"points": points,
+			"index": 0,
+			"wait": 0.0,
+			"stun": 0.0,
 		})
 
 
@@ -487,6 +502,12 @@ func _move_goons(body: Node3D, delta: float) -> void:
 		var root: Node3D = item["root"]
 		if root == null or not is_instance_valid(root):
 			continue
+		var route: PackedVector3Array = item.get("points", PackedVector3Array())
+		if route.size() >= 2:
+			_walk_route(item, root, body, delta, route)
+			continue
+		if _stunned(item, root, body, delta):
+			continue
 		var home: Vector3 = item["home"]
 		var face := home
 		var speed := float(item["speed"])
@@ -521,6 +542,206 @@ func _move_goons(body: Node3D, delta: float) -> void:
 		var base: Vector3 = item["forward"]
 		var angle := base.signed_angle_to(face, Vector3.UP)
 		root.global_transform = Transform3D(Basis(Vector3.UP, angle) * origin, root.global_position)
+
+
+func _walk_route(item: Dictionary, root: Node3D, body: Node3D, delta: float, points: PackedVector3Array) -> void:
+	if _stunned(item, root, body, delta):
+		return
+	var index := int(item.get("index", 0))
+	var wait := float(item.get("wait", 0.0))
+	if wait > 0.0:
+		item["wait"] = wait - delta
+	else:
+		var nxt := (index + 1) % points.size()
+		var goal := points[nxt]
+		var step := goal - root.global_position
+		var dist := step.length()
+		var speed := float(item["speed"])
+		if dist <= speed * delta + 0.05:
+			root.global_position = goal
+			item["index"] = nxt
+			item["wait"] = 3.0
+			var after := points[(nxt + 1) % points.size()]
+			_face_world(root, after - goal)
+		elif dist > 0.001:
+			root.global_position += step * (speed * delta / dist)
+			_face_world(root, step)
+	if body == null:
+		return
+	var toward := body.global_position - root.global_position
+	toward.y = 0.0
+	var gap := toward.length()
+	if gap > 3.0 or gap < 0.05:
+		return
+	var forward := Vector3(-sin(root.rotation.y), 0.0, -cos(root.rotation.y))
+	if forward.dot(toward.normalized()) < cos(deg_to_rad(float(item["fov"]) * 0.5)):
+		return
+	_hurt(int(item["strength"]), "goon-%s" % item["id"])
+
+
+func _stunned(item: Dictionary, root: Node3D, body: Node3D, delta: float) -> bool:
+	item["stun"] = maxf(float(item.get("stun", 0.0)) - delta, 0.0)
+	if body != null:
+		var crown := root.global_position + Vector3.UP * (1.8 * maxf(float(item.get("scale", 1.0)), 0.5))
+		if body.global_position.distance_to(crown) < 1.3:
+			item["stun"] = 4.0
+	return float(item["stun"]) > 0.0
+
+
+func _face_world(root: Node3D, step: Vector3) -> void:
+	var flat := Vector3(step.x, 0.0, step.z)
+	if flat.length_squared() < 0.001:
+		return
+	root.rotation.y = atan2(-flat.x, -flat.z)
+
+
+func _mixers_from(host: Node) -> void:
+	var rooms: Dictionary = _motion.get("mints", {})
+	var floor := host.get_node_or_null("MintFloor")
+	if floor == null:
+		return
+	for child in floor.get_children():
+		var node_name := str(child.name)
+		if not node_name.begins_with("Mintroom"):
+			continue
+		var room_id := node_name.trim_prefix("Mintroom")
+		var book: Dictionary = rooms.get(room_id, {})
+		var rows: Variant = book.get("mixers", [])
+		if not (rows is Array):
+			continue
+		for item in rows:
+			if not (item is Dictionary):
+				continue
+			var spec: Dictionary = item
+			var model := _find_named(child, "mixer-%s" % spec.get("id", 0))
+			if model == null:
+				continue
+			var offset: Array = spec.get("offset", [])
+			var shift := Vector3.ZERO
+			if offset.size() >= 3:
+				shift = Vector3(float(offset[0]), float(offset[1]), float(offset[2]))
+			_mixers.append({
+				"model": model,
+				"rest": model.position,
+				"offset": shift,
+				"period": maxf(float(spec.get("period", 8.0)), 0.1),
+				"phase": float(spec.get("phase", 0.0)),
+				"wait": clampf(float(spec.get("wait", 0.1)), 0.0, 0.9),
+			})
+
+
+func _move_mixers(body: Node3D, busy: bool) -> void:
+	for item in _mixers:
+		var model: Node3D = item["model"]
+		if model == null:
+			continue
+		var before := model.global_position
+		var stood := false
+		if body != null and not busy:
+			var local := model.to_local(body.global_position)
+			stood = absf(local.x) < 8.0 and absf(local.y) < 8.0 and local.z > -1.0 and local.z < 8.0
+		var along := _platform_along(float(item["period"]), float(item["phase"]), float(item["wait"]))
+		model.position = (item["rest"] as Vector3) + (item["offset"] as Vector3) * along
+		if stood:
+			body.global_position += model.global_position - before
+
+
+func _platform_along(period: float, phase: float, wait: float) -> float:
+	var t := fposmod(_time / period + phase, 1.0)
+	var move := maxf((1.0 - wait) * 0.5, 0.01)
+	if t < wait * 0.5:
+		return 0.0
+	if t < wait * 0.5 + move:
+		return _ease((t - wait * 0.5) / move)
+	if t < wait + move:
+		return 1.0
+	return 1.0 - _ease((t - wait - move) / move)
+
+
+func _ease(along: float) -> float:
+	var x := clampf(along, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+
+func _route(origin: Vector3, yaw: float, goon_id: int) -> PackedVector3Array:
+	var room := _room_at(origin)
+	var book: Dictionary = (_motion.get("mints", {}) as Dictionary).get(str(room), {})
+	var row: Dictionary = (book.get("goons", {}) as Dictionary).get(str(goon_id), {})
+	var raw: Variant = row.get("points", [])
+	var points := PackedVector3Array()
+	if not (raw is Array):
+		return points
+	var scale := float(row.get("scale", 1.0))
+	var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+	var ahead := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	for item in raw:
+		if item is Array and (item as Array).size() >= 3:
+			var spot: Array = item
+			var local := Vector3(float(spot[0]), float(spot[1]), float(spot[2])) * scale
+			points.append(origin + right * local.x + ahead * local.y + Vector3.UP * local.z)
+	return points
+
+
+func _room_at(point: Vector3) -> int:
+	var host := get_parent()
+	if host == null:
+		return -1
+	var floor := host.get_node_or_null("MintFloor")
+	if floor == null:
+		return -1
+	var best := -1
+	var best_dist := INF
+	for child in floor.get_children():
+		var node_name := str(child.name)
+		if not node_name.begins_with("Mintroom") or not (child is Node3D):
+			continue
+		var box := _bounds(child).grow(4.0)
+		if not box.has_point(point):
+			continue
+		var dist := box.get_center().distance_squared_to(point)
+		if dist < best_dist:
+			best_dist = dist
+			best = int(node_name.trim_prefix("Mintroom"))
+	return best
+
+
+func _bounds(node: Node) -> AABB:
+	var box := AABB()
+	var seeded := false
+	if node is Node3D:
+		box = AABB((node as Node3D).global_position, Vector3.ZERO)
+		seeded = true
+	return _grow_bounds(node, box, seeded)
+
+
+func _grow_bounds(node: Node, box: AABB, seeded: bool) -> AABB:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mesh_box: AABB = (node as MeshInstance3D).global_transform * (node as MeshInstance3D).get_aabb()
+		box = mesh_box if not seeded else box.merge(mesh_box)
+		seeded = true
+	for child in node.get_children():
+		box = _grow_bounds(child, box, seeded)
+		seeded = true
+	return box
+
+
+func _find_named(node: Node, node_name: String) -> Node3D:
+	if str(node.name) == node_name and node is Node3D:
+		return node as Node3D
+	for child in node.get_children():
+		var found := _find_named(child, node_name)
+		if found != null:
+			return found
+	return null
+
+
+func _load_motion() -> Dictionary:
+	if not FileAccess.file_exists(_MOTION):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_MOTION))
+	if parsed is Dictionary:
+		return parsed
+	return {}
 
 
 func _crush_goons(where: Vector3) -> void:

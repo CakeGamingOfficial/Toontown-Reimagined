@@ -384,7 +384,14 @@ static func gag_damage(track: int, level: int, exp: int) -> int:
 	var per_point := float(max_exp - min_exp + 1) / float(high - low + 1)
 	var dealt := int(floor(float(exp_val - min_exp) / per_point)) + low
 	if dealt <= 0:
-		return low
+		dealt = low
+	if dealt > 0:
+		var garden := load("res://scenes/estate/garden.gd") as GDScript
+		if garden != null and bool(garden.organic(track, level)):
+			var bonus := int(float(dealt) * 0.1)
+			if bonus < 1:
+				bonus = 1
+			dealt += bonus
 	return dealt
 
 

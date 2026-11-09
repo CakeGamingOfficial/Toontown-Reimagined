@@ -7,6 +7,7 @@ extends Control
 
 const _DIR := "res://assets/gui/shticker/disguise/"
 const _SAVE := "user://cog_disguise.json"
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _SCALE := 0.47
 const _ORIGIN_X := 0.02
 const _PART_NAMES: PackedStringArray = [
@@ -72,6 +73,7 @@ func _ready() -> void:
 	name = "CogDisguise"
 	_load_save()
 	_build()
+	_REWARDS.attach(self)
 
 
 func layout(page_size: Vector2) -> void:
@@ -84,6 +86,7 @@ func layout(page_size: Vector2) -> void:
 			_place(child, spot)
 	_style_words(page_size)
 	_show_dept()
+	_REWARDS.place(self, page_size)
 
 
 func refresh() -> void:
@@ -273,7 +276,7 @@ func _fill_suit(dept: int) -> void:
 
 
 func _fill_meter(dept: int) -> void:
-	var total := _MERIT[dept]
+	var total := _need(dept, _types[dept], _levels[dept])
 	var have := _merits[dept]
 	var progress := 0.0 if total <= 0 else clampf(float(have) / float(total), 0.0, 1.0)
 	var ready := total > 0 and have >= total
@@ -423,7 +426,7 @@ static func grant_notices(amount: int) -> int:
 	if (int(parts[1]) & _MASKS[1]) != _MASKS[1]:
 		return 0
 	var have := int(merits[1])
-	var filled := mini(have + amount, _MERIT[1])
+	var filled := mini(have + amount, promotion_cap(1))
 	var gained := filled - have
 	if gained <= 0:
 		return 0
@@ -509,7 +512,7 @@ static func grant_factory(levels: Array) -> String:
 			gained += _py_round(float(level) * 0.5) * 4
 		if gained > 0:
 			var before := int(merits[_SELLBOT])
-			merits[_SELLBOT] = mini(before + gained, int(_MERIT[_SELLBOT]))
+			merits[_SELLBOT] = mini(before + gained, promotion_cap(_SELLBOT))
 			var added := int(merits[_SELLBOT]) - before
 			if added > 0:
 				lines.append("You got %d Sellbot merits." % added)
@@ -553,7 +556,7 @@ static func grant_mint(levels: Array, mint_id: int, supervisor: bool) -> String:
 	if gained <= 0:
 		return ""
 	var before := int(merits[_CASHBOT])
-	merits[_CASHBOT] = mini(before + gained, int(_MERIT[_CASHBOT]))
+	merits[_CASHBOT] = mini(before + gained, promotion_cap(_CASHBOT))
 	var added := int(merits[_CASHBOT]) - before
 	if added <= 0:
 		return ""
@@ -566,6 +569,77 @@ static func grant_mint(levels: Array, mint_id: int, supervisor: bool) -> String:
 		record["levels"] = [0, 0, 0, 0]
 	_write_disk(record)
 	return "You got %d Cogbucks." % added
+
+
+## PromotionManagerAI.recoverMerits for a Bossbot country club. Stock options
+## are paid only when the Bossbot suit is already complete. The first promotion
+## on this page stops at 100. The course bonus is the Club President.
+const _BOSSBOT := 0
+
+
+static func grant_part(dept: int, bit: int) -> void:
+	if dept < 0 or dept > 3 or bit == 0:
+		return
+	var record := _read_disk()
+	var parts := _four(record.get("parts", []))
+	parts[dept] = int(parts[dept]) | bit
+	record["parts"] = parts
+	if not record.has("merits"):
+		record["merits"] = _four(record.get("merits", []))
+	if not record.has("types"):
+		record["types"] = [0, 0, 0, 0]
+	if not record.has("levels"):
+		record["levels"] = [0, 0, 0, 0]
+	_write_disk(record)
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		var page := tree.root.find_child("CogDisguise", true, false)
+		if page != null and page.has_method("reload_notices"):
+			page.call("reload_notices")
+
+
+static func grant_course(levels: Array, course_id: int, president: bool) -> String:
+	var mask := int(_MASKS[_BOSSBOT])
+	var record := _read_disk()
+	var parts := _four(record.get("parts", []))
+	if (int(parts[_BOSSBOT]) & mask) != mask:
+		return ""
+	var merits := _four(record.get("merits", []))
+	var mult := 2.0
+	var bonus := 8
+	if course_id == 10600:
+		mult = 2.5
+		bonus = 14
+	elif course_id == 10700:
+		mult = 3.0
+		bonus = 20
+	var gained := 0
+	for level in levels:
+		var base := _py_round(float(level) * 0.5)
+		gained += _py_round(float(base) * mult)
+	if president:
+		gained += bonus
+	if gained <= 0:
+		return ""
+	var before := int(merits[_BOSSBOT])
+	merits[_BOSSBOT] = mini(before + gained, promotion_cap(_BOSSBOT))
+	var added := int(merits[_BOSSBOT]) - before
+	if added <= 0:
+		return ""
+	record["merits"] = merits
+	if not record.has("parts"):
+		record["parts"] = parts
+	if not record.has("types"):
+		record["types"] = [0, 0, 0, 0]
+	if not record.has("levels"):
+		record["levels"] = [0, 0, 0, 0]
+	_write_disk(record)
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		var page := tree.root.find_child("CogDisguise", true, false)
+		if page != null and page.has_method("reload_notices"):
+			page.call("reload_notices")
+	return "You got %d Stock Options." % added
 
 
 static func _next_part(have: int) -> int:
@@ -636,3 +710,110 @@ static func _write_disk(record: Dictionary) -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify(record))
+
+
+const _MERIT_FILE := "res://scenes/shticker/cog_merits.json"
+const _HP_LEVELS: PackedInt32Array = [14, 19, 29, 39, 49]
+static var _merit_rows: Array = []
+
+
+## CogDisguiseGlobals.getTotalMerits. The row is the suit you are wearing.
+## The column is how far that suit has climbed above its lowest level.
+static func promotion_cap(dept: int) -> int:
+	if dept < 0 or dept > 3:
+		return 0
+	var record := _read_disk()
+	var types := _four(record.get("types", []))
+	var levels := _four(record.get("levels", []))
+	return _need(dept, int(types[dept]), int(levels[dept]))
+
+
+static func ready_for_promotion(dept: int) -> bool:
+	if dept < 0 or dept > 3:
+		return false
+	var record := _read_disk()
+	var merits := _four(record.get("merits", []))
+	return int(merits[dept]) >= promotion_cap(dept) and promotion_cap(dept) > 0
+
+
+static func promotions(dept: int) -> int:
+	if dept < 0 or dept > 3:
+		return 0
+	var record := _read_disk()
+	var types := _four(record.get("types", []))
+	var levels := _four(record.get("levels", []))
+	var cog_type := clampi(int(types[dept]), 0, 7)
+	return 5 * cog_type + int(levels[dept]) - cog_type
+
+
+## DistributedToonAI.b_promote. Merits clear, then the suit climbs. The last
+## cog in the department grants a laff point at levels 14, 19, 29, 39, and 49.
+static func promote(dept: int) -> String:
+	if dept < 0 or dept > 3:
+		return ""
+	var record := _read_disk()
+	var types := _four(record.get("types", []))
+	var levels := _four(record.get("levels", []))
+	var merits := _four(record.get("merits", []))
+	var started_type := int(types[dept])
+	var started_level := int(levels[dept])
+	if started_level < 49:
+		merits[dept] = 0
+	var last := started_type >= 7
+	var base := started_type
+	var new_level := started_level + 1
+	var max_level := 49 if last else base + 4
+	var laff := false
+	if new_level > max_level:
+		if not last:
+			types[dept] = started_type + 1
+			levels[dept] = int(types[dept])
+	else:
+		levels[dept] = new_level
+		if last:
+			for mark in _HP_LEVELS:
+				if new_level == mark:
+					laff = true
+	record["types"] = types
+	record["levels"] = levels
+	record["merits"] = merits
+	_write_disk(record)
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		var page := tree.root.find_child("CogDisguise", true, false)
+		if page != null and page.has_method("reload_notices"):
+			page.call("reload_notices")
+	if int(types[dept]) == started_type and int(levels[dept]) == started_level:
+		return "You can't upgrade your Cog suit anymore, but you can keep fighting this boss."
+	if laff:
+		var loadout := ToonLoadout.for_selected()
+		if loadout != null and loadout.max_hp < 137:
+			var maximum := mini(loadout.max_hp + 1, 137)
+			loadout.set_hp(maximum, maximum)
+			loadout.save()
+	var cog := dept * 8 + clampi(int(types[dept]), 0, 7)
+	return "You have been promoted to a Level %d %s." % [int(levels[dept]) + 1, _COGS[cog]]
+
+
+static func _need(dept: int, cog_type: int, cog_level: int) -> int:
+	_load_merits()
+	var index := dept * 8 + clampi(cog_type, 0, 7)
+	if index < 0 or index >= _merit_rows.size() or not (_merit_rows[index] is Array):
+		return int(_MERIT[clampi(dept, 0, 3)])
+	var row: Array = _merit_rows[index]
+	if row.is_empty():
+		return int(_MERIT[clampi(dept, 0, 3)])
+	var slot := clampi(cog_level - (index % 8), 0, row.size() - 1)
+	return int(row[slot])
+
+
+static func _load_merits() -> void:
+	if not _merit_rows.is_empty():
+		return
+	if not FileAccess.file_exists(_MERIT_FILE):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_MERIT_FILE))
+	if parsed is Dictionary:
+		var rows: Variant = (parsed as Dictionary).get("merits", [])
+		if rows is Array:
+			_merit_rows = rows

@@ -1,0 +1,731 @@
+[
+ {
+  "name": "racing_pad_2_town",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   73.038,
+   -0.73,
+   117.178
+  ],
+  "heading": 75.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   71.718,
+   -0.73,
+   121.868
+  ],
+  "heading": 75.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   66.799,
+   -0.73,
+   115.568
+  ],
+  "heading": 75.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   65.502,
+   -0.73,
+   120.238
+  ],
+  "heading": 75.0
+ },
+ {
+  "name": "racing_pad_3_town",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   59.484,
+   -0.73,
+   132.151
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   55.248,
+   -0.73,
+   134.588
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   56.281,
+   -0.73,
+   126.578
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   51.95,
+   -0.73,
+   129.195
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "racing_pad_1_town",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   72.165,
+   -0.73,
+   96.086
+  ],
+  "heading": 105.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   73.37,
+   -0.73,
+   100.877
+  ],
+  "heading": 105.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   65.343,
+   -0.73,
+   97.83
+  ],
+  "heading": 105.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   66.658,
+   -0.73,
+   102.722
+  ],
+  "heading": 105.0
+ },
+ {
+  "name": "racing_pad_0_town",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   55.027,
+   -0.73,
+   84.651
+  ],
+  "heading": 150.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   59.104,
+   -0.727,
+   86.931
+  ],
+  "heading": 150.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   51.586,
+   -0.73,
+   90.598
+  ],
+  "heading": 150.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   55.642,
+   -0.73,
+   93.114
+  ],
+  "heading": 150.0
+ },
+ {
+  "name": "racing_pad_4_stadium",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   23.3,
+   -0.73,
+   168.6
+  ],
+  "heading": 60.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   21.31,
+   -0.73,
+   172.08
+  ],
+  "heading": 60.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   17.508,
+   -0.73,
+   165.257
+  ],
+  "heading": 60.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   15.495,
+   -0.73,
+   168.767
+  ],
+  "heading": 60.0
+ },
+ {
+  "name": "racing_pad_5_stadium",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   9.057,
+   -0.73,
+   182.789
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   5.415,
+   -0.73,
+   184.871
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   5.563,
+   -0.73,
+   176.864
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   1.86,
+   -0.735,
+   178.936
+  ],
+  "heading": 30.0
+ },
+ {
+  "name": "racing_pad_6_stadium",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -10.427,
+   -0.73,
+   183.285
+  ],
+  "heading": -15.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   -14.329,
+   -0.73,
+   182.142
+  ],
+  "heading": -15.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -8.544,
+   -0.73,
+   176.376
+  ],
+  "heading": -15.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   -12.529,
+   -0.73,
+   175.2
+  ],
+  "heading": -15.0
+ },
+ {
+  "name": "racing_pad_7_stadium",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -24.3,
+   -0.73,
+   170.514
+  ],
+  "heading": -60.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   -26.459,
+   -0.73,
+   166.589
+  ],
+  "heading": -60.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -18.246,
+   -0.73,
+   167.033
+  ],
+  "heading": -60.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   -20.444,
+   -0.73,
+   163.069
+  ],
+  "heading": -60.0
+ },
+ {
+  "name": "viewing_pad_0",
+  "pos": [
+   0.0,
+   0.08,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   34.78,
+   0.08,
+   -61.637
+  ],
+  "heading": 55.49
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   48.455,
+   0.08,
+   -47.854
+  ],
+  "heading": 35.0
+ },
+ {
+  "name": "starting_block_4",
+  "pos": [
+   57.413,
+   0.08,
+   -29.791
+  ],
+  "heading": 17.33
+ },
+ {
+  "name": "starting_block_6",
+  "pos": [
+   57.309,
+   0.08,
+   6.08
+  ],
+  "heading": -18.3
+ },
+ {
+  "name": "starting_block_8",
+  "pos": [
+   48.687,
+   0.08,
+   22.91
+  ],
+  "heading": -35.51
+ },
+ {
+  "name": "starting_block_10",
+  "pos": [
+   34.959,
+   0.08,
+   36.475
+  ],
+  "heading": -55.01
+ },
+ {
+  "name": "viewing_pad_1",
+  "pos": [
+   0.0,
+   0.08,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -33.655,
+   0.08,
+   -62.01
+  ],
+  "heading": 124.7
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -48.21,
+   0.08,
+   -48.43
+  ],
+  "heading": 145.01
+ },
+ {
+  "name": "starting_block_4",
+  "pos": [
+   -57.8,
+   0.08,
+   -29.589
+  ],
+  "heading": 161.57
+ },
+ {
+  "name": "starting_block_6",
+  "pos": [
+   -57.091,
+   0.08,
+   6.611
+  ],
+  "heading": -163.43
+ },
+ {
+  "name": "starting_block_8",
+  "pos": [
+   -48.811,
+   0.08,
+   22.823
+  ],
+  "heading": -143.13
+ },
+ {
+  "name": "starting_block_10",
+  "pos": [
+   -35.004,
+   0.08,
+   36.564
+  ],
+  "heading": -124.7
+ },
+ {
+  "name": "leaderboardShaddow",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "leaderBoard_stadium",
+  "pos": [
+   1.404,
+   0.0,
+   105.379
+  ],
+  "heading": 179.13
+ },
+ {
+  "name": "leaderBoard",
+  "pos": [
+   1.404,
+   0.0,
+   105.379
+  ],
+  "heading": 179.13
+ },
+ {
+  "name": "leaderBoard_city",
+  "pos": [
+   -3.545,
+   0.0,
+   113.659
+  ],
+  "heading": -58.1
+ },
+ {
+  "name": "leaderBoard",
+  "pos": [
+   -3.545,
+   0.0,
+   113.659
+  ],
+  "heading": -58.1
+ },
+ {
+  "name": "leaderBoard_country",
+  "pos": [
+   6.302,
+   0.0,
+   113.738
+  ],
+  "heading": 60.29
+ },
+ {
+  "name": "leaderBoard",
+  "pos": [
+   6.302,
+   0.0,
+   113.738
+  ],
+  "heading": 60.29
+ },
+ {
+  "name": "racing_pad_9_country",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -71.682,
+   -0.73,
+   124.238
+  ],
+  "heading": -75.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   -72.803,
+   -0.73,
+   119.873
+  ],
+  "heading": -75.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -65.212,
+   -0.73,
+   122.469
+  ],
+  "heading": -75.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   -66.193,
+   -0.73,
+   118.067
+  ],
+  "heading": -75.0
+ },
+ {
+  "name": "racing_pad_10_country",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -73.247,
+   -0.73,
+   104.146
+  ],
+  "heading": -105.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   -72.061,
+   -0.73,
+   99.911
+  ],
+  "heading": -105.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -66.56,
+   -0.73,
+   105.873
+  ],
+  "heading": -105.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   -65.377,
+   -0.73,
+   101.588
+  ],
+  "heading": -105.0
+ },
+ {
+  "name": "racing_pad_11_country",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -61.263,
+   -0.73,
+   89.925
+  ],
+  "heading": -150.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   -57.338,
+   -0.73,
+   87.603
+  ],
+  "heading": -150.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -57.791,
+   -0.73,
+   96.011
+  ],
+  "heading": -150.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   -53.731,
+   -0.73,
+   93.739
+  ],
+  "heading": -150.0
+ },
+ {
+  "name": "racing_pad_8_country",
+  "pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "heading": -0.0
+ },
+ {
+  "name": "starting_block_0",
+  "pos": [
+   -56.664,
+   -0.73,
+   135.053
+  ],
+  "heading": -30.0
+ },
+ {
+  "name": "starting_block_1",
+  "pos": [
+   -60.222,
+   -0.73,
+   132.82
+  ],
+  "heading": -30.0
+ },
+ {
+  "name": "starting_block_2",
+  "pos": [
+   -56.784,
+   -0.73,
+   126.841
+  ],
+  "heading": -30.0
+ },
+ {
+  "name": "starting_block_3",
+  "pos": [
+   -53.009,
+   -0.73,
+   128.959
+  ],
+  "heading": -30.0
+ }
+]

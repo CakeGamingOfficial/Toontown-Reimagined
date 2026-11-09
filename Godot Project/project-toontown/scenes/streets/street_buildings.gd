@@ -1,10 +1,11 @@
 extends Node
 
-## DistributedBuildingMgr for one street. The district wants about 18 percent of
-## the takeover blocks as suit buildings, which is the classic percentage with
-## field offices left out. Toontown Central streets still stop at their bmax of
-## 5. Welcome Valley never has one. A street cog walks to a shop and takes it.
-## Clients only play the drop the server started.
+## DistributedBuildingMgr for one street. CogdoPopFactor is 1.5, so the
+## classic 18 percent of takeover blocks becomes 27, and bmin and bmax grow
+## the same way. Half of that quota, truncated, is Sellbot Field Offices.
+## Toontown Central streets still stop at the raised bmax. Welcome Valley
+## never has one. A street cog walks to a shop and takes it. Clients only
+## play the drop the server started.
 
 const _CORP := preload("res://assets/buildings/cog/corp.glb")
 const _LEGAL := preload("res://assets/buildings/cog/legal.glb")
@@ -22,7 +23,8 @@ const _SUITS := preload("res://scenes/streets/street_suits.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 const _DEPTS: PackedStringArray = ["c", "l", "m", "s"]
-const _PCT := 18
+const _PCT := 27
+const _POP := 1.5
 ## SuitBuildingInfo floor range, indexed by suit level minus one.
 const _FLOORS: Array[Vector2i] = [
 	Vector2i(1, 1), Vector2i(1, 2), Vector2i(1, 3), Vector2i(2, 3), Vector2i(2, 4),
@@ -84,8 +86,15 @@ static func attach(host: Node3D) -> void:
 
 
 static func target_count(block_count: int, bmin: int, bmax: int) -> int:
+	var low := int(0.5 + _POP * float(bmin))
+	var high := int(0.5 + _POP * float(bmax))
 	var wanted := int(float(block_count) * float(_PCT) / 100.0)
-	return clampi(wanted, bmin, mini(bmax, block_count))
+	return clampi(wanted, low, mini(high, block_count))
+
+
+## assignInitialSuitBuildings. int(wanted * CogdoRatio) of the quota are field offices.
+static func cogdo_quota(total: int) -> int:
+	return int(float(maxi(total, 0)) * 0.5)
 
 
 ## One newSuitShouldAttemptTakeover building. The level fits the floor span.
@@ -996,6 +1005,8 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 	_drop_import_spin(sign)
 	_sign_material(sign)
 	var caption := _caption(String(row.get("title", "")), track)
+	if bool(row.get("cogdo", false)):
+		caption = "Mover & Shaker\nField Office"
 	var metrics := _sign_metrics(caption)
 	var text_height := metrics.x
 	var z_scale := metrics.y

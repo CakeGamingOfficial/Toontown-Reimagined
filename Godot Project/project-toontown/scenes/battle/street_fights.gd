@@ -196,7 +196,7 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 
 
 ## A cog-building floor. The cogs are not on the street; the run already picked them.
-func open_roster(district: int, slug: String, cogs: Array, reserves: Array, riders: Array, origin: Vector3, yaw: float, building: int, out: Variant = null, final_floor: bool = false, floor_index: int = 0) -> int:
+func open_roster(district: int, slug: String, cogs: Array, reserves: Array, riders: Array, origin: Vector3, yaw: float, building: int, out: Variant = null, final_floor: bool = false, floor_index: int = 0, boss_round: int = 0) -> int:
 	if not ToonNet.is_authority() or cogs.is_empty() or riders.is_empty():
 		return 0
 	var exit_at: Array = [origin.x, origin.y, origin.z]
@@ -223,6 +223,9 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 		"yaw": yaw,
 		"floor": floor_index,
 	}
+	if boss_round > 0:
+		# ToontownBattleGlobals.getBossBattleCreditMultiplier.
+		fight["boss_round"] = boss_round
 	_next += 1
 	_fights.append(fight)
 	if building != 0 and floor_index <= 0:
@@ -319,7 +322,13 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 		"target": target,
 		"exp": clampi(exp, 0, 10500),
 	}
-	if track < -2 or track > 6 or level < -1 or level > 6 or (track == -2 and int(fight.get("building", 0)) != 0):
+	if track == -4 or track == -5 or track == -6:
+		if track == -5:
+			pick["level"] = -1
+		elif level < 0 or level > 90:
+			pick["track"] = -1
+			pick["level"] = -1
+	elif track < -2 or track > 6 or level < -1 or level > 6 or (track == -2 and int(fight.get("building", 0)) != 0):
 		pick["track"] = -1
 		pick["level"] = -1
 	(fight["choices"] as Array).append(pick)
@@ -461,6 +470,9 @@ func _earned_for(fight: Dictionary, peer: int) -> Array:
 
 
 func _credit_mult(fight: Dictionary) -> float:
+	var boss_round := int(fight.get("boss_round", 0))
+	if boss_round > 0:
+		return float(1 + boss_round)
 	var building := int(fight.get("building", 0)) != 0
 	var mult := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
 	# ToontownBattleGlobals.getFactoryCreditMultiplier. Factory gag credit is doubled.
@@ -576,6 +588,13 @@ func _resolve(fight: Dictionary) -> void:
 	_place(fight)
 	fight["hits"] = []
 	var order: Array[int] = [0, 1, 2, 3, 4, 5, 6]
+	for attack_index in picks.size():
+		var special: Dictionary = picks[attack_index]
+		var special_track := int(special.get("track", -1))
+		if special_track == -4 or special_track == -5:
+			_apply_reward(fight, special, beats)
+		elif special_track == -6:
+			_apply_pet(fight, special, beats)
 	for track in order:
 		for attack_index in picks.size():
 			var attack: Dictionary = picks[attack_index]
@@ -603,6 +622,97 @@ func _resolve(fight: Dictionary) -> void:
 	_persist_laff(fight)
 	fight["seq"] = int(fight.get("seq", 0)) + 1
 	_mark(fight)
+
+
+func _apply_pet(fight: Dictionary, choice: Dictionary, beats: Array) -> void:
+	var toon := _toon(fight, int(choice.get("id", 0)))
+	if toon.is_empty() or int(toon.get("hp", 0)) <= 0:
+		return
+	var who := String(toon.get("name", "A toon"))
+	var trick := int(choice.get("level", 0))
+	var names: PackedStringArray = ["Jump", "Beg", "Play Dead", "Rollover", "Backflip", "Dance", "Speak"]
+	var heal := preload("res://scenes/pets/doodle_kennel.gd").battle_trick(trick)
+	if heal <= 0:
+		beats.append(_beat("%s's Doodle balked." % who, -6, trick, toon, {}, false, 0))
+		return
+	var before := int(toon.get("hp", 0))
+	toon["hp"] = mini(before + heal, int(toon.get("max_hp", before)))
+	var word := names[clampi(trick, 0, names.size() - 1)]
+	var line := _beat("%s's Doodle did %s and healed %d laff." % [who, word, int(toon.get("hp", 0)) - before], -6, trick, toon, {}, true, heal)
+	line["toon_hp"] = int(toon.get("hp", 0))
+	line["toon_id"] = int(toon.get("id", 0))
+	beats.append(line)
+
+
+func _apply_reward(fight: Dictionary, choice: Dictionary, beats: Array) -> void:
+	var toon := _toon(fight, int(choice.get("id", 0)))
+	if toon.is_empty() or int(toon.get("hp", 0)) <= 0:
+		return
+	var who := String(toon.get("name", "A toon"))
+	if int(choice.get("track", -1)) == -5:
+		var target := int(choice.get("target", -1))
+		var suits: Array = fight.get("cogs", [])
+		for item in suits:
+			if not (item is Dictionary):
+				continue
+			var suit: Dictionary = item
+			if int(suit.get("hp", 0)) <= 0:
+				continue
+			if target >= 0 and int(suit.get("id", -1)) != target:
+				continue
+			suit["hp"] = 0
+			beats.append(_beat("%s fired a pink slip. The %s is defeated." % [who, String(suit.get("name", "cog"))], -1, -1, toon, suit, true, int(suit.get("max_hp", 1))))
+			return
+		return
+	var encoded := int(choice.get("level", 0))
+	var gag_track := int(encoded / 10)
+	var gag_level := encoded % 10
+	if gag_track == 7:
+		beats.append(_beat("%s called an SOS Toon to restock gags." % who, -1, -1, toon, {}, true, 0))
+		return
+	if gag_track == 8:
+		fight["sos_hit"] = true
+		beats.append(_beat("%s called an SOS Toon. Your gags will hit." % who, -1, -1, toon, {}, true, 0))
+		return
+	if gag_track == 9:
+		fight["sos_miss"] = true
+		beats.append(_beat("%s called an SOS Toon. The cogs will miss." % who, -1, -1, toon, {}, true, 0))
+		return
+	var names := ToonLoadout.new()
+	var gag := names.gag_name(gag_track, gag_level)
+	var amount := ToonLoadout.gag_damage(gag_track, gag_level, 10500)
+	if gag_track == ToonLoadout.TOON_UP:
+		for item in fight.get("toons", []):
+			if not (item is Dictionary):
+				continue
+			var patient: Dictionary = item
+			if int(patient.get("hp", 0)) <= 0:
+				continue
+			var before := int(patient.get("hp", 0))
+			patient["hp"] = mini(before + amount, int(patient.get("max_hp", before)))
+			var healed := _beat("%s's SOS used %s and healed %d laff." % [who, gag, int(patient.get("hp", 0)) - before], 0, gag_level, toon, {}, true, amount)
+			healed["toon_hp"] = int(patient.get("hp", 0))
+			healed["toon_id"] = int(patient.get("id", 0))
+			beats.append(healed)
+		return
+	var group := ToonLoadout.affects_group(gag_track, gag_level)
+	var target_id := int(choice.get("target", -1))
+	for item in fight.get("cogs", []):
+		if not (item is Dictionary):
+			continue
+		var suit: Dictionary = item
+		if int(suit.get("hp", 0)) <= 0:
+			continue
+		if not group and target_id >= 0 and int(suit.get("id", -1)) != target_id:
+			continue
+		_hurt_cog(suit, amount)
+		var cog_name := String(suit.get("name", "cog"))
+		var line := "%s's SOS used %s on the %s for %d damage." % [who, gag, cog_name, amount]
+		if int(suit.get("hp", 0)) <= 0:
+			line += " The %s is defeated." % cog_name
+		beats.append(_beat(line, gag_track, gag_level, toon, suit, true, amount))
+		if not group:
+			return
 
 
 func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: Array) -> void:
@@ -748,6 +858,8 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 ## The returned acc is the uncapped prop + experience + defense, which lure
 ## uses as its wake-up chance.
 func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictionary:
+	if bool(fight.get("sos_hit", false)):
+		return {"hit": true, "acc": 100}
 	var track := int(choice.get("track", -1))
 	var level := int(choice.get("level", 0))
 	var target := int(choice.get("target", -1))
@@ -760,6 +872,9 @@ func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictiona
 		if bool(suit.get("lured", false)):
 			num_lured += 1
 	var prop := ToonLoadout.gag_accuracy(track, level)
+	if track == 2 and preload("res://scenes/estate/garden.gd").organic(track, level):
+		var organic_lure: Array[int] = [60, 60, 70, 70, 80, 80, 100]
+		prop = organic_lure[clampi(level, 0, organic_lure.size() - 1)]
 	var attack_acc := prop + _shared_exp(fight, choice, track) + defense
 	var noted := _hit_list(fight)
 	if not noted.is_empty():
@@ -961,6 +1076,8 @@ func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 	for item in targets:
 		var victim: Dictionary = item
 		var landed := randi_range(0, 99) < accuracy
+		if bool(fight.get("sos_miss", false)):
+			landed = false
 		var row := {
 			"id": int(victim.get("id", 0)),
 			"name": String(victim.get("name", "a toon")),

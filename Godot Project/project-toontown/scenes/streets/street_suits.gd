@@ -765,38 +765,58 @@ static func dress_plan(cog: Dictionary, plan: Dictionary) -> void:
 
 ## ~spawnbuilding sellbot 1 takes the closest toon building and makes it that
 ## many stories of that department. ~spawnbuilding flunky does the same as a
-## real takeover by that cog: the street rolls the level and the floor count.
-## A building that is already a cog building is skipped.
+## real takeover by that cog. ~spawnbuilding fieldoffice makes a Sellbot Field
+## Office: one maze floor and the executive battle. A building that is already
+## a cog building is skipped.
 func spawn_building(query: String, near: Vector3) -> String:
 	var buildings := get_parent().get_node_or_null("StreetBuildings")
 	if buildings == null or not buildings.has_method("nearest_block"):
 		return "Cog buildings can only be spawned on a street."
-	var args := query.split(" ", false)
+	var field_office := false
+	var kept: PackedStringArray = []
+	for part in query.split(" ", false):
+		var key := part.to_lower()
+		if key == "fieldoffice" or key == "fo" or key == "cogdo" or key == "field":
+			field_office = true
+			continue
+		if field_office and key == "office":
+			continue
+		kept.append(part)
+	var args := kept
 	var track := ""
 	var floors := 0
 	var cog: Dictionary = {}
-	if not args.is_empty():
+	if field_office:
+		track = "s"
+		floors = 2
+	elif not args.is_empty():
 		track = String(buildings.call("track_named", String(args[0])))
-	if track != "":
+	if not field_office and track != "":
 		if args.size() < 2 or not String(args[1]).is_valid_int():
 			return "Use ~spawnbuilding sellbot 1. The floor count is 1 through 5."
 		floors = int(args[1])
 		if floors < 1 or floors > 5:
 			return "Floor count must be from 1 to 5."
-	else:
-		cog = _find_named(query)
+	elif not field_office:
+		cog = _find_named(" ".join(args))
 		if cog.is_empty():
 			return "Invalid Cog specified."
 		track = String(cog.get("dept", "c"))
 	var shop: Dictionary = buildings.call("nearest_block", near, false)
 	if shop.is_empty():
+		if field_office:
+			return "Couldn't spawn a Sellbot Field Office."
 		if cog.is_empty():
 			return "Couldn't spawn a building."
 		return "Couldn't spawn building with Cog '%s'." % String(cog.get("name", query))
 	var difficulty := 0
-	if cog.is_empty():
-		difficulty = int(buildings.call("difficulty_for_floors", floors))
-	else:
+	if field_office:
+		var level := 1
+		if not _levels.is_empty():
+			level = int(_levels[randi() % _levels.size()])
+		# startTakeOver: a field office's SuitBuildingInfo index is the cog's level minus one.
+		difficulty = maxi(level - 1, 0)
+	elif not cog.is_empty():
 		var cog_type := int(cog.get("type", 1))
 		var level := cog_type
 		if not _levels.is_empty():
@@ -804,17 +824,24 @@ func spawn_building(query: String, near: Vector3) -> String:
 		level = clampi(level, cog_type, cog_type + 4)
 		floors = int(buildings.call("floors_for", level))
 		difficulty = int(buildings.call("takeover_index", level))
+	else:
+		difficulty = int(buildings.call("difficulty_for_floors", floors))
 	var plan := {
 		"block": int(shop.get("block", 0)),
 		"track": track,
 		"difficulty": difficulty,
 		"floors": floors,
 		"title": String(shop.get("title", "")),
+		"cogdo": field_office,
 	}
 	if not _apply_building("spawn", plan):
+		if field_office:
+			return "Couldn't spawn a Sellbot Field Office."
 		if cog.is_empty():
 			return "Couldn't spawn a building."
 		return "Couldn't spawn building with Cog '%s'." % String(cog.get("name", query))
+	if field_office:
+		return "Successfully spawned a Sellbot Field Office."
 	if cog.is_empty():
 		return "Successfully spawned a %d-story %s building." % [floors, String(buildings.call("dept_name", track))]
 	return "Successfully spawned building with Cog '%s'!" % String(cog.get("name", query))

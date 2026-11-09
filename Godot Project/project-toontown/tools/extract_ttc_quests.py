@@ -35,6 +35,12 @@ HOODS = {
     3000: ("in", "The Brrrgh"),
     9000: ("in", "Donald's Dreamland"),
     11000: ("in", "Sellbot HQ"),
+    12000: ("in", "Cashbot HQ"),
+    13000: ("in", "Lawbot HQ"),
+    10000: ("in", "Bossbot HQ"),
+    12500: ("in", "the Coin Mint"),
+    12600: ("in", "the Dollar Mint"),
+    12700: ("in", "the Bullion Mint"),
 }
 
 TRACKS = {
@@ -166,6 +172,45 @@ def load_shops():
 
 def subst_quest(body):
     reps = [
+        ("BOSSBOT_HQ_TIER + 16", "48"),
+        ("BOSSBOT_HQ_TIER + 15", "47"),
+        ("BOSSBOT_HQ_TIER + 14", "46"),
+        ("BOSSBOT_HQ_TIER + 13", "45"),
+        ("BOSSBOT_HQ_TIER + 12", "44"),
+        ("BOSSBOT_HQ_TIER + 11", "43"),
+        ("BOSSBOT_HQ_TIER + 10", "42"),
+        ("BOSSBOT_HQ_TIER + 9", "41"),
+        ("BOSSBOT_HQ_TIER + 8", "40"),
+        ("BOSSBOT_HQ_TIER + 7", "39"),
+        ("BOSSBOT_HQ_TIER + 6", "38"),
+        ("BOSSBOT_HQ_TIER + 5", "37"),
+        ("BOSSBOT_HQ_TIER + 4", "36"),
+        ("BOSSBOT_HQ_TIER + 3", "35"),
+        ("BOSSBOT_HQ_TIER + 2", "34"),
+        ("BOSSBOT_HQ_TIER + 1", "33"),
+        ("BOSSBOT_HQ_TIER", "32"),
+        ("LAWBOT_HQ_TIER + 13", "31"),
+        ("LAWBOT_HQ_TIER + 12", "30"),
+        ("LAWBOT_HQ_TIER + 11", "29"),
+        ("LAWBOT_HQ_TIER + 10", "28"),
+        ("LAWBOT_HQ_TIER + 9", "27"),
+        ("LAWBOT_HQ_TIER + 8", "26"),
+        ("LAWBOT_HQ_TIER + 7", "25"),
+        ("LAWBOT_HQ_TIER + 6", "24"),
+        ("LAWBOT_HQ_TIER + 5", "23"),
+        ("LAWBOT_HQ_TIER + 4", "22"),
+        ("LAWBOT_HQ_TIER + 3", "21"),
+        ("LAWBOT_HQ_TIER + 2", "20"),
+        ("LAWBOT_HQ_TIER + 1", "19"),
+        ("LAWBOT_HQ_TIER", "18"),
+        ("ELDER_TIER", "49"),
+        ("DL_TIER + 3", "17"),
+        ("DL_TIER + 2", "16"),
+        ("DL_TIER + 1", "15"),
+        ("DL_TIER", "14"),
+        ("BR_TIER + 2", "13"),
+        ("BR_TIER + 1", "12"),
+        ("BR_TIER", "11"),
         ("MM_TIER + 2", "10"),
         ("MM_TIER + 1", "9"),
         ("MM_TIER", "8"),
@@ -187,6 +232,15 @@ def subst_quest(body):
         ("ToontownGlobals.DaisyGardens", "5000"),
         ("ToontownGlobals.SellbotFactoryInt", "11500"),
         ("ToontownGlobals.SellbotHQ", "11000"),
+        ("ToontownGlobals.CashbotHQ", "12000"),
+        ("ToontownGlobals.LawbotHQ", "13000"),
+        ("ToontownGlobals.BossbotHQ", "10000"),
+        ("ToontownGlobals.CashbotMintIntA", "12500"),
+        ("ToontownGlobals.CashbotMintIntB", "12600"),
+        ("ToontownGlobals.CashbotMintIntC", "12700"),
+        ("SELLBOT_HQ_NEWBIE_HP", "50"),
+        ("CASHBOT_HQ_NEWBIE_HP", "85"),
+        ("NEWBIE_HP", "25"),
         ("ToontownGlobals.MinniesMelodyland", "4000"),
         ("ToontownGlobals.TheBrrrgh", "3000"),
         ("ToontownGlobals.DonaldsDreamland", "9000"),
@@ -217,7 +271,23 @@ def subst_quest(body):
         ("SkelecogLevelQuest", "'SkelecogLevelQuest'"),
         ("SkelecogQuest", "'SkelecogQuest'"),
         ("ForemanQuest", "'ForemanQuest'"),
+        ("FactoryNewbieQuest", "'FactoryNewbieQuest'"),
         ("FactoryQuest", "'FactoryQuest'"),
+        ("MintNewbieQuest", "'MintNewbieQuest'"),
+        ("MintQuest", "'MintQuest'"),
+        ("SupervisorNewbieQuest", "'SupervisorNewbieQuest'"),
+        ("SupervisorQuest", "'SupervisorQuest'"),
+        ("VPNewbieQuest", "'VPNewbieQuest'"),
+        ("VPQuest", "'VPQuest'"),
+        ("CFONewbieQuest", "'CFONewbieQuest'"),
+        ("CFOQuest", "'CFOQuest'"),
+        ("RescueNewbieQuest", "'RescueNewbieQuest'"),
+        ("RescueQuest", "'RescueQuest'"),
+        ("CogPartNewbieQuest", "'CogPartNewbieQuest'"),
+        ("CogPartQuest", "'CogPartQuest'"),
+        ("ForemanNewbieQuest", "'ForemanNewbieQuest'"),
+        ("SkelecogNewbieQuest", "'SkelecogNewbieQuest'"),
+        ("SkeleReviveQuest", "'SkeleReviveQuest'"),
         ("VisitQuest", "'VisitQuest'"),
         ("CogQuest", "'CogQuest'"),
     ]
@@ -226,7 +296,22 @@ def subst_quest(body):
     for old, new in reps:
         body = re.sub(r"\b%s\b" % re.escape(old), new, body)
     body = re.sub(r"\bTT_TIER\b", "0", body)
+    for name, value in _ZONE_CONSTANTS.items():
+        body = re.sub(r"\bToontownGlobals\.%s\b" % name, value, body)
+    body = re.sub(r"\bTTLocalizer\.\w+\b", "0", body)
+    body = re.sub(r"\bToontownBattleGlobals\.\w+\b", "0", body)
     return body
+
+
+def _zone_constants():
+    path = os.path.join(SRC, "toontown", "toonbase", "ToontownGlobals.py")
+    found = {}
+    for match in re.finditer(r"^([A-Za-z_][A-Za-z0-9_]*) = (\d+)\s*$", open(path, encoding="utf-8").read(), re.M):
+        found[match.group(1)] = match.group(2)
+    return found
+
+
+_ZONE_CONSTANTS = _zone_constants()
 
 
 def parse_quests(text):
@@ -277,6 +362,23 @@ def cap_first(text):
 
 
 def quest_info(qid, kind_name, desc, ns, suits, items, loc_where, loc_phrase, npc_info):
+    newbie = {
+        "CogNewbieQuest": "CogQuest",
+        "SkelecogNewbieQuest": "SkelecogQuest",
+        "ForemanNewbieQuest": "ForemanQuest",
+        "FactoryNewbieQuest": "FactoryQuest",
+        "MintNewbieQuest": "MintQuest",
+        "SupervisorNewbieQuest": "SupervisorQuest",
+        "VPNewbieQuest": "VPQuest",
+        "CFONewbieQuest": "CFOQuest",
+        "RescueNewbieQuest": "RescueQuest",
+        "CogPartNewbieQuest": "CogPartQuest",
+    }
+    if kind_name in newbie:
+        info = quest_info(qid, newbie[kind_name], desc, ns, suits, items, loc_where, loc_phrase, npc_info)
+        if info is not None and len(desc) > 1 and isinstance(desc[-1], int):
+            info["newbie"] = int(desc[-1])
+        return info
     args = desc[1:]
     info = {
         "headline": "WANTED",
@@ -536,6 +638,61 @@ def quest_info(qid, kind_name, desc, ns, suits, items, loc_where, loc_phrase, np
             "location": loc_bit,
         }
         return info
+    if kind_name == "SkeleReviveQuest":
+        loc, num = args[0], int(args[1])
+        info["kind"] = "revive"
+        info["headline"] = ns.get("QuestsCogQuestHeadline", "WANTED")
+        info["goal"] = num
+        info["cog"] = "any"
+        info["hood"] = int(loc) if loc in HOODS else 0
+        info["zone"] = int(loc) if loc not in HOODS and loc != ANYWHERE else 0
+        info["where"] = loc_where(loc)
+        shown = "a Version 2.0 Cog" if num == 1 else "%d Version 2.0 Cogs" % num
+        info["caption"] = cap_first(shown)
+        loc_bit = (" " + loc_phrase(loc)) if loc_phrase(loc) else ""
+        info["speech"] = "I need to defeat %s%s." % (shown, loc_bit)
+        return info
+    if kind_name in ("VPQuest", "CFOQuest", "RescueQuest", "MintQuest", "SupervisorQuest", "CogPartQuest"):
+        loc, num = args[0], int(args[1])
+        kind = {
+            "VPQuest": "vp",
+            "CFOQuest": "cfo",
+            "RescueQuest": "rescue",
+            "MintQuest": "mint",
+            "SupervisorQuest": "supervisor",
+            "CogPartQuest": "cogpart",
+        }[kind_name]
+        singles = {
+            "vp": "the Sellbot VP",
+            "cfo": "the Cashbot CFO",
+            "rescue": "a Toon",
+            "mint": "a Mint",
+            "supervisor": "a Mint Supervisor",
+            "cogpart": "a Cog Suit Part",
+        }
+        plurals = {
+            "vp": "Sellbot VPs",
+            "cfo": "Cashbot CFOs",
+            "rescue": "Toons",
+            "mint": "Mints",
+            "supervisor": "Mint Supervisors",
+            "cogpart": "Cog Suit Parts",
+        }
+        shown = singles[kind] if num == 1 else "%d %s" % (num, plurals[kind])
+        info["kind"] = kind
+        info["headline"] = "DEFEAT" if kind in ("vp", "cfo", "mint", "supervisor") else "RECOVER"
+        if kind == "rescue":
+            info["headline"] = "RESCUE"
+        info["goal"] = num
+        info["cog"] = "any"
+        info["hood"] = int(loc) if loc in HOODS else 0
+        info["zone"] = int(loc) if loc not in HOODS and loc != ANYWHERE else 0
+        info["where"] = loc_where(loc)
+        info["caption"] = cap_first(shown)
+        loc_bit = (" " + loc_phrase(loc)) if loc_phrase(loc) else ""
+        verb = "rescue" if kind == "rescue" else "recover" if kind == "cogpart" else "defeat"
+        info["speech"] = "I need to %s %s%s." % (verb, shown, loc_bit)
+        return info
     if kind_name == "VisitQuest":
         info["kind"] = "visit"
         info["headline"] = ns.get("QuestsVisitQuestHeadline", "VISIT")
@@ -708,7 +865,10 @@ def main(tiers=(2, 3), out_path=OUT):
         info["lines"] = lines
         info["busy"] = busy
         info["after"] = after
-        info["show_count"] = int(info.get("goal", 1)) > 1 and info["kind"] in ("cog", "recover", "gag", "skelecog", "foreman")
+        info["show_count"] = int(info.get("goal", 1)) > 1 and info["kind"] in (
+            "cog", "recover", "gag", "skelecog", "foreman", "factory", "mint",
+            "supervisor", "vp", "cfo", "rescue", "cogpart", "revive",
+        )
         out_quests[str(qid)] = info
         if info["start"] and info["final"] not in (0,):
             key = "any" if info["final"] == "any" else str(info["final"])
@@ -735,5 +895,8 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "mm":
         melody = os.path.join(os.path.dirname(__file__), "..", "scenes", "quests", "mm_quests.json")
         main((8, 9, 10), melody)
+    elif len(sys.argv) > 1 and sys.argv[1] == "rest":
+        later = os.path.join(os.path.dirname(__file__), "..", "scenes", "quests", "rest_quests.json")
+        main(tuple(range(11, 50)), later)
     else:
         main()

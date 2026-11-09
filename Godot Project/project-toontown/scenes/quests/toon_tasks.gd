@@ -26,6 +26,11 @@ const MINT := "mint"
 const SUPERVISOR := "supervisor"
 const SKELE := "skelecog"
 const GAG := "gag"
+const VP := "vp"
+const CFO := "cfo"
+const RESCUE := "rescue"
+const PART := "cogpart"
+const REVIVE := "revive"
 ## QuestPoster hides the reward on the tasks before Clarabelle.
 const _NO_POSTER_REWARD := [101, 110, 121, 131, 141, 145, 150, 160, 161, 162, 163]
 
@@ -291,6 +296,23 @@ const _TIER7: Array[int] = [100, 202, 101, 102, 100, 101, 501, 702, 302]
 const _TIER8: Array[int] = [400]
 const _TIER9: Array[int] = [100, 801, 802, 203, 803, 804, 101, 805, 806, 102, 807, 808, 100, 809, 810, 101, 811, 812, 703, 813, 814, 815, 303]
 const _TIER10: Array[int] = [900]
+## The Brrrgh, Donald's Dreamland, Lawbot HQ suit parts, Bossbot HQ suit parts,
+## then the elder loop. These match RequiredRewardTrackDict.
+const _LATER: Dictionary = {
+	11: [400],
+	12: [100, 801, 802, 704, 803, 804, 101, 805, 806, 502, 807, 808, 102, 809, 810, 204, 811, 812, 100, 813, 814, 101, 815, 304],
+	13: [900],
+	14: [4000, 100, 205, 101, 102, 705, 103, 305, 4001, 4002],
+	15: [100, 206, 101, 4003, 4004, 4005, 102, 4006, 4007, 4008, 706, 103, 4009, 4010, 4011, 4000, 4001, 4002],
+	16: [4006, 4007, 4008, 100, 4000, 4001, 4002, 4003, 101, 4004, 4005, 4009, 102, 103, 4010, 4011],
+	17: [4009, 4010, 4011, 100, 4000, 4001, 101, 4002, 4003, 102, 4004, 4005, 102, 4006, 4007, 707, 207, 4008],
+	18: [4100], 19: [4101], 20: [4102], 21: [4103], 22: [4104], 23: [4105], 24: [4106],
+	25: [4107], 26: [4108], 27: [4109], 28: [4110], 29: [4111], 30: [4112], 31: [4113],
+	32: [4200], 33: [4201], 34: [4202], 35: [4203], 36: [4204], 37: [4205], 38: [4206],
+	39: [4207], 40: [4208], 41: [4209], 42: [4210], 43: [4211], 44: [4212], 45: [4213],
+	46: [4214], 47: [4215], 48: [4216],
+	49: [4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009, 4010, 4011],
+}
 ## TeleportReward. 300 through 305 are the original playground rewards.
 ## 306 through 309 are reserved for the later Cog HQ taskline.
 const _TELEPORT_ZONE: Dictionary = {
@@ -321,6 +343,7 @@ const _QUEST_FILE := "res://scenes/quests/ttc_quests.json"
 const _DOCK_FILE := "res://scenes/quests/dd_quests.json"
 const _GARDEN_FILE := "res://scenes/quests/dg_quests.json"
 const _MELODY_FILE := "res://scenes/quests/mm_quests.json"
+const _REST_FILE := "res://scenes/quests/rest_quests.json"
 const _DIALOG := preload("res://scenes/quests/quest_dialog.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
@@ -572,7 +595,7 @@ func note_phone() -> void:
 	_fill_kind(PHONE)
 
 
-func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1, skeleton: bool = false) -> void:
+func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1, skeleton: bool = false, revives: int = 0) -> void:
 	_keep_notes()
 	var code := cog.to_lower()
 	CogGallery.note(code)
@@ -583,9 +606,18 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			continue
 		var info: Dictionary = _info(quest_id)
 		var kind := String(info["kind"])
-		if not _place_ok(info, hood):
+		if not _place_ok(info, hood) or not _newbie_ok(info):
 			continue
-		if kind == COG:
+		if kind == REVIVE:
+			if revives <= 0:
+				continue
+			if int(entry["progress"]) >= int(info["goal"]):
+				continue
+			var before_v2 := int(entry["progress"])
+			entry["progress"] = before_v2 + 1
+			_remember_gain(quest_id, before_v2, int(entry["progress"]), info)
+			changed = true
+		elif kind == COG:
 			var wanted := String(info.get("cog", "any"))
 			var want_dept := String(info.get("dept", ""))
 			if want_dept != "" and want_dept != dept:
@@ -644,7 +676,42 @@ func note_factory(zone: int) -> void:
 		var info: Dictionary = _info(quest_id)
 		if String(info.get("kind", "")) != FACTORY:
 			continue
-		if not _place_ok(info, zone):
+		if not _place_ok(info, zone) or not _newbie_ok(info):
+			continue
+		if int(entry["progress"]) >= int(info["goal"]):
+			continue
+		entry["progress"] = int(entry["progress"]) + 1
+		changed = true
+	if changed:
+		save()
+
+
+func note_vp(zone: int = 11000) -> void:
+	_note_kind(VP, zone)
+
+
+func note_cfo(zone: int = 12000) -> void:
+	_note_kind(CFO, zone)
+
+
+func note_rescue(zone: int = 11000) -> void:
+	_note_kind(RESCUE, zone)
+
+
+func note_part(zone: int) -> void:
+	_note_kind(PART, zone)
+
+
+func _note_kind(kind: String, zone: int) -> void:
+	var changed := false
+	for entry in _active:
+		var quest_id := int(entry["id"])
+		if not _known(quest_id):
+			continue
+		var info: Dictionary = _info(quest_id)
+		if String(info.get("kind", "")) != kind:
+			continue
+		if not _place_ok(info, zone) or not _newbie_ok(info):
 			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
@@ -1297,10 +1364,26 @@ func _carry_limit(reward_id: int) -> int:
 		return 35
 	if reward_id == 203:
 		return 40
+	if reward_id == 204:
+		return 50
+	if reward_id == 205:
+		return 60
+	if reward_id == 206:
+		return 70
+	if reward_id == 207:
+		return 80
 	return 0
 
 
 func _carry_name(limit: int) -> String:
+	if limit >= 80:
+		return "Large Backpack"
+	if limit >= 70:
+		return "Medium Backpack"
+	if limit >= 60:
+		return "Small Backpack"
+	if limit >= 50:
+		return "Large Bag"
 	if limit >= 40:
 		return "Medium Bag"
 	if limit >= 35:
@@ -1319,6 +1402,14 @@ func _bean_limit(reward_id: int) -> int:
 		return 80
 	if reward_id == 703:
 		return 100
+	if reward_id == 704:
+		return 120
+	if reward_id == 705:
+		return 150
+	if reward_id == 706:
+		return 200
+	if reward_id == 707:
+		return 250
 	return 0
 
 
@@ -1341,6 +1432,14 @@ func _poster_reward(quest_id: int, reward_id: int) -> String:
 		return "Reward: Carry 2 ToonTasks"
 	if reward_id == 501:
 		return "Reward: Carry 3 ToonTasks"
+	if reward_id == 502:
+		return "Reward: Carry 4 ToonTasks"
+	var suit := _suit_part_name(reward_id)
+	if not suit.is_empty():
+		return "Reward: %s" % suit
+	var payout := _money(reward_id)
+	if payout > 0:
+		return "Reward: %d jellybeans" % payout
 	var beans := _bean_limit(reward_id)
 	if beans > 0:
 		return "Reward: Carry %d jellybeans" % beans
@@ -1421,11 +1520,12 @@ func note_playground() -> void:
 
 ## setLocation writes the playground or Cog HQ the toon is standing in.
 ## The estate uses a dynamic zone, so going home does not replace lastHood.
+## A party zone is dynamic too, so the Party Grounds leave the last playground.
 func note_hood(hood: int) -> void:
 	if not in_playground:
 		return
 	var canonical := hood - posmod(hood, 1000)
-	if canonical < 1000 or canonical == 16000:
+	if canonical < 1000 or canonical == 16000 or canonical == 18000:
 		return
 	if canonical == last_hood:
 		_remember(canonical)
@@ -1452,7 +1552,7 @@ func return_hood() -> int:
 
 
 func _returnable(hood: int) -> bool:
-	return hood >= 1000 and hood != 16000
+	return hood >= 1000 and hood != 16000 and hood != 18000
 
 
 func has_visited(hood: int) -> bool:
@@ -1706,7 +1806,12 @@ func _required(tier: int) -> Array[int]:
 		return _TIER9.duplicate()
 	if tier == 10:
 		return _TIER10.duplicate()
-	return []
+	var raw: Variant = _LATER.get(tier, [])
+	var found: Array[int] = []
+	if typeof(raw) == TYPE_ARRAY:
+		for item in raw:
+			found.append(int(item))
+	return found
 
 
 ## chooseBestQuests. Up to three tasks, one for each of the next rewards still due.
@@ -1782,7 +1887,7 @@ func _candidates(key: String, npc_id: int, used: Dictionary, reuse: bool) -> Arr
 		var info: Dictionary = _info(quest_id)
 		if info.is_empty() or not bool(info.get("start", false)):
 			continue
-		if not _giver_ok(info, npc_id):
+		if not _giver_ok(info, npc_id) or not _newbie_offer_ok(info):
 			continue
 		# Central quests have no tier. Dock quests are offered only on their tier.
 		var quest_tier := int(info.get("tier", -1))
@@ -1809,7 +1914,7 @@ func _giver_ok(info: Dictionary, npc_id: int) -> bool:
 	if dest > 1000 and not _npc_live(dest):
 		return false
 	var kind := String(info.get("kind", ""))
-	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == FACTORY or kind == FOREMAN or kind == MINT or kind == SUPERVISOR or kind == SKELE or kind == GAG or kind == TRACK
+	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == FACTORY or kind == FOREMAN or kind == MINT or kind == SUPERVISOR or kind == SKELE or kind == GAG or kind == TRACK or kind == VP or kind == CFO or kind == RESCUE or kind == PART or kind == REVIVE
 
 
 func _npc_live(npc_id: int) -> bool:
@@ -1831,6 +1936,20 @@ func _npc_row(npc_id: int) -> Dictionary:
 			"live": true,
 		}
 	return {}
+
+
+func _newbie_ok(info: Dictionary) -> bool:
+	return _newbie_offer_ok(info)
+
+
+func _newbie_offer_ok(info: Dictionary) -> bool:
+	var cap := int(info.get("newbie", 0))
+	if cap <= 0:
+		return true
+	var loadout := ToonLoadout.for_selected()
+	if loadout == null:
+		return true
+	return loadout.max_hp <= cap
 
 
 func _place_ok(info: Dictionary, zone: int) -> bool:
@@ -1894,6 +2013,7 @@ static func _load_pool() -> void:
 	_read_quest_file(_DOCK_FILE)
 	_read_quest_file(_GARDEN_FILE)
 	_read_quest_file(_MELODY_FILE)
+	_read_quest_file(_REST_FILE)
 
 
 static func _read_quest_file(path: String) -> void:
@@ -1927,6 +2047,65 @@ static func _read_quest_file(path: String) -> void:
 		for item in incoming:
 			have.append(int(item))
 		_by_reward[key] = have
+
+
+func _money(reward_id: int) -> int:
+	var payouts := {
+		600: 10, 601: 20, 602: 40, 603: 60, 604: 100, 605: 150, 606: 200, 607: 250,
+		608: 300, 609: 400, 610: 500, 611: 600, 612: 700, 613: 800, 614: 900,
+		615: 1000, 616: 1100, 617: 1200, 618: 1300, 619: 1400, 620: 1500,
+		621: 1750, 622: 2000, 623: 2500,
+	}
+	return int(payouts.get(reward_id, 0))
+
+
+func _grant_money(reward_id: int) -> void:
+	var amount := _money(reward_id)
+	if amount <= 0:
+		return
+	preload("res://scenes/toons/jellybeans.gd").add_beans(amount)
+
+
+func _suit_part(reward_id: int) -> Dictionary:
+	var bits := {
+		4000: [2, 1], 4001: [2, 2], 4002: [2, 4], 4003: [2, 8], 4004: [2, 16], 4005: [2, 32],
+		4006: [2, 64], 4007: [2, 1024], 4008: [2, 2048], 4009: [2, 4096], 4010: [2, 16384], 4011: [2, 32768],
+		4100: [1, 1], 4101: [1, 2], 4102: [1, 4], 4103: [1, 8], 4104: [1, 16], 4105: [1, 32],
+		4106: [1, 64], 4107: [1, 1024], 4108: [1, 2048], 4109: [1, 4096], 4110: [1, 8192],
+		4111: [1, 16384], 4112: [1, 32768], 4113: [1, 65536],
+		4200: [0, 1], 4201: [0, 2], 4202: [0, 4], 4203: [0, 8], 4204: [0, 16], 4205: [0, 32],
+		4206: [0, 64], 4207: [0, 128], 4208: [0, 256], 4209: [0, 512], 4210: [0, 1024],
+		4211: [0, 2048], 4212: [0, 4096], 4213: [0, 8192], 4214: [0, 16384], 4215: [0, 32768], 4216: [0, 65536],
+	}
+	var found: Variant = bits.get(reward_id, [])
+	if typeof(found) != TYPE_ARRAY or (found as Array).size() < 2:
+		return {}
+	var row: Array = found
+	return {"dept": int(row[0]), "bit": int(row[1])}
+
+
+func _suit_part_name(reward_id: int) -> String:
+	var part := _suit_part(reward_id)
+	if part.is_empty():
+		return ""
+	var depts: PackedStringArray = ["Bossbot", "Lawbot", "Cashbot", "Sellbot"]
+	var names := {
+		1: "upper left leg", 2: "lower left leg", 4: "left foot",
+		8: "upper right leg", 16: "lower right leg", 32: "right foot",
+		64: "left shoulder", 128: "right shoulder", 256: "chest", 512: "health meter",
+		1024: "pelvis", 2048: "upper left arm", 4096: "lower left arm", 8192: "left hand",
+		16384: "upper right arm", 32768: "lower right arm", 65536: "right hand",
+	}
+	var dept := depts[int(part["dept"])]
+	var piece := String(names.get(int(part["bit"]), "suit part"))
+	return "%s %s" % [dept, piece]
+
+
+func _grant_suit_part(reward_id: int) -> void:
+	var part := _suit_part(reward_id)
+	if part.is_empty():
+		return
+	DisguisePage.grant_part(int(part["dept"]), int(part["bit"]))
 
 
 func _teleport_zone(reward_id: int) -> int:
@@ -1969,9 +2148,15 @@ func _collect(info: Dictionary) -> void:
 		quest_carry = maxi(quest_carry, 2)
 	if reward_id == 501:
 		quest_carry = maxi(quest_carry, 3)
+	if reward_id == 502:
+		quest_carry = maxi(quest_carry, 4)
+	_grant_suit_part(reward_id)
+	_grant_money(reward_id)
 	if reward_id == 1000:
 		clothing_tickets += 1
 	grant_teleport(_teleport_zone(reward_id))
+	_grant_money(reward_id)
+	_grant_suit_part(reward_id)
 	_advance_tier()
 
 
@@ -1985,6 +2170,8 @@ func _advance_tier() -> void:
 		if need.is_empty() or not _history_covers(need):
 			return
 		reward_history.clear()
+		if reward_tier >= 49:
+			return
 		reward_tier += 1
 
 

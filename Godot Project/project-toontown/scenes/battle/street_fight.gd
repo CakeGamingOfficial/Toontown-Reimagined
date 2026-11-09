@@ -9,6 +9,7 @@ const JOIN_REACH := 20.0
 ## added only when the local toon is pending or active.
 const WATCH_REACH := 60.0
 const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const BATTLE_VOLUME := 0.9
 const PLACE_VOLUME := 0.8
 const _LOSE := "res://assets/audio/battle/ENC_Lose.ogg"
@@ -169,6 +170,11 @@ func _process(delta: float) -> void:
 
 
 func _rows() -> Array:
+	var boss := get_parent().get_node_or_null("DeptBoss")
+	if boss != null:
+		var key := String(boss.call("fight_key"))
+		if key != "":
+			return ToonNet.latest("fights:" + key).get("rows", [])
 	var suits := get_parent().get_node_or_null("StreetSuits")
 	if suits == null:
 		return []
@@ -316,6 +322,16 @@ func _touch_cog(cog: Node, hp: Vector2i) -> void:
 		var office_here := _point()
 		ToonNet.ask_office(_street_district(), cog_id, office_body.global_position, _yaw(office_here, office_body.global_position), toon_name, hp.x, hp.y)
 		return
+	if _street_slug() == "bossbot_course" and cog is Node3D:
+		var course_body := cog as Node3D
+		var course_here := _point()
+		ToonNet.ask_course(_street_district(), cog_id, course_body.global_position, _yaw(course_here, course_body.global_position), toon_name, hp.x, hp.y)
+		return
+	if _street_slug() == "bossbot_course" and cog is Node3D:
+		var course_body := cog as Node3D
+		var course_here := _point()
+		ToonNet.ask_course(_street_district(), cog_id, course_body.global_position, _yaw(course_here, course_body.global_position), toon_name, hp.x, hp.y)
+		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), cog_id, toon_name, hp.x, hp.y)
 
 
@@ -344,6 +360,12 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 		return
 	if _street_slug() == "lawbot_office":
 		ToonNet.ask_office(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
+		return
+	if _street_slug() == "bossbot_course":
+		ToonNet.ask_course(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
+		return
+	if _street_slug() == "bossbot_course":
+		ToonNet.ask_course(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
 		return
 	ToonNet.ask_fight(_street_district(), _street_slug(), _first_cog(fight), str(toon.call("battle_name")), hp.x, hp.y)
 
@@ -386,6 +408,15 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 	if not is_inside_tree():
 		return
 	if pick.x == -3 or int(_fight.get("seq", -1)) != seq:
+		return
+	if pick.x == -4 or pick.x == -5:
+		var grouped := pick.x == -4 and (pick.y >= 70 or int(pick.y / 10) == 0 or int(pick.y / 10) == 3)
+		if grouped:
+			_send(pick.x, pick.y, -1, 0)
+		else:
+			_pending = pick
+			_need_target = true
+			_show_targets(_fight)
 		return
 	if pick.x < 0:
 		_send(pick.x, -1, -1, 0)
@@ -496,6 +527,17 @@ func _spend(fight: Dictionary) -> void:
 	var track := int(choice.get("track", -1))
 	var level := int(choice.get("level", -1))
 	_spent_seq = seq
+	if track == -4:
+		_REWARDS.consume_encoded(level)
+		if int(level / 10) == 7:
+			var healed := _toon()
+			if healed != null:
+				var pockets: ToonLoadout = healed.call("battle_loadout")
+				_REWARDS.restock_all(pockets)
+		return
+	if track == -5:
+		_REWARDS.consume_pink()
+		return
 	if track < 0:
 		return
 	var toon := _toon()
@@ -742,16 +784,18 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 	var dept := ""
 	var level := -1
 	var skeleton := false
+	var revives := 0
 	for item in fight.get("cogs", []):
 		if item is Dictionary and int((item as Dictionary).get("id", 0)) == cog_id:
 			code = String((item as Dictionary).get("code", ""))
 			dept = String((item as Dictionary).get("dept", ""))
 			level = int((item as Dictionary).get("level", -1))
 			skeleton = bool((item as Dictionary).get("skeleton", false))
+			revives = int((item as Dictionary).get("revives", 0))
 			break
 	var tasks := ToonTasks.for_selected()
 	if tasks != null:
-		tasks.note_cog_defeat(code, _battle_hood(), dept, level, skeleton)
+		tasks.note_cog_defeat(code, _battle_hood(), dept, level, skeleton, revives)
 
 
 ## DistributedToon.died starts Toon.getDiedInterval at the hit. Every client
@@ -1225,6 +1269,8 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 			if tasks != null:
 				tasks.note_factory(11000)
 				tasks.note_foreman(11000)
+				if part_line.contains("recovered"):
+					tasks.note_part(11000)
 			recovered = part_line
 	if String(fight.get("slug", "")) == "cashbot_mint":
 		var mint_key := "mint:%s" % fight.get("id", 0)
@@ -1542,6 +1588,11 @@ func _cog_node(cog_id: int) -> Node:
 	var suits := get_parent().get_node_or_null("StreetSuits")
 	if suits != null:
 		for child in suits.get_children():
+			if int(child.get_meta("do_id", 0)) == cog_id:
+				return child
+	var bosses := get_parent().get_node_or_null("BossSuits")
+	if bosses != null:
+		for child in bosses.get_children():
 			if int(child.get_meta("do_id", 0)) == cog_id:
 				return child
 	var floors := get_parent().get_node_or_null("CogBuilding/FloorSuits")

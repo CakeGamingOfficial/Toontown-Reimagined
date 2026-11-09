@@ -9,6 +9,7 @@ extends Control
 signal picked(track: int, level: int)
 
 const _MENU := preload("res://assets/gui/battle/BATTLE_Menu.png")
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _ROW := preload("res://assets/gui/tutorial/InventoryRow.png")
 const _UP := preload("res://assets/gui/rules/InventoryButtonUp.png")
 const _DN := preload("res://assets/gui/rules/InventoryButtonDown.png")
@@ -93,7 +94,9 @@ var _detail_data: Label
 var _detail_credit: Label
 var _run: TextureButton
 var _sos: TextureButton
+var _doodle: TextureButton
 var _fire: TextureButton
+var _sos_list: VBoxContainer
 var _pass: TextureButton
 var _credit := 1.0
 
@@ -227,6 +230,14 @@ func _build() -> void:
 	_run = _command("RUN", _PRESSABLE)
 	_run.pressed.connect(_run_away)
 	_sos = _command("SOS", _PRESSABLE)
+	_sos.pressed.connect(_open_sos)
+	_doodle = _command("PET", _PRESSABLE)
+	_doodle.pressed.connect(_open_doodle)
+	_fire.pressed.connect(_use_fire)
+	_sos_list = VBoxContainer.new()
+	_sos_list.visible = false
+	_sos_list.z_index = 5
+	add_child(_sos_list)
 
 
 func _layout() -> void:
@@ -296,11 +307,13 @@ func _layout() -> void:
 	_run.visible = not _building
 	_place(_run, 0.73 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_sos, 0.96 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
+	_place(_doodle, 0.5 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_fire, 0.73 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_pass, 0.96 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())
-	for command in [_run, _sos, _fire, _pass]:
+	for command in [_run, _sos, _doodle, _fire, _pass]:
 		var caption := command.get_child(0) as Label
 		ToonGui.style_label(caption, Color.WHITE, _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
+	_paint_rewards(FRAME)
 	# The toontorial line sits over the rows. Street battles leave it off.
 	_prompt.visible = _tutorial
 	_prompt_text.visible = _tutorial
@@ -388,6 +401,7 @@ func _pass_turn() -> void:
 	if not _waiting:
 		return
 	_waiting = false
+	_hide_sos()
 	picked.emit(-1, -1)
 
 
@@ -395,7 +409,98 @@ func _run_away() -> void:
 	if not _waiting:
 		return
 	_waiting = false
+	_hide_sos()
 	picked.emit(-2, -1)
+
+
+func _open_sos() -> void:
+	if not _waiting or _sos_list == null:
+		return
+	_sos_list.visible = not _sos_list.visible
+	for child in _sos_list.get_children():
+		_sos_list.remove_child(child)
+		child.free()
+	if not _sos_list.visible:
+		return
+	for card in _REWARDS.sos_cards():
+		if not (card is Dictionary):
+			continue
+		var body: Dictionary = card
+		var track := int(body.get("track", 0))
+		var level := int(body.get("level", 0))
+		var encoded := track * 10 + level
+		if track >= 7:
+			encoded = track * 10
+		var button := Button.new()
+		button.text = "%s (%d)" % [String(body.get("name", "SOS")), int(body.get("calls", 1))]
+		button.pressed.connect(_use_sos.bind(encoded))
+		_sos_list.add_child(button)
+
+
+func _use_sos(encoded: int) -> void:
+	if not _waiting:
+		return
+	_waiting = false
+	_hide_sos()
+	picked.emit(-4, encoded)
+
+
+func _open_doodle() -> void:
+	if not _waiting or _sos_list == null:
+		return
+	_sos_list.visible = not _sos_list.visible
+	for child in _sos_list.get_children():
+		_sos_list.remove_child(child)
+		child.queue_free()
+	if not _sos_list.visible:
+		return
+	var names: PackedStringArray = ["Jump", "Beg", "Play Dead", "Rollover", "Backflip", "Dance", "Speak"]
+	for trick in names.size():
+		var button := Button.new()
+		button.text = names[trick]
+		button.pressed.connect(_use_doodle.bind(trick))
+		_sos_list.add_child(button)
+
+
+func _use_doodle(trick: int) -> void:
+	if not _waiting:
+		return
+	_waiting = false
+	_hide_sos()
+	picked.emit(-6, trick)
+
+
+func _use_fire() -> void:
+	if not _waiting or _REWARDS.pink_slips() <= 0:
+		return
+	_waiting = false
+	_hide_sos()
+	picked.emit(-5, -1)
+
+
+func _hide_sos() -> void:
+	if _sos_list != null:
+		_sos_list.visible = false
+
+
+func _paint_rewards(frame: float) -> void:
+	var slips := _REWARDS.pink_slips()
+	_fire.disabled = slips <= 0
+	_fire.modulate = _PRESSABLE if slips > 0 else Color(0.4, 0.4, 0.4, 1)
+	var fire_label := _fire.get_child(0) as Label
+	if fire_label != null:
+		fire_label.text = "FIRE" if slips <= 0 else "FIRE %d" % slips
+	var cards := _REWARDS.sos_count()
+	_sos.disabled = cards <= 0
+	_sos.modulate = _PRESSABLE if cards > 0 else Color(0.4, 0.4, 0.4, 1)
+	var has_pet := preload("res://scenes/pets/doodle_kennel.gd").has_pet()
+	if _doodle != null:
+		_doodle.disabled = not has_pet
+		_doodle.modulate = _PRESSABLE if has_pet else Color(0.4, 0.4, 0.4, 1)
+	if _sos_list == null:
+		return
+	_sos_list.position = _sos.position + Vector2(-_sos.size.x * 2.2, -180.0 * frame)
+	_sos_list.size = Vector2(180, 180)
 
 
 func _image(texture: Texture2D) -> TextureRect:

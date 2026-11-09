@@ -37,6 +37,7 @@ const _SCENES: Dictionary = {
 	12000: "res://scenes/cog_hq/cashbot_trainyard.tscn",
 	13000: "res://scenes/cog_hq/lawbot_courtyard.tscn",
 	17000: "res://scenes/playgrounds/chip_n_dales_minigolf.tscn",
+	18000: "res://scenes/playgrounds/party_grounds.tscn",
 }
 
 const ESTATE := 16000
@@ -160,7 +161,7 @@ static func hood_for_scene(path: String) -> int:
 
 static func is_playground(hood: int) -> bool:
 	match hood_of(hood):
-		1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000, 17000:
+		1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000, 17000, 18000:
 			return true
 		_:
 			return false
@@ -180,7 +181,7 @@ static func random_drop(hood: int) -> Dictionary:
 
 static func has_drop(hood: int) -> bool:
 	match hood_of(hood):
-		1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000, 11000, 12000, 13000, 17000:
+		1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000, 11000, 12000, 13000, 17000, 18000:
 			return true
 		_:
 			return false
@@ -213,6 +214,9 @@ static func drop_for(hood: int) -> Vector3:
 			return Vector3(257.2, -68.05, -319.23)
 		17000:
 			return Vector3(-49.6, 0.35, -102.0)
+		18000:
+			# One cell north of the party clock, on the shifted party grid.
+			return Vector3(-2.8, 2.0, -14.6)
 		_:
 			return Vector3(0.0, 0.35, 0.0)
 
@@ -243,6 +247,8 @@ static func heading_for(hood: int) -> float:
 			return -166.6
 		17000:
 			return 162.0
+		18000:
+			return 180.0
 		_:
 			return 0.0
 

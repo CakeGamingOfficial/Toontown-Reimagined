@@ -54,6 +54,9 @@ func _ready() -> void:
 	var office: Node = load("res://scenes/cog_hq/office_board.gd").new()
 	office.name = "OfficeBoard"
 	add_child(office)
+	var course: Node = load("res://scenes/cog_hq/course_board.gd").new()
+	course.name = "CourseBoard"
+	add_child(course)
 	var runs: Node = load("res://scenes/buildings/building_runs.gd").new()
 	runs.name = "BuildingRuns"
 	add_child(runs)
@@ -231,6 +234,11 @@ func ensure(district: int, slug: String) -> void:
 		if office != null and office.has_method("ensure"):
 			office.call("ensure", district)
 		return
+	if slug == "bossbot_course":
+		var course := get_node_or_null("CourseBoard")
+		if course != null and course.has_method("ensure"):
+			course.call("ensure", district)
+		return
 	remember_state()
 	var key := _key(district, slug)
 	if _live.has(key):
@@ -278,23 +286,29 @@ func prepare_buildings(district: int, slug: String, data: Dictionary) -> void:
 		return
 	remember_state()
 	var key := _key(district, slug)
+	var blocks: Array = data.get("blocks", [])
+	var target := 0
+	var cogdo_target := 0
+	if district != 0:
+		target = _BUILDINGS.target_count(blocks.size(), int(data.get("bmin", 0)), int(data.get("bmax", 0)))
+		cogdo_target = _BUILDINGS.cogdo_quota(target)
+		if _HOLIDAYS.is_county(district):
+			target = blocks.size()
+			cogdo_target = 0
 	if not _plans.has(key):
-		var blocks: Array = data.get("blocks", [])
-		var target := 0
-		if district != 0:
-			target = _BUILDINGS.target_count(blocks.size(), int(data.get("bmin", 0)), int(data.get("bmax", 0)))
-			if _HOLIDAYS.is_county(district):
-				target = blocks.size()
 		_plans[key] = {
 			"target": target,
+			"cogdo_target": cogdo_target,
 			"blocks": blocks,
 			"tracks": data.get("tracks", []),
 			"levels": data.get("levels", []),
 		}
-	elif _HOLIDAYS.is_county(district):
+	else:
 		var saved: Dictionary = _plans[key]
-		var blocks: Array = saved.get("blocks", [])
-		saved["target"] = blocks.size()
+		saved["target"] = target
+		saved["cogdo_target"] = cogdo_target
+		if (saved.get("blocks", []) as Array).is_empty():
+			saved["blocks"] = blocks
 		_plans[key] = saved
 	if not _blocks.has(key):
 		_blocks[key] = []
@@ -331,6 +345,8 @@ func claim_takeover(district: int, slug: String) -> Dictionary:
 	var forced := _HOLIDAYS.building_track(district)
 	if forced != "":
 		picked["track"] = forced
+	elif not _HOLIDAYS.is_county(district):
+		_maybe_field_office(district, slug, picked)
 	pending.append(int(picked.get("block", 0)))
 	_pending[key] = pending
 	return picked
@@ -414,11 +430,44 @@ func _replace_cog_building(district: int, slug: String, block: int) -> void:
 	var forced := _HOLIDAYS.building_track(district)
 	if forced != "":
 		picked["track"] = forced
+	elif not _HOLIDAYS.is_county(district):
+		_maybe_field_office(district, slug, picked)
 	var rows: Array = building_rows(district, slug).duplicate()
 	var row := _cog_building_row(picked, "becoming")
 	row["since"] = int(Time.get_unix_time_from_system() * 1000.0)
 	rows.append(row)
 	keep_buildings(district, slug, rows)
+
+
+func _maybe_field_office(district: int, slug: String, picked: Dictionary) -> void:
+	# CogdoRatio 0.5 of the street's building quota. The taking cog is a Sellbot.
+	# FieldOfficeNumFloors is 1 game floor; CogdoLayout adds the executive battle.
+	var plan: Dictionary = _plans.get(_key(district, slug), {})
+	var target := int(plan.get("target", 0))
+	if target <= 0:
+		return
+	var cogdo_target := int(plan.get("cogdo_target", _BUILDINGS.cogdo_quota(target)))
+	var have_cogdo := 0
+	var have_suit := 0
+	for item in building_rows(district, slug):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var state := String(row.get("state", ""))
+		if state != "suit" and state != "becoming" and state != "clearing":
+			continue
+		if bool(row.get("cogdo", false)):
+			have_cogdo += 1
+		else:
+			have_suit += 1
+	var need_cogdo := maxi(cogdo_target - have_cogdo, 0)
+	var need_building := maxi(target - cogdo_target - have_suit, 0)
+	var total := need_cogdo + need_building
+	if total <= 0 or randi() % total >= need_cogdo:
+		return
+	picked["cogdo"] = true
+	picked["track"] = "s"
+	picked["floors"] = 2
 
 
 func _cog_building_row(plan: Dictionary, state: String) -> Dictionary:
@@ -428,6 +477,7 @@ func _cog_building_row(plan: Dictionary, state: String) -> Dictionary:
 		"difficulty": int(plan.get("difficulty", 0)),
 		"floors": int(plan.get("floors", 1)),
 		"title": String(plan.get("title", "")),
+		"cogdo": bool(plan.get("cogdo", false)),
 		"state": state,
 	}
 
@@ -465,6 +515,7 @@ func start_takeover(district: int, slug: String, plan: Dictionary) -> void:
 		"difficulty": int(plan.get("difficulty", 0)),
 		"floors": int(plan.get("floors", 1)),
 		"title": String(plan.get("title", "")),
+		"cogdo": bool(plan.get("cogdo", false)),
 		"state": "clearing",
 		"clear_left": _CLEAR_OUT,
 	})
@@ -1316,6 +1367,11 @@ func cog_rows(district: int, slug: String) -> Array:
 		if office != null and office.has_method("rows"):
 			return office.call("rows", district)
 		return []
+	if slug == "bossbot_course":
+		var course := get_node_or_null("CourseBoard")
+		if course != null and course.has_method("rows"):
+			return course.call("rows", district)
+		return []
 	var scene := get_tree().current_scene
 	if scene != null:
 		var suits := scene.get_node_or_null("StreetSuits")
@@ -1364,6 +1420,11 @@ func dismiss_cog(district: int, slug: String, cog_id: int) -> void:
 		var office := get_node_or_null("OfficeBoard")
 		if office != null and office.has_method("dismiss"):
 			office.call("dismiss", district, cog_id)
+		return
+	if slug == "bossbot_course":
+		var course := get_node_or_null("CourseBoard")
+		if course != null and course.has_method("dismiss"):
+			course.call("dismiss", district, cog_id)
 		return
 	var scene := get_tree().current_scene
 	if scene != null:
