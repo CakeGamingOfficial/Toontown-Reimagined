@@ -395,6 +395,8 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 			_fly(pie, aim, _HEIGHT if hit else _HEIGHT * 1.3, elapsed, 2.7, 0.3 if hit else 0.45, not hit, not hit)
 		if hit and elapsed >= 3.0 and not pie.has_meta("splats"):
 			pie.visible = false
+			# MovieThrow removes the cake tiers at impact, then shows the splat.
+			_hide_cake_hits(pie, marks)
 			var splats: Array[Node3D] = []
 			for mark in marks:
 				var row: Dictionary = mark
@@ -1261,33 +1263,61 @@ func _throw_trap(prop: Node3D, actor: ToonActor, cog: Node3D, level: int, elapse
 
 
 func _fly_cake(pie: Node3D, marks: Array, elapsed: float) -> void:
-	var parts := _cake_parts(pie)
-	if parts.is_empty():
-		if not pie.has_meta("copies"):
-			var copies: Array[Node3D] = [pie]
-			for index in range(1, marks.size()):
-				copies.append(_make("wedding-cake"))
-			pie.set_meta("copies", copies)
-		var copies: Array = pie.get_meta("copies")
-		for index in marks.size():
-			var mark: Dictionary = marks[index]
-			var cog := _node3d(mark.get("cog"))
-			var missed := not bool(mark.get("hit", false))
-			var piece := _node3d(copies[index])
-			if piece == null:
-				continue
-			_fly(piece, cog, _HEIGHT if not missed else _HEIGHT * 1.3, elapsed, 2.7, 0.3 if not missed else 0.45, missed, missed)
-		return
-	var groups := _cake_groups(parts, marks.size())
-	for index in mini(marks.size(), groups.size()):
+	# The tiers leave the cake on the first frame. Remember that split, or the
+	# next frame treats the empty cake as a model with no parts and the tiers
+	# are never freed.
+	if not pie.has_meta("cake_flight"):
+		pie.set_meta("cake_flight", _cake_flight(pie, marks.size()))
+	var flight: Array = pie.get_meta("cake_flight")
+	for index in mini(marks.size(), flight.size()):
 		var mark: Dictionary = marks[index]
 		var cog := _node3d(mark.get("cog"))
 		var missed := not bool(mark.get("hit", false))
-		var group: Array = groups[index]
+		var group: Array = flight[index]
 		for item in group:
 			var piece := _node3d(item)
 			if piece != null:
 				_fly(piece, cog, _HEIGHT if not missed else _HEIGHT * 1.3, elapsed, 2.7, 0.3 if not missed else 0.45, missed, missed)
+
+
+func _cake_flight(pie: Node3D, count: int) -> Array:
+	var flight: Array = []
+	var parts := _cake_parts(pie)
+	if parts.is_empty():
+		var copies: Array[Node3D] = [pie]
+		for index in range(1, count):
+			copies.append(_make("wedding-cake"))
+		for copy in copies:
+			flight.append([copy])
+		return flight
+	var groups := _cake_groups(parts, count)
+	for group in groups:
+		var flying: Array = []
+		for item in group:
+			var piece := _node3d(item)
+			if piece == null:
+				continue
+			# reparentCakePart moves a tier onto the battle. removeProps deletes
+			# it with the other spawned props, so it has to be tracked there.
+			if not _spawned.has(piece):
+				_spawned.append(piece)
+			flying.append(piece)
+		flight.append(flying)
+	return flight
+
+
+func _hide_cake_hits(pie: Node3D, marks: Array) -> void:
+	if not pie.has_meta("cake_flight"):
+		return
+	var flight: Array = pie.get_meta("cake_flight")
+	for index in mini(marks.size(), flight.size()):
+		if not bool((marks[index] as Dictionary).get("hit", false)):
+			continue
+		var group: Array = flight[index]
+		for item in group:
+			var piece := _node3d(item)
+			if piece != null:
+				piece.visible = false
 
 
 func _cake_parts(pie: Node3D) -> Array[Node3D]:

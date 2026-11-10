@@ -14,6 +14,7 @@ const _SMALL := "res://assets/cog_hq/audio/CHQ_FACT_stomper_small.ogg"
 const _MED := "res://assets/cog_hq/audio/CHQ_FACT_stomper_med.ogg"
 const _LARGE := "res://assets/cog_hq/audio/CHQ_FACT_stomper_large.ogg"
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 
@@ -200,6 +201,10 @@ func _take_named(found: Dictionary, rows: Variant, into: Array[Dictionary], crat
 		row["root"] = root
 		if crates:
 			row["home"] = root.global_position
+		elif String(spec.get("name", "")).begins_with("barrel-"):
+			var track := _LABEL.track_for(int(spec.get("id", 0)), spec.get("track", "random"))
+			row["track"] = track
+			_LABEL.dress(root, String(spec.get("kind", "")), track, int(spec.get("level", 0)))
 		into.append(row)
 
 

@@ -125,7 +125,15 @@ func choose() -> Vector2i:
 	_show_total()
 	_layout()
 	visible = true
-	mouse_filter = MOUSE_FILTER_STOP
+	# Only the gag buttons take clicks. A full-screen catch would sit above
+	# SpeedChat++ and the toon could not open it during the round.
+	mouse_filter = MOUSE_FILTER_IGNORE
+	# SpeedChat++ draws its window and phrase list at 20–50. The buttons stay
+	# in front of that list. Empty space still falls through to the chat.
+	z_index = 60
+	var parent := get_parent()
+	if parent != null:
+		parent.move_child(self, parent.get_child_count() - 1)
 	var result: Array = await picked
 	_waiting = false
 	visible = false

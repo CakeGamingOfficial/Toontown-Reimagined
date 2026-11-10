@@ -28,6 +28,8 @@ const _COURSE := preload("res://scenes/cog_hq/course_kart.gd")
 const _COURSE_RUN := preload("res://scenes/cog_hq/course_run.gd")
 const _BOSS := preload("res://scenes/cog_hq/dept_boss.gd")
 const _BOSS_GATE := preload("res://scenes/cog_hq/boss_gate.gd")
+const _LAW_DOORS := preload("res://scenes/cog_hq/lawbot_doors.gd")
+const _SELL_DOORS := preload("res://scenes/cog_hq/sellbot_hq_doors.gd")
 const _BANK_GUI := preload("res://scenes/interiors/bank_gui.gd")
 const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
@@ -269,7 +271,7 @@ static func expects_avatar() -> bool:
 		return true
 	if String(_SHOP.trip) != "" or String(_PET.trip) != "" or String(_HALL.trip) != "" or String(_LIB.trip) != "" or String(_TELLER.trip) != "":
 		return true
-	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "" or String(_OFFICE_RUN.trip) != "" or String(_COURSE_RUN.trip) != "" or String(_BOSS_GATE.trip) != "":
+	if String(_HQ.trip) != "" or String(_BLDG.trip) != "" or String(_FACTORY.trip) != "" or String(_MINT.trip) != "" or String(_OFFICE_RUN.trip) != "" or String(_COURSE_RUN.trip) != "" or String(_BOSS_GATE.trip) != "" or String(_LAW_DOORS.trip) != "" or String(_SELL_DOORS.trip) != "":
 		return true
 	return false
 
@@ -350,8 +352,10 @@ func _ready() -> void:
 	var from_office := String(_OFFICE_RUN.trip)
 	var from_course := String(_COURSE_RUN.trip)
 	var from_boss := String(_BOSS_GATE.trip)
+	var from_law := String(_LAW_DOORS.trip)
+	var from_sell := String(_SELL_DOORS.trip)
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != "" or from_course != "" or from_boss != ""
+	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != "" or from_course != "" or from_boss != "" or from_law != "" or from_sell != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -856,6 +860,12 @@ func _arrival_spot() -> Dictionary:
 	var club: Dictionary = preload("res://scenes/cog_hq/bossbot_doors.gd").arrival(get_parent())
 	if not club.is_empty():
 		return {"point": _snap_drop(club["point"]), "heading": float(club["heading"])}
+	var law: Dictionary = _LAW_DOORS.arrival(get_parent())
+	if not law.is_empty():
+		return {"point": _snap_drop(law["point"]), "heading": float(law["heading"])}
+	var sell: Dictionary = _SELL_DOORS.arrival(get_parent())
+	if not sell.is_empty():
+		return {"point": _snap_drop(sell["point"]), "heading": float(sell["heading"])}
 	var scene_path := _scene_path()
 	if _factory_trip != "":
 		var ride: Dictionary = _FACTORY.arrival(get_parent(), _factory_entrance, _factory_trip == "in")

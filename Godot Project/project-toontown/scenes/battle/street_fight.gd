@@ -43,6 +43,9 @@ var _movie_seq := -1
 var _show_gen := 0
 var _gags
 var _shown: Dictionary = {}
+## ~laff while this round is open. The battle's copy wins until the server echo matches.
+var _laff_hold := Vector2i(-1, -1)
+var _laff_seq := -2
 var _credited_fight := -1
 var _credited: Dictionary = {}
 var _cool := 0.0
@@ -680,6 +683,8 @@ func _apply_one(beat: Dictionary) -> void:
 	if beat.has("toon_hp"):
 		_shown["t:%d" % int(beat.get("toon_id", toon_id))] = int(beat.get("toon_hp", 0))
 		toon_id = int(beat.get("toon_id", toon_id))
+	if _laff_hold.x >= 0 and toon_id == ToonNet.peer_id():
+		_shown["t:%d" % toon_id] = _laff_hold.x
 	_push_laff(toon_id)
 	_show_number(beat)
 	if bool(beat.get("hit", false)) and int(beat.get("toon_hp", 1)) <= 0:
@@ -932,7 +937,54 @@ func _play_lose() -> void:
 	player.finished.connect(player.queue_free)
 	player.play()
 
+func note_laff(current: int, maximum: int) -> void:
+	var cap := maxi(maximum, 1)
+	_laff_hold = Vector2i(clampi(current, 0, cap), cap)
+	_laff_seq = -2
+	var peer := ToonNet.peer_id()
+	for item in _rows():
+		if not (item is Dictionary):
+			continue
+		var fight: Dictionary = item
+		if not _has_toon(fight, peer):
+			continue
+		_laff_seq = int(fight.get("seq", -1))
+		_apply_laff_hold(fight)
+		break
+	if _laff_seq == -2 or _laff_hold.x < 0:
+		_laff_hold = Vector2i(-1, -1)
+		return
+	_shown["t:%d" % peer] = _laff_hold.x
+	if _laff_hold.x == 0:
+		_begin_sad(peer, {})
+
+
+func _apply_laff_hold(fight: Dictionary) -> void:
+	if _laff_hold.x < 0:
+		return
+	if int(fight.get("seq", -1)) != _laff_seq:
+		_laff_hold = Vector2i(-1, -1)
+		return
+	var peer := ToonNet.peer_id()
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		if int(toon.get("id", 0)) != peer:
+			continue
+		# The mark is local. A server snapshot that already has this laff does not.
+		if int(toon.get("hp", -1)) == _laff_hold.x and int(toon.get("max_hp", -1)) == _laff_hold.y and not toon.has("_laff_hold"):
+			_laff_hold = Vector2i(-1, -1)
+			return
+		toon["hp"] = _laff_hold.x
+		toon["max_hp"] = _laff_hold.y
+		toon["was"] = _laff_hold.x
+		toon["_laff_hold"] = true
+		return
+
+
 func _remember(fight: Dictionary, opening: bool) -> void:
+	_apply_laff_hold(fight)
 	for item in fight.get("toons", []):
 		var toon: Dictionary = item
 		var key := "t:%d" % int(toon.get("id", 0))
@@ -959,7 +1011,12 @@ func _push_laff(toon_id: int) -> void:
 	var loadout: ToonLoadout = toon.call("battle_loadout")
 	if loadout == null:
 		return
-	loadout.set_hp(int(_shown["t:%d" % toon_id]), loadout.max_hp)
+	var current := int(_shown["t:%d" % toon_id])
+	var maximum := loadout.max_hp
+	if _laff_hold.x >= 0 and toon_id == ToonNet.peer_id():
+		current = _laff_hold.x
+		maximum = _laff_hold.y
+	loadout.set_hp(current, maximum)
 	if loadout.hp <= 0:
 		return
 	loadout.save()

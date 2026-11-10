@@ -501,12 +501,25 @@ static func _set_hp(scene: Node, args: PackedStringArray, maximum: bool) -> Stri
 			return "Max laff has to be from 15 to 137."
 		loadout.set_hp(value, value)
 		loadout.save()
+		_sync_battle(scene, loadout.hp, loadout.max_hp)
 		return "Max laff is now %d." % value
 	if value < 0 or value > loadout.max_hp:
 		return "Laff has to be from 0 to %d." % loadout.max_hp
 	loadout.set_hp(value, loadout.max_hp)
 	loadout.save()
+	_sync_battle(scene, loadout.hp, loadout.max_hp)
 	return "Laff is now %d." % value
+
+
+## The battle copies its own laff onto the meter every input frame. SetHP still
+## changes the toon, including the copy the round is fighting with.
+static func _sync_battle(scene: Node, hp: int, max_hp: int) -> void:
+	ToonNet.set_battle_laff(hp, max_hp)
+	if scene == null:
+		return
+	var fight := scene.get_node_or_null("StreetFight")
+	if fight != null and fight.has_method("note_laff"):
+		fight.call("note_laff", hp, max_hp)
 
 
 static func _restock(scene: Node, everything: bool) -> String:
@@ -517,6 +530,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if everything:
 		loadout.set_hp(137, 137)
 		loadout.save()
+		_sync_battle(scene, loadout.hp, loadout.max_hp)
 		filled = loadout.unlock_all()
 		_BEANS.set_pouch_limit(_BEANS.POUCH_MAX)
 		_BEANS.fill_pouch()

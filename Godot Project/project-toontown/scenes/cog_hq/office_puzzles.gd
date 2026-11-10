@@ -13,6 +13,7 @@ const _SLIDE := "res://assets/cog_hq/audio/CHQ_FACT_door_open_sliding.ogg"
 const _LASER_ON := "res://assets/cog_hq/audio/LB_laser_beam_on_2.ogg"
 const _LASER_OFF := "res://assets/cog_hq/audio/LB_laser_beam_off_2.ogg"
 const _SHUTTER := "res://assets/cog_hq/audio/LB_camera_shutter_2.ogg"
+const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
 
 var _lasers: Array[Dictionary] = []
 var _buttons: Array[Dictionary] = []
@@ -102,7 +103,10 @@ func _add(piece: Node3D, piece_index: int, spec: Dictionary) -> void:
 		"goon":
 			_goons.append(_make_goon(piece, node, spec))
 		"gagBarrel", "healBarrel":
-			_barrels.append({"node": node, "kind": kind, "spec": spec, "used": false})
+			var track := _LABEL.track_for(ent_id, spec.get("gagTrack", "random"))
+			if node != null:
+				_LABEL.dress(node, kind, track, int(spec.get("gagLevel", 0)))
+			_barrels.append({"node": node, "kind": kind, "spec": spec, "used": false, "track": track})
 		"battleBlocker":
 			_blockers.append(_make_blocker(node, piece_index, spec))
 		"collisionSolid":
@@ -569,7 +573,7 @@ func _poll_barrels(toon: Node, here: Vector3) -> void:
 		if loadout == null or not loadout.has_method("purchase"):
 			continue
 		var level := int(spec.get("gagLevel", 0))
-		var track := _track(str(spec.get("gagTrack", "random")), loadout)
+		var track := int(barrel.get("track", 0))
 		for _grab in maxi(reward, 1):
 			if track < 0 or int(loadout.call("purchase", track, level)) <= 0:
 				break
@@ -959,15 +963,6 @@ func _game_name(game: String) -> String:
 			return "Drag three of a color in a row"
 		_:
 			return "Unknown Game"
-
-
-func _track(name: String, loadout: Object) -> int:
-	if name != "random" and name.is_valid_int():
-		return int(name)
-	for track in 7:
-		if loadout.has_method("gag_usable") and bool(loadout.call("gag_usable", track, 0)):
-			return track
-	return 0
 
 
 func _press(node: Node3D, down: bool) -> void:

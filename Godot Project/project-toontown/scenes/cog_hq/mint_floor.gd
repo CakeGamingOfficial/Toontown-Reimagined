@@ -150,7 +150,13 @@ func _blocks(floor: Dictionary) -> void:
 
 func _collide(node: Node) -> void:
 	var node_name := String(node.name)
-	if node_name.begins_with("stomp-") or node_name.begins_with("gear-") or node_name.begins_with("barrel-") or node_name.begins_with("crate-") or node_name.begins_with("belt-") or node_name.begins_with("platform-") or node_name.begins_with("goon-"):
+	if node_name.begins_with("gear-"):
+		# GearEntity keeps HorizontalWalls on a flat gear and VerticalAllWalls
+		# on an upright one. Those collision nodes were not exported. The solid
+		# is the gear body, and it has to spin with the mesh.
+		_gear_solid(node)
+		return
+	if node_name.begins_with("stomp-") or node_name.begins_with("barrel-") or node_name.begins_with("crate-") or node_name.begins_with("belt-") or node_name.begins_with("platform-") or node_name.begins_with("goon-"):
 		return
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
@@ -168,6 +174,29 @@ func _collide(node: Node) -> void:
 					_backs(body)
 	for child in node.get_children():
 		_collide(child)
+
+
+## MintGear2 is the toothed body. MintGearFloor is the paper skin on its top.
+func _gear_solid(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.visible and mesh.mesh != null and not _cutout(mesh):
+			var size := mesh.get_aabb().size
+			var thin := minf(size.x, minf(size.y, size.z))
+			if thin > 0.02:
+				var shape := mesh.mesh.create_trimesh_shape()
+				if shape is ConcavePolygonShape3D:
+					(shape as ConcavePolygonShape3D).backface_collision = true
+					var body := StaticBody3D.new()
+					body.name = String(mesh.name) + "Solid"
+					body.collision_layer = 1
+					body.collision_mask = 0
+					var col := CollisionShape3D.new()
+					col.shape = shape
+					body.add_child(col)
+					mesh.add_child(body)
+	for child in node.get_children():
+		_gear_solid(child)
 
 
 ## A walk surface whose local Z (up, inside the mint model) is paper thin.

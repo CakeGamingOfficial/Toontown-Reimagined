@@ -293,6 +293,26 @@ func state_of(fight_id: int) -> String:
 	return String(fight.get("state", "gone"))
 
 
+## SetHP. The round keeps its own laff, and that copy is what the meter shows.
+func set_laff(peer: int, hp: int, max_hp: int) -> void:
+	if not ToonNet.is_authority() or peer < 0:
+		return
+	var maximum := maxi(max_hp, 1)
+	var current := clampi(hp, 0, maximum)
+	for item in _fights:
+		var fight: Dictionary = item
+		if String(fight.get("state", "")) == "gone":
+			continue
+		var toon := _toon(fight, peer)
+		if toon.is_empty():
+			continue
+		toon["hp"] = current
+		toon["max_hp"] = maximum
+		toon["was"] = current
+		_persist_one(toon)
+		_mark(fight)
+
+
 func toon_hp(fight_id: int, peer: int) -> int:
 	var fight := _by_id(fight_id)
 	for item in fight.get("toons", []):

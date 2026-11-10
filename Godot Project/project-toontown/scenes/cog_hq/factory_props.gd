@@ -13,6 +13,7 @@ const _SMALL := "res://assets/cog_hq/audio/CHQ_FACT_stomper_small.ogg"
 const _MED := "res://assets/cog_hq/audio/CHQ_FACT_stomper_med.ogg"
 const _LARGE := "res://assets/cog_hq/audio/CHQ_FACT_stomper_large.ogg"
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _STICK := 0.2
@@ -160,13 +161,16 @@ func _read(found: Dictionary) -> void:
 		var root := _node(found, "%s-%s" % [kind, spec.get("id", 0)])
 		if root == null:
 			continue
+		var track := _LABEL.track_for(int(spec.get("id", 0)), spec.get("track", 0))
+		var level := int(spec.get("level", 0))
+		_LABEL.dress(root, kind, track, level)
 		_barrels.append({
 			"id": int(spec.get("id", 0)),
 			"root": root,
 			"kind": kind,
 			"grab": int(spec.get("grab", 0)),
-			"track": int(spec.get("track", 0)),
-			"level": int(spec.get("level", 0)),
+			"track": track,
+			"level": level,
 		})
 	for item in data.get("lifts", []):
 		if not (item is Dictionary):

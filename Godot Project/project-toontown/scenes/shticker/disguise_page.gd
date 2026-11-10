@@ -651,6 +651,17 @@ static func _next_part(have: int) -> int:
 	return 0
 
 
+## CogDisguiseGlobals.isSuitComplete. Every part bit in that department's
+## mask has to be set. The Chief Justice lobby door checks the Lawbot suit.
+static func suit_complete(dept: int) -> bool:
+	if dept < 0 or dept >= _MASKS.size():
+		return false
+	var parts := _four(_read_disk().get("parts", []))
+	var have := int(parts[dept])
+	var mask := int(_MASKS[dept])
+	return (have & mask) == mask
+
+
 static func _suit_complete(have: int) -> bool:
 	var mask := int(_MASKS[_SELLBOT])
 	return (have & mask) == mask

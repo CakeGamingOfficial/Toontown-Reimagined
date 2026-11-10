@@ -18,6 +18,7 @@ const _MENU := "res://assets/gui/speedchat/menu.json"
 const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _Style := preload("res://scenes/chat/speed_chat_style.gd")
+const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _CLICK := "res://assets/gui/speedchat/GUI_quicktalker.mp3"
 var _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
 var _HOVER_ROW := Color(0.53, 0.9, 0.53, 0.95)
@@ -116,9 +117,10 @@ func setup(tasks: ToonTasks) -> void:
 	_blocker = ColorRect.new()
 	_blocker.color = Color(0, 0, 0, 0)
 	_blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Visible while the phrase list is open, unless it is pinned. It must not
+	# take the click: a gag button under the cursor still has to receive it.
+	_blocker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blocker.visible = false
-	_blocker.gui_input.connect(_close_from_outside)
 	add_child(_blocker)
 	_speed_btn = _make_button(Color(0.75, 1.0, 0.6))
 	_speed_btn.tooltip_text = "SpeedChat"
@@ -297,15 +299,6 @@ func _close_menu() -> void:
 	_subs.clear()
 	if _blocker != null:
 		_blocker.visible = false
-
-
-func _close_from_outside(event: InputEvent) -> void:
-	if _pinned:
-		return
-	if event is InputEventMouseButton:
-		var click := event as InputEventMouseButton
-		if click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
-			_close_menu()
 
 
 func _column(items: Array) -> PanelContainer:
@@ -625,6 +618,8 @@ func _make_button(tint: Color) -> TextureButton:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _phrase_hotkey(event):
+		return
 	if not _plus_ready or _flying or _entry == null:
 		return
 	if not (event is InputEventKey):
@@ -639,11 +634,34 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+## Controls page. T opens and closes the phrase list. A closed SpeedChat++
+## window comes up with that list, so the phrases sit under the chat.
+func _phrase_hotkey(event: InputEvent) -> bool:
+	if _flying or not _shown:
+		return false
+	if not _KEYS.event_is(event, "speedchat"):
+		return false
+	get_viewport().set_input_as_handled()
+	if _panel != null and is_instance_valid(_panel):
+		_close_menu()
+	else:
+		if _plus_ready:
+			_show_dock()
+		_open_menu()
+	if _click != null and _click.stream != null:
+		_click.play()
+	return true
+
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
+		var click := event as InputEventMouseButton
+		# The phrase list used to catch every click on a full-screen plate.
+		# Close it and let the same click land on a gag button.
+		if click.pressed and click.button_index == MOUSE_BUTTON_LEFT and is_open() and not _pinned and not _pointer_on_chat():
+			_close_menu()
 		if _entry == null or not _entry.has_focus():
 			return
-		var click := event as InputEventMouseButton
 		if click.pressed and _click_leaves_chat(click):
 			_entry.release_focus()
 		return

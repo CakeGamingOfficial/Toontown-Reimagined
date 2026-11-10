@@ -1135,6 +1135,20 @@ func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> v
 		_choose_gag.rpc_id(1, fight_id, track, level, target, exp)
 
 
+func _set_battle_laff(hp: int, max_hp: int) -> void:
+	if is_authority():
+		_apply_battle_laff(peer_id(), hp, max_hp)
+		return
+	if _role == "client":
+		_request_laff.rpc_id(1, hp, max_hp)
+
+
+func _apply_battle_laff(peer: int, hp: int, max_hp: int) -> void:
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights != null and fights.has_method("set_laff"):
+		fights.call("set_laff", peer, hp, max_hp)
+
+
 func _finish_reward(fight_id: int) -> void:
 	if is_authority():
 		_close_reward(fight_id, peer_id())
@@ -1546,6 +1560,13 @@ static func persist_zero_gags(av_id: int) -> void:
 	if net == null or not net.is_authority():
 		return
 	_BANK.zero_gags(av_id)
+
+
+static func set_battle_laff(hp: int, max_hp: int) -> void:
+	var net := live()
+	if net == null:
+		return
+	net._set_battle_laff(hp, max_hp)
 
 
 static func persist_laff(av_id: int, hp: int, max_hp: int) -> void:
@@ -2424,6 +2445,13 @@ func _choose_gag(fight_id: int, track: int, level: int, target: int, exp: int) -
 	if not is_authority():
 		return
 	_choose_fight(fight_id, multiplayer.get_remote_sender_id(), track, level, target, exp)
+
+
+@rpc("any_peer", "reliable")
+func _request_laff(hp: int, max_hp: int) -> void:
+	if not is_authority():
+		return
+	_apply_battle_laff(multiplayer.get_remote_sender_id(), hp, max_hp)
 
 
 @rpc("any_peer", "reliable")
