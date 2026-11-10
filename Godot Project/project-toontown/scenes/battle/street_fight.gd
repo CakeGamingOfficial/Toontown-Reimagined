@@ -73,6 +73,7 @@ var _face_age := 0.0
 var _face_elapsed := 0.0
 var _face_from: Dictionary = {}
 var _face_spoke := ""
+var _cog_cards: Dictionary = {}
 static var sad_fight := -1
 
 
@@ -122,6 +123,7 @@ func _process(delta: float) -> void:
 	_cool = maxf(_cool - delta, 0.0)
 	_ask_wait = maxf(_ask_wait - delta, 0.0)
 	if _dying:
+		_place_cog_cards([])
 		return
 	var rows := _rows()
 	var fight := _joined(rows)
@@ -135,6 +137,7 @@ func _process(delta: float) -> void:
 			_place_bodies(item, delta)
 			if String((item as Dictionary).get("state", "")) == "reward":
 				_apply_my_reward(item)
+	_place_cog_cards(rows)
 	_release_idle(rows)
 	if not mine:
 		_stop_win()
@@ -1104,6 +1107,120 @@ func _show_cog_health(suit: Dictionary, cog: Node) -> void:
 	var cog_id := int(suit.get("id", 0))
 	var hp := int(_shown.get("c:%d" % cog_id, suit.get("hp", 1)))
 	cog.call("set_battle_hp", hp, int(suit.get("max_hp", hp)))
+
+
+## The toontorial battle card: level line and a bar that rides above the cog.
+func _place_cog_cards(rows: Array) -> void:
+	var seen: Dictionary = {}
+	var view := get_viewport()
+	var camera: Camera3D = view.get_camera_3d() if view != null else null
+	var root: Control = null
+	if _layer != null:
+		root = _layer.get_node_or_null("BattleHud") as Control
+	for item in rows:
+		if not (item is Dictionary) or root == null or camera == null:
+			continue
+		var fight: Dictionary = item
+		if String(fight.get("state", "")) == "reward":
+			continue
+		for suit_row in fight.get("cogs", []):
+			if not (suit_row is Dictionary):
+				continue
+			var suit: Dictionary = suit_row
+			var cog_id := int(suit.get("id", 0))
+			var cog := _cog_node(cog_id)
+			if cog == null or not (cog is Node3D) or not (cog as Node3D).is_visible_in_tree():
+				continue
+			var hp := int(_shown.get("c:%d" % cog_id, suit.get("hp", 0)))
+			var maximum := maxi(int(suit.get("max_hp", hp)), 1)
+			if hp <= 0:
+				continue
+			var body := cog as Node3D
+			var lift := float(suit.get("height", 4.88)) * 0.8
+			var scale_y := body.global_transform.basis.get_scale().y
+			if scale_y > 0.05:
+				lift *= scale_y
+			var point := body.global_position + Vector3(0.0, lift, 0.0)
+			var card := _cog_card(root, cog_id)
+			if camera.is_position_behind(point):
+				card.visible = false
+				continue
+			var level := int(suit.get("level", 1))
+			var title := "Level %d" % level
+			if int(suit.get("revives", 0)) > 0:
+				title += " v2.0"
+			(card.get_node("Level") as Label).text = title
+			(card.get_node("Hp") as Label).text = "%d/%d" % [hp, maximum]
+			var ratio := clampf(float(hp) / float(maximum), 0.0, 1.0)
+			var fill := card.get_node("Fill") as ColorRect
+			fill.size = Vector2(140.0 * ratio, 16.0)
+			if ratio > 0.5:
+				fill.color = Color(0.2, 0.78, 0.22)
+			elif ratio > 0.25:
+				fill.color = Color(0.9, 0.78, 0.15)
+			else:
+				fill.color = Color(0.85, 0.16, 0.12)
+			card.visible = true
+			card.position = camera.unproject_position(point) - card.size * 0.5
+			seen[cog_id] = true
+	for cog_id in _cog_cards.keys():
+		if seen.has(cog_id):
+			continue
+		var leftover: Control = _cog_cards[cog_id]
+		if is_instance_valid(leftover):
+			leftover.visible = false
+
+
+func _cog_card(root: Control, cog_id: int) -> Control:
+	if _cog_cards.has(cog_id):
+		var existing: Control = _cog_cards[cog_id]
+		if is_instance_valid(existing) and existing.get_node_or_null("Hp") != null:
+			return existing
+		if is_instance_valid(existing):
+			existing.queue_free()
+	var card := Panel.new()
+	card.name = "CogHealth%d" % cog_id
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.size = Vector2(168, 90)
+	card.visible = false
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.78, 0.8, 0.84)
+	box.border_color = Color(0.25, 0.25, 0.28)
+	box.set_border_width_all(3)
+	box.set_corner_radius_all(8)
+	card.add_theme_stylebox_override("panel", box)
+	var level := Label.new()
+	level.name = "Level"
+	level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level.position = Vector2(8, 4)
+	level.size = Vector2(152, 24)
+	level.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(level, Color(0.1, 0.1, 0.12), 18, Color(1, 1, 1, 0.4), 1)
+	card.add_child(level)
+	var hp_label := Label.new()
+	hp_label.name = "Hp"
+	hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hp_label.position = Vector2(8, 28)
+	hp_label.size = Vector2(152, 22)
+	hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(hp_label, Color(0.1, 0.1, 0.12), 16, Color(1, 1, 1, 0.4), 1)
+	card.add_child(hp_label)
+	var track := ColorRect.new()
+	track.color = Color(0.15, 0.15, 0.16)
+	track.position = Vector2(14, 54)
+	track.size = Vector2(140, 16)
+	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(track)
+	var fill := ColorRect.new()
+	fill.name = "Fill"
+	fill.color = Color(0.2, 0.78, 0.22)
+	fill.position = Vector2(14, 54)
+	fill.size = Vector2(140, 16)
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(fill)
+	root.add_child(card)
+	_cog_cards[cog_id] = card
+	return card
 
 
 func _age_faceoff(fight: Dictionary, delta: float) -> void:

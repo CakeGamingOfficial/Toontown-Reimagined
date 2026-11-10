@@ -36,6 +36,14 @@ const _SOUND_SFX: PackedStringArray = [
 	"AA_sound_bikehorn.ogg", "AA_sound_whistle.ogg", "AA_sound_bugle.ogg", "AA_sound_aoogah.ogg",
 	"AA_sound_elephant.ogg", "SZ_DD_foghorn.ogg", "AA_sound_Opera_Singer.ogg",
 ]
+# MovieSound.appearSoundFiles. The bugle grows without a separate appear effect.
+const _SOUND_APPEAR: PackedStringArray = [
+	"MG_tag_1.ogg", "LB_receive_evidence.ogg", "", "TL_step_on_rake.ogg",
+	"toonbldg_grow.ogg", "mailbox_full_wobble.ogg", "mailbox_full_wobble.ogg",
+]
+# INSTRUMENT_SCALE_MODIFIER is 0.5, applied to each instrument's resting size.
+const _SOUND_SIZE: PackedFloat32Array = [0.325, 0.1, 0.2, 0.25, 0.15, 0.15, 1.1]
+const _HEAL_DELAY: PackedFloat32Array = [1.0, 2.0, 2.0, 0.2, 2.0, 0.7, 0.6]
 const _SQUIRT_HIT: PackedStringArray = [
 	"AA_squirt_flowersquirt.ogg", "AA_squirt_glasswater.ogg", "AA_squirt_neonwatergun.ogg", "AA_squirt_seltzer.ogg",
 	"firehose_spray.ogg", "AA_throw_stormcloud.ogg", "AA_squirt_Geyser.ogg",
@@ -217,6 +225,20 @@ static func _attack_react(title: String, body: String) -> Dictionary:
 		if body == "a":
 			return _react("conked", 5.1, "sidestep-left", 4.3)
 		return _react("conked", 4.4, "sidestep-left", 3.6)
+	if title == "Play Hardball!":
+		if body == "b":
+			return _react("conked", 3.46, "sidestep-left", 2.56)
+		return _react("conked", 2.76, "sidestep-left", 1.86)
+	if title == "Canned!":
+		if body == "c":
+			return _react("struggle", 3.93, "sidestep-left", 3.1)
+		return _react("struggle", 4.63, "sidestep-left", 3.6)
+	if title == "Half Windsor!":
+		return _react("conked", 3.4, "sidestep-left", 2.4)
+	if title == "Head Shrink!":
+		return _react("cringe", 2.1, "sidestep-left", 1.4)
+	if title == "Sacked!":
+		return _react("struggle", 3.88, "sidestep-left", 3.0)
 	var known := {
 		"Pound Key!": _react("cringe", 2.7, "sidestep-left", 1.9),
 		"Write Off!": _react("slip-forward", 3.4, "sidestep-left", 2.4),
@@ -253,6 +275,136 @@ static func _attack_react(title: String, body: String) -> Dictionary:
 	if known.has(title):
 		return known[title]
 	return _react("cringe", 2.4, "sidestep-left", 2.4)
+
+
+## MovieSuitAttacks throw release and flight time. The release includes the prop's appear.
+func _throw_flight(title: String, body: String, missed: bool) -> Vector2:
+	var heavy := body != "c"
+	match title:
+		"Clip On Tie!", "Power Tie!":
+			var delay := 2.17 if heavy else 1.45
+			return Vector2(1.0 + delay, 0.8 if missed else 0.4)
+		"Half Windsor!":
+			return Vector2(3.17, 0.8 if missed else 0.4)
+		"Pink Slip!", "Red Tape!", "Eviction Notice!", "Restraining Order!":
+			return Vector2(3.03, 0.5)
+		"Canned!":
+			return Vector2(3.13 if heavy else 2.43, 1.5)
+		"Sacked!":
+			return Vector2(2.98, 0.9)
+		"Market Crash!":
+			return Vector2(2.42, 1.5)
+		"Bite!", "Chomp!":
+			return Vector2(3.03, 0.4)
+		"Play Hardball!":
+			return Vector2(3.09 if body == "b" else 2.39, 0.5)
+		"Bounce Check!":
+			return Vector2(2.5 if body == "a" else 1.8, 0.5)
+		"Pecking Order!":
+			return Vector2(3.2, 1.1)
+		"Tee Off!":
+			return Vector2(4.35, 0.5)
+		_:
+			return Vector2(1.4, 0.75 if missed else 0.5)
+
+
+## One row is [delay, file]. Hit-only cues are left out of a miss.
+func _attack_cues(title: String, body: String, hit: bool) -> Array:
+	var tie := (2.17 if body != "c" else 1.45) + 1.0
+	var check := 2.5 if body == "a" else 1.8
+	match title:
+		"Pound Key!", "Hang Up!":
+			return [[1.3, "SA_hangup.ogg"]]
+		"Shred!":
+			return [[3.4, "SA_shred.ogg"]]
+		"Clip On Tie!":
+			return [[tie, "SA_powertie_throw.ogg"]]
+		"Power Tie!":
+			if hit:
+				return [[2.3, "SA_powertie_throw.ogg"], [2.9, "SA_powertie_impact.ogg"]]
+			return [[2.3, "SA_powertie_throw.ogg"]]
+		"Fountain Pen!":
+			return [[1.6, "SA_fountain_pen.ogg"]]
+		"Rub Out!":
+			return [[1.7, "SA_rubout.ogg"]]
+		"Finger Wag!":
+			return [[1.3, "SA_finger_wag.ogg"]]
+		"Write Off!":
+			return [[2.3, "SA_writeoff_pen_only.ogg"], [3.2, "SA_writeoff_ding_only.ogg"]]
+		"Rubber Stamp!":
+			return [[1.3, "SA_rubber_stamp.ogg"]]
+		"Razzle Dazzle!":
+			return [[1.6, "SA_razzle_dazzle.ogg"]]
+		"Synergy!":
+			if hit:
+				return [[0.9, "SA_synergy.ogg"], [2.2, "Toon_bodyfall_synergy.ogg"]]
+			return [[0.9, "SA_synergy.ogg"]]
+		"Tee Off!":
+			return [[4.1, "SA_tee_off.ogg"]]
+		"Brain Storm!":
+			return [[2.6, "SA_brainstorm.ogg"]]
+		"Buzz Word!":
+			return [[3.9, "SA_buzz_word.ogg"]]
+		"Demotion!":
+			return [[1.2, "SA_demotion.ogg"]]
+		"Canned!":
+			if hit:
+				return [[2.6, "SA_canned_tossup_only.ogg"], [3.93 if body == "c" else 4.63, "SA_canned_impact_only.ogg"]]
+			return [[2.6, "SA_canned_tossup_only.ogg"]]
+		"Pink Slip!":
+			return [[2.9, "SA_pink_slip.ogg"]]
+		"Glower Power!":
+			return [[1.1, "SA_glower_power.ogg"]]
+		"Head Shrink!":
+			if hit:
+				return [[2.1, "SA_head_shrink_only.ogg"], [5.8, "SA_head_grow_back_only.ogg"]]
+			return []
+		"Rolodex!":
+			return [[2.8, "SA_rolodex.ogg"]]
+		"Evil Eye!":
+			return [[1.3, "SA_evil_eye.ogg"]]
+		"Play Hardball!":
+			if hit:
+				return [[2.8, "SA_hardball_impact_only.ogg"]]
+			return [[3.1, "SA_hardball.ogg"]]
+		"Double Talk!":
+			return [[2.5, "SA_filibuster.ogg"]]
+		"Hot Air!":
+			return [[1.6, "SA_hot_air.ogg"]]
+		"Pick Pocket!":
+			if hit:
+				return [[0.2, "SA_pick_pocket.ogg"]]
+			return []
+		"Filibuster!":
+			return [[1.1, "SA_filibuster.ogg"]]
+		"Tremor!":
+			return [[0.9, "SA_tremor.ogg"]]
+		"Red Tape!":
+			return [[2.9, "SA_red_tape.ogg"]]
+		"Paradigm Shift!":
+			if hit:
+				return [[2.1, "SA_paradigm_shift.ogg"]]
+			return []
+		"Bounce Check!":
+			return [[check + 0.5, "SA_pink_slip.ogg"], [check + 1.5, "SA_pink_slip.ogg"]]
+		"Watercooler!":
+			return [[1.1, "SA_watercooler_appear_only.ogg"], [2.97, "SA_watercooler_spray_only.ogg"]]
+		"Fired!":
+			return [[1.0, "SA_hot_air.ogg"]]
+		"Audit!":
+			return [[1.9, "SA_audit.ogg"]]
+		"Liquidate!":
+			return [[2.0, "SA_liquidate.ogg"]]
+		"Withdrawal!":
+			return [[1.4, "SA_withdrawl.ogg"]]
+		"Jargon!":
+			return [[2.1, "SA_jargon.ogg"]]
+		"Mumbo Jumbo!":
+			return [[2.5, "SA_mumbo_jumbo.ogg"]]
+		"Guilt Trip!":
+			return [[1.1, "SA_guilt_trip.ogg"]]
+		_:
+			return []
 
 
 func has_aim() -> bool:
@@ -424,9 +576,16 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 					if card.visible:
 						_face_camera(card)
 		_react_marks(marks, elapsed, 3.0, "pie-small", 2.45)
-		_once("throw", elapsed, 2.6, "AA_pie_throw_only.ogg")
-		if hit:
-			_once("pie", elapsed, 3.0, _pie_hit(level))
+		if level == 6:
+			if hit:
+				_once("throw", elapsed, 1.0, "AA_throw_wedding_cake.ogg")
+				_once("pie", elapsed, 3.0, "AA_throw_wedding_cake_cog.ogg")
+			else:
+				_once("throw", elapsed, 2.45, "AA_throw_wedding_cake_miss.ogg")
+		else:
+			_once("throw", elapsed, 2.6, "AA_pie_throw_only.ogg")
+			if hit:
+				_once("pie", elapsed, 2.7, _pie_hit(level))
 		if elapsed >= 3.0 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -563,7 +722,7 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 			if aim != null:
 				prop.global_position = aim.global_position + Vector3(0.0, 0.2, 0.0)
 		_react_marks(marks, elapsed, 2.9, "soak" if level >= 6 else "squirt-small", 1.8)
-		_once("sky", elapsed, 2.3 if cloud else 1.0, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level])
+		_once("sky", elapsed, 2.3 if cloud else 1.8, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level])
 		if cloud:
 			_once("sky2", elapsed, 4.6, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level])
 		if elapsed >= 2.9 and _latch(gate, "hit"):
@@ -718,6 +877,8 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		_react_marks(marks, elapsed, 4.3, react, 4.3)
 		if elapsed >= 4.3 + fall and _latch(gate, "land"):
 			_sfx(_DROP_HIT[level] if hit else _DROP_MISS[level])
+			if hit and level == 6:
+				_sfx("AA_drop_boat_cog.ogg")
 		if elapsed >= 4.3 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -725,40 +886,75 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 
 
 func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	# MovieTrap.__trapTrain lays one railroad for the whole side, not one per cog.
+	var railroad := prop_name == "traintrack"
 	var props: Array[Node3D] = []
-	for _mark in marks:
+	var count := 1 if railroad else marks.size()
+	for _index in count:
 		var prop := _make(prop_name)
-		_hand(prop, actor, "def_joint_right_hold")
+		if railroad:
+			_hide_tunnels(prop)
+		else:
+			_hand(prop, actor, "def_joint_right_hold")
 		props.append(prop)
-	var clip := "toss" if level < 3 else "pushbutton"
+	var clip := "toss" if level < 3 or level == 5 else "pushbutton"
+	var button: Node3D = null
+	if level == 3 or level == 4 or level == 6:
+		button = _make("button")
+		_hand(button, actor, "def_joint_left_hold")
 	var gate := {}
 	await _run(seconds("gag", 1, level, false), still, func(elapsed: float) -> void:
 		actor.pose_action(clip, elapsed)
-		for index in props.size():
-			var prop := props[index]
-			var mark: Dictionary = marks[index]
-			var cog := _node3d(mark.get("cog"))
-			if cog == null:
-				continue
-			_throw_trap(prop, actor, cog, level, elapsed)
-			if prop_name == "banana" or prop_name == "rake" or prop_name == "marbles" or prop_name == "tnt":
-				_pose_prop(prop, prop_name, elapsed)
-		_once("trap", elapsed, 0.2, _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg")
+		if railroad:
+			var lead := _first_cog(marks)
+			if lead != null and not props.is_empty():
+				_throw_trap(props[0], actor, lead, level, elapsed)
+		else:
+			for index in props.size():
+				var prop := props[index]
+				var mark: Dictionary = marks[index]
+				var cog := _node3d(mark.get("cog"))
+				if cog == null:
+					continue
+				_throw_trap(prop, actor, cog, level, elapsed)
+				if prop_name == "banana" or prop_name == "rake" or prop_name == "marbles" or prop_name == "tnt":
+					_pose_prop(prop, prop_name, elapsed)
+		if button != null:
+			button.scale = Vector3.ONE
+		var sound_at := 0.2
+		if level == 0:
+			sound_at = 0.25
+		elif level == 5:
+			sound_at = 1.0
+		elif level >= 3:
+			sound_at = 2.3
+			_once("trapbox", elapsed, 2.3, "AA_drop_trigger_box.ogg")
+		_once("trap", elapsed, sound_at, _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg")
 		if elapsed >= 3.5 and _latch(gate, "hit"):
 			contact.call()
 	)
-	for index in props.size():
-		var mark: Dictionary = marks[index]
-		var cog := _node3d(mark.get("cog"))
-		if cog != null:
-			var planted := props[index]
-			if level == 1:
-				# The rake left on the cog is rake-step-mod, not the thrown rake.
-				var react := _make("rake-react")
-				react.global_transform = planted.global_transform
-				planted.visible = false
-				planted = react
-			_plant(cog, planted, int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
+	if railroad and not props.is_empty():
+		var planted := props[0]
+		for mark in marks:
+			var row: Dictionary = mark
+			var cog := _node3d(row.get("cog"))
+			if cog != null:
+				_plant(cog, planted, int(row.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
+	else:
+		for index in props.size():
+			var mark: Dictionary = marks[index]
+			var cog := _node3d(mark.get("cog"))
+			if cog != null:
+				var planted := props[index]
+				if level == 1:
+					# The rake left on the cog is rake-step-mod, not the thrown rake.
+					var react := _make("rake-react")
+					react.global_transform = planted.global_transform
+					planted.visible = false
+					planted = react
+				_plant(cog, planted, int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
+	if button != null:
+		button.visible = false
 	actor.end_action(clip)
 
 
@@ -770,14 +966,19 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		clip = "hypnotize"
 	elif level == 6:
 		clip = "pushbutton"
+	var screen_button: Node3D = null
 	var prop := _make(prop_name)
+	if level == 6:
+		screen_button = _make("button")
+		_hand(screen_button, actor, "def_joint_left_hold")
+		prop.visible = false
 	if level == 1:
 		_seat(prop, actor, "def_joint_left_hold", Vector3(-0.27, 0.19, 0.29), Vector3(-90.0, 84.17, -180.0), Vector3(0.85, 0.85, 0.85))
 	elif level == 3:
 		_seat(prop, actor, "def_joint_left_hold", Vector3(-0.27, 0.08, 0.29), Vector3(-90.0, 84.17, -180.0), Vector3(1.32, 1.32, 1.32))
 	elif level == 5:
 		_seat(prop, actor, "def_joint_left_hold", Vector3(-1.03, 1.04, -0.3), Vector3(-96.55, 36.14, -170.59), Vector3(1.5, 1.5, 1.5))
-	else:
+	elif level != 6:
 		_hand(prop, actor, "def_joint_right_hold")
 	var bill: Node3D = null
 	var bill_name := _LURE_DOLLAR[level] if level < _LURE_DOLLAR.size() else ""
@@ -807,10 +1008,38 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		if level == 1 or level == 3 or level == 5:
 			var held: Vector3 = prop.get_meta("grow")
 			prop.scale = held
+		elif level == 6:
+			# The screen stays down through the button, then grows in 4 ahead of the toon.
+			if elapsed < 2.5:
+				prop.visible = false
+			else:
+				prop.visible = true
+				if prop.get_parent() != self:
+					prop.reparent(self)
+				prop.global_position = actor.global_transform * Vector3(0.0, 4.0, 0.0)
+				prop.global_basis = actor.global_transform.basis
+				if elapsed >= 6.7:
+					prop.scale = Vector3(1.0, 1.0, lerpf(1.0, 0.1, clampf((elapsed - 6.7) / 0.4, 0.0, 1.0)))
+				else:
+					prop.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
 		else:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.6, 0.0, 1.0))
 		_react_marks(marks, elapsed, lure_at, "hypnotized", lure_at)
-		_once("lure", elapsed, 0.7, "AA_pie_throw_only.ogg")
+		var lure_sound := "TL_fishing_pole.ogg"
+		var lure_delay := 0.5
+		if level == 1:
+			lure_sound = "TL_small_magnet.ogg"
+			lure_delay = 0.7
+		elif level == 3:
+			lure_sound = "TL_large_magnet.ogg"
+			lure_delay = 0.7
+		elif level == 5:
+			lure_sound = "TL_hypnotize.ogg"
+		elif level == 6:
+			lure_sound = "TL_presentation.ogg"
+			lure_delay = 2.3
+			_once("lurebox", elapsed, 2.5, "AA_drop_trigger_box.ogg")
+		_once("lure", elapsed, lure_delay, lure_sound)
 		if elapsed >= lure_at and _latch(gate, "hit"):
 			for mark in marks:
 				var row: Dictionary = mark
@@ -821,6 +1050,8 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 			contact.call()
 		_pose_sprung(elapsed)
 	)
+	if screen_button != null:
+		screen_button.visible = false
 	actor.end_action(clip)
 
 
@@ -837,15 +1068,23 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 		actor.pose_action("sound", elapsed)
 		# Megaphone shows, the instrument grows after 1s, and the note hits at 2.45.
 		horn.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.2, 0.0, 1.0))
+		var grown := 0.325
+		if level >= 0 and level < _SOUND_SIZE.size():
+			grown = _SOUND_SIZE[level]
+		var grow_for := 0.2
+		if level == 2:
+			grow_for = 1.0
+		elif level >= 6:
+			grow_for = 2.1
 		var size := 0.01
 		if elapsed >= 1.0:
-			size = lerpf(0.01, 0.65, clampf((elapsed - 1.0) / 0.2, 0.0, 1.0))
+			size = lerpf(0.01, grown, clampf((elapsed - 1.0) / grow_for, 0.0, 1.0))
 		if elapsed >= 2.45 and elapsed < 2.65:
-			size = lerpf(0.65, 1.1, (elapsed - 2.45) / 0.2)
+			size = lerpf(grown, grown * 1.7, (elapsed - 2.45) / 0.2)
 		elif elapsed >= 2.65 and elapsed < 2.85:
-			size = lerpf(1.1, 0.65, (elapsed - 2.65) / 0.2)
+			size = lerpf(grown * 1.7, grown, (elapsed - 2.65) / 0.2)
 		elif elapsed >= 4.2:
-			size = lerpf(0.65, 0.01, clampf((elapsed - 4.2) / 0.1, 0.0, 1.0))
+			size = lerpf(grown, 0.01, clampf((elapsed - 4.2) / 0.1, 0.0, 1.0))
 		prop.scale = Vector3(size, size * (1.4 if elapsed >= 2.45 and elapsed < 2.65 else 1.0), size)
 		if level >= 6 and elapsed >= 2.2:
 			# The singer leaves the hand and stands in front of the toon.
@@ -861,7 +1100,19 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 			if ahead.length_squared() > 0.01:
 				prop.global_position = stage + ahead.normalized() * 1.6 * walked
 		_react_marks(marks, elapsed, react_at, "squirt-small")
-		_once("sound", elapsed, 2.45, _SOUND_SFX[level] if level < _SOUND_SFX.size() else "AA_sound_bikehorn.ogg")
+		var note_at := 2.45
+		var appear_at := 1.15
+		if level == 1 or level == 3 or level == 4 or level == 5:
+			appear_at = 1.05
+		elif level == 2:
+			appear_at = -1.0
+			note_at = 1.7
+		elif level >= 6:
+			appear_at = 1.0
+			note_at = 2.15
+		if appear_at >= 0.0 and level < _SOUND_APPEAR.size() and _SOUND_APPEAR[level] != "":
+			_once("appear", elapsed, appear_at, _SOUND_APPEAR[level])
+		_once("sound", elapsed, note_at, _SOUND_SFX[level] if level < _SOUND_SFX.size() else "AA_sound_bikehorn.ogg")
 		if level >= 6 and _any_hit(marks):
 			_once("glass", elapsed, react_at, "AA_sound_Opera_Singer_Cog_Glass.ogg")
 		if elapsed >= react_at and _latch(gate, "hit"):
@@ -954,7 +1205,7 @@ func _heal(actor: ToonActor, prop_name: String, level: int, beats: Array, actor_
 					else:
 						lips.global_position = patient.global_position + Vector3(0.0, 3.5, 0.35)
 					lips.scale = Vector3.ONE
-		_once("heal", elapsed, 0.4, _HEAL_SFX[level] if level < _HEAL_SFX.size() else "AA_heal_tickle.ogg")
+		_once("heal", elapsed, _HEAL_DELAY[level] if level < _HEAL_DELAY.size() else 0.4, _HEAL_SFX[level] if level < _HEAL_SFX.size() else "AA_heal_tickle.ogg")
 		if elapsed >= 1.4 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -969,10 +1220,13 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 	var cog := _first_cog(marks)
 	var key := String(lead.get("anim", "glower"))
 	var title := String(lead.get("attack", ""))
-	var thrown_name := String(_ATTACK_THROWN.get(title, ""))
+	var thrown_name := ""
 	var body := "c"
+	var code := ""
 	if cog != null and "body" in cog:
 		body = String(cog.body)
+	if cog != null and "cog_code" in cog:
+		code = String(cog.cog_code)
 	var reaction := _attack_react(title, body)
 	var hit_anim := String(reaction["hit"])
 	var dodge_anim := String(reaction["dodge"])
@@ -981,7 +1235,7 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 	var length := _cog_length(title, body)
 	var props: Array[Node3D] = []
 	if cog != null:
-		for item in _attack_rows(title, body):
+		for item in _attack_rows(title, body, code):
 			var row: Dictionary = item
 			var shown := _make(String(row["prop"]))
 			_seat(shown, cog, String(row["joint"]), row["pos"], row["hpr"], row["grow"])
@@ -1008,22 +1262,27 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 						turn = Vector3(-99.49, -35.27, 1.84)
 					_seat(shown, cog, "joint_Rhold", ear, turn, Vector3.ONE)
 					shown.set_meta("ear", true)
+		var missed := true
+		for item in victims:
+			if item is Dictionary and bool((item as Dictionary).get("hit", false)):
+				missed = false
+		var flight := _throw_flight(title, body, missed)
 		for shown in props:
-			var flying := thrown_name != "" and shown.name == thrown_name and elapsed >= 1.4
+			if title == "Pick Pocket!":
+				shown.visible = not missed and elapsed >= 0.6 and elapsed < 1.65
+			elif title == "Tee Off!" and shown.name == "golf-ball":
+				shown.visible = elapsed >= 1.7
+			var flying := thrown_name != "" and shown.name == thrown_name and elapsed >= flight.x
 			if not flying:
 				var grow := Vector3.ONE
 				if shown.has_meta("grow"):
 					grow = shown.get_meta("grow")
 				var amount := 1.0 if elapsed >= 0.4 else lerpf(0.01, 1.0, elapsed / 0.4)
 				shown.scale = grow * amount
-			elif thrown_name != "" and shown.name == thrown_name and elapsed >= 1.4:
+			if flying:
 				var victim := _first_victim(victims, actor_of)
-				var missed := true
-				for item in victims:
-					if item is Dictionary and bool((item as Dictionary).get("hit", false)):
-						missed = false
 				if victim != null:
-					_arc(shown, victim.global_position + Vector3(0.0, 2.4, 0.0), elapsed, 1.4, 0.5 if not missed else 0.75, missed)
+					_arc(shown, victim.global_position + Vector3(0.0, 2.4, 0.0), elapsed, flight.x, flight.y, missed)
 		for item in victims:
 			if not (item is Dictionary):
 				continue
@@ -1039,18 +1298,12 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 				continue
 			var clip := hit_anim if landed else dodge_anim
 			actor.pose_action(clip, elapsed - react_at)
-		if key == "phone":
-			_once("phone", elapsed, 1.2, "SA_hangup.mp3")
-		elif key == "throw-paper" or key == "throw-object":
-			_once("tie", elapsed, 1.4, "SA_powertie_throw.mp3")
-		elif key == "shredder":
-			_once("shred", elapsed, 1.4, "SA_shred.mp3")
-		var missed := true
-		for item in victims:
-			if item is Dictionary and bool((item as Dictionary).get("hit", false)):
-				missed = false
-		if missed:
-			_once("step", elapsed, dodge_t, "AV_side_step.mp3")
+		var cues := _attack_cues(title, body, not missed)
+		for index in cues.size():
+			var cue: Array = cues[index]
+			_once("atk%d" % index, elapsed, float(cue[0]), String(cue[1]))
+		if missed and dodge_anim.begins_with("sidestep"):
+			_once("step", elapsed, dodge_t + 0.5, "AV_side_step.ogg")
 		var strike := hit_t if not missed else dodge_t
 		if elapsed >= strike and _latch(gate, "hit"):
 			contact.call()
@@ -1072,8 +1325,14 @@ func _plant(cog: Node3D, prop: Node3D, cog_id: int, sound_name: String, level: i
 	if _traps.has(cog_id):
 		var previous: Dictionary = _traps[cog_id]
 		var old: Node = previous.get("node")
-		if old != null and is_instance_valid(old):
+		if old != null and old != prop and is_instance_valid(old):
 			old.queue_free()
+	if level == 6:
+		_seat_track(prop, cog)
+		prop.scale = Vector3.ONE
+		_spawned.erase(prop)
+		_traps[cog_id] = {"node": prop, "sound": sound_name, "level": level, "cog": cog}
+		return
 	var reach := _TRAP_REACH[clampi(level, 0, _TRAP_REACH.size() - 1)]
 	var spot := cog.global_position + _forward(cog) * reach
 	spot.y = cog.global_position.y
@@ -1104,17 +1363,46 @@ func _spring(cog_id: int, elapsed: float) -> bool:
 	var level := int(record.get("level", 0))
 	if level == 5:
 		_sfx("TL_dynamite.ogg")
+		record["later"] = "ENC_cogfall_apart.ogg"
+		record["later_at"] = 2.0
 	elif level == 6:
-		_sfx("TL_train_track_appear.ogg")
+		_sfx("TL_train.ogg")
+		record["later"] = "TL_train_cog.ogg"
+		record["later_at"] = 0.4
 		var cog := _node3d(record.get("cog"))
 		var node := _node3d(record.get("node"))
-		if cog != null and node != null:
+		if node != null and not node.has_meta("rail_train"):
+			# MovieLure drives one train along the rails, from x=-7.131 through 45 feet.
+			_show_tunnels(node)
 			var train := _make("train")
-			var across := _forward(cog)
-			record["train"] = train
-			record["from"] = node.global_position - across * 14.0
-			record["to"] = node.global_position + across * 14.0
-			train.global_position = record["from"]
+			var along := node.global_basis.x
+			if along.length_squared() < 0.01:
+				along = _forward(cog) if cog != null else Vector3.RIGHT
+			along = along.normalized()
+			node.set_meta("rail_train", train)
+			node.set_meta("rail_from", node.global_position + along * -7.131)
+			node.set_meta("rail_to", node.global_position + along * (-7.131 + 45.0))
+			train.global_position = node.get_meta("rail_from")
+			train.global_basis = _train_basis(node)
+		if node != null:
+			record["train"] = node.get_meta("rail_train")
+			record["from"] = node.get_meta("rail_from")
+			record["to"] = node.get_meta("rail_to")
+	elif level == 1:
+		record["later"] = "TL_step_on_rake.ogg"
+		record["later_at"] = 0.6
+	elif level == 0 or level == 2:
+		_sfx("AA_pie_throw_only.ogg")
+		record["later"] = "Toon_bodyfall_synergy.ogg"
+		record["later_at"] = 0.55
+	elif level == 3:
+		_sfx("TL_quicksand.ogg")
+		record["later"] = "Toon_bodyfall_synergy.ogg"
+		record["later_at"] = 0.8
+	elif level == 4:
+		_sfx("TL_trap_door.ogg")
+		record["later"] = "Toon_bodyfall_synergy.ogg"
+		record["later_at"] = 1.6
 	else:
 		_sfx(String(record.get("sound", "TL_step_on_rake.ogg")))
 	return true
@@ -1128,6 +1416,10 @@ func _pose_sprung(elapsed: float) -> void:
 			continue
 		var age := elapsed - float(record.get("born", elapsed))
 		var level := int(record.get("level", 0))
+		var later := String(record.get("later", ""))
+		if later != "" and age >= float(record.get("later_at", 0.0)) and not bool(record.get("later_played", false)):
+			record["later_played"] = true
+			_sfx(later)
 		if level == 0:
 			_pose_prop(node, "banana", 3.1 + age)
 		elif level == 2:
@@ -1155,6 +1447,7 @@ func _pose_sprung(elapsed: float) -> void:
 				var start: Vector3 = record.get("from", train.global_position)
 				var finish: Vector3 = record.get("to", train.global_position)
 				train.global_position = start.lerp(finish, rolled)
+				train.global_basis = _train_basis(node)
 		elif level <= 2 and age > 1.1:
 			node.scale = Vector3.ONE * maxf(1.0 - clampf((age - 1.1) / 1.0, 0.0, 1.0), 0.01)
 		elif age > 2.4:
@@ -1226,7 +1519,69 @@ func _rest(actor: ToonActor, marks: Array) -> void:
 		actor.set_locomotion(0.0, false, false, 0.0)
 
 
+## MovieTrap trapPoint (0, 5 - SUIT_TRAP_DISTANCE, 0.025) and heading 0.
+## The exported track is still Panda: X runs along the rails, Z is up.
+func _seat_track(prop: Node3D, cog: Node3D) -> void:
+	var axes := _rail_axes(cog)
+	var origin: Vector3 = axes["origin"]
+	var forward: Vector3 = axes["forward"]
+	var right: Vector3 = axes["right"]
+	prop.reparent(self)
+	prop.global_position = origin + forward * (5.0 - 2.6) + Vector3.UP * 0.025
+	# Local Y is the track's width. Negating forward keeps the basis right-handed
+	# so the rails face up instead of being culled.
+	prop.global_basis = Basis(right, -forward, Vector3.UP)
+
+
+func _rail_axes(cog: Node3D) -> Dictionary:
+	var host := get_parent()
+	if host != null and host.has_method("_battle_basis"):
+		var fight: Variant = host.get("_fight")
+		if fight is Dictionary and not (fight as Dictionary).is_empty():
+			return host.call("_battle_basis", fight)
+	var ahead := -_forward(cog)
+	var right := Vector3.UP.cross(ahead)
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
+	var origin := cog.global_position - ahead * 5.0
+	origin.y = cog.global_position.y
+	return {"origin": origin, "forward": ahead, "right": right}
+
+
+func _train_basis(track: Node3D) -> Basis:
+	# MovieLure setH(90). The grill is the nose at -Y, so it points along +X.
+	return track.global_basis * Basis(Vector3(0, 1, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1))
+
+
+func _hide_tunnels(node: Node) -> void:
+	_tunnel(node, false)
+
+
+func _show_tunnels(node: Node) -> void:
+	_tunnel(node, true)
+
+
+func _tunnel(node: Node, shown: bool) -> void:
+	var node_name := String(node.name)
+	if node_name == "tunnel2" or node_name == "tunnel3":
+		if node is Node3D:
+			(node as Node3D).visible = shown
+	for child in node.get_children():
+		_tunnel(child, shown)
+
+
 func _throw_trap(prop: Node3D, actor: ToonActor, cog: Node3D, level: int, elapsed: float) -> void:
+	if level == 6:
+		# The track stays hidden through the button press, then grows in at the battle point.
+		if elapsed < 2.5:
+			prop.visible = false
+			return
+		prop.visible = true
+		_seat_track(prop, cog)
+		prop.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
+		return
 	var reach := _TRAP_REACH[clampi(level, 0, _TRAP_REACH.size() - 1)]
 	var spot := cog.global_position + _forward(cog) * reach
 	spot.y = cog.global_position.y + (0.4 if level == 5 else 0.05)
@@ -1875,7 +2230,7 @@ func _instrument_seat(level: int) -> Dictionary:
 			return {"pos": Vector3(-1.04, -1.17, 0.26), "hpr": Vector3(145.0, 0.0, 90.0)}
 
 
-func _attack_rows(title: String, body: String) -> Array:
+func _attack_rows(title: String, body: String, code: String) -> Array:
 	var right := "joint_Rhold"
 	var left := "joint_Lhold"
 	var one := Vector3.ONE
@@ -1915,9 +2270,16 @@ func _attack_rows(title: String, body: String) -> Array:
 		"Razzle Dazzle!":
 			return [_prop_row("smile", right, Vector3(0.0, -0.42, -0.04), Vector3(105.715, 73.977, 65.932), Vector3(1.39, 1.39, 1.39), false)]
 		"Tee Off!":
+			var ball_x := 2.1
+			if code == "tbc":
+				ball_x = 4.1
+			elif code == "m":
+				ball_x = 3.2
+			elif code == "rb":
+				ball_x = 4.2
 			return [
 				_prop_row("golf-club", left, Vector3.ZERO, Vector3(63.097, 43.988, -18.435), Vector3(1.1, 1.1, 1.1), false),
-				_prop_row("golf-ball", "Suit", Vector3(2.1, 0.0, 0.1), Vector3.ZERO, Vector3(1.5, 1.5, 1.5), true),
+				_prop_row("golf-ball", "Suit", Vector3(ball_x, 0.0, 0.1), Vector3.ZERO, Vector3(1.5, 1.5, 1.5), true),
 			]
 		"Rolodex!":
 			if body == "b":
@@ -1933,7 +2295,7 @@ func _attack_rows(title: String, body: String) -> Array:
 				_prop_row("dagger", "Suit", Vector3(-0.4, 3.8, 3.7), Vector3.ZERO, Vector3(0.4, 0.4, 0.4), false),
 			]
 		"Audit!", "Calculate!", "Tabulate!", "Crunch!":
-			return [_prop_row("calculator", left, Vector3(0.35, 0.52, 0.03), Vector3(1.352, -6.518, -6.045), Vector3(1.0, 1.37, 1.31), title == "Crunch!")]
+			return [_prop_row("calculator", left, Vector3(0.35, 0.52, 0.03), Vector3(1.352, -6.518, -6.045), Vector3(1.0, 1.37, 1.31), false)]
 		"Clip On Tie!":
 			return [_prop_row("clip-on-tie", right, Vector3(0.66, 0.51, 0.28), Vector3(-69.652, -17.199, 67.96), one, true)]
 		"Canned!":
@@ -1949,9 +2311,10 @@ func _attack_rows(title: String, body: String) -> Array:
 		"Power Tie!":
 			return [_prop_row("power-tie", right, Vector3(1.16, 0.24, 0.63), Vector3(171.561, 1.745, -163.443), Vector3(3.5, 3.5, 3.5), true)]
 		"Pick Pocket!":
-			return [_prop_row("1dollar", right, Vector3(-0.01, 0.45, -0.25), Vector3(136.424, -46.434, -129.712), Vector3(1.41, 1.41, 1.41), true)]
+			return [_prop_row("1dollar", right, Vector3(-0.01, 0.45, -0.25), Vector3(136.424, -46.434, -129.712), Vector3(1.41, 1.41, 1.41), false)]
 		"Red Tape!":
-			return [_prop_row("redtape", right, Vector3(0.24, 0.09, -0.38), Vector3(-1.152, 86.581, -76.784), Vector3(0.9, 0.9, 0.24), true)]
+			var tape_x := -0.24 if code == "tf" or code == "nc" else 0.24
+			return [_prop_row("redtape", right, Vector3(tape_x, 0.09, -0.38), Vector3(-1.152, 86.581, -76.784), Vector3(0.9, 0.9, 0.24), true)]
 		"Bounce Check!":
 			return [_prop_row("bounced-check", right, Vector3.ZERO, Vector3(95.247, 79.025, 88.849), Vector3(8.5, 8.5, 8.5), true)]
 		"Market Crash!":
@@ -2195,7 +2558,14 @@ func _latch(gate: Dictionary, id: String) -> bool:
 
 
 func _sfx(file_name: String) -> void:
-	var stream := load(_SFX + file_name) as AudioStream
+	var path := _SFX + file_name
+	var stream: AudioStream = null
+	if ResourceLoader.exists(path):
+		stream = load(path) as AudioStream
+	if stream == null:
+		var file := FileAccess.open(path, FileAccess.READ)
+		if file != null:
+			stream = AudioStreamOggVorbis.load_from_buffer(file.get_buffer(file.get_length()))
 	if stream == null:
 		return
 	var player := ToonAudio.effect_player()

@@ -801,6 +801,11 @@ func _crowded(index: int, pos: Vector3, goal: Vector3, cogs: Array) -> bool:
 		var other: Dictionary = cogs[other_index]
 		if int(other.get("phase", 1)) != 1:
 			continue
+		# The battle holds this suit off the path. Its frozen sidewalk spot
+		# must not stack the cogs behind it until the fight is over.
+		var fights := get_node_or_null("StreetFights")
+		if fights != null and fights.has_method("cog_paused") and bool(fights.call("cog_paused", int(other.get("do_id", 0)))):
+			continue
 		var place := _vec_at(other, "position", pos)
 		var flat := Vector2(place.x - pos.x, place.z - pos.z)
 		var dist := flat.length()

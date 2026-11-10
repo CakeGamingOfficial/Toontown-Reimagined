@@ -64,9 +64,10 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	var toon := _toon()
-	if toon == null:
+	var body := _feet()
+	if toon == null or body == null:
 		return
-	var here: Vector3 = toon.global_position
+	var here := body.global_position
 	_poll_buttons(here)
 	_poll_lasers(toon, here, delta)
 	_poll_doors(here, delta)
@@ -1009,6 +1010,16 @@ func _toon() -> Node:
 	if host == null:
 		return null
 	return host.get_node_or_null("PlaygroundToon")
+
+
+func _feet() -> Node3D:
+	var host := get_parent()
+	if host == null:
+		return null
+	var body := host.get_node_or_null("Player")
+	if body is Node3D:
+		return body as Node3D
+	return null
 
 
 func _toon_script() -> Node:

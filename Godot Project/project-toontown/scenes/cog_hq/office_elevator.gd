@@ -172,21 +172,40 @@ func _floor_cars(host: Node) -> void:
 
 
 func _sign(geom: Node, index: int) -> void:
-	var origin := _find(geom, "elevator_signorigin_%d" % index)
-	if origin == null:
-		origin = _find(geom, "ElevatorFrameFront_%d" % index)
+	var origin := _find(geom, "elevator_signorigin_%d" % index) as Node3D
 	if origin == null:
 		return
+	# DistributedLawOfficeElevatorExt paints the suit-font name on the frame,
+	# at elevator_signorigin. That locator is still Panda: Z is up.
 	var label := Label3D.new()
 	label.text = _NAMES[index]
-	label.font = ToonGui.sign_font()
-	label.font_size = 48
-	label.pixel_size = 0.04
+	label.font = ToonGui.suit_font()
+	label.font_size = 100
+	label.pixel_size = 0.02
 	label.modulate = Color(0.87, 0.87, 0.87, 1.0)
 	label.outline_size = 0
-	label.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	label.position = Vector3(0.0, 0.2, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.width = 0.0
+	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# The name is a decal on the elevator plate. Depth write is off in the
+	# original, because the plate is the same surface and would hide the letters.
+	label.no_depth_test = true
 	origin.add_child(label)
+	# The locator's Y points through the plate into the car. The lobby is the
+	# other side, and that is the face the letters have to show.
+	var toward := -origin.global_basis.y
+	var up := origin.global_basis.z
+	if toward.length_squared() < 0.0001 or up.length_squared() < 0.0001:
+		return
+	toward = toward.normalized()
+	up = up.normalized()
+	var right := up.cross(toward).normalized()
+	up = toward.cross(right)
+	label.global_basis = Basis(right, up, toward)
+	label.global_position = origin.global_position + toward * 0.35
 
 
 func _offer() -> void:

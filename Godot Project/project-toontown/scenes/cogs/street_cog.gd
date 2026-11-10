@@ -1140,8 +1140,12 @@ func lane_slot() -> int:
 
 
 func on_lane() -> bool:
+	# A suit in a battle has left the sidewalk. Counting it as still walking
+	# makes every cog behind it idle until the fight ends.
+	if bool(get_meta("in_fight", false)):
+		return false
 	if bool(get_meta("factory", false)):
-		return not bool(get_meta("in_fight", false))
+		return true
 	return _phase == 1
 
 
