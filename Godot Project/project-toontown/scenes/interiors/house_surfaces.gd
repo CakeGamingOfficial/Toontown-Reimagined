@@ -76,8 +76,7 @@ static func _material(mesh: MeshInstance3D, row: Dictionary, kind: String) -> St
 	var mat := StandardMaterial3D.new()
 	if current is StandardMaterial3D:
 		mat = (current as StandardMaterial3D).duplicate() as StandardMaterial3D
-	else:
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var color := _color(row.get("color", []))
 	var path := String(row.get("texture", ""))
 	if kind == "border":

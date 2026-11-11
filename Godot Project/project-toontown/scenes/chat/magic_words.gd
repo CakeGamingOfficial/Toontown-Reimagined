@@ -19,7 +19,7 @@ const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
 ## A shorter left press is a click. A longer one is a hold.
 const _FLY_CLICK := 0.25
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
 ~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
@@ -40,6 +40,9 @@ const _WORDS: Dictionary = {
 	"getpos": "getpos",
 	"pos": "getpos",
 	"setpos": "setpos",
+	"showpaths": "showpaths",
+	"suitpaths": "showpaths",
+	"paths": "showpaths",
 	"immortal": "immortal",
 	"invincible": "immortal",
 	"invulnerable": "immortal",
@@ -318,6 +321,8 @@ static func invoke(scene: Node, text: String) -> String:
 			return _get_pos(scene)
 		"setpos":
 			return _set_pos(scene, args)
+		"showpaths":
+			return _show_paths(scene)
 		"immortal":
 			_immortal = not _immortal
 			return "Immortal mode is on." if _immortal else "Immortal mode is off."
@@ -569,6 +574,13 @@ static func _set_pos(scene: Node, args: PackedStringArray) -> String:
 	body.global_position = Vector3(float(args[0]), float(args[1]), float(args[2]))
 	_hover_y = body.global_position.y
 	return "Moved to %.2f %.2f %.2f." % [body.global_position.x, body.global_position.y, body.global_position.z]
+
+
+static func _show_paths(scene: Node) -> String:
+	var suits := scene.get_node_or_null("StreetSuits")
+	if suits == null or not suits.has_method("toggle_paths"):
+		return "Cog paths can only be shown on a street."
+	return String(suits.call("toggle_paths"))
 
 
 static func _set_collisions(scene: Node, args: PackedStringArray) -> String:

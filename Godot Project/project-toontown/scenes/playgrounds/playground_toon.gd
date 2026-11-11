@@ -35,6 +35,7 @@ const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _MAILBOX := preload("res://scenes/estate/mailbox.gd")
 const _SURFACES := preload("res://scenes/interiors/house_surfaces.gd")
+const _FLAT := preload("res://assets/neighborhoods/toontown_central/ttc_import.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
 const _QUEST_DIALOG := preload("res://scenes/quests/quest_dialog.gd")
@@ -329,6 +330,17 @@ func squish(damage: int) -> void:
 		ToonSpeech.speak(_player, "!")
 
 
+func _paint_interior() -> void:
+	# The room was drawn for Panda's unlit path. Leave the shop light for the
+	# toon, and draw the walls the same way the streets are drawn.
+	if not _PLACES.is_building_interior(_scene_path()):
+		return
+	var room := get_parent().get_node_or_null("Geometry")
+	if room == null:
+		return
+	_FLAT.paint(room)
+
+
 func _ready() -> void:
 	_tasks = ToonTasks.for_selected()
 	ToonTasks.bind(_tasks)
@@ -406,6 +418,7 @@ func _ready() -> void:
 		_SURFACES.apply(get_parent())
 	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
+	_paint_interior()
 	var window := get_tree().root
 	if _BLDG.street_zone(_scene_path()) != 0:
 		_BLDG.prepare(get_parent())

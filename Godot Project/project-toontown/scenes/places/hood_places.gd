@@ -136,6 +136,10 @@ static func is_shop(path: String) -> bool:
 	return path.ends_with("shop_interior.tscn")
 
 
+static func is_building_interior(path: String) -> bool:
+	return is_gag_shop(path) or is_pet_shop(path) or is_kart_shop(path) or is_toon_hall(path) or is_library(path) or is_bank(path) or is_toon_hq(path) or is_shop(path) or is_house(path)
+
+
 static func hood_for_scene(path: String) -> int:
 	if is_gag_shop(path):
 		return int(_SHOP.hood)

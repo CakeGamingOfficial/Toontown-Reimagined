@@ -97,6 +97,7 @@ var _doors: Dictionary = {}
 var _timing: Dictionary = {}
 var _propeller: Dictionary = {}
 var _living := 0
+var _path_viz: Node3D
 ## False when this node only fills the district AI record and draws nothing.
 var visuals := true
 var district_id := -1
@@ -501,6 +502,152 @@ func _build_layout() -> void:
 		shape.shape = box
 		area.add_child(shape)
 		cells.add_child(area)
+
+
+## DistributedSuitPlanner.showPaths. Street points are green, side doors are
+## blue, and each battle cell is a white ring. Typing the word again removes it.
+func toggle_paths() -> String:
+	if _path_viz != null and is_instance_valid(_path_viz):
+		_path_viz.queue_free()
+		_path_viz = null
+		return "Cog paths are off."
+	if _points.is_empty():
+		return "This street has no cog path."
+	var viz := Node3D.new()
+	viz.name = "PathViz"
+	add_child(viz)
+	_path_viz = viz
+	var green := _path_material(Color(0.15, 1.0, 0.2, 1.0))
+	var blue := _path_material(Color(0.2, 0.45, 1.0, 1.0))
+	var white := _path_material(Color(1.0, 1.0, 1.0, 1.0))
+	var walked := {}
+	for route in _routes:
+		for index in route.size():
+			var a := int(route[index])
+			var b := int(route[(index + 1) % route.size()])
+			var key := "%d>%d" % [a, b]
+			if walked.has(key):
+				continue
+			walked[key] = true
+			_path_span(viz, _points[a], _points[b], green)
+			_path_arrow(viz, _points[a], _points[b], green)
+	for a in _links.size():
+		for b in _links[a]:
+			if a >= int(b):
+				continue
+			if walked.has("%d>%d" % [a, b]) or walked.has("%d>%d" % [b, a]):
+				continue
+			_path_span(viz, _points[a], _points[int(b)], green)
+	for index in _points.size():
+		_path_mark(viz, _points[index], green)
+		_path_label(viz, _points[index], "%d\n%.1f, %.1f" % [index, _points[index].x, _points[index].z], Color(0.15, 1.0, 0.2))
+	for block in _doors.keys():
+		var doors: Array = _doors[block]
+		for item in doors:
+			if not (item is Dictionary):
+				continue
+			var door: Dictionary = item
+			var at := _as_vec(door.get("pos", []))
+			var exit := _as_vec(door.get("exit", []))
+			_path_span(viz, at, exit, blue)
+			_path_mark(viz, at, blue)
+			_path_label(viz, at, "S%d" % int(block), Color(0.3, 0.55, 1.0))
+	var cells := get_node_or_null("BattleCells")
+	if cells != null:
+		for child in cells.get_children():
+			if not (child is Node3D):
+				continue
+			var spot := (child as Node3D).position
+			_path_ring(viz, spot, 9.0, white)
+			var zone := String(child.name).trim_prefix("BattleCell_")
+			_path_label(viz, spot, zone, Color(1, 1, 1))
+	return "Cog paths are on. %d points, %s." % [_points.size(), json_path.get_file()]
+
+
+func _path_material(color: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.disable_receive_shadows = true
+	return mat
+
+
+func _path_span(parent: Node3D, a: Vector3, b: Vector3, mat: Material) -> void:
+	var delta := b - a
+	var length := delta.length()
+	if length < 0.05:
+		return
+	var dir := delta / length
+	var up := Vector3.UP
+	if absf(dir.dot(up)) > 0.95:
+		up = Vector3.FORWARD
+	var side := up.cross(dir).normalized()
+	up = dir.cross(side).normalized()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.18, 0.08, length)
+	var inst := MeshInstance3D.new()
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = (a + b) * 0.5 + Vector3(0, 0.85, 0)
+	inst.basis = Basis(side, up, dir)
+	parent.add_child(inst)
+
+
+func _path_arrow(parent: Node3D, a: Vector3, b: Vector3, mat: Material) -> void:
+	var delta := Vector3(b.x - a.x, 0.0, b.z - a.z)
+	var length := delta.length()
+	if length < 4.0:
+		return
+	var dir := delta / length
+	var side := Vector3.UP.cross(dir).normalized()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.0
+	mesh.bottom_radius = 0.32
+	mesh.height = 1.15
+	var inst := MeshInstance3D.new()
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = a + dir * 2.6 + Vector3(0, 0.9, 0)
+	inst.basis = Basis(side, dir, side.cross(dir))
+	parent.add_child(inst)
+
+
+func _path_mark(parent: Node3D, at: Vector3, mat: Material) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.45, 0.45, 0.45)
+	var inst := MeshInstance3D.new()
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = at + Vector3(0, 0.85, 0)
+	parent.add_child(inst)
+
+
+func _path_label(parent: Node3D, at: Vector3, text: String, color: Color) -> void:
+	var label := Label3D.new()
+	label.text = text
+	label.font = ToonGui.sign_font()
+	label.font_size = 56
+	label.pixel_size = 0.014
+	label.modulate = color
+	label.outline_size = 12
+	label.outline_modulate = Color(0, 0, 0, 1)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.position = at + Vector3(0, 2.4, 0)
+	parent.add_child(label)
+
+
+func _path_ring(parent: Node3D, center: Vector3, radius: float, mat: Material) -> void:
+	var steps := 24
+	for step in steps:
+		var a0 := TAU * float(step) / float(steps)
+		var a1 := TAU * float(step + 1) / float(steps)
+		var p0 := center + Vector3(cos(a0) * radius, 0.0, sin(a0) * radius)
+		var p1 := center + Vector3(cos(a1) * radius, 0.0, sin(a1) * radius)
+		_path_span(parent, p0, p1, mat)
 
 
 ## The block's battle spot. DNA puts it near the middle of the road. When the

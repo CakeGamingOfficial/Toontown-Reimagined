@@ -32,9 +32,9 @@ func _ready() -> void:
 	_TOON.attach(self)
 
 
-## The street sun does not come indoors. Ambient color alone leaves the
-## toon shader and the room nearly black, which is the dark shop after a
-## door walk-in.
+## The street sun does not come indoors. The room itself is drawn unlit, the
+## same way the streets are. This light is for the toon shader, which stays
+## black on ambient color alone.
 func _light_room() -> void:
 	var world := get_node_or_null("WorldEnvironment") as WorldEnvironment
 	if world != null and world.environment != null:

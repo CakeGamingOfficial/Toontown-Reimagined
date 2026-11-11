@@ -9,6 +9,7 @@ const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _MOTION := preload("res://scenes/interiors/door_motion.gd")
+const _FLAT := preload("res://assets/neighborhoods/toontown_central/ttc_import.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
@@ -139,6 +140,7 @@ func _ready() -> void:
 	# Place them before the first draw so they do not flash in the corner.
 	_place_tags()
 	_place_bubble()
+	_paint_room()
 
 
 func _process(delta: float) -> void:
@@ -911,6 +913,14 @@ func _place_shop_shell() -> void:
 	_shop.name = "TutorialShop"
 	add_child(_shop)
 	_show_shop_shell()
+
+
+func _paint_room() -> void:
+	var geometry := get_node_or_null("Geometry")
+	if geometry:
+		_FLAT.paint(geometry)
+	if _shop:
+		_FLAT.paint(_shop)
 
 
 func _in_toms_shop() -> bool:
