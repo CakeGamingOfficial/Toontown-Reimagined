@@ -1112,7 +1112,7 @@ func _shuffle_body() -> void:
 	var bottom := "d" if _style.wears_skirt() else "s"
 	_style.torso = ToonStyle.SIZES[randi() % 3] + bottom
 	_style.legs = ToonStyle.SIZES[randi() % 3]
-	_show_shop()
+	_refresh()
 
 
 func _shuffle_color() -> void:

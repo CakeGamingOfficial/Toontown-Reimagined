@@ -2043,8 +2043,8 @@ func _try_officer() -> void:
 		if not is_inside_tree():
 			return
 		if track < 0:
-			_say_clerk(actor, "Come back when you have decided.", 3.0)
-			await get_tree().create_timer(3.0).timeout
+			_say_clerk(actor, "Come back when you have decided.", 1.5)
+			await _hold_line(1.5)
 			if not is_inside_tree():
 				return
 			_say_clerk(null, "", 0.0)
@@ -2081,8 +2081,8 @@ func _try_officer() -> void:
 		if not is_inside_tree():
 			return
 	else:
-		_say_clerk(actor, "Come back later if you need a ToonTask! Bye!", 3.2)
-		await get_tree().create_timer(3.2).timeout
+		_say_clerk(actor, "Come back later if you need a ToonTask! Bye!", 1.5)
+		await _hold_line(1.5)
 		if not is_inside_tree():
 			return
 		_say_clerk(null, "", 0.0)
@@ -2151,8 +2151,8 @@ func _try_quest_npc() -> void:
 		if not is_inside_tree():
 			return
 		if track < 0:
-			_say_clerk(actor, "Come back when you have decided.", 3.0)
-			await get_tree().create_timer(3.0).timeout
+			_say_clerk(actor, "Come back when you have decided.", 1.5)
+			await _hold_line(1.5)
 			if not is_inside_tree():
 				return
 			_say_clerk(null, "", 0.0)
@@ -2205,8 +2205,8 @@ func _meet_banker(clerk: Node3D) -> void:
 	_begin_quest_shot(actor, false)
 	var offer := _BEANS.next_vault()
 	if offer.is_empty():
-		_say_clerk(actor, "Your jellybean vault holds %s of %s." % [_bean_words(_BEANS.vault()), _bean_words(_BEANS.vault_limit())], 5.0)
-		await get_tree().create_timer(5.0).timeout
+		_say_clerk(actor, "Your jellybean vault holds %s of %s." % [_bean_words(_BEANS.vault()), _bean_words(_BEANS.vault_limit())], 1.6)
+		await _hold_line(1.6)
 	else:
 		var cost := int(offer.get("cost", 0))
 		var capacity := int(offer.get("capacity", 0))
@@ -2215,29 +2215,34 @@ func _meet_banker(clerk: Node3D) -> void:
 		if not opening:
 			question = "Would you like to purchase a bigger jellybean vault?"
 		var held := _bean_words(_BEANS.bank())
-		var detail := "Would you like to purchase a jellybean vault?\nIt holds %s jellybeans and costs %s jellybeans.\nYour jellybean bank has %s jellybeans." % [_bean_words(capacity), _bean_words(cost), held]
+		var lines: PackedStringArray = [
+			"Would you like to purchase a jellybean vault?",
+			"It holds %s jellybeans." % _bean_words(capacity),
+			"It costs %s jellybeans." % _bean_words(cost),
+			"Your jellybean bank has %s jellybeans." % held,
+		]
 		if not opening:
-			detail = "Would you like to purchase a bigger jellybean vault?\nIt holds %s jellybeans and costs %s jellybeans.\nYour jellybean bank has %s jellybeans." % [_bean_words(capacity), _bean_words(cost), held]
+			lines[0] = "Would you like to purchase a bigger jellybean vault?"
 		_say_clerk(actor, question, 60.0)
-		var yes := await _yes_no(detail)
+		var yes := await _yes_no(lines)
 		if not is_inside_tree():
 			return
 		if not yes:
-			_say_clerk(actor, "Come back if you want a jellybean vault.", 3.2)
+			_say_clerk(actor, "Come back if you want a jellybean vault.", 1.5)
 		elif _BEANS.buy_next_vault():
 			var opened := "Your jellybean vault is open. It holds %s jellybeans." % _bean_words(_BEANS.vault_limit())
 			if not opening:
 				opened = "Your jellybean vault now holds %s." % _bean_words(_BEANS.vault_limit())
-			_say_clerk(actor, opened, 4.0)
+			_say_clerk(actor, opened, 1.5)
 		else:
-			_say_clerk(actor, "You need %s jellybeans for that." % _bean_words(cost), 4.0)
-		await get_tree().create_timer(4.0).timeout
+			_say_clerk(actor, "You need %s jellybeans for that." % _bean_words(cost), 1.5)
+		await _hold_line(1.5)
 	if is_inside_tree():
 		_say_clerk(null, "", 0.0)
 		_locked = false
 
 
-func _yes_no(message: String) -> bool:
+func _yes_no(lines: PackedStringArray) -> bool:
 	# OTPDialog YesNo. A cream card, a dimmed street, and the check and X.
 	var host := Control.new()
 	host.name = "VaultChoice"
@@ -2260,23 +2265,32 @@ func _yes_no(message: String) -> bool:
 	frame.stretch_mode = TextureRect.STRETCH_SCALE
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	host.add_child(frame)
-	var words := Label.new()
-	words.text = message
-	words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	words.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	host.add_child(words)
-	var yes := _vault_button(host, "Yes", Vector2(0.2, -0.16), true)
-	var no := _vault_button(host, "No", Vector2(-0.2, -0.16), false)
+	# One label per sentence. A single wrapped block, centered in a short box,
+	# drew its lines outside the card, so only the buttons were left.
+	var labels: Array[Label] = []
+	for line in lines:
+		var words := Label.new()
+		words.text = line
+		words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		words.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		words.autowrap_mode = TextServer.AUTOWRAP_OFF
+		words.clip_text = false
+		words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		words.z_index = 2
+		host.add_child(words)
+		labels.append(words)
+	var yes := _vault_button(host, "Yes", Vector2(0.24, -0.18), true)
+	var no := _vault_button(host, "No", Vector2(-0.24, -0.18), false)
 	yes.pressed.connect(func() -> void: host.set_meta("choice", 1))
 	no.pressed.connect(func() -> void: host.set_meta("choice", 2))
 	var view := host.get_viewport().get_visible_rect().size
 	# A short Yes or No sits on a small card. The bank window size left a field of cream.
-	ToonGui.place(frame, view, 0.0, 0.0, 1.12, 0.82)
-	var px := maxi(int(round(0.042 * view.y * 0.5)), 1)
-	ToonGui.style_label(words, Color(0.08, 0.08, 0.08), px, Color(0, 0, 0, 0), 0)
-	ToonGui.place(words, view, 0.0, 0.14, 0.86, 0.28)
+	ToonGui.place(frame, view, 0.0, 0.0, 1.48, 0.92)
+	var px := maxi(int(round(0.04 * view.y * 0.5)), 1)
+	for index in labels.size():
+		var words := labels[index]
+		ToonGui.style_label(words, Color(0.05, 0.05, 0.05), px, Color(0, 0, 0, 0), 0)
+		ToonGui.place(words, view, 0.0, 0.30 - float(index) * 0.075, 1.28, 0.07)
 	while int(host.get_meta("choice")) == 0:
 		await get_tree().process_frame
 		if not is_inside_tree() or not is_instance_valid(host):
@@ -2345,8 +2359,8 @@ func _meet_tailor(clerk: Node3D) -> void:
 	var line := "Welcome to the Clothing Shop!"
 	if _tasks != null and _tasks.clothing_tickets > 0:
 		line = "You have a clothing ticket! Call Clarabelle and pick one outfit. It's on me."
-	_say_clerk(actor, line, 4.0)
-	await get_tree().create_timer(4.0).timeout
+	_say_clerk(actor, line, 1.6)
+	await _hold_line(1.6)
 	if not is_inside_tree():
 		return
 	_say_clerk(null, "", 0.0)
@@ -2477,6 +2491,21 @@ func _confirm_line(actor: Node3D, line: String) -> void:
 			_quest_wait = false
 			return
 	_quest_wait = false
+
+
+## The line stays up briefly. A click ends the camera hold before the timer does.
+func _hold_line(seconds: float) -> void:
+	_quest_advance = false
+	_quest_wait = true
+	var left := seconds
+	while left > 0.0 and not _quest_advance:
+		await get_tree().process_frame
+		if not is_inside_tree():
+			_quest_wait = false
+			return
+		left -= get_process_delta_time()
+	_quest_wait = false
+	_quest_advance = false
 
 
 func _quest_click(event: InputEvent) -> bool:
