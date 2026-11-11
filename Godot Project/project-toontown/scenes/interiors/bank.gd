@@ -5,11 +5,12 @@ extends Node3D
 ## places in that zone. Paintings tagged __billboard turn toward the camera
 ## the way the other toon interiors do.
 ##
-## The original bank is that plain shop room. The floor and walls stretch back
-## from the door so a vault fits behind the counter. That stretch, and the
-## dressing, are not in the original game. The props are the estate jellybean
-## machine, the drop-gag safe, the jellybean jar, the dollar bills, and the
-## cashbot money bag, stack, and register.
+## The original bank is that plain shop room. The walls are four times as wide
+## and four times as deep, measured from the door. The floor stays at the same
+## height and the boards keep their size. That size, and the dressing, are not
+## in the original game. The props are the estate jellybean machine, the
+## drop-gag safe, the jellybean jar, the dollar bills, and the cashbot money
+## bag, stack, and register.
 
 const _DOOR := preload("res://scenes/interiors/bank_door.gd")
 const _COLLISION := preload("res://scenes/playgrounds/playground_collision.gd")
@@ -19,10 +20,13 @@ const _MUSIC := "res://assets/neighborhoods/toontown_central/audio/TC_SZ_activit
 const MUSIC_VOLUME := 0.7
 const _COUNTER_TOP := 2.03
 const _FLOOR_Y := -0.025
-# The shell stretches back from the door line so the vault fits behind Bob.
-# Furniture, the door, and npc_origin_0 stay at the original size.
-const _STRETCH := 1.32
+# Width and depth, from the original shop. Local X is the width and local Y is
+# the depth. Local Z is up, and it stays so the floor does not drop.
+# The counter, the interior door, and npc_origin_0 stay at the original size.
+const _STRETCH := 4.0
+const _WIDEN := 4.0
 const _DOOR_LINE := 4.0
+const _BACK_LOCAL := 28.0
 const _SHELL: PackedStringArray = [
 	"random_tc1_TI_floor",
 	"ceiling",
@@ -88,6 +92,8 @@ func _build_room() -> void:
 	var geom := packed.instantiate()
 	geom.name = "Geometry"
 	_lengthen(geom)
+	_paint_walls(geom)
+	_close_windows(geom)
 	_clear_lobby(geom)
 	_seat_rug(geom)
 	_dress(geom)
@@ -107,7 +113,118 @@ func _lengthen(room: Node) -> void:
 		if shell == null:
 			continue
 		shell.position.y = shift
-		shell.scale.y = _STRETCH
+		shell.scale = Vector3(_WIDEN, _STRETCH, 1.0)
+	_hold_floor(room)
+
+
+func _back_z() -> float:
+	var shift := -_DOOR_LINE * (1.0 - _STRETCH)
+	return -(shift + _STRETCH * _BACK_LOCAL)
+
+
+func _hold_floor(room: Node) -> void:
+	# The floor sheet covers the new room. Repeating the texture keeps the
+	# boards the same size, and the sheet's height is unchanged.
+	var floor := room.find_child("random_tc1_TI_floor", true, false)
+	if floor == null:
+		return
+	_tile(floor, Vector3(_WIDEN, _STRETCH, 1.0))
+
+
+func _tile(node: Node, amount: Vector3) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var count := 1
+		if mesh.mesh != null:
+			count = maxi(mesh.mesh.get_surface_count(), 1)
+		for index in count:
+			var current := mesh.get_active_material(index)
+			var mat := StandardMaterial3D.new()
+			if current is StandardMaterial3D:
+				mat = (current as StandardMaterial3D).duplicate() as StandardMaterial3D
+			mat.uv1_scale = Vector3(mat.uv1_scale.x * amount.x, mat.uv1_scale.y * amount.y, mat.uv1_scale.z)
+			mesh.set_surface_override_material(index, mat)
+	for child in node.get_children():
+		_tile(child, amount)
+
+
+func _paint_walls(room: Node) -> void:
+	# Catalog papers, not the original shop print. Green stripes above wood
+	# panels, with a gold rail between them.
+	_paint(room, "random_tc1_TI_wallpaper", preload("res://assets/catalog/surfaces/stripes_green.png"), Color(1, 1, 1))
+	_paint(room, "random_tc1_TI_wainscotting", preload("res://assets/catalog/surfaces/wall_paper_b4_greyscale.png"), Color(0.62, 0.46, 0.28))
+	_paint(room, "random_tc1_TI_wallpaper_border", preload("res://assets/catalog/surfaces/bd_grey_border1.png"), Color(0.95, 0.78, 0.32))
+
+
+func _paint(room: Node, node_name: String, tex: Texture2D, tint: Color) -> void:
+	var shell := room.find_child(node_name, true, false)
+	if shell == null:
+		return
+	_paint_walk(shell, tex, tint)
+
+
+func _paint_walk(node: Node, tex: Texture2D, tint: Color) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var count := 1
+		if mesh.mesh != null:
+			count = maxi(mesh.mesh.get_surface_count(), 1)
+		for index in count:
+			var current := mesh.get_active_material(index)
+			var mat := StandardMaterial3D.new()
+			if current is StandardMaterial3D:
+				mat = (current as StandardMaterial3D).duplicate() as StandardMaterial3D
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			mat.albedo_texture = tex
+			mat.albedo_color = tint
+			mat.texture_repeat = true
+			# The wallpaper's U runs along the wall and V runs up. Height is
+			# not scaled, so only U repeats with the new width and depth.
+			mat.uv1_scale = Vector3(mat.uv1_scale.x * _STRETCH, mat.uv1_scale.y, mat.uv1_scale.z)
+			mesh.set_surface_override_material(index, mat)
+	for child in node.get_children():
+		_paint_walk(child, tex, tint)
+
+
+func _close_windows(room: Node) -> void:
+	# The shop interior cuts a window into the left wall and hangs a window
+	# picture on each side wall. Both spots become the same wall as the rest.
+	var glass := room.find_child("doors_and_windows", true, false) as Node3D
+	if glass != null:
+		glass.visible = false
+	var border := room.find_child("random_tc1_TI_wallpaper_border", true, false) as Node3D
+	if border != null:
+		# The rail beside the opening runs z 3 to 3.5. U follows the wall.
+		_wall_fill(border, -10.0, 5.0, 15.0, 3.0, 3.5, 0.0, -6.667, 0.5, 0.0, preload("res://assets/catalog/surfaces/bd_grey_border1.png"), Color(0.95, 0.78, 0.32))
+	var paper := room.find_child("random_tc1_TI_wallpaper", true, false) as Node3D
+	if paper != null:
+		_wall_fill(paper, -10.0, 5.0, 15.0, 3.5, 7.0, 0.0, -6.667, 0.0, -3.5, preload("res://assets/catalog/surfaces/stripes_green.png"), Color(1, 1, 1))
+
+
+func _wall_fill(host: Node3D, x: float, y0: float, y1: float, z0: float, z1: float, u0: float, u1: float, v0: float, v1: float, tex: Texture2D, tint: Color) -> void:
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([
+		Vector3(x, y0, z0), Vector3(x, y1, z0), Vector3(x, y0, z1),
+		Vector3(x, y1, z0), Vector3(x, y1, z1), Vector3(x, y0, z1),
+	])
+	arrays[Mesh.ARRAY_TEX_UV] = PackedVector2Array([
+		Vector2(u0, v0), Vector2(u1, v0), Vector2(u0, v1),
+		Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1),
+	])
+	var built := ArrayMesh.new()
+	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var panel := MeshInstance3D.new()
+	panel.name = "WindowWall"
+	panel.mesh = built
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_texture = tex
+	mat.albedo_color = tint
+	mat.texture_repeat = true
+	mat.uv1_scale = Vector3(_STRETCH, 1.0, 1.0)
+	panel.set_surface_override_material(0, mat)
+	host.add_child(panel)
 
 
 func _seat_rug(room: Node) -> void:
@@ -138,15 +255,18 @@ func _dress(room: Node3D) -> void:
 		_prop(room, "res://assets/interiors/bank/props/teller.glb", Vector3(side, 0.0, -24.9), PI, 1.0)
 		_box(room, Vector3(side, 4.23, -25.1), Vector3(4.45, 8.44, 4.87))
 	# Drop-gag safes across the vault, with bags against the new back wall.
+	# The same gap in front of the back wall as before, spread across the width.
+	var back := _back_z()
 	for side in [-6.0, 0.0, 6.0]:
-		_prop(room, "res://assets/interiors/bank/props/vault_safe.glb", Vector3(side, 0.693, -29.96), PI, 1.15)
-		_box(room, Vector3(side, 2.16, -30.18), Vector3(4.04, 4.31, 3.16))
+		var safe := Vector3(side * _WIDEN, 0.693, back + 8.28)
+		_prop(room, "res://assets/interiors/bank/props/vault_safe.glb", safe, PI, 1.15)
+		_box(room, Vector3(safe.x, 2.16, safe.z - 0.22), Vector3(4.04, 4.31, 3.16))
 	for side in [-7.2, -2.4, 2.4, 7.2]:
-		var bag := Vector3(side, _FLOOR_Y, -36.3)
+		var bag := Vector3(side * _WIDEN, _FLOOR_Y, back + 1.94)
 		_prop(room, "res://assets/interiors/bank/props/money_bag.glb", bag, 0.0, 0.5)
 		_box(room, bag + Vector3(0.0, 1.31, 0.05), Vector3(2.89, 2.63, 2.17))
 	for side in [-3.4, 3.4]:
-		_prop(room, "res://assets/interiors/bank/props/money_stack.glb", Vector3(side, 0.006, -33.6), PI, 0.7)
+		_prop(room, "res://assets/interiors/bank/props/money_stack.glb", Vector3(side * _WIDEN, 0.006, back + 4.64), PI, 0.7)
 	for side in [-4.6, 4.6]:
 		_prop(room, "res://assets/interiors/bank/props/cash_register.glb", Vector3(side, _COUNTER_TOP + 0.003, -19.31), PI, 0.13)
 	for side in [-2.15, 2.15]:
@@ -156,7 +276,8 @@ func _dress(room: Node3D) -> void:
 	_bill(room, "res://assets/battle/props/1dollar.glb", Vector3(-0.75, _COUNTER_TOP + 0.02, -19.15), 0.4)
 	_bill(room, "res://assets/battle/props/5dollar.glb", Vector3(0.15, _COUNTER_TOP + 0.02, -19.45), -0.5)
 	_bill(room, "res://assets/battle/props/10dollar.glb", Vector3(0.9, _COUNTER_TOP + 0.02, -19.2), 0.15)
-	for spot in [Vector3(-8.4, _FLOOR_Y, -12.0), Vector3(-8.2, _FLOOR_Y, -6.6), Vector3(8.4, _FLOOR_Y, -12.0), Vector3(8.2, _FLOOR_Y, -6.6)]:
+	var wall := 11.0 * _WIDEN
+	for spot in [Vector3(-(wall - 2.6), _FLOOR_Y, -12.0), Vector3(-(wall - 2.8), _FLOOR_Y, -6.6), Vector3(wall - 2.6, _FLOOR_Y, -12.0), Vector3(wall - 2.8, _FLOOR_Y, -6.6)]:
 		_prop(room, "res://assets/interiors/bank/props/money_bag.glb", spot, spot.x * 0.03, 0.42)
 		_box(room, spot + Vector3(0.0, 1.1, 0.0), Vector3(2.43, 2.21, 1.82))
 

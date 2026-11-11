@@ -8,6 +8,7 @@ const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _DISGUISE := preload("res://scenes/shticker/disguise_page.gd")
 
 ## HoodsForTeleportAll. Funny Farm stays off the list.
 const _TELEPORT_ALL: Array[int] = [
@@ -544,6 +545,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 			tasks.grant_teleport(hood)
 			tasks._remember(hood)
 		tasks.save()
+		_DISGUISE.max_suits()
 	else:
 		filled = loadout.restock()
 	var book := _find(scene, "ShtickerBook") as ShtickerBook
@@ -553,7 +555,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if filled <= 0:
 		return "No gags are unlocked yet. ~max unlocks them."
 	if everything:
-		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, filled %d gags, and opened teleport to every playground and Cog HQ." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
+		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, filled %d gags, opened teleport to every playground and Cog HQ, and maxed every Cog suit." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
 	return "Restocked %d gags." % filled
 
 

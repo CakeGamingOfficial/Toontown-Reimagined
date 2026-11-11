@@ -722,6 +722,25 @@ static func _write_disk(record: Dictionary) -> void:
 	file.store_string(JSON.stringify(record))
 
 
+## ~max. PartsPerSuitBitmasks, the last suit in each department, and MaxCogSuitLevel.
+static func max_suits() -> void:
+	var record := _read_disk()
+	var parts: Array = []
+	for mask in _MASKS:
+		parts.append(int(mask))
+	record["parts"] = parts
+	record["types"] = [7, 7, 7, 7]
+	record["levels"] = [49, 49, 49, 49]
+	if not record.has("merits"):
+		record["merits"] = [0, 0, 0, 0]
+	_write_disk(record)
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		var page := tree.root.find_child("CogDisguise", true, false)
+		if page != null and page.has_method("reload_notices"):
+			page.call("reload_notices")
+
+
 const _MERIT_FILE := "res://scenes/shticker/cog_merits.json"
 const _HP_LEVELS: PackedInt32Array = [14, 19, 29, 39, 49]
 static var _merit_rows: Array = []
