@@ -25,6 +25,7 @@ var _scope_uvs := PackedVector2Array()
 var _scope_colors := PackedColorArray()
 var _scope_normals := PackedVector3Array()
 var _scope_fps := 24.0
+var _scope_shown := -1.0
 
 var _butterflies: Array[Dictionary] = []
 var _butterflies_grounded := false
@@ -259,7 +260,13 @@ func _ready_telescope() -> void:
 func _process_telescope() -> void:
 	if _scope_frames.is_empty():
 		return
-	_show_telescope(_telescope_frame())
+	var frame := _telescope_frame()
+	# The sequence holds for several seconds. Rebuilding the tube on those
+	# frames is the same mesh, and that rebuild is what hitches the playground.
+	if is_equal_approx(frame, _scope_shown):
+		return
+	_scope_shown = frame
+	_show_telescope(frame)
 
 
 func _telescope_frame() -> float:
@@ -487,7 +494,7 @@ func _process_butterflies(delta: float) -> void:
 		var play: Node = actor.get("play")
 		if play:
 			play.visible = fluttering
-			if fluttering:
+			if fluttering and _wings_near(root):
 				_blend_flutter(actor)
 		var landed: Node = actor["landed"]
 		if landed:
@@ -652,6 +659,13 @@ func _capture_mesh_walk(node: Node, parent: Transform3D, found: Array, path: Str
 			_capture_mesh_walk(child, here, found, next)
 
 
+func _wings_near(root: Node3D) -> bool:
+	var camera := _view_camera()
+	if camera == null:
+		return true
+	return camera.global_position.distance_squared_to(root.global_position) < 80.0 * 80.0
+
+
 func _blend_flutter(actor: Dictionary) -> void:
 	var caches: Array = actor["caches"]
 	var parts: Array = actor["parts"]
@@ -660,8 +674,15 @@ func _blend_flutter(actor: Dictionary) -> void:
 	var sample := (_time + float(actor["phase"])) * 12.0 * float(actor["rate"])
 	var count := caches.size()
 	var i0 := int(floorf(sample)) % count
-	var i1 := (i0 + 1) % count
 	var along := sample - floorf(sample)
+	# Four poses per source frame. A new mesh every drawn frame is the hitch.
+	var step := int(along * 4.0)
+	if int(actor.get("pose_frame", -1)) == i0 and int(actor.get("pose_step", -1)) == step:
+		return
+	actor["pose_frame"] = i0
+	actor["pose_step"] = step
+	along = float(step) / 4.0
+	var i1 := (i0 + 1) % count
 	var pose_a := _poses_by_name(caches[i0])
 	var pose_b := _poses_by_name(caches[i1])
 	for i in parts.size():

@@ -124,6 +124,8 @@ static func capture() -> Dictionary:
 		"pouch": _BEANS.pouch(),
 		"bank": _BEANS.bank(),
 		"max_money": _BEANS.pouch_limit(),
+		"vault": _BEANS.vault(),
+		"vault_tier": _BEANS.vault_tier(),
 		"has_book": tasks.has_book,
 		"met_flippy": tasks.met_flippy,
 		"in_playground": tasks.in_playground,
@@ -145,7 +147,13 @@ static func apply(record: Dictionary) -> void:
 	var loadout := ToonLoadout.for_selected()
 	loadout.apply_dict(record)
 	loadout.save()
-	_BEANS.set_saved(int(record.get("pouch", 0)), int(record.get("bank", 0)), int(record.get("max_money", -1)))
+	var vault_amount := -1
+	var vault_level := -1
+	if record.has("vault"):
+		vault_amount = int(record.get("vault", 0))
+	if record.has("vault_tier"):
+		vault_level = int(record.get("vault_tier", 0))
+	_BEANS.set_saved(int(record.get("pouch", 0)), int(record.get("bank", 0)), int(record.get("max_money", -1)), vault_amount, vault_level)
 	var tasks := ToonTasks.for_selected()
 	tasks.apply_dict(record)
 	tasks.save()

@@ -316,7 +316,7 @@ func _show_page() -> void:
 	var count := maxi(int(ceil(float(_items.size()) / float(_CELLS.size()))), 1)
 	_page = clampi(_page, 0, count - 1)
 	_spin_base = _clara_time
-	_beans.text = str(_BEANS.pouch() + _BEANS.bank())
+	_beans.text = str(_BEANS.pouch() + _BEANS.bank() + _BEANS.vault())
 	_page_label.text = "Page %d" % [_page + 1]
 	_note.text = _spoken if _spoken != "" else (_GREETING if _page == 0 else "")
 	_place_balloon(get_viewport().get_visible_rect().size)

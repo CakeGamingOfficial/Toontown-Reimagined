@@ -89,6 +89,9 @@ const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
 const _OK_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
 const _OK_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
 const _OK_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
+const _NO_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _NO_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _NO_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
 # "in" loads this toon's house. "out" returns to the yard in front of the door.
 static var door_trip := ""
 
@@ -2091,7 +2094,7 @@ func _try_quest_npc() -> void:
 		_npc_ready = true
 		return
 	var path := _scene_path()
-	if not (_PLACES.is_toon_hall(path) or _PLACES.is_library(path) or _PLACES.is_shop(path)):
+	if not (_PLACES.is_toon_hall(path) or _PLACES.is_library(path) or _PLACES.is_shop(path) or _PLACES.is_bank(path)):
 		_npc_ready = true
 		return
 	var npc := _nearest_quest_npc()
@@ -2104,6 +2107,10 @@ func _try_quest_npc() -> void:
 	if _locked or not _npc_ready:
 		return
 	var npc_id := int(npc.get_meta("npc_id", 0))
+	# Banker Bob only opens the jellybean vault. He does not assign or take tasks.
+	if npc_id == 2002:
+		await _meet_banker(npc)
+		return
 	var card := _tasks.for_npc(npc_id)
 	var shop_offers: Array[Dictionary] = []
 	if card.is_empty():
@@ -2186,6 +2193,145 @@ func _toon_called() -> String:
 		return "Toon"
 	var called := style.display_name()
 	return called if not called.is_empty() else "Toon"
+
+
+func _meet_banker(clerk: Node3D) -> void:
+	_npc_ready = false
+	_locked = true
+	_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	var actor := _clerk_actor(clerk)
+	_begin_quest_shot(actor, false)
+	var offer := _BEANS.next_vault()
+	if offer.is_empty():
+		_say_clerk(actor, "Your jellybean vault holds %s of %s." % [_bean_words(_BEANS.vault()), _bean_words(_BEANS.vault_limit())], 5.0)
+		await get_tree().create_timer(5.0).timeout
+	else:
+		var cost := int(offer.get("cost", 0))
+		var capacity := int(offer.get("capacity", 0))
+		var opening := _BEANS.vault_tier() <= 0
+		var question := "Would you like to purchase a jellybean vault? It holds %s jellybeans." % _bean_words(capacity)
+		if not opening:
+			question = "Would you like to purchase a bigger jellybean vault?"
+		var held := _bean_words(_BEANS.bank())
+		var detail := "Would you like to purchase a jellybean vault?\nIt holds %s jellybeans and costs %s jellybeans.\nYour jellybean bank has %s jellybeans." % [_bean_words(capacity), _bean_words(cost), held]
+		if not opening:
+			detail = "Would you like to purchase a bigger jellybean vault?\nIt holds %s jellybeans and costs %s jellybeans.\nYour jellybean bank has %s jellybeans." % [_bean_words(capacity), _bean_words(cost), held]
+		_say_clerk(actor, question, 60.0)
+		var yes := await _yes_no(detail)
+		if not is_inside_tree():
+			return
+		if not yes:
+			_say_clerk(actor, "Come back if you want a jellybean vault.", 3.2)
+		elif _BEANS.buy_next_vault():
+			var opened := "Your jellybean vault is open. It holds %s jellybeans." % _bean_words(_BEANS.vault_limit())
+			if not opening:
+				opened = "Your jellybean vault now holds %s." % _bean_words(_BEANS.vault_limit())
+			_say_clerk(actor, opened, 4.0)
+		else:
+			_say_clerk(actor, "You need %s jellybeans for that." % _bean_words(cost), 4.0)
+		await get_tree().create_timer(4.0).timeout
+	if is_inside_tree():
+		_say_clerk(null, "", 0.0)
+		_locked = false
+
+
+func _yes_no(message: String) -> bool:
+	# OTPDialog YesNo. A cream card, a dimmed street, and the check and X.
+	var host := Control.new()
+	host.name = "VaultChoice"
+	host.mouse_filter = Control.MOUSE_FILTER_STOP
+	host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.z_index = 60
+	# The choice lives on the control. A local number is restored when the
+	# wait resumes, so the click was thrown away and the buttons did nothing.
+	host.set_meta("choice", 0)
+	_hud().add_child(host)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.add_child(dim)
+	var frame := TextureRect.new()
+	frame.texture = _DIALOG
+	frame.modulate = Color(1, 1, 0.75, 1)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(frame)
+	var words := Label.new()
+	words.text = message
+	words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	words.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(words)
+	var yes := _vault_button(host, "Yes", Vector2(0.2, -0.16), true)
+	var no := _vault_button(host, "No", Vector2(-0.2, -0.16), false)
+	yes.pressed.connect(func() -> void: host.set_meta("choice", 1))
+	no.pressed.connect(func() -> void: host.set_meta("choice", 2))
+	var view := host.get_viewport().get_visible_rect().size
+	# A short Yes or No sits on a small card. The bank window size left a field of cream.
+	ToonGui.place(frame, view, 0.0, 0.0, 1.12, 0.82)
+	var px := maxi(int(round(0.042 * view.y * 0.5)), 1)
+	ToonGui.style_label(words, Color(0.08, 0.08, 0.08), px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(words, view, 0.0, 0.14, 0.86, 0.28)
+	while int(host.get_meta("choice")) == 0:
+		await get_tree().process_frame
+		if not is_inside_tree() or not is_instance_valid(host):
+			if is_instance_valid(host):
+				host.queue_free()
+			return false
+		if Input.is_key_pressed(KEY_ESCAPE):
+			host.set_meta("choice", 2)
+	var bought := int(host.get_meta("choice")) == 1
+	host.queue_free()
+	return bought
+
+
+func _vault_button(host: Control, text: String, at: Vector2, yes: bool) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = _OK_UP if yes else _NO_UP
+	button.texture_pressed = _OK_DOWN if yes else _NO_DOWN
+	button.texture_hover = _OK_HOVER if yes else _NO_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	ToonGui.button_sounds(button)
+	host.add_child(button)
+	var caption := Label.new()
+	caption.text = text
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.mouse_filter = Control.MOUSE_FILTER_STOP
+	caption.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	caption.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			button.pressed.emit()
+	)
+	host.add_child(caption)
+	var view := host.get_viewport().get_visible_rect().size
+	ToonGui.style_label(caption, Color(0, 0, 0), maxi(int(round(0.04 * view.y * 0.5)), 1), Color(0, 0, 0, 0), 0)
+	ToonGui.place(button, view, at.x, at.y, 0.12, 0.12)
+	# The word is under the icon. A click on the word still presses the button.
+	ToonGui.place(caption, view, at.x, at.y - 0.11, 0.28, 0.06)
+	return button
+
+
+func _bean_words(amount: int) -> String:
+	var text := str(maxi(amount, 0))
+	var grouped := ""
+	var count := 0
+	for index in range(text.length() - 1, -1, -1):
+		if count == 3:
+			grouped = "," + grouped
+			count = 0
+		grouped = text[index] + grouped
+		count += 1
+	return grouped
 
 
 func _meet_tailor(clerk: Node3D) -> void:

@@ -48,6 +48,7 @@ var _jar: TextureRect
 var _bank: TextureRect
 var _jar_amount: Label
 var _bank_amount: Label
+var _vault_amount: Label
 var _deposit: TextureButton
 var _withdraw: TextureButton
 var _ok: TextureButton
@@ -102,6 +103,7 @@ func _build() -> void:
 	_bank = _picture(_BANK)
 	_jar_amount = _amount()
 	_bank_amount = _amount()
+	_vault_amount = _amount()
 	_deposit = _arrow(false)
 	_withdraw = _arrow(true)
 	_deposit.button_down.connect(_press_deposit)
@@ -192,6 +194,7 @@ func _layout() -> void:
 	# text_scale 0.2 is local to the jar (scale 0.7) and the bank label (scale 0.9).
 	_put_sign(_jar_amount, _JAR_AT.x, -0.07, 0.14)
 	_put_sign(_bank_amount, _BANK_AT.x, -0.09, 0.18)
+	_put_sign(_vault_amount, _BANK_AT.x, -0.28, 0.07)
 	_put_caption(_cancel_caption, _CANCEL_AT.x, _CANCEL_AT.y - 0.1, 0.06)
 	_put_caption(_ok_caption, _OK_AT.x, _OK_AT.y - 0.1, 0.06)
 
@@ -242,11 +245,24 @@ func _bump(step: int) -> bool:
 
 func _show_amounts() -> void:
 	var carried := _BEANS.pouch() - _pending
-	var saved := _BEANS.bank() + _pending
+	var saved := _BEANS.bank()
+	var stored := _BEANS.vault()
+	if _pending > 0:
+		var into_bank := mini(_pending, _BEANS.BANK_MAX - saved)
+		saved += into_bank
+		stored += _pending - into_bank
+	elif _pending < 0:
+		var out := -_pending
+		var from_bank := mini(out, saved)
+		saved -= from_bank
+		stored -= out - from_bank
 	_jar_amount.text = str(carried)
 	_bank_amount.text = str(saved)
-	var deposit_full := carried <= 0 or saved >= _BEANS.BANK_MAX
-	var withdraw_full := saved <= 0 or carried >= _BEANS.pouch_limit()
+	var vault_cap := _BEANS.vault_limit()
+	_vault_amount.visible = vault_cap > 0
+	_vault_amount.text = "Vault %d / %d" % [stored, vault_cap]
+	var deposit_full := carried <= 0 or (saved >= _BEANS.BANK_MAX and stored >= vault_cap)
+	var withdraw_full := (saved <= 0 and stored <= 0) or carried >= _BEANS.pouch_limit()
 	_paint(_deposit, deposit_full)
 	_paint(_withdraw, withdraw_full)
 

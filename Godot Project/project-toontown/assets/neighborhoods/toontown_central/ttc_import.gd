@@ -70,7 +70,9 @@ static func _paint_mesh(mesh_node: MeshInstance3D) -> void:
 		# whole sampler when either axis clamps, which stretches fences
 		# and the trolley awning into a single texel.
 		standard.texture_repeat = true
-		if mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR:
+		# surface_get_format is ArrayMesh only. A BoxMesh, such as the
+		# toontorial HQ sidewalk patch, has no vertex colors to decode.
+		if mesh is ArrayMesh and (mesh as ArrayMesh).surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR:
 			standard.vertex_color_is_srgb = true
 
 

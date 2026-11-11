@@ -258,6 +258,7 @@ func _lineup() -> void:
 		var worn: Variant = card.get("accessories", {})
 		if worn is Dictionary:
 			actor.wear_accessories(worn)
+			actor.set_meta("accessories", worn)
 		var local := int(card.get("peer", -1)) == me or count == 1
 		var dressed_style: Dictionary = {}
 		if local:
@@ -949,9 +950,12 @@ func _build_heads() -> void:
 		sun.light_energy = 1.05
 		viewport.add_child(sun)
 		var camera := Camera3D.new()
-		camera.current = true
-		camera.fov = 24.0
+		# PurchaseHeadFrame shows ToonHead, not the body. A close perspective
+		# lens sits inside the skull, which is the black square on the card.
+		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+		camera.size = 1.7
 		camera.near = 0.05
+		camera.current = true
 		viewport.add_child(camera)
 		var box := SubViewportContainer.new()
 		box.stretch = true
@@ -962,16 +966,20 @@ func _build_heads() -> void:
 		portrait.load_extra_clips = false
 		portrait.footsteps = false
 		viewport.add_child(portrait)
+		var style: ToonStyle = null
 		var raw: Variant = _party[index].get_meta("style", {})
-		if raw is Dictionary:
-			var style := ToonStyle.from_dict(raw)
+		if raw is Dictionary and not (raw as Dictionary).is_empty():
+			style = ToonStyle.from_dict(raw)
+		if style == null and index == _local_slot:
+			style = ToonRoster.selected_style()
+		if style != null:
 			portrait.show_style(style)
+			var worn: Variant = _party[index].get_meta("accessories", {})
+			if worn is Dictionary:
+				portrait.wear_accessories(worn)
+			_keep_head(portrait)
 			portrait.set_locomotion(0.0, false, false, 0.0)
-			var top := style.avatar_height()
-			var muzzle := 0.75 if style.head.length() > 1 and style.head[1] == "l" else 0.5
-			var look := top - muzzle * 0.42
-			camera.position = Vector3(0.08, look, 1.05)
-			camera.look_at(Vector3(0.0, look - 0.02, 0.0))
+			_aim_head(camera, portrait)
 		var name := Label.new()
 		name.text = _party[index].name
 		name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1006,6 +1014,30 @@ func _build_heads() -> void:
 			"actor": _party[index],
 			"at": at,
 		})
+
+
+func _keep_head(actor: Node) -> void:
+	var neck := actor.find_child("def_head", true, false)
+	_keep_head_walk(actor, neck)
+
+
+func _keep_head_walk(node: Node, neck: Node) -> void:
+	if node is MeshInstance3D and (neck == null or not neck.is_ancestor_of(node)):
+		node.visible = false
+	for child in node.get_children():
+		_keep_head_walk(child, neck)
+
+
+func _aim_head(camera: Camera3D, portrait: Node3D) -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(camera) or not is_instance_valid(portrait):
+		return
+	var focus := portrait.global_position + Vector3(0.0, 3.2, 0.0)
+	var neck := portrait.find_child("def_head", true, false) as Node3D
+	if neck != null:
+		focus = neck.global_position + Vector3(0.0, 0.24, 0.0)
+	camera.global_position = focus + Vector3(0.0, 0.0, 4.0)
+	camera.look_at(focus, Vector3.UP)
 
 
 func _layout_heads() -> void:

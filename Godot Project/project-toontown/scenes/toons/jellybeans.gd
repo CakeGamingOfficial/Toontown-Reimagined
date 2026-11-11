@@ -3,17 +3,27 @@ extends RefCounted
 ## Jellybeans are a toon's money. A new toon carries 40 (QuestRewardCounter).
 ## ToonTasks raise that jar, and the last reward is 250. DistributedToonAI.addMoney
 ## puts anything past the jar into the estate bank, which holds up to
-## ToontownGlobals.DefaultMaxBankMoney. take_beans is the purchase path (takeMoney).
+## ToontownGlobals.DefaultMaxBankMoney. Beans the bank cannot hold spill into
+## the jellybean vault, once Banker Bob has opened one. take_beans is the
+## purchase path (takeMoney) and spends the vault after the bank.
 
 const START_POUCH := 40
 const POUCH_MAX := 250
 const BANK_MAX := 12000
+## Each row is the next vault you can buy. capacity is how many jellybeans
+## that vault holds, and cost is the price to go from the previous size to
+## this one. The first row opens a vault. Later rows are the upgrades.
+const VAULT_TIERS: Array[Dictionary] = [
+	{"capacity": 25000, "cost": 10000},
+]
 const _PATH := "user://jellybeans.json"
 
 static var _loaded := false
 static var _pouch: Array[int] = []
 static var _bank: Array[int] = []
 static var _limit: Array[int] = []
+static var _vault: Array[int] = []
+static var _vault_tier: Array[int] = []
 
 
 static func pouch() -> int:
@@ -24,6 +34,46 @@ static func pouch() -> int:
 static func bank() -> int:
 	_ensure()
 	return _value(_bank)
+
+
+static func vault() -> int:
+	_ensure()
+	return _value(_vault)
+
+
+static func vault_tier() -> int:
+	_ensure()
+	return _value(_vault_tier)
+
+
+static func vault_limit() -> int:
+	return _vault_capacity(vault_tier())
+
+
+## The next size for sale. Empty when this toon already has the biggest vault.
+static func next_vault() -> Dictionary:
+	_ensure()
+	var tier := vault_tier()
+	if tier < 0 or tier >= VAULT_TIERS.size():
+		return {}
+	return VAULT_TIERS[tier]
+
+
+## Pays for the next vault from the jar, the bank, and the vault already open.
+static func buy_next_vault() -> bool:
+	var offer := next_vault()
+	if offer.is_empty():
+		return false
+	_ensure()
+	var slot := _slot()
+	if slot < 0:
+		return false
+	if not take_beans(int(offer.get("cost", 0)), true):
+		return false
+	_vault_tier[slot] += 1
+	_vault[slot] = mini(_vault[slot], _vault_capacity(_vault_tier[slot]))
+	_write()
+	return true
 
 
 ## This toon's jar size. The book, the bank, and the trolley all read it.
@@ -70,7 +120,13 @@ static func add_beans(amount: int) -> void:
 	_pouch[slot] = maxi(pocket, 0)
 	var overflow := money - cap
 	if overflow > 0:
-		_bank[slot] = mini(_bank[slot] + overflow, BANK_MAX)
+		var bank_room := maxi(BANK_MAX - _bank[slot], 0)
+		var into_bank := mini(overflow, bank_room)
+		_bank[slot] += into_bank
+		overflow -= into_bank
+		if overflow > 0:
+			var vault_room := maxi(_vault_capacity(_vault_tier[slot]) - _vault[slot], 0)
+			_vault[slot] += mini(overflow, vault_room)
 	_write()
 
 
@@ -83,12 +139,15 @@ static func take_beans(amount: int, use_bank: bool = true) -> bool:
 		return false
 	var total := _pouch[slot]
 	if use_bank:
-		total += _bank[slot]
+		total += _bank[slot] + _vault[slot]
 	if amount > total:
 		return false
 	if use_bank and amount > _pouch[slot]:
-		_bank[slot] -= amount - _pouch[slot]
+		var rest := amount - _pouch[slot]
 		_pouch[slot] = 0
+		var from_bank := mini(rest, _bank[slot])
+		_bank[slot] -= from_bank
+		_vault[slot] -= rest - from_bank
 	else:
 		_pouch[slot] -= amount
 	_write()
@@ -102,8 +161,17 @@ static func transfer(amount: int) -> void:
 	if moved == 0:
 		return
 	var slot := _slot()
-	_pouch[slot] -= moved
-	_bank[slot] += moved
+	if moved > 0:
+		var into_bank := mini(moved, BANK_MAX - _bank[slot])
+		_bank[slot] += into_bank
+		_vault[slot] += moved - into_bank
+		_pouch[slot] -= moved
+	else:
+		var out := -moved
+		var from_bank := mini(out, _bank[slot])
+		_bank[slot] -= from_bank
+		_vault[slot] -= out - from_bank
+		_pouch[slot] += out
 	_write()
 
 
@@ -114,14 +182,18 @@ static func clamp_transfer(amount: int) -> int:
 		return 0
 	var carried := _pouch[slot]
 	var saved := _bank[slot]
-	amount = mini(amount, carried)
-	amount = mini(amount, BANK_MAX - saved)
+	var stored := _vault[slot]
+	var vault_room := maxi(_vault_capacity(_vault_tier[slot]) - stored, 0)
+	if amount > 0:
+		amount = mini(amount, carried)
+		amount = mini(amount, maxi(BANK_MAX - saved, 0) + vault_room)
+		return amount
 	amount = -mini(-amount, _limit[slot] - carried)
-	amount = -mini(-amount, saved)
+	amount = -mini(-amount, saved + stored)
 	return amount
 
 
-static func set_saved(pouch_amount: int, bank_amount: int, pouch_cap: int = -1) -> void:
+static func set_saved(pouch_amount: int, bank_amount: int, pouch_cap: int = -1, vault_amount: int = -1, vault_level: int = -1) -> void:
 	_ensure()
 	var slot := _slot()
 	if slot < 0:
@@ -130,6 +202,10 @@ static func set_saved(pouch_amount: int, bank_amount: int, pouch_cap: int = -1) 
 		_limit[slot] = clampi(pouch_cap, 1, POUCH_MAX)
 	_pouch[slot] = clampi(pouch_amount, 0, _limit[slot])
 	_bank[slot] = clampi(bank_amount, 0, BANK_MAX)
+	if vault_level >= 0:
+		_vault_tier[slot] = clampi(vault_level, 0, VAULT_TIERS.size())
+	if vault_amount >= 0:
+		_vault[slot] = clampi(vault_amount, 0, _vault_capacity(_vault_tier[slot]))
 	_write()
 
 
@@ -140,7 +216,15 @@ static func reset_slot(index: int) -> void:
 	_pouch[index] = 0
 	_bank[index] = 0
 	_limit[index] = START_POUCH
+	_vault[index] = 0
+	_vault_tier[index] = 0
 	_write()
+
+
+static func _vault_capacity(tier: int) -> int:
+	if tier <= 0 or tier > VAULT_TIERS.size():
+		return 0
+	return int(VAULT_TIERS[tier - 1].get("capacity", 0))
 
 
 static func _value(values: Array[int]) -> int:
@@ -164,9 +248,13 @@ static func _ensure() -> void:
 	_pouch.resize(ToonRoster.SLOT_COUNT)
 	_bank.resize(ToonRoster.SLOT_COUNT)
 	_limit.resize(ToonRoster.SLOT_COUNT)
+	_vault.resize(ToonRoster.SLOT_COUNT)
+	_vault_tier.resize(ToonRoster.SLOT_COUNT)
 	_pouch.fill(0)
 	_bank.fill(0)
 	_limit.fill(START_POUCH)
+	_vault.fill(0)
+	_vault_tier.fill(0)
 	if not FileAccess.file_exists(_PATH):
 		return
 	var file := FileAccess.open(_PATH, FileAccess.READ)
@@ -185,12 +273,20 @@ static func _ensure() -> void:
 		_limit[index] = clampi(int(row.get("max", START_POUCH)), 1, POUCH_MAX)
 		_pouch[index] = clampi(int(row.get("pouch", 0)), 0, _limit[index])
 		_bank[index] = clampi(int(row.get("bank", 0)), 0, BANK_MAX)
+		_vault_tier[index] = clampi(int(row.get("vault_tier", 0)), 0, VAULT_TIERS.size())
+		_vault[index] = clampi(int(row.get("vault", 0)), 0, _vault_capacity(_vault_tier[index]))
 
 
 static func _write() -> void:
 	var slots: Array = []
 	for index in ToonRoster.SLOT_COUNT:
-		slots.append({"pouch": _pouch[index], "bank": _bank[index], "max": _limit[index]})
+		slots.append({
+			"pouch": _pouch[index],
+			"bank": _bank[index],
+			"max": _limit[index],
+			"vault": _vault[index],
+			"vault_tier": _vault_tier[index],
+		})
 	var file := FileAccess.open(_PATH, FileAccess.WRITE)
 	if file == null:
 		return
