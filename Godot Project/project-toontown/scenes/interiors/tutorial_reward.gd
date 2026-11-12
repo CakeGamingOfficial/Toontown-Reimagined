@@ -89,6 +89,8 @@ func _show_plaza() -> void:
 			var zone := packed.instantiate()
 			zone.name = "TutorialStreet"
 			host.add_child(zone)
+			if _host.has_method("paint_flat"):
+				_host.call("paint_flat", zone)
 			_hide_named(zone, "sky")
 			if _host.has_method("adopt_billboards"):
 				_host.call("adopt_billboards", zone)

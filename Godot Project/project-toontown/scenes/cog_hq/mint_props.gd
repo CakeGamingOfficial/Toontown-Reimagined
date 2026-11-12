@@ -14,6 +14,7 @@ const _SMALL := "res://assets/cog_hq/audio/CHQ_FACT_stomper_small.ogg"
 const _MED := "res://assets/cog_hq/audio/CHQ_FACT_stomper_med.ogg"
 const _LARGE := "res://assets/cog_hq/audio/CHQ_FACT_stomper_large.ogg"
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -462,7 +463,7 @@ func _grab_barrels(body: CharacterBody3D) -> void:
 			loadout.set_hp(mini(loadout.hp + grab, loadout.max_hp), loadout.max_hp)
 			loadout.save()
 		elif kind == "beanBarrel":
-			_BEANS.add_beans(grab)
+			_BEANS.add_beans(grab * int(_HOLIDAYS.bean_scale("barrel")))
 		elif kind == "gagBarrel":
 			var pockets := ToonLoadout.for_selected()
 			if pockets == null:

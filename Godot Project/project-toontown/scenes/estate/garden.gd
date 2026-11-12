@@ -240,6 +240,7 @@ static func sell_basket() -> int:
 		if item is Dictionary:
 			total += int((item as Dictionary).get("value", 0))
 	if total > 0:
+		total *= int(preload("res://scenes/shticker/calendar_holidays.gd").bean_scale("garden"))
 		_BEANS.add_beans(total)
 	record["basket"] = []
 	_save()

@@ -705,9 +705,8 @@ func _step_cog(cog: Dictionary, points: Array, route: PackedInt32Array, cogs: Ar
 	cog["goal"] = goal
 	var pos := _vec_at(cog, "position", origin)
 	pos = _on_segment(origin, goal, pos)
-	if _crowded(index, pos, goal, cogs):
-		cog["position"] = pos
-		return true
+	# Same as the visible suit: do not wait on the cog ahead. That wait
+	# looped the street and never let a finished cog fly out.
 	var flat := Vector2(pos.x, pos.z)
 	var target := Vector2(goal.x, goal.z)
 	var remaining := flat.distance_to(target)
@@ -790,36 +789,6 @@ func _on_segment(origin: Vector3, goal: Vector3, pos: Vector3) -> Vector3:
 		pos.z = on_path.y
 	pos.y = lerpf(origin.y, goal.y, along)
 	return pos
-
-
-func _crowded(index: int, pos: Vector3, goal: Vector3, cogs: Array) -> bool:
-	var toward := Vector2(goal.x - pos.x, goal.z - pos.z)
-	var reach := toward.length()
-	for other_index in cogs.size():
-		if other_index == index:
-			continue
-		var other: Dictionary = cogs[other_index]
-		if int(other.get("phase", 1)) != 1:
-			continue
-		# The battle holds this suit off the path. Its frozen sidewalk spot
-		# must not stack the cogs behind it until the fight is over.
-		var fights := get_node_or_null("StreetFights")
-		if fights != null and fights.has_method("cog_paused") and bool(fights.call("cog_paused", int(other.get("do_id", 0)))):
-			continue
-		var place := _vec_at(other, "position", pos)
-		var flat := Vector2(place.x - pos.x, place.z - pos.z)
-		var dist := flat.length()
-		if dist < 2.0 and other_index < index:
-			return true
-		if dist > 6.0 or dist < 0.001 or reach < 0.001:
-			continue
-		var yaw := float(other.get("yaw", 0.0))
-		var same_way := Vector2(-sin(yaw), -cos(yaw))
-		if same_way.dot(toward) <= 0.0:
-			continue
-		if flat.dot(toward) / (dist * reach) >= 0.65:
-			return true
-	return false
 
 
 func _nearest_slot(points: Array, route: PackedInt32Array, near: Vector3) -> int:

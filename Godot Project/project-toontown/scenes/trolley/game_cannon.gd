@@ -469,9 +469,13 @@ func _jar_points(t: float) -> int:
 
 func _score_mult() -> float:
 	var ride := get_parent()
+	var hood := 1.0
 	if ride != null and ride.has_method("_multiplier"):
-		return float(ride.call("_multiplier"))
-	return 1.0
+		hood = float(ride.call("_multiplier"))
+	var holidays := load("res://scenes/shticker/calendar_holidays.gd") as GDScript
+	if holidays == null:
+		return hood
+	return hood * float(holidays.bean_scale("trolley"))
 
 
 ## getTowerPosition. A new spot each round. Near towers stay toward the middle.

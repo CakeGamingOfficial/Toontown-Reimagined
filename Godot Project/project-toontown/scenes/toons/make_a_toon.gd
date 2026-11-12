@@ -1420,7 +1420,7 @@ func _shuffle_clothes() -> void:
 	_style.bot_tex = int(bottom[0])
 	_style.bot_color = int(bottom[1])
 	_style.torso = ToonStyle.SIZES[_style.torso_size()] + ("d" if bool(bottom[2]) else "s")
-	_show_shop()
+		_show_shop()
 
 
 func _refresh() -> void:

@@ -246,15 +246,18 @@ static func resolve(text: String) -> int:
 
 
 static func bean_scale(kind: String) -> int:
+	var scale := 1
 	var on := _on()
-	# Double Jellybeans covers every payout. The older holidays stay specific.
+	# Double Jellybeans covers every payout and stacks with a specific one.
 	if on.has(200):
-		return 2
+		scale *= 2
 	if kind == "fish" and (on.has(98) or on.has(49) or on.has(99)):
-		return 2
-	if kind == "trolley" and (on.has(97) or on.has(49) or on.has(99)):
-		return 2
-	return 1
+		scale *= 2
+	elif kind == "trolley" and (on.has(97) or on.has(49) or on.has(99)):
+		scale *= 2
+	elif kind == "party" and (on.has(49) or on.has(99)):
+		scale *= 2
+	return scale
 
 
 ## ToontownBattleGlobals.getInvasionMultiplier. Welcome Valley never has one.
@@ -819,8 +822,12 @@ static var _seen_county: Dictionary = {}
 
 
 ## New system-alert lines since the last call. The first call only remembers
-## what is already running, so joining does not replay it.
+## what is already running, so joining does not replay it. A district seat
+## changes before the teleport-out finishes, so invasion lines wait until the
+## place on screen is the district you actually entered.
 static func take_alerts() -> PackedStringArray:
+	if _between_districts():
+		return PackedStringArray()
 	var lines: Array[String] = []
 	var holidays := _holiday_ids()
 	var street := _street_face()
@@ -854,6 +861,24 @@ static func take_alerts() -> PackedStringArray:
 		_seen_street = street
 	_seen_county = county
 	return PackedStringArray(lines)
+
+
+## The loading screen, or a playground that was entered under a different
+## district than the seat just accepted.
+static func _between_districts() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return false
+	var screen := tree.root.get_node_or_null("ToonLoadingScreen") as CanvasLayer
+	if screen != null and screen.visible:
+		return true
+	var scene := tree.current_scene
+	if scene == null:
+		return false
+	var arrival := scene.get_node_or_null("PlaygroundToon")
+	if arrival == null or not arrival.has_method("district_entered"):
+		return false
+	return int(arrival.call("district_entered")) != ToonNet.district_id()
 
 
 static func invasion_status() -> String:

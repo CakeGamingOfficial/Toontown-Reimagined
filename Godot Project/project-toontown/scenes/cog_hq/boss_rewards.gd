@@ -278,6 +278,7 @@ static func _apply_unite(menu: int, item: int) -> String:
 		return "Toons of the world, Toon-up!"
 	if menu == 1:
 		var beans := int(_MONEY[clampi(item, 0, _MONEY.size() - 1)])
+		beans *= int(load(_HOLIDAYS).bean_scale("boss"))
 		load(_BEANS).add_beans(beans)
 		return "Toons of the world, spend some jellybeans!"
 	if loadout == null:

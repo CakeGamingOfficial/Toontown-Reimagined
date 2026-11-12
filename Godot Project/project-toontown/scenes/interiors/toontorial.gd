@@ -702,6 +702,10 @@ func set_cutscene(active: bool, hide_player: bool = true) -> void:
 		_player.visible = true
 	elif hide_player:
 		_player.visible = false
+	# The mesh hide is local. Publish a stand so other toons see you there
+	# instead of the last walk, and instead of a missing toon.
+	if active and hide_player and _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
 
 
 func in_cutscene() -> bool:
@@ -942,6 +946,10 @@ func _show_shop_shell() -> void:
 		shell.collision_layer = 0 if inside or _plaza else 1
 
 
+func paint_flat(node: Node) -> void:
+	_FLAT.paint(node)
+
+
 func open_plaza() -> void:
 	# The reward street replaces the shop block. Leave the shop collision on and
 	# it becomes a wall in the middle of that street, because the mesh is hidden.
@@ -1027,6 +1035,9 @@ func _open_plaza() -> void:
 		var zone := packed.instantiate()
 		zone.name = "TutorialStreet"
 		add_child(zone)
+		# The street colors are already the Panda values. A lit material on
+		# top of them is what blows this block out after the battle.
+		_FLAT.paint(zone)
 		_hide_named(zone, "sky")
 		adopt_billboards(zone)
 		close_landmark_doors(zone)

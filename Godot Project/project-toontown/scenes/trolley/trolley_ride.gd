@@ -4,6 +4,7 @@ extends Node3D
 ## The district deals from MinigamePlayerMatrix, so a solo ride stays on the one-player list.
 
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _TASKS := preload("res://scenes/quests/toon_tasks.gd")
 const _RULES_PANEL := preload("res://assets/gui/rules/minigame-rules-panel.png")
 const _PLAY_UP := preload("res://assets/gui/rules/InventoryButtonUp.png")
@@ -347,7 +348,8 @@ func _drop_rules() -> void:
 
 
 func _reward(raw: int) -> void:
-	var paid := clampi(int(round(float(raw) * _multiplier())), 0, 255)
+	# getScoreMult, then the jellybean holiday. They stack. The cap is 255.
+	var paid := clampi(int(round(float(raw) * _multiplier() * float(_HOLIDAYS.bean_scale("trolley")))), 0, 255)
 	ToonNet.finish_trolley(paid)
 	_TASKS.for_selected().note_trolley()
 	_quiet(self)

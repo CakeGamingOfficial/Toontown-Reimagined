@@ -7,6 +7,10 @@ extends Control
 
 const _DIR := "res://assets/gui/shticker/disguise/"
 const _SAVE := "user://cog_disguise.json"
+## The file is one record per toon. Older saves kept a single suit for the
+## whole account; that suit stays with the toon who is playing when it is read.
+static var _book: Dictionary = {}
+static var _book_loaded := false
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _SCALE := 0.47
 const _ORIGIN_X := 0.02
@@ -412,17 +416,9 @@ static func grant_notices(amount: int) -> int:
 	# This book stores the first promotion tier, so the meter stops at 60.
 	if amount <= 0:
 		return 0
-	var record := {}
-	if FileAccess.file_exists(_SAVE):
-		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SAVE))
-		if parsed is Dictionary:
-			record = parsed
-	var parts: Array = record.get("parts", [0, 0, 0, 0])
-	var merits: Array = record.get("merits", [0, 0, 0, 0])
-	while parts.size() < 4:
-		parts.append(0)
-	while merits.size() < 4:
-		merits.append(0)
+	var record := _read_disk()
+	var parts := _four(record.get("parts", []))
+	var merits := _four(record.get("merits", []))
 	if (int(parts[1]) & _MASKS[1]) != _MASKS[1]:
 		return 0
 	var have := int(merits[1])
@@ -437,11 +433,7 @@ static func grant_notices(amount: int) -> int:
 		record["types"] = [0, 0, 0, 0]
 	if not record.has("levels"):
 		record["levels"] = [0, 0, 0, 0]
-	var file := FileAccess.open(_SAVE, FileAccess.WRITE)
-	if file == null:
-		return 0
-	file.store_string(JSON.stringify(record))
-	file.close()
+	_write_disk(record)
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree != null:
 		var page := tree.root.find_child("CogDisguise", true, false)
@@ -460,12 +452,7 @@ func _load_save() -> void:
 	_merits = [0, 0, 0, 0]
 	_types = [0, 0, 0, 0]
 	_levels = [0, 0, 0, 0]
-	if not FileAccess.file_exists(_SAVE):
-		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SAVE))
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return
-	var record: Dictionary = parsed
+	var record := _read_disk()
 	_read_row(_parts, record.get("parts", []))
 	_read_row(_merits, record.get("merits", []))
 	_read_row(_types, record.get("types", []))
@@ -707,19 +694,78 @@ static func _four(raw: Variant) -> Array:
 
 
 static func _read_disk() -> Dictionary:
-	if not FileAccess.file_exists(_SAVE):
+	_ensure_book()
+	var owner := ToonRoster.avatar_id()
+	if owner <= 0:
 		return {}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SAVE))
-	if parsed is Dictionary:
-		return parsed
+	var row: Variant = _book.get(str(owner), {})
+	if row is Dictionary:
+		return (row as Dictionary).duplicate(true)
 	return {}
 
 
 static func _write_disk(record: Dictionary) -> void:
+	_ensure_book()
+	var owner := ToonRoster.avatar_id()
+	if owner <= 0:
+		return
+	_book[str(owner)] = record.duplicate(true)
+	_write_book()
+
+
+static func _ensure_book() -> void:
+	if not _book_loaded:
+		_book_loaded = true
+		if FileAccess.file_exists(_SAVE):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SAVE))
+			if parsed is Dictionary:
+				_book = parsed
+	_claim_legacy()
+
+
+## The old file was one suit for every toon. Keep it with whoever is playing.
+static func _claim_legacy() -> void:
+	if not (_book.get("parts", null) is Array):
+		return
+	var owner := ToonRoster.avatar_id()
+	if owner <= 0:
+		return
+	var key := str(owner)
+	if not _book.has(key):
+		_book[key] = {
+			"parts": _four(_book.get("parts", [])),
+			"merits": _four(_book.get("merits", [])),
+			"types": _four(_book.get("types", [])),
+			"levels": _four(_book.get("levels", [])),
+		}
+	_book.erase("parts")
+	_book.erase("merits")
+	_book.erase("types")
+	_book.erase("levels")
+	_write_book()
+
+
+static func _write_book() -> void:
 	var file := FileAccess.open(_SAVE, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify(record))
+	file.store_string(JSON.stringify(_book))
+	file.close()
+
+
+## A deleted or replaced toon takes their cog suit with them.
+static func reset_slot(index: int) -> void:
+	_ensure_book()
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return
+	var style := ToonRoster.get_slot(index)
+	if style == null or style.av_id <= 0:
+		return
+	var key := str(style.av_id)
+	if not _book.has(key):
+		return
+	_book.erase(key)
+	_write_book()
 
 
 ## ~max. PartsPerSuitBitmasks, the last suit in each department, and MaxCogSuitLevel.

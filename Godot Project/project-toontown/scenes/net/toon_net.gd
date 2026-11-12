@@ -66,6 +66,10 @@ var _clock_skew := 0.0
 var _clock_zone := 0.0
 var _clock_known := false
 var _clock_wait := 0.0
+## Half the round trip of the sample currently in use. A late packet is wider
+## than this and must not drag the clock backward.
+var _clock_uncertainty := 30.0
+var _clock_age := 0.0
 var _notice: Node
 static var _lan_lines: PackedStringArray = PackedStringArray()
 static var _lan_ready := false
@@ -108,7 +112,9 @@ static func live() -> ToonNet:
 	return tree.root.get_node_or_null("ToonNetwork") as ToonNet
 
 
-## The host's clock. Offline play uses this machine. Clients follow the host.
+## The host's UTC clock. Offline play uses this machine. Clients follow the
+## host, measured from the middle of a round trip so a slow packet is not
+## counted as the server being behind.
 static func now() -> float:
 	var local := Time.get_unix_time_from_system()
 	var net := live()
@@ -576,7 +582,7 @@ func _become_dedicated() -> void:
 func _process(delta: float) -> void:
 	if is_authority():
 		_HOLIDAYS.tick_county(delta)
-		_tick_clock(delta)
+	_tick_clock(delta)
 	if _stop_file == "" or _shutdown_started:
 		return
 	_stop_wait -= delta
@@ -854,7 +860,7 @@ func _host_game(port: int) -> String:
 	if _role == "client":
 		return "Leave the server with ~district close before hosting."
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(port, 128)
+	var err := peer.create_server(port, 128, 3)
 	if err != OK:
 		return "Could not host on port %d." % port
 	_port = port
@@ -872,14 +878,14 @@ func _join_server(address: String, port: int) -> String:
 	if _role != "offline":
 		return "Leave the current server with ~district close first."
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_client(address, port)
+	var err := peer.create_client(address, port, 3)
 	if err != OK:
 		return "Could not join %s:%d." % [address, port]
 	_last_address = address
 	_last_port = port
 	multiplayer.multiplayer_peer = peer
 	_role = "client"
-	_clock_known = false
+	_forget_clock()
 	return "Joining %s:%d." % [address, port]
 
 
@@ -912,7 +918,7 @@ func _drop_host_soon() -> void:
 
 func _finish_offline() -> void:
 	_role = "offline"
-	_clock_known = false
+	_forget_clock()
 	_peers.clear()
 	multiplayer.multiplayer_peer = null
 	_recount()
@@ -1751,7 +1757,7 @@ func _print_move(peer: int, previous: int, id: int) -> void:
 func _on_connected() -> void:
 	_lost = false
 	_role = "client"
-	_clock_known = false
+	_forget_clock()
 	if not _rejoining:
 		return
 	_rejoining = false
@@ -1956,38 +1962,103 @@ func _receive_state(channel: String, state: Dictionary) -> void:
 
 
 func _tick_clock(delta: float) -> void:
-	if _role != "host":
+	if _role == "host":
+		_clock_wait -= delta
+		if _clock_wait > 0.0:
+			return
+		_clock_wait = 30.0
+		_publish_clock()
+		return
+	if _role != "client":
+		return
+	if multiplayer.multiplayer_peer == null:
+		return
+	if multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	_clock_age += delta
+	# TimeManager resyncs every half hour, and gives up on a sample wider than a second.
+	if _clock_known and _clock_uncertainty <= 1.0 and _clock_age < 1800.0:
 		return
 	_clock_wait -= delta
 	if _clock_wait > 0.0:
 		return
-	_clock_wait = 1.0
-	_publish_clock()
+	_clock_wait = 2.0
+	_request_clock.rpc_id(1, Time.get_unix_time_from_system())
 
 
-func _publish_clock() -> void:
-	if _role != "host":
-		return
+func _forget_clock() -> void:
+	_clock_known = false
+	_clock_uncertainty = 30.0
+	_clock_age = 0.0
+	_clock_wait = 0.0
+
+
+## Seconds to add to a UTC timestamp so its calendar fields are this machine's
+## wall clock. The bias follows daylight time because it is read from the clock.
+func _zone_seconds() -> float:
 	var unix := Time.get_unix_time_from_system()
 	var local := Time.get_datetime_dict_from_system()
-	var zone := Time.get_unix_time_from_datetime_dict({
+	var as_utc := Time.get_unix_time_from_datetime_dict({
 		"year": int(local.get("year", 0)),
 		"month": int(local.get("month", 0)),
 		"day": int(local.get("day", 0)),
 		"hour": int(local.get("hour", 0)),
 		"minute": int(local.get("minute", 0)),
 		"second": int(local.get("second", 0)),
-	}) - unix
-	_store("clock", {"unix": unix, "zone": zone})
+	})
+	return snappedf(as_utc - unix, 60.0)
+
+
+func _publish_clock() -> void:
+	if _role != "host":
+		return
+	_store("clock", {
+		"unix": Time.get_unix_time_from_system(),
+		"zone": _zone_seconds(),
+	})
 
 
 func _apply_clock(state: Dictionary) -> void:
+	_clock_zone = float(state.get("zone", _clock_zone))
+	# A one-way broadcast is late by the whole delivery time. It only fills in
+	# until the round trip has a tighter sample.
+	if _clock_known:
+		return
 	var host_unix := float(state.get("unix", 0.0))
 	if host_unix <= 0.0:
 		return
 	_clock_skew = host_unix - Time.get_unix_time_from_system()
-	_clock_zone = float(state.get("zone", 0.0))
+	_clock_uncertainty = 30.0
 	_clock_known = true
+
+
+## Its own channel, and unreliable, so a suit snapshot cannot hold the clock in line.
+@rpc("any_peer", "call_remote", "unreliable", 2)
+func _request_clock(sent: float) -> void:
+	if not is_authority():
+		return
+	_clock_sample.rpc_id(multiplayer.get_remote_sender_id(), sent, Time.get_unix_time_from_system(), _zone_seconds())
+
+
+@rpc("authority", "call_remote", "unreliable", 2)
+func _clock_sample(sent: float, server_unix: float, zone: float) -> void:
+	if is_authority():
+		return
+	var end := Time.get_unix_time_from_system()
+	var trip := end - sent
+	if trip < 0.0 or trip > 5.0:
+		return
+	var uncertainty := trip * 0.5
+	var due := _clock_age >= 1800.0 and uncertainty <= 1.0
+	var better := not _clock_known or uncertainty < _clock_uncertainty
+	_clock_zone = zone
+	if not better and not due:
+		return
+	# The server stamped its clock halfway through the trip.
+	_clock_skew = server_unix - (sent + uncertainty)
+	_clock_uncertainty = uncertainty
+	_clock_known = true
+	_clock_age = 0.0
 
 
 @rpc("any_peer", "reliable")

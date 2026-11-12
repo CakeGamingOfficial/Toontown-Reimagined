@@ -8,6 +8,7 @@ extends Node3D
 ## and cog pies pay the original jellybean amounts.
 
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _LOADING := preload("res://scenes/gui/loading_screen.gd")
 const _FILE := "user://toon_party.json"
@@ -313,22 +314,28 @@ func _open_activity(id: String) -> void:
 	_add("Close", _close)
 
 
+func _pay(gain: int) -> int:
+	var paid := gain * int(_HOLIDAYS.bean_scale("party"))
+	if paid > 0:
+		_BEANS.add_beans(paid)
+	return paid
+
+
 func _cannon() -> void:
 	var earned := int(_party.get("cannon", 0))
 	if earned >= 200:
 		_text.text = "The cannon is out of jellybeans for this party."
 		return
-	var gain := mini(2, 200 - earned)
-	_party["cannon"] = earned + gain
-	_BEANS.add_beans(gain)
+	var base := mini(2, 200 - earned)
+	var gain := _pay(base)
+	_party["cannon"] = earned + base
 	_save()
 	_text.text = "You landed in the beans and got %d jellybeans." % gain
 
 
 func _trampoline() -> void:
 	var bonus := 10 if randf() > 0.5 else 0
-	var gain := 12 + bonus
-	_BEANS.add_beans(gain)
+	var gain := _pay(12 + bonus)
 	_text.text = "Nice bounce! %d jellybeans." % gain
 
 
@@ -337,24 +344,22 @@ func _catch() -> void:
 	if earned >= 1000:
 		_text.text = "You cannot catch any more jellybeans at this party."
 		return
-	var gain := mini(randi_range(4, 12), 1000 - earned)
-	_party["catch"] = earned + gain
-	_BEANS.add_beans(gain)
+	var base := mini(randi_range(4, 12), 1000 - earned)
+	var gain := _pay(base)
+	_party["catch"] = earned + base
 	_save()
 	_text.text = "You caught %d jellybeans." % gain
 
 
 func _tug() -> void:
 	var win := randf() > 0.45
-	var gain := 12 if win else 8
-	_BEANS.add_beans(gain)
+	var gain := _pay(12 if win else 8)
 	_text.text = "You won the tug! %d jellybeans." % gain if win else "You were pulled across. %d jellybeans." % gain
 
 
 func _cog() -> void:
 	# CogActivityBeansToAward is 27. A clean hit pays the perfect-win share.
-	var gain := 20 if randf() > 0.35 else 16
-	_BEANS.add_beans(gain)
+	var gain := _pay(20 if randf() > 0.35 else 16)
 	_text.text = "The cog is dizzy. %d jellybeans." % gain
 
 

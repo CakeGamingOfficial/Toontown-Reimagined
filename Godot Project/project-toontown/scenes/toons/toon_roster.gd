@@ -31,6 +31,13 @@ static func set_slot(index: int, style: ToonStyle) -> void:
 	_ensure()
 	if index < 0 or index >= SLOT_COUNT:
 		return
+	# Drop the previous toon's closet, cog suit, kart, and friends before the new one takes the slot.
+	CatalogCloset.reset_slot(index)
+	DisguisePage.reset_slot(index)
+	KartGarage.reset_slot(index)
+	FriendsBook.reset_slot(index)
+	if style.av_id <= 0:
+		style.av_id = _fresh_id()
 	_slots[index] = style
 	_save()
 	# A new toon must not inherit the journal, gags, or jellybeans of whoever used this slot.
@@ -44,6 +51,10 @@ static func clear_slot(index: int) -> void:
 	_ensure()
 	if index < 0 or index >= SLOT_COUNT:
 		return
+	CatalogCloset.reset_slot(index)
+	DisguisePage.reset_slot(index)
+	KartGarage.reset_slot(index)
+	FriendsBook.reset_slot(index)
 	_slots[index] = null
 	if _selected == index:
 		_selected = -1
@@ -70,7 +81,7 @@ static func avatar_id() -> int:
 	if style == null:
 		return 0
 	if style.av_id <= 0:
-		style.av_id = randi() % 900000000 + 100000000
+		style.av_id = _fresh_id()
 		_save()
 	return style.av_id
 
@@ -101,6 +112,24 @@ static func _ensure() -> void:
 		var entry: Variant = stored[index]
 		if typeof(entry) == TYPE_DICTIONARY:
 			_slots[index] = ToonStyle.from_dict(entry)
+	var minted := false
+	for slot in _slots:
+		if slot is ToonStyle and (slot as ToonStyle).av_id <= 0:
+			(slot as ToonStyle).av_id = _fresh_id()
+			minted = true
+	if minted:
+		_save()
+
+
+static func _fresh_id() -> int:
+	var used := {}
+	for slot in _slots:
+		if slot is ToonStyle and (slot as ToonStyle).av_id > 0:
+			used[(slot as ToonStyle).av_id] = true
+	var av := 0
+	while av <= 0 or used.has(av):
+		av = randi() % 900000000 + 100000000
+	return av
 
 
 static func _save() -> void:

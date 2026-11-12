@@ -248,7 +248,7 @@ func _build_lod(lod: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = str(lod)
 	root.add_child(legs)
-	hips.add_child(torso)
+		hips.add_child(torso)
 	var look := Node3D.new()
 	look.name = "head_look"
 	neck.add_child(look)
@@ -496,9 +496,13 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 		_land_kind = ""
 	else:
 		_jump_kind = ""
-	if forward_speed > _WALK_SPEED:
+	# Toon.setSpeed. RunCutOff and above is the run loop. Slower forward
+	# motion, backing up, and turning in place stay on the walk loop.
+	if forward_speed >= _RUN_CUTOFF:
 		if _play_bank("run", 1.0, delta):
 			return
+		_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
+	elif forward_speed > _WALK_SPEED:
 		_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, 1.0, delta)
 	elif forward_speed < -_WALK_SPEED:
 		_play_cycle("walk", _walk_clips, _walk_joints, _frame_count, -1.0, delta)
@@ -1229,6 +1233,7 @@ func _transform_from_panda(cells: PackedFloat32Array) -> Transform3D:
 ## joint. Shoes swap the leg geoms the original model already has.
 func wear_accessories(worn: Dictionary) -> void:
 	_accessory_ids = worn.duplicate()
+	set_meta("accessories", _accessory_ids)
 	_dress_all()
 	_adopt_shoe_clips()
 
@@ -1931,7 +1936,7 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 		if kind == "front":
 			color = style.painted_color("head")
 		else:
-			var material := source.surface_get_material(surface)
+		var material := source.surface_get_material(surface)
 			if material is BaseMaterial3D:
 				var standard := material as BaseMaterial3D
 				texture = standard.albedo_texture
@@ -2284,12 +2289,27 @@ func _process(delta: float) -> void:
 		_tick_shticker(delta)
 	_tick_blink(delta)
 	_tick_look(delta)
-	# Pick a Toon only shows the head, so it never asks for locomotion.
-	# Dogs still loop neutral there so the ears keep flopping.
-	if Time.get_ticks_msec() - _locomotion_msec > 100 and _style.species() == "d":
+	# DistributedNPCToon loops neutral. A toon nobody is walking keeps that
+	# idle. Dogs with no body clip still flop their ears.
+	var standing := Time.get_ticks_msec() - _locomotion_msec > 100
+	if standing and load_extra_clips and _book_phase == "" and not _pose_lock:
+		_tick_stand(delta)
+	elif standing and _style.species() == "d":
 		_tick_dog_ears(delta)
-	if footsteps and _step_mode != "" and Time.get_ticks_msec() - _locomotion_msec > 100:
+	if footsteps and _step_mode != "" and standing:
 		_footsteps(0.0, false)
+
+
+func _tick_stand(delta: float) -> void:
+	if _swimming:
+		return
+	_ensure_clips()
+	if _gesture != "":
+		_play_bank(_gesture, _gesture_rate, delta, _gesture_loop)
+		return
+	if _sad and _play_bank("sad-neutral", 1.0, delta):
+		return
+	_play_idle(delta)
 
 
 func _prepare_face() -> void:

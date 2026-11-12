@@ -8,6 +8,8 @@ class_name RemoteToons
 ## broadcast, and this fills in the frames between them.
 
 const _PERIOD := 0.2
+# Farther than ~run travels in a few broadcasts. A door or ~tp is much farther.
+const _SNAP := 96.0
 const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
 const _DOODLE := preload("res://scenes/pets/doodle.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
@@ -150,6 +152,11 @@ func _send() -> void:
 		pet_yaw = body.rotation.y
 		pet_anim = String(body.call("clip_name"))
 	var worn := _CLOSET.accessory_ids()
+	# A quest close-up hides the local mesh because the camera sits on that
+	# spot. Other toons still see you standing where the movie left you.
+	var concealed := _hidden or not _actor.visible
+	if _world != null and _world.has_method("in_cutscene") and bool(_world.call("in_cutscene")):
+		concealed = false
 	ToonNet.submit("toon:%d" % ToonNet.peer_id(), {
 		"district": ToonNet.district_id(),
 		"district_name": ToonNet.district_name(),
@@ -161,6 +168,7 @@ func _send() -> void:
 		"y": where.y,
 		"z": where.z,
 		"heading": _heading,
+		"speed": _speed,
 		"anim": _anim,
 		"fishing": _fishing,
 		"pose": _fish_pose,
@@ -169,7 +177,7 @@ func _send() -> void:
 		"hp": laff.x,
 		"max_hp": laff.y,
 		"ghost": MagicWords.ghosting(),
-		"hidden": _hidden or not _actor.visible,
+		"hidden": concealed,
 		"style": style.to_dict(),
 		"accessories": worn,
 		"pet_name": pet_name,
@@ -234,10 +242,14 @@ func _apply(channel: String) -> void:
 		_wear(actor, state)
 		puppet["style"] = style_key
 	var target := Vector3(float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("z", 0.0)))
-	if actor.global_position.distance_squared_to(target) > 144.0:
+	# ~run covers more than a normal step between broadcasts. Snapping that
+	# gap plants the toon on each packet, so the walk never reads. Only a
+	# real teleport should jump.
+	if actor.global_position.distance_squared_to(target) > _SNAP * _SNAP:
 		actor.global_position = target
 	puppet["pos"] = target
 	puppet["heading"] = float(state.get("heading", 0.0))
+	puppet["speed"] = float(state.get("speed", 0.0))
 	puppet["anim"] = String(state.get("anim", "neutral"))
 	puppet["fishing"] = bool(state.get("fishing", false))
 	puppet["pose"] = float(state.get("pose", -1.0))
@@ -349,18 +361,23 @@ func _move_puppets(delta: float) -> void:
 			actor.set_locomotion(0.0, false, false, delta)
 			continue
 		actor.release_pose()
+		var speed := float(puppet.get("speed", 0.0))
 		if anim == "run":
-			actor.set_locomotion(9.0, false, false, delta)
+			actor.set_locomotion(speed if speed >= 8.0 else 9.0, false, false, delta)
 		elif anim == "walk":
-			actor.set_locomotion(4.0, false, false, delta)
+			var paced := speed
+			if paced <= 0.5 or paced >= 8.0:
+				paced = 4.0
+			actor.set_locomotion(paced, false, false, delta)
 		elif anim == "reverse":
-			actor.set_locomotion(-4.0, false, false, delta)
+			actor.set_locomotion(speed if speed < -0.5 else -4.0, false, false, delta)
 		elif anim == "turn":
 			actor.set_locomotion(0.0, true, false, delta)
 		elif anim == "jump":
-			actor.set_locomotion(4.0, false, true, delta)
+			var hopping := speed if absf(speed) > 0.5 else 4.0
+			actor.set_locomotion(hopping, false, true, delta)
 		elif anim == "sad-walk":
-			actor.set_locomotion(4.0, false, false, delta)
+			actor.set_locomotion(speed if absf(speed) > 0.5 else 4.0, false, false, delta)
 		elif anim == "sad-neutral":
 			actor.set_locomotion(0.0, false, false, delta)
 		else:

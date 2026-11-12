@@ -127,6 +127,9 @@ var _traps: Dictionary = {}
 var _sprung: Array = []
 var _fired: Dictionary = {}
 var _attach: Dictionary = {}
+var _party: Array = []
+var _make_owner := 0
+var _chording := false
 var _aiming := false
 var _aim_time := 0.0
 var _aim_open := 3.0
@@ -191,6 +194,171 @@ static func seconds(kind: String, track: int, level: int, died: bool, attack := 
 	if track == 0:
 		return _HEAL_TIME[clampi(level, 0, _HEAL_TIME.size() - 1)]
 	return 2.2
+
+
+## Movie groups one track into a single interval. Heal stays a sequence. Trap and
+## lure start together. Sound staggers a second per level. Throw and squirt
+## stagger half a second on one cog and a second between cogs. Drop uses 0.8s.
+static func joins_chorus(beat: Dictionary) -> bool:
+	if String(beat.get("kind", "")) != "gag":
+		return false
+	var track := int(beat.get("track", -1))
+	return track >= 1 and track <= 6
+
+
+static func same_chorus(lead: Dictionary, nxt: Dictionary) -> bool:
+	return joins_chorus(lead) and joins_chorus(nxt) and int(lead.get("track", -1)) == int(nxt.get("track", -2))
+
+
+## One party is one toon's gag, including every cog a group gag hits.
+static func split_parties(beats: Array) -> Array:
+	var parties: Array = []
+	var current: Array = []
+	var toon := -999999
+	for item in beats:
+		if not (item is Dictionary):
+			continue
+		var beat: Dictionary = item
+		var who := int(beat.get("toon", 0))
+		if current.is_empty() or who == toon:
+			current.append(beat)
+			toon = who
+		else:
+			parties.append(current)
+			current = [beat]
+			toon = who
+	if not current.is_empty():
+		parties.append(current)
+	return parties
+
+
+## How long the overlapping track movie runs, before the lose track.
+static func chorus_seconds(beats: Array) -> float:
+	var parties := split_parties(beats)
+	var delays := chorus_delays(parties)
+	var span := 0.0
+	for index in parties.size():
+		var party: Array = parties[index]
+		if party.is_empty():
+			continue
+		var row: Dictionary = party[0]
+		span = maxf(span, float(delays[index]) + seconds("gag", int(row.get("track", 0)), int(row.get("level", 0)), false))
+	return span
+
+
+static func chorus_delays(parties: Array) -> PackedFloat32Array:
+	var delays := PackedFloat32Array()
+	delays.resize(parties.size())
+	if parties.is_empty():
+		return delays
+	var first: Array = parties[0]
+	if first.is_empty():
+		return delays
+	var lead: Dictionary = first[0]
+	var track := int(lead.get("track", -1))
+	# MovieTrap and MovieLure put every toon in one Parallel.
+	if track == 1 or track == 2:
+		return delays
+	# MovieSound steps a second later for each higher level. The same level starts together.
+	if track == 3:
+		return _level_delays(parties, 1.0)
+	if track == 4 or track == 5 or track == 6:
+		return _aimed_delays(parties, track)
+	return delays
+
+
+static func _level_delays(parties: Array, gap: float) -> PackedFloat32Array:
+	var delays := PackedFloat32Array()
+	delays.resize(parties.size())
+	var levels: Array[int] = []
+	var rows: Array = []
+	for party in parties:
+		rows = party
+		if rows.is_empty():
+			continue
+		var gag_level := int((rows[0] as Dictionary).get("level", 0))
+		if not levels.has(gag_level):
+			levels.append(gag_level)
+	levels.sort()
+	var at := {}
+	var cursor := 0.0
+	for level in levels:
+		at[level] = cursor
+		cursor += gap
+	for index in parties.size():
+		rows = parties[index]
+		if rows.is_empty():
+			continue
+		delays[index] = float(at.get(int((rows[0] as Dictionary).get("level", 0)), 0.0))
+	return delays
+
+
+static func _aimed_delays(parties: Array, track: int) -> PackedFloat32Array:
+	var delays := PackedFloat32Array()
+	delays.resize(parties.size())
+	# BattleBase.TOON_THROW_DELAY / TOON_SQUIRT_DELAY are 0.5. TOON_DROP_DELAY is 0.8.
+	var per := 0.8 if track == 6 else 0.5
+	var gap := 1.0
+	# Wedding cakes and Toon-up ships play after the single-target gags. Geysers stay in the suit list.
+	var defer_group := track == 4 or track == 6
+	var buckets := {}
+	var order: Array[int] = []
+	var groups: Array[int] = []
+	for index in parties.size():
+		var rows: Array = parties[index]
+		if rows.is_empty():
+			continue
+		var row: Dictionary = rows[0]
+		var level := int(row.get("level", 0))
+		if defer_group and ToonLoadout.affects_group(track, level):
+			groups.append(index)
+			continue
+		var cog := int(row.get("cog", 0))
+		if not buckets.has(cog):
+			buckets[cog] = []
+			order.append(cog)
+		(buckets[cog] as Array).append(index)
+	var ranked: Array = []
+	for index in order.size():
+		var cog := order[index]
+		ranked.append({"cog": cog, "n": (buckets[cog] as Array).size(), "i": index})
+	# Fewer toons on a cog go first, matching MovieThrow's suit sort.
+	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a["n"]) == int(b["n"]):
+			return int(a["i"]) < int(b["i"])
+		return int(a["n"]) < int(b["n"])
+	)
+	var suit_at := 0.0
+	var singles_end := 0.0
+	for item in ranked:
+		var rank: Dictionary = item
+		var members: Array = (buckets[int(rank["cog"])] as Array).duplicate()
+		members.sort_custom(func(a: int, b: int) -> bool:
+			var left: Dictionary = (parties[a] as Array)[0]
+			var right: Dictionary = (parties[b] as Array)[0]
+			var left_level := int(left.get("level", 0))
+			var right_level := int(right.get("level", 0))
+			if left_level == right_level:
+				return a < b
+			return left_level < right_level
+		)
+		var inner := 0.0
+		for party_index in members:
+			delays[party_index] = suit_at + inner
+			var beat: Dictionary = (parties[party_index] as Array)[0]
+			var length := seconds("gag", track, int(beat.get("level", 0)), false)
+			singles_end = maxf(singles_end, delays[party_index] + length)
+			inner += per
+		suit_at += gap
+	if track == 6:
+		var extra := 0.0
+		for group_index in groups:
+			delays[group_index] = singles_end + extra
+			extra += gap
+	else:
+		for group_index in groups:
+			delays[group_index] = singles_end
+	return delays
 
 
 ## MovieSuitAttacks.getToonTrack. The extra 1.4s is the reaction after the hit.
@@ -468,17 +636,36 @@ func clear_traps() -> void:
 	_clear_spawned()
 
 
+func party() -> Array:
+	return _party
+
+
 func play(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, contact: Callable) -> void:
 	_fired.clear()
+	_party = beats
 	if beats.is_empty():
 		return
 	var lead: Dictionary = beats[0]
 	var kind := String(lead.get("kind", ""))
-	var track := int(lead.get("track", -1))
-	var level := int(lead.get("level", 0))
+	var parties := split_parties(beats)
+	if kind == "gag" and parties.size() > 1 and joins_chorus(lead):
+		await _play_chorus(beats, parties, actor_of, cog_of, still, contact)
+		return
 	var actor: ToonActor = actor_of.call(int(lead.get("toon", 0)))
 	var marks := _marks(beats, cog_of)
 	_begin_camera(lead, actor, marks)
+	await _attack_one(lead, beats, actor, marks, actor_of, still, contact)
+	_clear_spawned()
+	if kind == "gag":
+		await _cog_death(marks, still)
+		_finish_revives(marks)
+	_rest(actor, marks)
+
+
+func _attack_one(lead: Dictionary, beats: Array, actor: ToonActor, marks: Array, actor_of: Callable, still: Callable, contact: Callable) -> void:
+	var kind := String(lead.get("kind", ""))
+	var track := int(lead.get("track", -1))
+	var level := int(lead.get("level", 0))
 	if kind == "cog":
 		await _suit(beats, actor_of, marks, still, contact)
 	elif kind == "gag" and actor != null and track == 4:
@@ -503,11 +690,63 @@ func play(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, c
 		await _wait(1.2, still)
 		if still.call():
 			contact.call()
+
+
+func _play_chorus(beats: Array, parties: Array, actor_of: Callable, cog_of: Callable, still: Callable, contact: Callable) -> void:
+	var lead: Dictionary = beats[0]
+	var actor: ToonActor = actor_of.call(int(lead.get("toon", 0)))
+	var marks := _marks(beats, cog_of)
+	_begin_camera(lead, actor, marks)
+	var delays := chorus_delays(parties)
+	var pending := {"n": parties.size()}
+	_chording = true
+	var clock := 0.0
+	for index in parties.size():
+		var party: Array = parties[index]
+		var delay := float(delays[index]) if index < delays.size() else 0.0
+		var who: ToonActor = null
+		if not party.is_empty():
+			who = actor_of.call(int((party[0] as Dictionary).get("toon", 0)))
+		var party_marks := _marks(party, cog_of)
+		var batch := party
+		var touch := func() -> void:
+			_party = batch
+			if contact.is_valid():
+				contact.call()
+		_play_party(party, who, party_marks, delay, actor_of, still, touch, pending)
+	while int(pending["n"]) > 0 and still.call():
+		_aim_time = clock
+		await get_tree().process_frame
+		if not is_inside_tree():
+			_chording = false
+			return
+		clock += get_process_delta_time()
+	_chording = false
+	_aim_time = clock
 	_clear_spawned()
-	if kind == "gag":
-		await _cog_death(marks, still)
-		_finish_revives(marks)
-	_rest(actor, marks)
+	await _cog_death(marks, still)
+	_finish_revives(marks)
+	for party in parties:
+		var rows: Array = party
+		if rows.is_empty():
+			continue
+		var who: ToonActor = actor_of.call(int((rows[0] as Dictionary).get("toon", 0)))
+		if who != null:
+			_rest(who, _marks(rows, cog_of))
+
+
+func _play_party(party: Array, actor: ToonActor, marks: Array, delay: float, actor_of: Callable, still: Callable, contact: Callable, pending: Dictionary) -> void:
+	if delay > 0.0:
+		await _wait(delay, still)
+	if still.call():
+		if actor == null or party.is_empty():
+			contact.call()
+		else:
+			var lead: Dictionary = party[0]
+			_make_owner = actor.get_instance_id()
+			await _attack_one(lead, party, actor, marks, actor_of, still, contact)
+			_clear_owner(actor.get_instance_id())
+	pending["n"] = int(pending["n"]) - 1
 
 
 func _marks(beats: Array, cog_of: Callable) -> Array:
@@ -529,12 +768,15 @@ func _marks(beats: Array, cog_of: Callable) -> Array:
 
 
 func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var pie := _make(pie_name)
 	_hand(pie, actor, "def_joint_right_hold")
 	var aim := _first_cog(marks)
 	var hit := _any_hit(marks)
 	var gate := {}
 	await _run(seconds("gag", 4, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action("throw", elapsed)
 		# tPieLeavesHand 2.7, tPieHitsSuit 3.0, tSuitDodges 2.45.
 		if pie_name == "birthday-cake":
@@ -578,14 +820,14 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 		_react_marks(marks, elapsed, 3.0, "pie-small", 2.45)
 		if level == 6:
 			if hit:
-				_once("throw", elapsed, 1.0, "AA_throw_wedding_cake.ogg")
-				_once("pie", elapsed, 3.0, "AA_throw_wedding_cake_cog.ogg")
+				_once("throw", elapsed, 1.0, "AA_throw_wedding_cake.ogg", stamp)
+				_once("pie", elapsed, 3.0, "AA_throw_wedding_cake_cog.ogg", stamp)
 			else:
-				_once("throw", elapsed, 2.45, "AA_throw_wedding_cake_miss.ogg")
+				_once("throw", elapsed, 2.45, "AA_throw_wedding_cake_miss.ogg", stamp)
 		else:
-			_once("throw", elapsed, 2.6, "AA_pie_throw_only.ogg")
+			_once("throw", elapsed, 2.6, "AA_pie_throw_only.ogg", stamp)
 			if hit:
-				_once("pie", elapsed, 2.7, _pie_hit(level))
+				_once("pie", elapsed, 2.7, _pie_hit(level), stamp)
 		if elapsed >= 3.0 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -593,6 +835,8 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 
 
 func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var button := _make("button")
 	_hand(button, actor, "def_joint_left_hold")
 	button.scale = Vector3.ONE
@@ -609,6 +853,7 @@ func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable)
 	var gate := {}
 	# Flower grows at 1.0s over 0.5s. Spray starts at 2.5 and lasts 0.3s.
 	await _run(seconds("gag", 5, 0, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action("pushbutton", elapsed)
 		if elapsed >= 1.0:
 			flower.visible = true
@@ -625,7 +870,7 @@ func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable)
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, 2.7, "squirt-small", 2.5)
-		_once("squirt", elapsed, 2.1, "AA_squirt_flowersquirt.ogg" if hit else "AA_squirt_flowersquirt_miss.ogg")
+		_once("squirt", elapsed, 2.1, "AA_squirt_flowersquirt.ogg" if hit else "AA_squirt_flowersquirt_miss.ogg", stamp)
 		if elapsed >= 2.7 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -633,6 +878,8 @@ func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable)
 
 
 func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var prop := _make(prop_name)
 	if level == 2:
 		# MovieSquirt water-gun: right hand, not the joint origin.
@@ -662,6 +909,7 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 		prop.basis = Basis.IDENTITY
 	var gate := {}
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action(clip, elapsed)
 		if prop_name == "glass" or prop_name == "firehose":
 			var started := 0.7 if level == 4 else 0.0
@@ -674,7 +922,7 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, contact_at, "squirt-small", dodge_at)
-		_once("squirt", elapsed, float(when.get("sound", spray_at)), _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level])
+		_once("squirt", elapsed, float(when.get("sound", spray_at)), _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level], stamp)
 		if elapsed >= contact_at and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -682,6 +930,8 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 
 
 func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var aim := _first_cog(marks)
 	var prop := _make(prop_name)
 	prop.visible = false
@@ -697,6 +947,7 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 		prop.global_basis = _Z_UP
 		_cloud_rain(prop)
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action("pushbutton", elapsed)
 		if cloud:
 			# pose(0) through the grow, then the bolt clip starts one second in.
@@ -722,9 +973,9 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 			if aim != null:
 				prop.global_position = aim.global_position + Vector3(0.0, 0.2, 0.0)
 		_react_marks(marks, elapsed, 2.9, "soak" if level >= 6 else "squirt-small", 1.8)
-		_once("sky", elapsed, 2.3 if cloud else 1.8, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level])
+		_once("sky", elapsed, 2.3 if cloud else 1.8, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level], stamp)
 		if cloud:
-			_once("sky2", elapsed, 4.6, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level])
+			_once("sky2", elapsed, 4.6, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level], stamp)
 		if elapsed >= 2.9 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -796,6 +1047,8 @@ func _cloud_rain_step(cloud: Node3D, elapsed: float, hit: bool, hold_until: floa
 
 
 func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var button := _make("button")
 	_hand(button, actor, "def_joint_left_hold")
 	button.scale = Vector3.ONE
@@ -812,6 +1065,7 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 	var gate := {}
 	var react := "flatten" if level >= 3 else "drop-react"
 	await _run(seconds("gag", 6, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action("pushbutton", elapsed)
 		# The button lands at 2.44. The shadow grows until the object appears at 4.3.
 		if elapsed >= 2.44 and _latch(gate, "box"):
@@ -886,6 +1140,8 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 
 
 func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	# MovieTrap.__trapTrain lays one railroad for the whole side, not one per cog.
 	var railroad := prop_name == "traintrack"
 	var props: Array[Node3D] = []
@@ -904,6 +1160,7 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		_hand(button, actor, "def_joint_left_hold")
 	var gate := {}
 	await _run(seconds("gag", 1, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action(clip, elapsed)
 		if railroad:
 			var lead := _first_cog(marks)
@@ -928,8 +1185,8 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 			sound_at = 1.0
 		elif level >= 3:
 			sound_at = 2.3
-			_once("trapbox", elapsed, 2.3, "AA_drop_trigger_box.ogg")
-		_once("trap", elapsed, sound_at, _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg")
+			_once("trapbox", elapsed, 2.3, "AA_drop_trigger_box.ogg", stamp)
+		_once("trap", elapsed, sound_at, _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", stamp)
 		if elapsed >= 3.5 and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -959,6 +1216,8 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 
 
 func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var clip := "battlecast"
 	if level == 1 or level == 3:
 		clip = "hold-magnet"
@@ -1000,6 +1259,7 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 	elif level == 6:
 		lure_at = 2.4
 	await _run(seconds("gag", 2, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action(clip, elapsed)
 		if prop_name == "fishing-pole" or prop_name == "hypno-goggles":
 			_pose_prop(prop, prop_name, elapsed)
@@ -1038,8 +1298,8 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		elif level == 6:
 			lure_sound = "TL_presentation.ogg"
 			lure_delay = 2.3
-			_once("lurebox", elapsed, 2.5, "AA_drop_trigger_box.ogg")
-		_once("lure", elapsed, lure_delay, lure_sound)
+			_once("lurebox", elapsed, 2.5, "AA_drop_trigger_box.ogg", stamp)
+		_once("lure", elapsed, lure_delay, lure_sound, stamp)
 		if elapsed >= lure_at and _latch(gate, "hit"):
 			for mark in marks:
 				var row: Dictionary = mark
@@ -1056,6 +1316,8 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 
 
 func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var stamp := actor.get_instance_id()
+	_make_owner = stamp
 	var horn := _make("megaphone")
 	# Both the megaphone and the instrument sit on the right hand.
 	_hand(horn, actor, "def_joint_right_hold")
@@ -1065,6 +1327,7 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 	var gate := {}
 	var react_at := 2.8 + (3.0 if level >= 6 else 0.0)
 	await _run(seconds("gag", 3, level, false), still, func(elapsed: float) -> void:
+		_make_owner = stamp
 		actor.pose_action("sound", elapsed)
 		# Megaphone shows, the instrument grows after 1s, and the note hits at 2.45.
 		horn.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.2, 0.0, 1.0))
@@ -1111,10 +1374,10 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 			appear_at = 1.0
 			note_at = 2.15
 		if appear_at >= 0.0 and level < _SOUND_APPEAR.size() and _SOUND_APPEAR[level] != "":
-			_once("appear", elapsed, appear_at, _SOUND_APPEAR[level])
-		_once("sound", elapsed, note_at, _SOUND_SFX[level] if level < _SOUND_SFX.size() else "AA_sound_bikehorn.ogg")
+			_once("appear", elapsed, appear_at, _SOUND_APPEAR[level], stamp)
+		_once("sound", elapsed, note_at, _SOUND_SFX[level] if level < _SOUND_SFX.size() else "AA_sound_bikehorn.ogg", stamp)
 		if level >= 6 and _any_hit(marks):
-			_once("glass", elapsed, react_at, "AA_sound_Opera_Singer_Cog_Glass.ogg")
+			_once("glass", elapsed, react_at, "AA_sound_Opera_Singer_Cog_Glass.ogg", stamp)
 		if elapsed >= react_at and _latch(gate, "hit"):
 			contact.call()
 	)
@@ -1793,7 +2056,9 @@ func _run(length: float, still: Callable, step: Callable) -> void:
 	while elapsed < length:
 		if not still.call():
 			return
-		_aim_time = elapsed
+		# A chorus clock owns the camera. Each toon's clip would otherwise snap it back.
+		if not _chording:
+			_aim_time = elapsed
 		step.call(elapsed)
 		await get_tree().process_frame
 		if not is_inside_tree():
@@ -1908,6 +2173,7 @@ func _shadow() -> MeshInstance3D:
 	mat.albedo_color = Color(0.0, 0.0, 0.0, 0.45)
 	mesh.material_override = mat
 	mesh.visible = false
+	mesh.set_meta("gag_owner", _make_owner)
 	add_child(mesh)
 	_spawned.append(mesh)
 	return mesh
@@ -2198,6 +2464,7 @@ func _prop_name(track: int, level: int) -> String:
 func _make(prop_name: String) -> Node3D:
 	var wrap := Node3D.new()
 	wrap.name = prop_name
+	wrap.set_meta("gag_owner", _make_owner)
 	add_child(wrap)
 	_spawned.append(wrap)
 	var path := _PROPS + prop_name + ".glb"
@@ -2543,10 +2810,11 @@ func _pie_hit(level: int) -> String:
 	return "AA_slice_only.ogg"
 
 
-func _once(id: String, elapsed: float, at: float, file_name: String) -> void:
-	if elapsed < at or bool(_fired.get(id, false)):
+func _once(id: String, elapsed: float, at: float, file_name: String, owner: int = 0) -> void:
+	var key := "%d:%s" % [owner, id]
+	if elapsed < at or bool(_fired.get(key, false)):
 		return
-	_fired[id] = true
+	_fired[key] = true
 	_sfx(file_name)
 
 
@@ -2573,6 +2841,18 @@ func _sfx(file_name: String) -> void:
 	add_child(player)
 	player.finished.connect(player.queue_free)
 	player.play()
+
+
+func _clear_owner(owner: int) -> void:
+	if owner == 0:
+		return
+	var left: Array[Node] = []
+	for node in _spawned:
+		if is_instance_valid(node) and int(node.get_meta("gag_owner", 0)) == owner:
+			node.queue_free()
+		elif is_instance_valid(node):
+			left.append(node)
+	_spawned = left
 
 
 func _clear_spawned() -> void:

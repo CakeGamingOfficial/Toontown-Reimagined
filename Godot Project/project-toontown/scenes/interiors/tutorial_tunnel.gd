@@ -78,6 +78,9 @@ func _tunnel_out(origin: Node3D) -> void:
 		_face(_LINKS.heading_of(facing))
 		if is_instance_valid(_player):
 			_player.set_locomotion(_LINKS.run_speed(), false, false, frame)
+		var remotes := _host.get_node_or_null("RemoteToons") if _host != null else null
+		if remotes != null and remotes.has_method("note"):
+			remotes.call("note", _LINKS.heading_of(facing), _LINKS.run_speed(), false, false, false)
 		_aim_camera(origin, cam_from, clampf(elapsed / 1.0, 0.0, 1.0))
 		if elapsed >= total - 0.5:
 			fade.color.a = clampf((elapsed - (total - 0.5)) / 0.4, 0.0, 1.0)

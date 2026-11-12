@@ -90,6 +90,10 @@ var _new_friend: TextureButton
 var _secrets: TextureButton
 var _card: TextureRect
 var _card_name: Label
+var _head_box: SubViewportContainer
+var _viewport: SubViewport
+var _camera: Camera3D
+var _portrait: ToonActor
 var _card_buttons: Array[TextureButton] = []
 var _card_labels: Array[Label] = []
 var _shade: ColorRect
@@ -232,6 +236,36 @@ func _build_card() -> void:
 	_card.mouse_filter = Control.MOUSE_FILTER_STOP
 	_card.visible = false
 	add_child(_card)
+	_viewport = SubViewport.new()
+	_viewport.transparent_bg = true
+	_viewport.own_world_3d = true
+	_viewport.size = Vector2i(256, 320)
+	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var world := WorldEnvironment.new()
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0, 0, 0, 0)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(1, 1, 1)
+	environment.ambient_light_energy = 1.15
+	world.environment = environment
+	_viewport.add_child(world)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-35, 25, 0)
+	sun.light_energy = 1.05
+	_viewport.add_child(sun)
+	_camera = Camera3D.new()
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_camera.size = 1.7
+	_camera.near = 0.05
+	_camera.current = true
+	_viewport.add_child(_camera)
+	_head_box = SubViewportContainer.new()
+	_head_box.stretch = true
+	_head_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_head_box.visible = false
+	_head_box.add_child(_viewport)
+	add_child(_head_box)
 	_card_name = Label.new()
 	_card_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_card_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -363,6 +397,7 @@ func _show_card(friend: Dictionary) -> void:
 	_card.visible = true
 	_card_name.visible = true
 	_card_name.text = FriendsBook.shown_name(friend)
+	_show_friend_head(friend)
 	for button in _card_buttons:
 		button.visible = true
 	for label in _card_labels:
@@ -375,11 +410,102 @@ func _hide_card() -> void:
 		return
 	_card.visible = false
 	_card_name.visible = false
+	_clear_friend_head()
 	for button in _card_buttons:
 		button.visible = false
 	for label in _card_labels:
 		label.visible = false
 	_picked = {}
+
+
+func _show_friend_head(friend: Dictionary) -> void:
+	_clear_friend_head()
+	var style := _friend_style(friend)
+	if style == null or _viewport == null or _head_box == null:
+		return
+	_head_box.visible = true
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_portrait = ToonActor.new()
+	_portrait.name = "Portrait"
+	_portrait.load_extra_clips = false
+	_portrait.footsteps = false
+	_viewport.add_child(_portrait)
+	_portrait.show_style(style)
+	var worn := _friend_worn(friend)
+	if not worn.is_empty():
+		_portrait.wear_accessories(worn)
+	_keep_head(_portrait)
+	_portrait.set_locomotion(0.0, false, false, 0.0)
+	_frame_head()
+
+
+func _clear_friend_head() -> void:
+	if _portrait != null and is_instance_valid(_portrait):
+		_portrait.queue_free()
+	_portrait = null
+	if _head_box != null:
+		_head_box.visible = false
+	if _viewport != null:
+		_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+
+func _friend_style(friend: Dictionary) -> ToonStyle:
+	var avatar := _friend_avatar(friend)
+	if avatar <= 0:
+		return null
+	var raw: Variant = ToonSocial.lookup(avatar).get("style", {})
+	if raw is Dictionary and not (raw as Dictionary).is_empty():
+		return ToonStyle.from_dict(raw)
+	for index in ToonRoster.SLOT_COUNT:
+		var style := ToonRoster.get_slot(index)
+		if style != null and style.av_id == avatar:
+			return style
+	return null
+
+
+func _friend_worn(friend: Dictionary) -> Dictionary:
+	var avatar := _friend_avatar(friend)
+	if avatar <= 0:
+		return {}
+	var worn: Variant = ToonSocial.lookup(avatar).get("accessories", {})
+	if worn is Dictionary:
+		return worn
+	return {}
+
+
+func _friend_avatar(friend: Dictionary) -> int:
+	var avatar := FriendsBook.avatar_of(friend)
+	if avatar > 0:
+		return avatar
+	return FriendsBook.local_id(friend)
+
+
+func _frame_head() -> void:
+	var portrait := _portrait
+	var camera := _camera
+	await get_tree().process_frame
+	if portrait == null or camera == null or portrait != _portrait:
+		return
+	if not is_instance_valid(portrait) or not is_instance_valid(camera):
+		return
+	var focus := portrait.global_position + Vector3(0.0, 3.2, 0.0)
+	var neck := portrait.find_child("def_head", true, false) as Node3D
+	if neck != null:
+		focus = neck.global_position + Vector3(0.0, 0.24, 0.0)
+	camera.global_position = focus + Vector3(0.0, 0.0, 4.0)
+	camera.look_at(focus, Vector3.UP)
+
+
+func _keep_head(actor: Node) -> void:
+	var neck := actor.find_child("def_head", true, false)
+	_keep_head_walk(actor, neck)
+
+
+func _keep_head_walk(node: Node, neck: Node) -> void:
+	if node is MeshInstance3D and (neck == null or not neck.is_ancestor_of(node)):
+		node.visible = false
+	for child in node.get_children():
+		_keep_head_walk(child, neck)
 
 
 func _host() -> Node:
@@ -417,6 +543,9 @@ func _layout() -> void:
 	_place_on_panel(_new_friend, view, -0.14, 0.14, 0.10, 0.10)
 	_place_on_panel(_secrets, view, 0.152, 0.14, 0.10, 0.10)
 	ToonGui.place(_card, view, _card_at.x, _card_at.y, _CARD_W, _CARD_H)
+	if _head_box != null:
+		# ToonAvatarPanel puts the head at (0.02, 0, 0.31), 0.175 tall, above the Friends label.
+		_place_card(_head_box, view, 0.02, 0.31, 0.175, 0.175)
 	_place_card(_card_name, view, 0.0125, 0.40, 0.36, 0.08)
 	ToonGui.style_label(_card_name, Color.BLACK, int(unit * 0.042), Color.WHITE, maxi(int(unit * 0.008), 1))
 	var detail_index := _card_buttons.size() - 2
@@ -646,13 +775,13 @@ func _ask_whisper() -> void:
 		)
 		return
 	var friend_name := FriendsBook.shown_name(_picked)
-	var slot := int(_picked.get("slot", -1))
+	var local := FriendsBook.local_id(_picked)
 	var av := FriendsBook.avatar_of(_picked)
-	if (av <= 0 and slot < 0) or (av > 0 and not FriendsBook.is_online(_picked)):
+	if (av <= 0 and local <= 0) or (av > 0 and not FriendsBook.is_online(_picked)):
 		_offline_notice("This only works if %s is online")
 		return
 	_hide_card()
-	chat.whisper_to(friend_name, slot, av)
+	chat.whisper_to(friend_name, local, av)
 
 
 func _speed_chat() -> SpeedChat:

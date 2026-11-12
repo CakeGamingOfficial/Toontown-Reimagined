@@ -1169,9 +1169,8 @@ func _roam(delta: float) -> void:
 	var flat := Vector2(global_position.x, global_position.z)
 	var target := Vector2(_goal.x, _goal.z)
 	var remaining := flat.distance_to(target)
-	if _lane_blocked():
-		_idle(delta)
-		return
+	# Suits walk through each other. Waiting on the suit ahead closed the
+	# lane into a circle, so a finished suit never reached its takeoff.
 	if remaining < 0.08:
 		global_position = _goal
 		_slot = (_slot + 1) % _route.size()
@@ -1223,37 +1222,6 @@ func _snap_to_lane() -> void:
 		global_position.x = on_path.x
 		global_position.z = on_path.y
 	global_position.y = lerpf(origin.y, _goal.y, along)
-
-
-## The suit ahead keeps the lane. A pile stops and lets that one walk off.
-func _lane_blocked() -> bool:
-	var parent := get_parent()
-	if parent == null:
-		return false
-	var toward := Vector2(_goal.x - global_position.x, _goal.z - global_position.z)
-	var reach := toward.length()
-	var mine := get_instance_id()
-	for child in parent.get_children():
-		if child == self or not is_instance_valid(child) or not (child is StreetCog):
-			continue
-		var other := child as StreetCog
-		if not other.on_lane():
-			continue
-		var flat := Vector2(other.global_position.x - global_position.x, other.global_position.z - global_position.z)
-		var dist := flat.length()
-		if dist < 2.0 and other.get_instance_id() < mine:
-			return true
-		if dist > 6.0 or dist < 0.001 or reach < 0.001:
-			continue
-		# Only the suit walking the same way, and ahead, holds this one back.
-		# The suit on the opposite sidewalk is close at a corner and must pass.
-		var yaw := other.rotation.y
-		var same_way := Vector2(-sin(yaw), -cos(yaw))
-		if same_way.dot(toward) <= 0.0:
-			continue
-		if flat.dot(toward) / (dist * reach) >= 0.65:
-			return true
-	return false
 
 
 func _door_still_cog() -> bool:
@@ -1346,6 +1314,10 @@ func _fly_out_alpha() -> float:
 
 
 func _begin_fly_out() -> void:
+	# A second call was restarting the takeoff, so the suit played the
+	# landing backwards from the top over and over.
+	if _phase == 2:
+		return
 	if int(_landing.get("frames", 0)) <= 1:
 		var paths := _suit_paths(_source)
 		_landing = _read_bank(String(paths["landing"]))

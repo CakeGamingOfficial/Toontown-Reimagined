@@ -19,7 +19,6 @@ const _TRASH_CLOSED := preload("res://assets/toons/gui/TrashCan_CLSD.png")
 const _TRASH_OPEN := preload("res://assets/toons/gui/TrashCan_OPEN.png")
 const _TRASH_HOVER := preload("res://assets/toons/gui/TrashCan_RLVR.png")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
-const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _TASKS := preload("res://scenes/quests/toon_tasks.gd")
 const _SECONDS := 120.0
 const _WAIT := 1.0
@@ -841,7 +840,8 @@ func _grant() -> void:
 	if _granted:
 		return
 	_granted = true
-	_BEANS.add_beans(reward * int(_HOLIDAYS.bean_scale("trolley")))
+	# The ride already stacked the playground multiplier and the holiday.
+	_BEANS.add_beans(reward)
 
 
 func _close(reason: String) -> void:

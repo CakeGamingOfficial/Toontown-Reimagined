@@ -1,24 +1,29 @@
+class_name KartGarage
 extends RefCounted
 
-## The toon's tickets, kart DNA, trunk, records, and the speedway leaderboards.
+## Tickets, kart DNA, trunk, best times, and trophies belong to the toon who
+## bought the kart. The speedway boards stay on this machine.
 ## RaceManagerAI pays tickets back plus winnings only when the time qualifies.
 
 const _RULES := preload("res://scenes/racing/kart_rules.gd")
 const _FILE := "user://kart_garage.json"
 const _MAX_HP := 137
 
-static var _data: Dictionary = {}
+static var _book: Dictionary = {}
 static var _loaded := false
 
 
 static func tickets() -> int:
 	_ensure()
-	return int(_data.get("tickets", 0))
+	return int(_row().get("tickets", 0))
 
 
 static func set_tickets(amount: int) -> void:
 	_ensure()
-	_data["tickets"] = clampi(amount, 0, _RULES.MAX_TICKETS)
+	var garage := _row()
+	if garage.is_empty():
+		return
+	garage["tickets"] = clampi(amount, 0, _RULES.MAX_TICKETS)
 	_save()
 
 
@@ -32,16 +37,18 @@ static func body_type() -> int:
 
 static func dna() -> Array:
 	_ensure()
-	var row: Array = _data.get("dna", [])
+	var garage := _row()
+	var row: Array = garage.get("dna", [])
 	while row.size() < 9:
 		row.append(-1)
-	_data["dna"] = row
+	if not garage.is_empty():
+		garage["dna"] = row
 	return row
 
 
 static func owned() -> Array:
 	_ensure()
-	return _data.get("owned", [])
+	return _row().get("owned", [])
 
 
 static func owns(accessory: int) -> bool:
@@ -50,7 +57,7 @@ static func owns(accessory: int) -> bool:
 
 static func personal_best(track_id: int) -> float:
 	_ensure()
-	var best: Array = _data.get("best", [])
+	var best: Array = _row().get("best", [])
 	var index := _RULES.track_index(track_id)
 	if index < 0 or index >= best.size():
 		return 0.0
@@ -59,7 +66,7 @@ static func personal_best(track_id: int) -> float:
 
 static func trophy_flags() -> Array:
 	_ensure()
-	var flags: Array = _data.get("trophies", [])
+	var flags: Array = _row().get("trophies", [])
 	while flags.size() < 33:
 		flags.append(0)
 	return flags
@@ -67,7 +74,7 @@ static func trophy_flags() -> Array:
 
 static func board(track_id: int, period: int) -> Array:
 	_ensure()
-	var records: Dictionary = _data.get("records", {})
+	var records: Dictionary = _book.get("records", {})
 	var track: Dictionary = records.get(str(track_id), {})
 	var rows: Array = track.get(str(period), [])
 	if rows.is_empty():
@@ -76,12 +83,13 @@ static func board(track_id: int, period: int) -> Array:
 
 
 static func buy_kart(body: int, cost: int) -> String:
-	if tickets() < cost:
+	var garage := _row()
+	if garage.is_empty() or tickets() < cost:
 		return "Not Enough Tickets!"
 	set_tickets(tickets() - cost)
 	var row := dna()
 	row[0] = body
-	_data["dna"] = row
+	garage["dna"] = row
 	_save()
 	return ""
 
@@ -93,12 +101,13 @@ static func buy_accessory(accessory: int, cost: int, field: int) -> String:
 		return "You already own that accessory."
 	if owned().size() >= _RULES.MAX_ACCESSORIES:
 		return "Your trunk is full."
-	if tickets() < cost:
+	var garage := _row()
+	if garage.is_empty() or tickets() < cost:
 		return "Not Enough Tickets!"
 	set_tickets(tickets() - cost)
 	var trunk: Array = owned()
 	trunk.append(accessory)
-	_data["owned"] = trunk
+	garage["owned"] = trunk
 	equip(field, accessory)
 	return ""
 
@@ -108,19 +117,25 @@ static func equip(field: int, accessory: int) -> void:
 		return
 	var row := dna()
 	row[field] = accessory
-	_data["dna"] = row
+	var garage := _row()
+	if garage.is_empty():
+		return
+	garage["dna"] = row
 	_save()
 
 
 static func delete_accessory(accessory: int) -> void:
+	var garage := _row()
+	if garage.is_empty():
+		return
 	var trunk: Array = owned()
 	trunk.erase(accessory)
-	_data["owned"] = trunk
+	garage["owned"] = trunk
 	var row := dna()
 	for field in range(1, 9):
 		if int(row[field]) == accessory:
 			row[field] = -1
-	_data["dna"] = row
+	garage["dna"] = row
 	_save()
 
 
@@ -152,29 +167,29 @@ static func finish_race(track_id: int, race_type: int, total_time: float, qualif
 
 
 static func _note_best(track_id: int, total_time: float) -> void:
-	var best: Array = _data.get("best", _blank_best())
+	var best: Array = _row().get("best", _blank_best())
 	var index := _RULES.track_index(track_id)
 	if index < 0:
 		return
 	if float(best[index]) == 0.0 or total_time < float(best[index]):
 		best[index] = total_time
-	_data["best"] = best
+	_row()["best"] = best
 
 
 static func _note_history(track_id: int, place: int) -> void:
 	# getNewSingleRaceHistory. Wins and qualifies stop climbing at 100.
-	var history: Array = _data.get("history", _blank_history())
+	var history: Array = _row().get("history", _blank_history())
 	var which := _RULES.genre(track_id)
 	if place == 1 and int(history[3 + which]) < 100:
 		history[3 + which] = int(history[3 + which]) + 1
 	if int(history[which]) < 100:
 		history[which] = int(history[which]) + 1
-	_data["history"] = history
+	_row()["history"] = history
 
 
 static func _note_record(track_id: int, total_time: float, race_type: int) -> int:
 	var bonus := 0
-	var records: Dictionary = _data.get("records", {})
+	var records: Dictionary = _book.get("records", {})
 	var track: Dictionary = records.get(str(track_id), {})
 	var racer := _racer_name()
 	for period in range(3):
@@ -188,13 +203,13 @@ static func _note_record(track_id: int, total_time: float, race_type: int) -> in
 				bonus = _RULES.bonus_for(period)
 				break
 	records[str(track_id)] = track
-	_data["records"] = records
+	_book["records"] = records
 	return bonus
 
 
 static func _note_trophies() -> PackedStringArray:
-	var flags: Array = _data.get("trophies", _blank_trophies())
-	var history: Array = _data.get("history", _blank_history())
+	var flags: Array = _row().get("trophies", _blank_trophies())
+	var history: Array = _row().get("history", _blank_history())
 	var earned: PackedStringArray = []
 	for which in range(3):
 		_award_steps(flags, earned, int(history[which]), which * 3, _RULES.QUAL_NEED)
@@ -205,7 +220,7 @@ static func _note_trophies() -> PackedStringArray:
 		_award(flags, earned, 9)
 	if win_total >= 100:
 		_award(flags, earned, 19)
-	var best: Array = _data.get("best", _blank_best())
+	var best: Array = _row().get("best", _blank_best())
 	var driven := 0
 	for time in best:
 		if float(time) > 0.0:
@@ -220,7 +235,7 @@ static func _note_trophies() -> PackedStringArray:
 		if collected >= (cup + 1) * 10:
 			if _award(flags, earned, 30 + cup):
 				_grant_laff()
-	_data["trophies"] = flags
+	_row()["trophies"] = flags
 	return earned
 
 
@@ -284,26 +299,84 @@ static func _blank_trophies() -> Array:
 
 
 static func _ensure() -> void:
-	if _loaded:
-		_roll_periods()
-		return
-	_loaded = true
-	_data = {
+	if not _loaded:
+		_loaded = true
+		_book = {
+			"records": {},
+			"day": _day(),
+			"week": _week(),
+		}
+		if FileAccess.file_exists(_FILE):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_FILE))
+			if parsed is Dictionary:
+				_book = parsed
+	_roll_periods()
+
+
+## The kart follows the toon who bought it. A missing row is a new toon:
+## 200 tickets and no kart, the same as a fresh DistributedToon.
+static func _row() -> Dictionary:
+	_ensure()
+	_claim_legacy()
+	var owner := ToonRoster.avatar_id()
+	if owner <= 0:
+		return {}
+	var key := str(owner)
+	var found: Variant = _book.get(key, null)
+	if found is Dictionary:
+		return found
+	var garage := {
 		"tickets": 200,
 		"dna": [-1, -1, -1, -1, -1, -1, -1, -1, -1],
 		"owned": [],
 		"best": _blank_best(),
 		"history": _blank_history(),
 		"trophies": _blank_trophies(),
-		"records": {},
-		"day": _day(),
-		"week": _week(),
 	}
-	if FileAccess.file_exists(_FILE):
-		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_FILE))
-		if parsed is Dictionary:
-			_data = parsed
-	_roll_periods()
+	_book[key] = garage
+	return garage
+
+
+## Older saves kept one kart for the whole account. It stays with the toon
+## who is playing when the file is next read.
+static func _claim_legacy() -> void:
+	if not (_book.get("dna", null) is Array):
+		return
+	var owner := ToonRoster.avatar_id()
+	if owner <= 0:
+		return
+	var key := str(owner)
+	if not _book.has(key):
+		_book[key] = {
+			"tickets": int(_book.get("tickets", 200)),
+			"dna": _book.get("dna", []),
+			"owned": _book.get("owned", []),
+			"best": _book.get("best", _blank_best()),
+			"history": _book.get("history", _blank_history()),
+			"trophies": _book.get("trophies", _blank_trophies()),
+		}
+	_book.erase("tickets")
+	_book.erase("dna")
+	_book.erase("owned")
+	_book.erase("best")
+	_book.erase("history")
+	_book.erase("trophies")
+	_save()
+
+
+## A deleted or replaced toon takes their kart with them.
+static func reset_slot(index: int) -> void:
+	_ensure()
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return
+	var style := ToonRoster.get_slot(index)
+	if style == null or style.av_id <= 0:
+		return
+	var key := str(style.av_id)
+	if not _book.has(key):
+		return
+	_book.erase(key)
+	_save()
 
 
 static func _roll_periods() -> void:
@@ -311,25 +384,25 @@ static func _roll_periods() -> void:
 	var day := _day()
 	var week := _week()
 	var changed := false
-	if int(_data.get("day", day)) != day:
+	if int(_book.get("day", day)) != day:
 		_clear_period(0)
-		_data["day"] = day
+		_book["day"] = day
 		changed = true
-	if int(_data.get("week", week)) != week:
+	if int(_book.get("week", week)) != week:
 		_clear_period(1)
-		_data["week"] = week
+		_book["week"] = week
 		changed = true
 	if changed:
 		_save()
 
 
 static func _clear_period(period: int) -> void:
-	var records: Dictionary = _data.get("records", {})
+	var records: Dictionary = _book.get("records", {})
 	for track_id in _RULES.TRACK_IDS:
 		var track: Dictionary = records.get(str(track_id), {})
 		track[str(period)] = _default_board(track_id)
 		records[str(track_id)] = track
-	_data["records"] = records
+	_book["records"] = records
 
 
 static func _day() -> int:
@@ -344,4 +417,4 @@ static func _save() -> void:
 	var file := FileAccess.open(_FILE, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify(_data))
+	file.store_string(JSON.stringify(_book))

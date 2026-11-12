@@ -609,29 +609,48 @@ func _show_movie(fight: Dictionary, token: int) -> void:
 		var cursor := index + 1
 		while cursor < beats.size():
 			var nxt: Dictionary = beats[cursor]
-			if float(nxt.get("dur", 1.0)) > 0.001 or not _same_gag(lead, nxt):
+			var follower := float(nxt.get("dur", 1.0)) <= 0.001 and _same_gag(lead, nxt)
+			if not follower and not GagMovie.same_chorus(lead, nxt):
 				break
 			group.append(nxt)
 			cursor += 1
-		var attacker := int(lead.get("toon", -1))
-		_idle_others(attacker)
-		if attacker != ToonNet.peer_id():
+		var attacking: Array = []
+		var local_throws := false
+		for item in group:
+			var row: Dictionary = item
+			if String(row.get("kind", "")) != "gag":
+				continue
+			var peer := int(row.get("toon", -1))
+			if not attacking.has(peer):
+				attacking.append(peer)
+			if peer == ToonNet.peer_id():
+				local_throws = true
+		if attacking.is_empty():
+			attacking.append(int(lead.get("toon", -1)))
+		_idle_others(attacking)
+		if not local_throws and int(lead.get("toon", -1)) != ToonNet.peer_id():
 			_pose_local("", 0.0)
-		var marked := {"done": false}
+		var applied := {}
 		await _gags.play(group, Callable(self, "_actor_for"), Callable(self, "_cog_node"), func() -> bool:
 			return token == _show_gen and is_inside_tree()
 		, func() -> void:
-			if bool(marked["done"]):
-				return
-			marked["done"] = true
-			for shown in group:
-				_apply_beat(shown)
-				_credit(fight, shown)
+			for shown in _gags.party():
+				var row: Dictionary = shown
+				var key := _beat_key(row)
+				if bool(applied.get(key, false)):
+					continue
+				applied[key] = true
+				_apply_beat(row)
+				_credit(fight, row)
 		)
-		if not bool(marked["done"]):
-			for missed in group:
-				_apply_beat(missed)
-				_credit(fight, missed)
+		for missed in group:
+			var missed_row: Dictionary = missed
+			var missed_key := _beat_key(missed_row)
+			if bool(applied.get(missed_key, false)):
+				continue
+			applied[missed_key] = true
+			_apply_beat(missed_row)
+			_credit(fight, missed_row)
 		index = cursor
 
 
@@ -681,7 +700,13 @@ func _apply_beat(beat: Dictionary) -> void:
 func _apply_one(beat: Dictionary) -> void:
 	var cog_id := int(beat.get("cog", 0))
 	if beat.has("cog_hp") and int(beat.get("cog_hp", -1)) >= 0 and cog_id != 0:
-		_shown["c:%d" % cog_id] = int(beat.get("cog_hp", 0))
+		var next_hp := int(beat.get("cog_hp", 0))
+		var cog_key := "c:%d" % cog_id
+		# Overlapping gags report the hp after that gag in server order. Keep the
+		# lower value when a later hit is drawn first, unless the cog just revived.
+		if _shown.has(cog_key) and not bool(beat.get("revived", false)):
+			next_hp = mini(int(_shown[cog_key]), next_hp)
+		_shown[cog_key] = next_hp
 	var toon_id := int(beat.get("toon", 0))
 	if beat.has("toon_hp"):
 		_shown["t:%d" % int(beat.get("toon_id", toon_id))] = int(beat.get("toon_hp", 0))
@@ -1025,7 +1050,11 @@ func _push_laff(toon_id: int) -> void:
 	loadout.save()
 
 
-func _idle_others(active_peer: int) -> void:
+func _beat_key(beat: Dictionary) -> String:
+	return "%s:%s:%s:%s:%s" % [beat.get("toon", 0), beat.get("cog", 0), beat.get("track", -1), beat.get("level", 0), beat.get("damage", 0)]
+
+
+func _idle_others(active: Array) -> void:
 	var toon := _toon()
 	if toon == null:
 		return
@@ -1033,7 +1062,7 @@ func _idle_others(active_peer: int) -> void:
 		if not (item is Dictionary):
 			continue
 		var peer := int((item as Dictionary).get("id", 0))
-		if peer == ToonNet.peer_id() or peer == active_peer:
+		if peer == ToonNet.peer_id() or active.has(peer):
 			continue
 		var actor: ToonActor = toon.call("remote_actor", peer)
 		if actor != null:

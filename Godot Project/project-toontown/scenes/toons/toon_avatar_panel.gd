@@ -350,9 +350,10 @@ func _build_card() -> void:
 	sun.light_energy = 1.05
 	_viewport.add_child(sun)
 	_camera = Camera3D.new()
-	_camera.current = true
-	_camera.fov = 24.0
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_camera.size = 1.7
 	_camera.near = 0.05
+	_camera.current = true
 	_viewport.add_child(_camera)
 	_head_box = SubViewportContainer.new()
 	_head_box.stretch = true
@@ -503,12 +504,12 @@ func _show_head() -> void:
 	_portrait.footsteps = false
 	_viewport.add_child(_portrait)
 	_portrait.show_style(style)
+	var worn: Variant = _actor.get_meta("accessories", {})
+	if worn is Dictionary:
+		_portrait.wear_accessories(worn)
+	_keep_head(_portrait)
 	_portrait.set_locomotion(0.0, false, false, 0.0)
-	var top := style.avatar_height()
-	var muzzle := 0.75 if style.head.length() > 1 and style.head[1] == "l" else 0.5
-	var look := top - muzzle * 0.42
-	_camera.position = Vector3(0.08, look, 1.05)
-	_camera.look_at(Vector3(0.0, look - 0.02, 0.0))
+	_frame_head()
 	if _meter != null:
 		_meter.visible = false
 		_meter.queue_free()
@@ -518,6 +519,36 @@ func _show_head() -> void:
 	add_child(_meter)
 	_meter.setup(style)
 	_meter.visible = true
+
+
+## ToonHead.fitAndCenterHead. The card shows the head, not the body. A close
+## perspective lens sits inside the skull.
+func _frame_head() -> void:
+	var portrait := _portrait
+	var camera := _camera
+	await get_tree().process_frame
+	if portrait == null or camera == null or portrait != _portrait:
+		return
+	if not is_instance_valid(portrait) or not is_instance_valid(camera):
+		return
+	var focus := portrait.global_position + Vector3(0.0, 3.2, 0.0)
+	var neck := portrait.find_child("def_head", true, false) as Node3D
+	if neck != null:
+		focus = neck.global_position + Vector3(0.0, 0.24, 0.0)
+	camera.global_position = focus + Vector3(0.0, 0.0, 4.0)
+	camera.look_at(focus, Vector3.UP)
+
+
+func _keep_head(actor: Node) -> void:
+	var neck := actor.find_child("def_head", true, false)
+	_keep_head_walk(actor, neck)
+
+
+func _keep_head_walk(node: Node, neck: Node) -> void:
+	if node is MeshInstance3D and (neck == null or not neck.is_ancestor_of(node)):
+		node.visible = false
+	for child in node.get_children():
+		_keep_head_walk(child, neck)
 
 
 func _sync_laff() -> void:
@@ -773,7 +804,7 @@ func _layout() -> void:
 		detail_x = min_x
 	_detail_at = Vector2(detail_x, 0.525)
 	ToonGui.place(_card, view, _card_at.x, _card_at.y, _CARD_W, _CARD_H)
-	_place_card(_head_box, view, 0.02, 0.27, 0.22, 0.26)
+	_place_card(_head_box, view, 0.02, 0.31, 0.175, 0.175)
 	_place_card(_name_label, view, 0.0125, 0.40, 0.36, 0.08)
 	ToonGui.style_label(_name_label, Color.BLACK, int(unit * 0.042), Color.WHITE, maxi(int(unit * 0.008), 1))
 	_place_card(_hp_text, view, 0.06, 0.20, 0.16, 0.06)

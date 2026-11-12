@@ -235,6 +235,9 @@ var _shot_origin: Node3D
 var _shot_from := Vector3.ZERO
 var _shot_blend := 0.0
 var _tasks: ToonTasks
+## District this place was entered under. The seat can change while the
+## teleport-out is still playing, and that is not an arrival yet.
+var entered_district := -1
 var _loadout: ToonLoadout
 var _book: ShtickerBook
 var _map: Control
@@ -344,7 +347,14 @@ func _paint_interior() -> void:
 	_FLAT.paint(room)
 
 
+func district_entered() -> int:
+	return entered_district
+
+
 func _ready() -> void:
+	# The seat changes before the teleport-out finishes. Alerts wait until this
+	# place is the one that id belongs to.
+	entered_district = ToonNet.district_id()
 	_tasks = ToonTasks.for_selected()
 	ToonTasks.bind(_tasks)
 	var arriving := from_toontorial

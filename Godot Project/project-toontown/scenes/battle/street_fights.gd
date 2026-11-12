@@ -1330,7 +1330,8 @@ func _join_reserves(fight: Dictionary, kept: Array) -> bool:
 	return true
 
 
-## Lengths match GagMovie. A group gag plays once, so the extra hits take no extra time.
+## Lengths match GagMovie. One track overlaps, so the round waits for the
+## longest clip plus its start delay, not the sum of every toon.
 func _time_beats(beats: Array) -> float:
 	var total := 0.0
 	var index := 0
@@ -1338,20 +1339,32 @@ func _time_beats(beats: Array) -> float:
 		var lead: Dictionary = beats[index]
 		var span := 1
 		var killed := _gag_killed(lead)
-		if _group_gag(lead):
-			var follow := index + 1
-			while follow < beats.size() and _same_gag(lead, beats[follow]):
-				(beats[follow] as Dictionary)["dur"] = 0.0
-				if _gag_killed(beats[follow]):
-					killed = true
-				span += 1
-				follow += 1
-		var dur := _beat_dur(lead)
-		# The lead survived and another cog in the group did not. One death
-		# track covers the group, so the extra time is added once.
-		if killed and not _gag_killed(lead):
-			dur += GagMovie.LOSE_SECONDS
+		var follow := index + 1
+		while follow < beats.size():
+			var nxt: Dictionary = beats[follow]
+			if not _same_gag(lead, nxt) and not GagMovie.same_chorus(lead, nxt):
+				break
+			if _gag_killed(nxt):
+				killed = true
+			span += 1
+			follow += 1
+		var slice: Array = []
+		for step in span:
+			slice.append(beats[index + step])
+		var dur := 0.0
+		if GagMovie.split_parties(slice).size() > 1:
+			dur = GagMovie.chorus_seconds(slice)
+			if killed:
+				dur += GagMovie.LOSE_SECONDS
+		else:
+			dur = _beat_dur(lead)
+			# The lead survived and another cog in the group did not. One death
+			# track covers the group, so the extra time is added once.
+			if killed and not _gag_killed(lead):
+				dur += GagMovie.LOSE_SECONDS
 		lead["dur"] = dur
+		for step in range(1, span):
+			(beats[index + step] as Dictionary)["dur"] = 0.0
 		total += dur
 		index += span
 	return total

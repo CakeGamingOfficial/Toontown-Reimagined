@@ -529,18 +529,14 @@ func _place_icon(item: Dictionary, panel: Control) -> void:
 	var px := 16.0
 	if written != null:
 		px = float(written.get_theme_font_size("font_size"))
-	# Nametag3d draws the name at scale 0.9. setGMIcon scales whistleIcon by 4
-	# and drops it 2.5. The quad is 0.4847 wide and sits at z 0.920 to 1.405,
-	# so the badge is about twice the letters and centered on the name line.
-	var unit := px / 0.9
-	var side := 0.484686 * 4.0 * unit
+	# The name icon sits at the name word's origin. The word is centered,
+	# and ImpressBT at line height 1 fills z -0.2 to 0.8, so the card
+	# center is z 0.3. whistleIcon's quad center is z 1.162. setScale(4)
+	# and setZ(-2.5) put that center at z 2.15, centered above the card.
+	var card_center_z := 0.3
 	var center_z := (0.920009 + 1.4047) * 0.5 * 4.0 - 2.5
-	var name_center_z := 2.0
-	var text_left := panel.position.x
-	if written != null:
-		text_left += written.position.x
-	var anchor_x := text_left - 0.2 * unit
-	var center := Vector2(anchor_x, panel.position.y + panel.size.y * 0.5 - (center_z - name_center_z) * unit)
+	var side := 0.484686 * 4.0 * px
+	var center := Vector2(panel.position.x + panel.size.x * 0.5, panel.position.y + panel.size.y * 0.5 - (center_z - card_center_z) * px)
 	icon.custom_minimum_size = Vector2(side, side)
 	icon.size = Vector2(side, side)
 	icon.pivot_offset = icon.size * 0.5

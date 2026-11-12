@@ -473,6 +473,13 @@ func _press(track: int, level: int) -> void:
 
 func _toggle_delete() -> void:
 	_deleting = not _deleting
+	# The open can is the resting picture, so a second click can leave delete mode.
+	_trash.texture_normal = _TRASH_OPEN if _deleting else _TRASH_CLOSED
+	_trash.texture_pressed = _TRASH_CLOSED if _deleting else _TRASH_OPEN
+	_status_left = 0.0
+	_refresh()
+
+
 func _shop_button(words: String, pressed: Callable) -> TextureButton:
 	var button := TextureButton.new()
 	button.texture_normal = _UP
@@ -611,11 +618,6 @@ func _write_loadouts(book: Dictionary) -> void:
 		return
 	file.store_string(JSON.stringify(book))
 	file.close()
-
-
-	_trash.texture_normal = _TRASH_OPEN if _deleting else _TRASH_CLOSED
-	_status_left = 0.0
-	_refresh()
 
 
 func _paint_timer() -> void:

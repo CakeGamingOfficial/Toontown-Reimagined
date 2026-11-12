@@ -3,6 +3,8 @@ extends RefCounted
 
 ## What this toon has bought from Clarabelle. An order waits in the mailbox
 ## until it is accepted, and accepting it wears the clothes.
+## Records are keyed by the toon's avatar id. A pick-a-toon slot is only a
+## seat, so a new toon made there must not inherit the last toon's closet.
 ## The toon slot file is left alone, because writing it clears jellybeans and tasks.
 
 const _PATH := "user://catalog.json"
@@ -54,11 +56,14 @@ static func owns(item: Dictionary) -> bool:
 
 ## Catalog purchases land in the mailbox. The closet changes when the mail is accepted.
 static func order(item: Dictionary) -> void:
+	var owner := _slot()
+	if owner <= 0:
+		return
 	var rows := _slot_rows()
 	var posted := item.duplicate(true)
 	posted["due"] = int(Time.get_unix_time_from_system()) + _delivery_seconds(String(item.get("kind", "")))
 	rows.append(posted)
-	_mail[str(_slot())] = rows
+	_mail[str(owner)] = rows
 	_write_mail()
 
 
@@ -79,6 +84,9 @@ static func mail_rows() -> Array:
 
 
 static func take_mail(style: ToonStyle) -> int:
+	var owner := _slot()
+	if owner <= 0:
+		return 0
 	var kept: Array = []
 	var taken: Array = []
 	for row in _slot_rows():
@@ -86,7 +94,7 @@ static func take_mail(style: ToonStyle) -> int:
 			taken.append(row)
 		else:
 			kept.append(row)
-	_mail[str(_slot())] = kept
+	_mail[str(owner)] = kept
 	_write_mail()
 	for item in taken:
 		if item is Dictionary:
@@ -95,6 +103,9 @@ static func take_mail(style: ToonStyle) -> int:
 
 
 static func buy(style: ToonStyle, item: Dictionary) -> void:
+	var owner := _slot()
+	if owner <= 0:
+		return
 	var row := _row()
 	var kind := String(item.get("kind", ""))
 	var item_id := int(item.get("id", -1))
@@ -140,7 +151,7 @@ static func buy(style: ToonStyle, item: Dictionary) -> void:
 		if not owned.has(token):
 			owned.append(token)
 		row["catalog"] = owned
-	_book[str(_slot())] = row
+	_book[str(owner)] = row
 	_write()
 
 
@@ -224,14 +235,19 @@ static func font_path() -> String:
 
 static func _row() -> Dictionary:
 	_ensure()
-	var key := str(_slot())
+	var owner := _slot()
+	if owner <= 0:
+		return {}
+	var key := str(owner)
 	var row: Dictionary = _book.get(key, {})
 	_book[key] = row
 	return row
 
 
+## The closet follows the toon. The slot index is only where they sit on the
+## Pick a Toon screen.
 static func _slot() -> int:
-	return ToonRoster.selected_index()
+	return ToonRoster.avatar_id()
 
 
 static func _list(row: Dictionary, key: String) -> Array:
@@ -246,10 +262,38 @@ static func _dict(row: Dictionary, key: String) -> Dictionary:
 
 static func _slot_rows() -> Array:
 	_ensure_mail()
-	var value: Variant = _mail.get(str(_slot()), [])
+	var owner := _slot()
+	if owner <= 0:
+		return []
+	var value: Variant = _mail.get(str(owner), [])
 	if value is Array:
 		return value
 	return []
+
+
+## A deleted or replaced toon takes their closet with them. Slot-index records
+## from older saves are dropped too, so the next toon in that seat starts bare.
+static func reset_slot(index: int) -> void:
+	_ensure()
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return
+	var keys: Array[String] = [str(index)]
+	var style := ToonRoster.get_slot(index)
+	if style != null and style.av_id > 0:
+		keys.append(str(style.av_id))
+	var changed := false
+	var mail_changed := false
+	for key in keys:
+		if _book.has(key):
+			_book.erase(key)
+			changed = true
+		if _mail.has(key):
+			_mail.erase(key)
+			mail_changed = true
+	if changed:
+		_write()
+	if mail_changed:
+		_write_mail()
 
 
 static func _arrived(item: Dictionary) -> bool:
@@ -333,11 +377,41 @@ static func _ensure() -> void:
 	if _loaded:
 		return
 	_loaded = true
-	if not FileAccess.file_exists(_PATH):
-		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_PATH))
-	if parsed is Dictionary:
-		_book = parsed
+	if FileAccess.file_exists(_PATH):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_PATH))
+		if parsed is Dictionary:
+			_book = parsed
+	_ensure_mail()
+	_rekey_owners()
+
+
+## Older saves stored the closet under the pick-a-toon slot. Bind that record
+## to the toon sitting there now, then forget the slot key.
+static func _rekey_owners() -> void:
+	var changed := false
+	var mail_changed := false
+	for index in ToonRoster.SLOT_COUNT:
+		var key := str(index)
+		var style := ToonRoster.get_slot(index)
+		if style == null or style.av_id <= 0:
+			continue
+		var dest := str(style.av_id)
+		if dest == key:
+			continue
+		if _book.has(key):
+			if not _book.has(dest):
+				_book[dest] = _book[key]
+			_book.erase(key)
+			changed = true
+		if _mail.has(key):
+			if not _mail.has(dest):
+				_mail[dest] = _mail[key]
+			_mail.erase(key)
+			mail_changed = true
+	if changed:
+		_write()
+	if mail_changed:
+		_write_mail()
 
 
 static func _write() -> void:
