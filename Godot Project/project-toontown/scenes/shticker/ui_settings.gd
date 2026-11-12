@@ -7,6 +7,7 @@ const _Style := preload("res://scenes/chat/speed_chat_style.gd")
 const _TASK_GREEN := Color(0.275, 0.65, 0.31)
 
 static var _tracker := true
+static var _discord := true
 static var _progress := 0
 static var _done := 1
 static var _progress_hex := ""
@@ -24,6 +25,19 @@ static func set_tracker_on(on: bool) -> void:
 	if _tracker == on:
 		return
 	_tracker = on
+	_write()
+
+
+static func discord_on() -> bool:
+	_ensure()
+	return _discord
+
+
+static func set_discord_on(on: bool) -> void:
+	_ensure()
+	if _discord == on:
+		return
+	_discord = on
 	_write()
 
 
@@ -111,6 +125,7 @@ static func _ensure() -> void:
 
 static func _read() -> void:
 	_tracker = true
+	_discord = true
 	_progress = 0
 	_done = 1
 	_progress_hex = ""
@@ -125,6 +140,7 @@ static func _read() -> void:
 		return
 	var page: Dictionary = parsed
 	_tracker = bool(page.get("tracker", true))
+	_discord = bool(page.get("discord", true))
 	_progress = clampi(int(page.get("progress", 0)), 0, count() - 1)
 	_done = clampi(int(page.get("done", 1)), 0, count() - 1)
 	_progress_hex = _clean_hex(String(page.get("progress_hex", "")))
@@ -152,6 +168,7 @@ static func _clean_hex(text: String) -> String:
 static func _write() -> void:
 	var page := {
 		"tracker": _tracker,
+		"discord": _discord,
 		"progress": _progress,
 		"done": _done,
 		"progress_hex": _progress_hex,

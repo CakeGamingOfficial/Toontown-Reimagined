@@ -46,6 +46,8 @@ var _color_which: Array[String] = []
 var _color_page: Array[String] = []
 var _ui_caption: Label
 var _ui_toggle: TextureButton
+var _discord_caption: Label
+var _discord_toggle: TextureButton
 var _custom_menu: Control
 var _custom_card: Panel
 var _custom_title: Label
@@ -161,6 +163,7 @@ func _ensure() -> void:
 	_color_row("SpeedChat Color", "speed")
 	_color_row("SpeedChat++ Color", "plus")
 	_ui_row()
+	_discord_row()
 	_color_row("In Progress Color", "progress", "ui")
 	_color_row("Completed Color", "done", "ui")
 	for row in _ChatSettings.rows():
@@ -303,7 +306,12 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 	for page in _color_page:
 		if page == "ui":
 			ui_colors += 1
-	var ui_h := minf(room / float(maxi(1 + ui_colors, 1)), 52.0)
+	var ui_rows := ui_colors
+	if _ui_caption != null:
+		ui_rows += 1
+	if _discord_caption != null:
+		ui_rows += 1
+	var ui_h := minf(room / float(maxi(ui_rows, 1)), 52.0)
 	var ui_at := 0
 	if _ui_caption != null:
 		_ui_caption.position = Vector2(0, top)
@@ -311,6 +319,13 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		ToonGui.style_label(_ui_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
 		_place_pill(_ui_toggle, Vector2(page_size.x * 0.66, top + ui_h * 0.22), Vector2(page_size.x * 0.28, ui_h * 0.56), body_px)
 		ui_at = 1
+	if _discord_caption != null:
+		var discord_y := top + float(ui_at) * ui_h
+		_discord_caption.position = Vector2(0, discord_y)
+		_discord_caption.size = Vector2(page_size.x * 0.62, ui_h)
+		ToonGui.style_label(_discord_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		_place_pill(_discord_toggle, Vector2(page_size.x * 0.66, discord_y + ui_h * 0.22), Vector2(page_size.x * 0.28, ui_h * 0.56), body_px)
+		ui_at += 1
 	for index in _color_captions.size():
 		if _color_page[index] != "ui":
 			continue
@@ -382,6 +397,9 @@ func _show_group() -> void:
 	if _ui_caption != null:
 		_ui_caption.visible = ui
 		_ui_toggle.visible = ui
+	if _discord_caption != null:
+		_discord_caption.visible = ui
+		_discord_toggle.visible = ui
 	if not ui and _custom_menu != null:
 		_custom_menu.visible = false
 	for index in _color_captions.size():
@@ -492,17 +510,39 @@ func _ui_row() -> void:
 	_page.add_child(_ui_toggle)
 
 
+func _discord_row() -> void:
+	_discord_caption = Label.new()
+	_discord_caption.text = "Discord Rich Presence"
+	_discord_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_discord_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_discord_caption.mouse_filter = MOUSE_FILTER_IGNORE
+	_page.add_child(_discord_caption)
+	_discord_toggle = _pill("On")
+	_discord_toggle.pressed.connect(_toggle_discord)
+	_page.add_child(_discord_toggle)
+
+
 func _toggle_tracker() -> void:
 	_UI.set_tracker_on(not _UI.tracker_on())
 	_paint_ui()
 
 
+func _toggle_discord() -> void:
+	_UI.set_discord_on(not _UI.discord_on())
+	_paint_ui()
+
+
 func _paint_ui() -> void:
-	if _ui_toggle == null:
+	_paint_switch(_ui_toggle, _UI.tracker_on())
+	_paint_switch(_discord_toggle, _UI.discord_on())
+
+
+func _paint_switch(button: TextureButton, on: bool) -> void:
+	if button == null:
 		return
-	var caption := _ui_toggle.get_child(0) as Label
+	var caption := button.get_child(0) as Label
 	if caption != null:
-		caption.text = "On" if _UI.tracker_on() else "Off"
+		caption.text = "On" if on else "Off"
 
 
 func _open_custom_color(which: String) -> void:

@@ -5,6 +5,7 @@ extends Node
 
 const _APP_ID := "1565835545559572530"
 const _RPC := preload("res://addons/discord_rich_presence/discord_rich_presence.gd")
+const _UI := preload("res://scenes/shticker/ui_settings.gd")
 const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _SHOP := preload("res://scenes/interiors/gag_shop_door.gd")
@@ -42,13 +43,17 @@ var _look_left := 0.0
 
 func _ready() -> void:
 	_started = int(Time.get_unix_time_from_system())
-	_rpc = _RPC.new()
-	_rpc.app_id = _APP_ID
-	add_child(_rpc)
-	_publish()
+	if _UI.discord_on():
+		_link()
+		_publish()
 
 
 func _process(delta: float) -> void:
+	if not _UI.discord_on():
+		_unlink()
+		return
+	if _rpc == null:
+		_link()
 	_look_left -= delta
 	if _look_left <= 0.0:
 		_look_left = 0.5
@@ -99,6 +104,28 @@ func _publish() -> void:
 	_pending_state = state
 	if Time.get_ticks_msec() >= _next_send:
 		_flush()
+
+
+func _link() -> void:
+	if _rpc != null and is_instance_valid(_rpc):
+		return
+	_rpc = _RPC.new()
+	_rpc.app_id = _APP_ID
+	add_child(_rpc)
+
+
+## Turning the option off drops the Discord connection, which clears the status.
+func _unlink() -> void:
+	_shown = ""
+	_pending = ""
+	_pending_details = ""
+	_pending_state = ""
+	_next_send = 0
+	if _rpc == null or not is_instance_valid(_rpc):
+		_rpc = null
+		return
+	_rpc.queue_free()
+	_rpc = null
 
 
 ## Discord asks games not to rewrite presence several times a second.
