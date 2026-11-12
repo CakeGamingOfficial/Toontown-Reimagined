@@ -248,7 +248,7 @@ func _build_lod(lod: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = str(lod)
 	root.add_child(legs)
-		hips.add_child(torso)
+	hips.add_child(torso)
 	var look := Node3D.new()
 	look.name = "head_look"
 	neck.add_child(look)
