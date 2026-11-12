@@ -1524,10 +1524,6 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 		await _reward.present(String(row.get("name", "Toon")), display, before, earned, quest_line, false, mine)
 	if token != _reward_token or not is_inside_tree():
 		return
-	if not _any_earned(rows, ToonNet.peer_id()):
-		await get_tree().create_timer(1.6).timeout
-	if token != _reward_token or not is_inside_tree():
-		return
 	ToonNet.finish_reward(int(fight.get("id", 0)))
 	if leaving and bool(fight.get("mint_won", false)):
 		_ride_mint()
@@ -1584,19 +1580,6 @@ func _exp_dict(value: Variant) -> Dictionary:
 	for track in row.size():
 		packed[track] = int(row[track])
 	return packed
-
-
-func _any_earned(rows: Array, peer: int) -> bool:
-	for item in rows:
-		if not (item is Dictionary):
-			continue
-		var row: Dictionary = item
-		if int(row.get("id", 0)) != peer:
-			continue
-		for amount in row.get("earned", []):
-			if int(amount) > 0:
-				return true
-	return false
 
 
 func _end_victory() -> void:

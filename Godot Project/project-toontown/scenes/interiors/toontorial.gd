@@ -1328,11 +1328,9 @@ func _step_out_of_shop() -> void:
 		_flunky.walk_street()
 	var cover := _shop_cover()
 	cover.color.a = 1.0
-	await get_tree().create_timer(0.4).timeout
 	var fade := create_tween()
-	fade.tween_property(cover, "color:a", 0.0, 0.4)
-	await get_tree().create_timer(0.6).timeout
-	await _shop_stride(goal, 0.5, _heading)
+	fade.tween_property(cover, "color:a", 0.0, 0.2)
+	await _shop_stride(goal, 0.2, _heading)
 	if ext != null:
 		_MOTION._close_named(self, ext, "leftDoor", "doorFrameHoleLeft", -100.0, true)
 	cover.queue_free()

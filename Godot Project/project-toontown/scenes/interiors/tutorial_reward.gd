@@ -223,16 +223,6 @@ func _send_off() -> void:
 		_pivot.queue_free()
 	_tom = null
 	_pivot = null
-	var follow := _follow_camera()
-	var settle_from := _camera.global_position
-	var settle_look := _street(HQ_PANDA) + Vector3(0.0, 3.4, 0.0)
-	var settle := 0.0
-	while settle < 0.45:
-		var weight := settle / 0.45
-		_camera.global_position = settle_from.lerp(follow["at"], weight)
-		_camera.look_at(settle_look.lerp(follow["look"], weight), Vector3.UP)
-		settle += get_process_delta_time()
-		await get_tree().process_frame
 
 
 ## Toon.getTeleportOutTrack. The hole starts in the right hand, drops to his
@@ -310,19 +300,6 @@ func _show_shadow(shown: bool) -> void:
 	var shadow := _find(_tom, "drop_shadow")
 	if shadow != null:
 		shadow.visible = shown
-
-
-func _follow_camera() -> Dictionary:
-	var feet := _body.global_position
-	var height := 3.0
-	if _player:
-		height = _player.clamped_height()
-	var forward := Vector3(1.0, 0.0, 0.0)
-	var eye := feet + Vector3(0.0, height, 0.0)
-	return {
-		"at": eye - forward * 9.0 * (height / 3.0),
-		"look": eye + forward * 1.5,
-	}
 
 
 func _aim_wide() -> void:

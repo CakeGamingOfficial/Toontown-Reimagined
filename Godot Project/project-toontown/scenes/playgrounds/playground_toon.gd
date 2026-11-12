@@ -1715,10 +1715,6 @@ func _try_fisherman() -> void:
 	if not _fish_ready:
 		return
 	_fish_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	_talk_fisherman(fisher)
 
 
@@ -1751,12 +1747,8 @@ func _talk_fisherman(fisher: Node3D) -> void:
 		_face(_player, _heading)
 	if _FISH.value() <= 0:
 		_say_clerk(actor, _NO_FISH, 4.5)
-		await get_tree().create_timer(4.5).timeout
-		if not is_inside_tree():
-			return
-		_say_clerk(null, "", 0.0)
-		_locked = false
 		return
+	_pin_for_panel()
 	_fish_open = true
 	await _frame_fisherman(actor)
 	if not is_inside_tree():
@@ -1789,12 +1781,8 @@ func _talk_fisherman(fisher: Node3D) -> void:
 		line = _FISH_SLOW
 		hold = 2.4
 	_fish_open = false
-	_say_clerk(actor, line, hold)
-	await get_tree().create_timer(hold).timeout
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
 	_locked = false
+	_say_clerk(actor, line, hold)
 
 
 func _frame_fisherman(actor: Node3D) -> void:
@@ -1839,10 +1827,6 @@ func _try_clerk() -> void:
 	if not _clerk_ready or _loadout == null:
 		return
 	_clerk_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	_shop_with(clerk)
 
 
@@ -1874,10 +1858,6 @@ func _try_pet_clerk() -> void:
 	if not _pet_clerk_ready or _locked:
 		return
 	_pet_clerk_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	_shop_pets(clerk)
 
 
@@ -1895,10 +1875,6 @@ func _try_kart_clerk() -> void:
 	if not _kart_clerk_ready or _locked:
 		return
 	_kart_clerk_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	_shop_karts(clerk)
 
 
@@ -1910,10 +1886,7 @@ func _shop_karts(clerk: Node3D) -> void:
 		_heading = _heading_toward(toward)
 		_face(_player, _heading)
 	_say_clerk(actor, "Welcome to the Kart Shop!", 1.0)
-	await get_tree().create_timer(1.0).timeout
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
+	_pin_for_panel()
 	var panel: Node = load("res://scenes/racing/ticket_shop.gd").new()
 	panel.name = "TicketShop"
 	_hud().add_child(panel)
@@ -1923,12 +1896,9 @@ func _shop_karts(clerk: Node3D) -> void:
 		await get_tree().process_frame
 	if not is_inside_tree():
 		return
+	_locked = false
 	if is_instance_valid(actor):
 		_say_clerk(actor, "Thanks for stopping by!", 1.2)
-		await get_tree().create_timer(1.2).timeout
-		if is_inside_tree():
-			_say_clerk(null, "", 0.0)
-	_locked = false
 
 
 func _finish_kart_shop() -> void:
@@ -1943,10 +1913,7 @@ func _shop_pets(clerk: Node3D) -> void:
 		_heading = _heading_toward(toward)
 		_face(_player, _heading)
 	_say_clerk(actor, "Hello! Welcome to the Pet Shop.", 1.0)
-	await get_tree().create_timer(1.0).timeout
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
+	_pin_for_panel()
 	var panel = _PET_GUI.new()
 	panel.name = "PetShop"
 	panel.zone = _hood
@@ -1956,8 +1923,8 @@ func _shop_pets(clerk: Node3D) -> void:
 		return
 	if _book != null:
 		_book.refresh_jar()
+	_locked = false
 	if not is_instance_valid(actor):
-		_locked = false
 		return
 	var goodbye := "Remember, if you see a Doodle you like, make sure to adopt him before someone else does!"
 	var hold := 3.2
@@ -1974,11 +1941,6 @@ func _shop_pets(clerk: Node3D) -> void:
 		goodbye = "Need more time to think?"
 		hold = 2.4
 	_say_clerk(actor, goodbye, hold)
-	await get_tree().create_timer(hold).timeout
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
-	_locked = false
 
 
 func _pick_track(quest_id: int) -> int:
@@ -2017,17 +1979,9 @@ func _try_officer() -> void:
 			_greet_idle(_clerk_actor(officer))
 			return
 	_officer_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(officer)
-	_begin_quest_shot(actor, false)
 	if pending != 0:
 		await _speak_pages(actor, _tasks.busy_pages(pending))
-		if not is_inside_tree():
-			return
-		_locked = false
 		return
 	if not card.is_empty():
 		var finished_id := int(card.get("id", 0))
@@ -2047,20 +2001,16 @@ func _try_officer() -> void:
 		offers = _tasks.offers()
 	choosing = _tasks.hq_track_choice()
 	if choosing != 0:
-		_begin_quest_shot(actor, true)
 		await _speak_pages(actor, _tasks.choice_pages(choosing))
 		if not is_inside_tree():
 			return
+		_pin_for_panel()
 		var track: int = await _pick_track(choosing)
+		_locked = false
 		if not is_inside_tree():
 			return
 		if track < 0:
 			_say_clerk(actor, "Come back when you have decided.", 1.5)
-			await _hold_line(1.5)
-			if not is_inside_tree():
-				return
-			_say_clerk(null, "", 0.0)
-			_locked = false
 			return
 		_tasks.choose_track(choosing, track)
 		if _book != null:
@@ -2070,10 +2020,9 @@ func _try_officer() -> void:
 			return
 		offers = _tasks.offers()
 	if offers.is_empty():
-		_locked = false
 		return
 	# QuestMovieQuestChoice. The posters stay up until Choose, Cancel, or 20 seconds.
-	_begin_quest_shot(actor, true)
+	_pin_for_panel()
 	_say_clerk(actor, "Choose a ToonTask.", 30.0)
 	var panel := _QUEST_CHOICE.new() as QuestChoice
 	panel.name = "QuestChoice"
@@ -2082,6 +2031,7 @@ func _try_officer() -> void:
 	var picked: int = await panel.chosen
 	if is_instance_valid(panel):
 		panel.queue_free()
+	_locked = false
 	_say_clerk(null, "", 0.0)
 	if not is_inside_tree():
 		return
@@ -2090,15 +2040,8 @@ func _try_officer() -> void:
 		if _book != null:
 			_book.refresh_tasks()
 		await _speak_assign(actor, picked)
-		if not is_inside_tree():
-			return
 	else:
 		_say_clerk(actor, "Come back later if you need a ToonTask! Bye!", 1.5)
-		await _hold_line(1.5)
-		if not is_inside_tree():
-			return
-		_say_clerk(null, "", 0.0)
-	_locked = false
 
 
 func _try_quest_npc() -> void:
@@ -2135,46 +2078,35 @@ func _try_quest_npc() -> void:
 				_greet_idle(_clerk_actor(npc))
 			return
 	_npc_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(npc)
 	var toward := actor.global_position - _body.global_position
 	toward.y = 0.0
 	if toward.length_squared() > 0.0001:
 		_heading = _heading_toward(toward)
 		_face(_player, _heading)
-	_begin_quest_shot(actor, card.is_empty())
 	if card.is_empty():
 		await _offer_from_npc(actor, shop_offers, npc_id)
 		return
 	var quest_id := int(card.get("id", 0))
 	if not bool(card.get("ready", false)):
 		await _speak_pages(actor, _tasks.busy_pages(quest_id))
-		_locked = false
 		return
 	if String(card.get("kind", "")) == "track":
-		_begin_quest_shot(actor, true)
 		await _speak_pages(actor, _tasks.choice_pages(quest_id))
 		if not is_inside_tree():
 			return
+		_pin_for_panel()
 		var track: int = await _pick_track(quest_id)
+		_locked = false
 		if not is_inside_tree():
 			return
 		if track < 0:
 			_say_clerk(actor, "Come back when you have decided.", 1.5)
-			await _hold_line(1.5)
-			if not is_inside_tree():
-				return
-			_say_clerk(null, "", 0.0)
-			_locked = false
 			return
 		_tasks.choose_track(quest_id, track)
 		if _book != null:
 			_book.refresh_tasks()
 		await _speak_pages(actor, _tasks.after_pages(quest_id))
-		_locked = false
 		return
 	var finished := _tasks.after_pages(quest_id)
 	_deliver_hold = String(card.get("headline", "")) == "DELIVER"
@@ -2189,8 +2121,6 @@ func _try_quest_npc() -> void:
 		return
 	if given != 0:
 		await _speak_assign(actor, given)
-	_locked = false
-	return
 
 
 func _greet_idle(actor: Node3D) -> void:
@@ -2209,49 +2139,42 @@ func _toon_called() -> String:
 
 func _meet_banker(clerk: Node3D) -> void:
 	_npc_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(clerk)
-	_begin_quest_shot(actor, false)
 	var offer := _BEANS.next_vault()
 	if offer.is_empty():
 		_say_clerk(actor, "Your jellybean vault holds %s of %s." % [_bean_words(_BEANS.vault()), _bean_words(_BEANS.vault_limit())], 1.6)
-		await _hold_line(1.6)
+		return
+	var cost := int(offer.get("cost", 0))
+	var capacity := int(offer.get("capacity", 0))
+	var opening := _BEANS.vault_tier() <= 0
+	var question := "Would you like to purchase a jellybean vault? It holds %s jellybeans." % _bean_words(capacity)
+	if not opening:
+		question = "Would you like to purchase a bigger jellybean vault?"
+	var held := _bean_words(_BEANS.bank())
+	var lines: PackedStringArray = [
+		"Would you like to purchase a jellybean vault?",
+		"It holds %s jellybeans." % _bean_words(capacity),
+		"It costs %s jellybeans." % _bean_words(cost),
+		"Your jellybean bank has %s jellybeans." % held,
+	]
+	if not opening:
+		lines[0] = "Would you like to purchase a bigger jellybean vault?"
+	_say_clerk(actor, question, 60.0)
+	_pin_for_panel()
+	var yes := await _yes_no(lines)
+	_locked = false
+	_say_clerk(null, "", 0.0)
+	if not is_inside_tree():
+		return
+	if not yes:
+		_say_clerk(actor, "Come back if you want a jellybean vault.", 1.5)
+	elif _BEANS.buy_next_vault():
+		var opened := "Your jellybean vault is open. It holds %s jellybeans." % _bean_words(_BEANS.vault_limit())
+		if not opening:
+			opened = "Your jellybean vault now holds %s." % _bean_words(_BEANS.vault_limit())
+		_say_clerk(actor, opened, 1.5)
 	else:
-		var cost := int(offer.get("cost", 0))
-		var capacity := int(offer.get("capacity", 0))
-		var opening := _BEANS.vault_tier() <= 0
-		var question := "Would you like to purchase a jellybean vault? It holds %s jellybeans." % _bean_words(capacity)
-		if not opening:
-			question = "Would you like to purchase a bigger jellybean vault?"
-		var held := _bean_words(_BEANS.bank())
-		var lines: PackedStringArray = [
-			"Would you like to purchase a jellybean vault?",
-			"It holds %s jellybeans." % _bean_words(capacity),
-			"It costs %s jellybeans." % _bean_words(cost),
-			"Your jellybean bank has %s jellybeans." % held,
-		]
-		if not opening:
-			lines[0] = "Would you like to purchase a bigger jellybean vault?"
-		_say_clerk(actor, question, 60.0)
-		var yes := await _yes_no(lines)
-		if not is_inside_tree():
-			return
-		if not yes:
-			_say_clerk(actor, "Come back if you want a jellybean vault.", 1.5)
-		elif _BEANS.buy_next_vault():
-			var opened := "Your jellybean vault is open. It holds %s jellybeans." % _bean_words(_BEANS.vault_limit())
-			if not opening:
-				opened = "Your jellybean vault now holds %s." % _bean_words(_BEANS.vault_limit())
-			_say_clerk(actor, opened, 1.5)
-		else:
-			_say_clerk(actor, "You need %s jellybeans for that." % _bean_words(cost), 1.5)
-		await _hold_line(1.5)
-	if is_inside_tree():
-		_say_clerk(null, "", 0.0)
-		_locked = false
+		_say_clerk(actor, "You need %s jellybeans for that." % _bean_words(cost), 1.5)
 
 
 func _yes_no(lines: PackedStringArray) -> bool:
@@ -2362,24 +2285,15 @@ func _bean_words(amount: int) -> String:
 
 func _meet_tailor(clerk: Node3D) -> void:
 	_npc_ready = false
-	_locked = true
-	_body.velocity = Vector3.ZERO
-	if _player != null:
-		_player.set_locomotion(0.0, false, false, 0.016)
 	var actor := _clerk_actor(clerk)
-	_begin_quest_shot(actor, false)
 	var line := "Welcome to the Clothing Shop!"
 	if _tasks != null and _tasks.clothing_tickets > 0:
 		line = "You have a clothing ticket! Call Clarabelle and pick one outfit. It's on me."
 	_say_clerk(actor, line, 1.6)
-	await _hold_line(1.6)
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
-	_locked = false
 
 
 func _offer_from_npc(actor: Node3D, shop_offers: Array[Dictionary], npc_id: int) -> void:
+	_pin_for_panel()
 	_say_clerk(actor, "Choose a ToonTask.", 30.0)
 	var panel := _QUEST_CHOICE.new() as QuestChoice
 	panel.name = "QuestChoice"
@@ -2388,6 +2302,7 @@ func _offer_from_npc(actor: Node3D, shop_offers: Array[Dictionary], npc_id: int)
 	var picked: int = await panel.chosen
 	if is_instance_valid(panel):
 		panel.queue_free()
+	_locked = false
 	_say_clerk(null, "", 0.0)
 	if not is_inside_tree():
 		return
@@ -2396,7 +2311,6 @@ func _offer_from_npc(actor: Node3D, shop_offers: Array[Dictionary], npc_id: int)
 		if _book != null:
 			_book.refresh_tasks()
 		await _speak_assign(actor, picked)
-	_locked = false
 
 
 func _pay_of(offers: Array, picked: int) -> int:
@@ -2505,19 +2419,14 @@ func _confirm_line(actor: Node3D, line: String) -> void:
 	_quest_wait = false
 
 
-## The line stays up briefly. A click ends the camera hold before the timer does.
-func _hold_line(seconds: float) -> void:
-	_quest_advance = false
-	_quest_wait = true
-	var left := seconds
-	while left > 0.0 and not _quest_advance:
-		await get_tree().process_frame
-		if not is_inside_tree():
-			_quest_wait = false
-			return
-		left -= get_process_delta_time()
-	_quest_wait = false
-	_quest_advance = false
+## A shop window, a quest poster, or a yes/no card stops walking. The line
+## around it does not.
+func _pin_for_panel() -> void:
+	_locked = true
+	if _body != null:
+		_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
 
 
 func _quest_click(event: InputEvent) -> bool:
@@ -2580,9 +2489,14 @@ func _show_tunnel_card() -> void:
 	await grow.finished
 	if not is_inside_tree():
 		return
-	await get_tree().create_timer(3.0).timeout
-	if not is_inside_tree():
-		return
+	var left := 1.0
+	while left > 0.0:
+		if Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			break
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		left -= get_process_delta_time()
 	var shrink := create_tween()
 	shrink.tween_property(frame, "scale", Vector2(0.1, 0.1), 0.5).set_trans(Tween.TRANS_LINEAR)
 	await shrink.finished
@@ -2676,17 +2590,9 @@ func _shop_with(clerk: Node3D) -> void:
 		_face(_player, _heading)
 	if _BEANS.pouch() <= 0:
 		_say_clerk(actor, "You need to ride the Trolley to get some jellybeans.", 3.2)
-		await get_tree().create_timer(3.2).timeout
-		if not is_inside_tree():
-			return
-		_say_clerk(null, "", 0.0)
-		_locked = false
 		return
 	_say_clerk(actor, "Choose what you want to buy.", 1.0)
-	await get_tree().create_timer(1.0).timeout
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
+	_pin_for_panel()
 	var panel := _SHOP_GUI.new()
 	panel.name = "GagShop"
 	panel.loadout = _loadout
@@ -2697,8 +2603,8 @@ func _shop_with(clerk: Node3D) -> void:
 	if _book != null:
 		_book.refresh_gags()
 		_book.refresh_jar()
+	_locked = false
 	if not is_instance_valid(actor):
-		_locked = false
 		return
 	var goodbye := "See you later!"
 	var hold := 2.0
@@ -2706,11 +2612,6 @@ func _shop_with(clerk: Node3D) -> void:
 		goodbye = "Need more time to think?"
 		hold = 2.4
 	_say_clerk(actor, goodbye, hold)
-	await get_tree().create_timer(hold).timeout
-	if not is_inside_tree():
-		return
-	_say_clerk(null, "", 0.0)
-	_locked = false
 
 
 func _say_clerk(actor: Node3D, text: String, seconds: float) -> void:
@@ -3273,8 +3174,8 @@ func _settle_hall_exit() -> void:
 		return
 
 
-## avatarExitTrack. The left door is already the way out: wait out the one
-## second opening, step to (-doorX, -6), then the door eases shut.
+## avatarExitTrack. The left door is open. The toon steps to (-doorX, -6)
+## in 0.2 seconds, and the iris lifts on that same step.
 func _hall_step_out(which: String) -> void:
 	if _player == null or _body == null:
 		_fade_in()
@@ -3321,10 +3222,8 @@ func _hall_step_out(which: String) -> void:
 	var cover := _blackout()
 	cover.color.a = 1.0
 	_HALL.open_out(self, door)
-	await get_tree().create_timer(0.4).timeout
 	var fade := create_tween()
-	fade.tween_property(cover, "color:a", 0.0, 0.4)
-	await get_tree().create_timer(0.6).timeout
+	fade.tween_property(cover, "color:a", 0.0, 0.2)
 	await _hall_stride(goal, 0.2, facing)
 	cover.queue_free()
 	_home = goal
