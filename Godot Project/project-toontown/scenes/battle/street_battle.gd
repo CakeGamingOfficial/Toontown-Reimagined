@@ -150,12 +150,16 @@ func _process(delta: float) -> void:
 	_card.visible = show
 	if not show:
 		return
-	var point := _flunky.global_position + Vector3(0, 3.9, 0)
+	var point := _flunky.global_position + Vector3(0, 3.0, 0)
 	if _camera.is_position_behind(point):
 		_card.visible = false
 		return
 	var screen := _camera.unproject_position(point)
-	_card.position = screen - _card.size * 0.5
+	_card.position = screen - Vector2(_card.size.x * 0.5, _card.size.y + 8.0)
+	var bounds := _hud.get_viewport().get_visible_rect().size
+	var margin := 8.0
+	_card.position.x = clampf(_card.position.x, margin, maxf(bounds.x - _card.size.x - margin, margin))
+	_card.position.y = clampf(_card.position.y, margin, maxf(bounds.y - _card.size.y - margin, margin))
 
 
 func _run() -> void:

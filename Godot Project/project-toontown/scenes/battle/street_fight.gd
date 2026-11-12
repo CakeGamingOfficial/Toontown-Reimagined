@@ -1167,7 +1167,9 @@ func _place_cog_cards(rows: Array) -> void:
 			if hp <= 0:
 				continue
 			var body := cog as Node3D
-			var lift := float(suit.get("height", 4.88)) * 0.8
+			# The shoulders, not the crown. A card centered on the head
+			# ran off the top of the battle view.
+			var lift := float(suit.get("height", 4.88)) * 0.62
 			var scale_y := body.global_transform.basis.get_scale().y
 			if scale_y > 0.05:
 				lift *= scale_y
@@ -1192,7 +1194,12 @@ func _place_cog_cards(rows: Array) -> void:
 			else:
 				fill.color = Color(0.85, 0.16, 0.12)
 			card.visible = true
-			card.position = camera.unproject_position(point) - card.size * 0.5
+			var screen := camera.unproject_position(point)
+			card.position = screen - Vector2(card.size.x * 0.5, card.size.y + 8.0)
+			var bounds := root.get_viewport().get_visible_rect().size
+			var margin := 8.0
+			card.position.x = clampf(card.position.x, margin, maxf(bounds.x - card.size.x - margin, margin))
+			card.position.y = clampf(card.position.y, margin, maxf(bounds.y - card.size.y - margin, margin))
 			seen[cog_id] = true
 	for cog_id in _cog_cards.keys():
 		if seen.has(cog_id):

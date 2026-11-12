@@ -164,7 +164,8 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 			await _present_new_gag(track, level)
 		if _skip:
 			break
-		if gained.is_empty():
+		# MovieTutorialReward. Only the Toontorial battle explains the next gag.
+		if gained.is_empty() and no_skip:
 			var points := "point" if amount == 1 else "points"
 			var goal := loadout.goal_for(track, start + amount)
 			await _acknowledge("You received %d %s %s! When you get %d, you will get a new gag!" % [

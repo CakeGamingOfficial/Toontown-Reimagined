@@ -32,6 +32,10 @@ BODIES = (
     ("a", "phase_4/models/char/suitA-lose-mod.bam", "phase_4/models/char/suitA-lose.bam"),
     ("b", "phase_4/models/char/suitB-lose-mod.bam", "phase_4/models/char/suitB-lose.bam"),
     ("c", "phase_3.5/models/char/suitC-lose-mod.bam", "phase_3.5/models/char/suitC-lose.bam"),
+    # Suit.getLoseActor when isSkeleton. The lose clip is the body's own lose.
+    ("robot_a", "phase_5/models/char/cogA_robot-lose-mod.bam", "phase_4/models/char/suitA-lose.bam"),
+    ("robot_b", "phase_5/models/char/cogB_robot-lose-mod.bam", "phase_4/models/char/suitB-lose.bam"),
+    ("robot_c", "phase_5/models/char/cogC_robot-lose-mod.bam", "phase_3.5/models/char/suitC-lose.bam"),
 )
 
 

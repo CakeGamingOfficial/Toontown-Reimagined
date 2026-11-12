@@ -638,6 +638,7 @@ func begin_react(key: String, elapsed: float) -> void:
 
 
 ## Suit.getLoseActor. The live suit hides and suit-lose-mod plays for 6 seconds.
+## A Skelecog swaps in cog*_robot-lose-mod instead of the suited body.
 func play_lose(elapsed: float) -> void:
 	_detail = 2
 	if not _lose_on and not _lose_tried:
@@ -660,7 +661,11 @@ func play_lose(elapsed: float) -> void:
 func _start_lose() -> void:
 	_lose_tried = true
 	_lose_age = 0.0
-	var packed := load("res://assets/cogs/lose/%s.glb" % body) as PackedScene
+	var skeleton := bool(_source.get("skeleton", false))
+	var stem := body
+	if skeleton:
+		stem = "robot_%s" % body
+	var packed := load("res://assets/cogs/lose/%s.glb" % stem) as PackedScene
 	if packed == null:
 		return
 	var suit := get_node_or_null("Suit")
@@ -669,12 +674,13 @@ func _start_lose() -> void:
 	add_child(lose)
 	_match_lose_scale(lose, suit)
 	if suit != null:
-		_dress_lose(lose, suit)
-		_copy_head(lose, suit)
+		if not skeleton:
+			_dress_lose(lose, suit)
+			_copy_head(lose, suit)
 		suit.visible = false
 	_dress_look(lose)
 	_release_nametag()
-	_lose_bank = _read_bank("res://assets/cogs/lose/%s.lose" % body, lose)
+	_lose_bank = _read_bank("res://assets/cogs/lose/%s.lose" % stem, lose)
 	if int(_lose_bank.get("frames", 0)) <= 1:
 		lose.free()
 		if suit != null:
@@ -742,16 +748,27 @@ func _clear_lose() -> void:
 func _match_lose_scale(lose: Node, suit: Node) -> void:
 	if suit == null:
 		return
-	var worn := 1.0
-	for child in suit.get_children():
-		var worn_part := _node3d(child)
-		if worn_part != null and worn_part.scale.x > 0.05:
-			worn = worn_part.scale.x
-			break
+	# Suit.getLoseActor sets the lose actor to the live suit's scale. That
+	# number sits on the egg under the up-axis wrapper. The wrapper itself
+	# is 1, and copying it left the death model at the full body size.
+	var worn := _egg_scale(suit)
+	if worn < 0.05:
+		return
 	for child in lose.get_children():
 		var part := _node3d(child)
 		if part != null:
 			part.scale = Vector3.ONE * worn
+
+
+func _egg_scale(node: Node) -> float:
+	var part := _node3d(node)
+	if part != null and part.scale.x > 0.05 and absf(part.scale.x - 1.0) > 0.001:
+		return part.scale.x
+	for child in node.get_children():
+		var nested := _egg_scale(child)
+		if absf(nested - 1.0) > 0.001:
+			return nested
+	return 1.0
 
 
 func _dress_lose(lose: Node, suit: Node) -> void:
