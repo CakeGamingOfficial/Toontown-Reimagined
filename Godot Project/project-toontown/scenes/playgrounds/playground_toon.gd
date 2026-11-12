@@ -1673,9 +1673,11 @@ func _nearest_shore() -> Node3D:
 		return null
 	var best: Node3D = null
 	var best_gap := INF
-	for node in host.find_children("FishingShore", "Node3D", true, false):
+	# Each shore is named FishingShore. A second one is renamed FishingShore2,
+	# so an exact search only ever found the dock by Toon HQ.
+	for node in host.find_children("FishingShore*", "Node3D", true, false):
 		var spot := node as Node3D
-		if spot == null or not spot.is_visible_in_tree():
+		if spot == null or not spot.has_meta("heading") or not spot.is_visible_in_tree():
 			continue
 		var gap := _shore_gap(spot)
 		if gap <= _DOCK_MARGIN and gap < best_gap:
@@ -4637,6 +4639,7 @@ func _walk(delta: float) -> void:
 		_raise_onto_step()
 	_body.floor_snap_length = 0.0 if _body.velocity.y > 0.0 else 0.6
 	_body.move_and_slide()
+	_catch_dock()
 	# The pond bed sits lower than a high spawn. Standing there, or jumping
 	# in the water, is not a fall out of the world. Only a real drop with no
 	# floor sends the toon home.
@@ -4944,6 +4947,31 @@ func _add_capsule() -> void:
 	collision.shape = shape
 	collision.position = Vector3(0.0, shape.height * 0.5, 0.0)
 	_body.add_child(collision)
+
+
+## The plank is below the bank. A toon who steps off onto it should land
+## on the dock instead of falling past the thin floor.
+func _catch_dock() -> void:
+	if _body == null or _body.is_on_floor() or _casting:
+		return
+	var world := _body.get_world_3d()
+	if world == null:
+		return
+	var feet := _body.global_position
+	var query := PhysicsRayQueryParameters3D.create(feet + Vector3(0.0, 0.3, 0.0), feet + Vector3(0.0, -2.4, 0.0))
+	query.exclude = [_body.get_rid()]
+	query.collide_with_areas = false
+	var hit := world.direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return
+	var collider := hit.get("collider") as Node
+	if collider == null or String(collider.name) != "PierSolid":
+		return
+	var landed: Vector3 = hit["position"]
+	if feet.y - landed.y < 0.2:
+		return
+	_body.global_position.y = landed.y
+	_body.velocity.y = 0.0
 
 
 ## A curb or stair lip is not a floor. Lift onto the flat surface past it.

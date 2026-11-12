@@ -34,10 +34,13 @@ static func place(host: Node) -> void:
 	var zone := int(info["zone"])
 	var water := float(info["water"])
 	var spots: Array = info["spots"]
+	var index := 0
 	for entry in spots:
+		index += 1
 		var row: Array = entry
 		var spot := Node3D.new()
-		spot.name = "FishingShore"
+		# A repeated name is discarded, so the later docks never matched a search.
+		spot.name = "FishingShore%d" % index
 		holder.add_child(spot)
 		var heading := float(row[3])
 		if anchored:
