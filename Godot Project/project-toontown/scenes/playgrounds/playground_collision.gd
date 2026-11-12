@@ -767,3 +767,181 @@ func _solid_pier(mesh: MeshInstance3D) -> void:
 	collision.position = (low + high) * 0.5
 	body.add_child(collision)
 	mesh.add_child(body)
+
+
+func _playground_file() -> String:
+	var host := get_parent()
+	if host == null:
+		return ""
+	return host.scene_file_path.get_file()
+
+
+## The bank is higher than the plank where the other docks meet the shore.
+## A ramp from that slope down onto the deck is the walk onto the pier.
+func _meet_pier_banks() -> void:
+	var ground := _ground_tris()
+	if ground.is_empty():
+		return
+	_ramp_piers(self, ground)
+
+
+func _ground_tris() -> Array[PackedVector3Array]:
+	var found: Array[PackedVector3Array] = []
+	_collect_ground(self, found)
+	return found
+
+
+func _collect_ground(node: Node, found: Array[PackedVector3Array]) -> void:
+	if node is MeshInstance3D and String(node.name) == "mainFloor":
+		var mesh_node := node as MeshInstance3D
+		var mesh := mesh_node.mesh
+		if mesh != null:
+			var xform := mesh_node.global_transform
+			for surface in mesh.get_surface_count():
+				var arrays: Array = mesh.surface_get_arrays(surface)
+				var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var index_data: Variant = arrays[Mesh.ARRAY_INDEX]
+				var indices := PackedInt32Array()
+				if index_data is PackedInt32Array:
+					indices = index_data
+				if indices.is_empty():
+					for index in verts.size():
+						indices.append(index)
+				var cursor := 0
+				while cursor + 2 < indices.size():
+					var a := xform * verts[indices[cursor]]
+					var b := xform * verts[indices[cursor + 1]]
+					var c := xform * verts[indices[cursor + 2]]
+					var tri := PackedVector3Array()
+					tri.append(a)
+					tri.append(b)
+					tri.append(c)
+					tri.append((b - a).cross(c - a))
+					found.append(tri)
+					cursor += 3
+	for child in node.get_children():
+		_collect_ground(child, found)
+
+
+func _ramp_piers(node: Node, ground: Array[PackedVector3Array]) -> void:
+	if node is MeshInstance3D and _pier_board(node as MeshInstance3D):
+		_add_pier_ramp(node as MeshInstance3D, ground)
+	for child in node.get_children():
+		_ramp_piers(child, ground)
+
+
+func _add_pier_ramp(mesh: MeshInstance3D, ground: Array[PackedVector3Array]) -> void:
+	if mesh.get_node_or_null("PierRamp") != null or mesh.mesh == null:
+		return
+	var low := Vector3(INF, INF, INF)
+	var high := Vector3(-INF, -INF, -INF)
+	for surface in mesh.mesh.get_surface_count():
+		var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for point in verts:
+			low = low.min(point)
+			high = high.max(point)
+	if low.x == INF:
+		return
+	var deck_z := high.z
+	# The bank meets the plank from the side. A wedge down the middle never
+	# reaches that edge, so the toon still steps off and falls past the dock.
+	var body := StaticBody3D.new()
+	body.name = "PierRamp"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var y := low.y - 1.6
+	var previous := INF
+	var guard := 0
+	while y < 0.5 and guard < 24:
+		guard += 1
+		var bank := _shore_span(mesh, ground, y, low.x, high.x, deck_z)
+		if bank.is_empty():
+			y += 0.5
+			continue
+		var top := float(bank["top"])
+		if previous < 1000.0:
+			if top > previous:
+				top = previous
+			elif previous - top > 0.4:
+				top = previous - 0.4
+		if top < deck_z + 0.08:
+			break
+		var x0 := float(bank["x0"])
+		var x1 := float(bank["x1"])
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(maxf(x1 - x0, 0.4), 0.62, 0.4)
+		var collision := CollisionShape3D.new()
+		collision.shape = shape
+		collision.position = Vector3((x0 + x1) * 0.5, y, top - 0.2)
+		body.add_child(collision)
+		previous = top
+		y += 0.45
+	if body.get_child_count() == 0:
+		return
+	mesh.add_child(body)
+
+
+func _shore_span(mesh: MeshInstance3D, ground: Array[PackedVector3Array], y: float, board_low: float, board_high: float, deck_z: float) -> Dictionary:
+	# The bank the toon steps off is just past the plank. The highest ground
+	# farther out is the playground, and a slab at that height is a wall.
+	var lip_x := 0.0
+	var lip_z := -INF
+	var closest := INF
+	var x := board_low - 3.0
+	while x <= board_high + 3.0:
+		var outside := 0.0
+		if x < board_low:
+			outside = board_low - x
+		elif x > board_high:
+			outside = x - board_high
+		if outside > 0.2:
+			var local_z := _surface_z(mesh, ground, x, y, deck_z)
+			if not is_nan(local_z) and local_z > deck_z + 0.05 and local_z < deck_z + 1.6 and outside < closest:
+				closest = outside
+				lip_x = x
+				lip_z = local_z
+		x += 0.4
+	if lip_z < deck_z:
+		var center := _surface_z(mesh, ground, 0.0, y, deck_z)
+		if is_nan(center) or center < deck_z + 0.08 or center > deck_z + 1.6:
+			return {}
+		return {"top": center, "x0": board_low, "x1": board_high}
+	var x0 := minf(lip_x, board_low) - 0.4
+	var x1 := maxf(lip_x, board_high) + 0.4
+	return {"top": lip_z, "x0": x0, "x1": x1}
+
+
+func _surface_z(mesh: MeshInstance3D, ground: Array[PackedVector3Array], x: float, y: float, deck_z: float) -> float:
+	var on_deck := mesh.global_transform * Vector3(x, y, deck_z)
+	var bank := _height_on(ground, on_deck.x, on_deck.z)
+	if is_nan(bank):
+		return NAN
+	return (mesh.global_transform.affine_inverse() * Vector3(on_deck.x, bank, on_deck.z)).z
+
+
+func _height_on(ground: Array[PackedVector3Array], x: float, z: float) -> float:
+	var best := -INF
+	var hit := false
+	for tri in ground:
+		var normal := tri[3]
+		if absf(normal.y) < 0.7 * normal.length():
+			continue
+		var a := tri[0]
+		var b := tri[1]
+		var c := tri[2]
+		var den := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+		if absf(den) < 0.0000001:
+			continue
+		var u := ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / den
+		var v := ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / den
+		var w := 1.0 - u - v
+		if u < -0.02 or v < -0.02 or w < -0.02:
+			continue
+		var height := u * a.y + v * b.y + w * c.y
+		if not hit or height > best:
+			best = height
+			hit = true
+	if not hit:
+		return NAN
+	return best

@@ -1110,18 +1110,20 @@ func _show_cog_health(suit: Dictionary, cog: Node) -> void:
 
 
 ## The toontorial battle card: level line and a bar that rides above the cog.
+## It is up only while this toon is picking a gag. The movie and the reward leave it down.
 func _place_cog_cards(rows: Array) -> void:
 	var seen: Dictionary = {}
+	var picking := _menu != null and _menu.visible
 	var view := get_viewport()
 	var camera: Camera3D = view.get_camera_3d() if view != null else null
 	var root: Control = null
 	if _layer != null:
 		root = _layer.get_node_or_null("BattleHud") as Control
 	for item in rows:
-		if not (item is Dictionary) or root == null or camera == null:
+		if not picking or not (item is Dictionary) or root == null or camera == null:
 			continue
 		var fight: Dictionary = item
-		if String(fight.get("state", "")) == "reward":
+		if String(fight.get("state", "")) != "input" or not _has_toon(fight, ToonNet.peer_id()):
 			continue
 		for suit_row in fight.get("cogs", []):
 			if not (suit_row is Dictionary):

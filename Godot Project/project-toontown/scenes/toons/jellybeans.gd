@@ -107,6 +107,20 @@ static func fill_pouch() -> void:
 	_write()
 
 
+## ~max. The biggest jar, a full bank, and the biggest vault, filled.
+static func max_beans() -> void:
+	_ensure()
+	var slot := _slot()
+	if slot < 0:
+		return
+	_limit[slot] = POUCH_MAX
+	_pouch[slot] = POUCH_MAX
+	_bank[slot] = BANK_MAX
+	_vault_tier[slot] = VAULT_TIERS.size()
+	_vault[slot] = _vault_capacity(_vault_tier[slot])
+	_write()
+
+
 static func add_beans(amount: int) -> void:
 	if amount == 0:
 		return

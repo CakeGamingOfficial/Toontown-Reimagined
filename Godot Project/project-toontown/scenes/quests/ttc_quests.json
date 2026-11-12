@@ -2219,7 +2219,7 @@
   "1085": {
    "headline": "VISIT",
    "caption": "Professor Pete",
-   "where": "Playground",
+   "where": "Toontown School House\nToontown Central",
    "kind": "visit",
    "cog": "",
    "goal": 1,
@@ -3006,9 +3006,9 @@
   },
   "2003": {
    "name": "Professor Pete",
-   "where": "Playground",
+   "where": "Toontown School House\nToontown Central",
    "zone": 2516,
-   "live": false
+   "live": true
   },
   "2119": {
    "name": "Honey Haha",

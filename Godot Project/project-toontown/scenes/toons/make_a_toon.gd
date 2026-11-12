@@ -303,7 +303,7 @@ func _show_shop() -> void:
 	_rotate_right.visible = spinning
 	if not _dropping:
 		_settle_pieces()
-		_show_room(_shop)
+	_show_room(_shop)
 	_pose_toon()
 	match _shop:
 		0:

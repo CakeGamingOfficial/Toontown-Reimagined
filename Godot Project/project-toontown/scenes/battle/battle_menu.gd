@@ -303,13 +303,7 @@ func _layout() -> void:
 			_counts[index].size = well
 			ToonGui.style_label(_counts[index], Color.WHITE, _px_of(0.04 * FRAME), Color(0.05, 0.12, 0.28), 2)
 			_paint_slot(track, level)
-	var detail_x := ( -0.26 + 1.125) * FRAME
-	var detail_z := 0.1 + (0.35 - 0.08) * FRAME
-	_place_text(_total, detail_x, detail_z - 0.095 * FRAME, 0.42, 0.16, _INK, 0.05 * FRAME)
-	_place_text(_detail_name, detail_x, detail_z, 0.46, 0.08, _INK, 0.045 * FRAME)
-	_place_text(_detail_amount, detail_x + 0.16 * FRAME, detail_z - 0.175 * FRAME, 0.28, 0.06, _INK, 0.04 * FRAME)
-	_place_text(_detail_data, detail_x - 0.22 * FRAME, detail_z - 0.24 * FRAME, 0.5, 0.16, _INK, 0.04 * FRAME)
-	_place_text(_detail_credit, detail_x - 0.22 * FRAME, detail_z - 0.365 * FRAME, 0.46, 0.06, _INK, 0.04 * FRAME)
+	_seat_info(FRAME)
 	_paint_total()
 	var button := _size(0.1804 * 1.05 * FRAME, 0.1137 * 1.05 * FRAME)
 	_run.visible = not _building
@@ -553,17 +547,34 @@ func _command(text: String, tint: Color) -> TextureButton:
 	return button
 
 
-func _place_text(label: Label, ax: float, az: float, aw: float, ah: float, color: Color, scale: float) -> void:
-	var rect := _size(aw, ah)
-	var at := _point(ax, az)
-	if label.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
-		label.position = at - Vector2(rect.x, rect.y * 0.5)
-	elif label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER:
-		label.position = at - rect * 0.5
-	else:
-		label.position = at - Vector2(0.0, rect.y * 0.5)
-	label.size = rect
-	ToonGui.style_label(label, color, _px_of(scale), Color(0, 0, 0, 0), 0)
+## The yellow well on BATTLE_Menu.png. The gag name, count, and stats stay inside it.
+func _seat_info(frame: float) -> void:
+	var card := _menu
+	var well := Rect2(
+		card.position.x + card.size.x * 0.785,
+		card.position.y + card.size.y * 0.225,
+		card.size.x * 0.16,
+		card.size.y * 0.39
+	)
+	var name_h := well.size.y * 0.18
+	var row_h := well.size.y * 0.16
+	_fit_line(_detail_name, Rect2(well.position, Vector2(well.size.x, name_h)), HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.04 * frame)
+	_fit_line(_detail_amount, Rect2(Vector2(well.position.x, well.position.y + name_h), Vector2(well.size.x, row_h)), HORIZONTAL_ALIGNMENT_RIGHT, VERTICAL_ALIGNMENT_CENTER, 0.038 * frame)
+	var credit := Rect2(Vector2(well.position.x, well.position.y + well.size.y - row_h), Vector2(well.size.x, row_h))
+	var data_top := well.position.y + name_h + row_h
+	_fit_line(_detail_data, Rect2(Vector2(well.position.x, data_top), Vector2(well.size.x, credit.position.y - data_top)), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_TOP, 0.034 * frame)
+	_fit_line(_detail_credit, credit, HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER, 0.034 * frame)
+	_fit_line(_total, Rect2(well.position + Vector2(0.0, well.size.y * 0.28), Vector2(well.size.x, well.size.y * 0.44)), HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.045 * frame)
+
+
+func _fit_line(label: Label, rect: Rect2, horizontal: HorizontalAlignment, vertical: VerticalAlignment, scale: float) -> void:
+	label.position = rect.position
+	label.size = rect.size
+	label.horizontal_alignment = horizontal
+	label.vertical_alignment = vertical
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.clip_text = true
+	ToonGui.style_label(label, _INK, _px_of(scale), Color(0, 0, 0, 0), 0)
 
 
 func _point(ax: float, az: float) -> Vector2:

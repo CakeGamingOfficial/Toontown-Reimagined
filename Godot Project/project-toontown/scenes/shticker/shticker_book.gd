@@ -178,6 +178,7 @@ var _gag_exps: Array[Label] = []
 var _detail: Label
 var _totals: Label
 var _beans: Label
+var _saved: Label
 var _gag_title: Label
 var _trash: TextureButton
 var _trash_caption: Label
@@ -632,6 +633,13 @@ func _build_gags() -> Control:
 	_beans.mouse_filter = MOUSE_FILTER_IGNORE
 	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.pouch_limit()]
 	sheet.add_child(_beans)
+	_saved = Label.new()
+	_saved.name = "SavedBeans"
+	_saved.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_saved.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_saved.mouse_filter = MOUSE_FILTER_IGNORE
+	_saved.text = _saved_beans()
+	sheet.add_child(_saved)
 	_trash = TextureButton.new()
 	_trash.name = "Trash"
 	_trash.texture_normal = _TRASH_CLOSED
@@ -916,6 +924,13 @@ func refresh_jar() -> void:
 	if _beans == null:
 		return
 	_beans.text = "%d\n/ %d" % [_BEANS.pouch(), _BEANS.pouch_limit()]
+	if _saved != null:
+		_saved.text = _saved_beans()
+
+
+func _saved_beans() -> String:
+	var vault_cap := _BEANS.vault_limit()
+	return "Bank %d/%d\nVault %d/%d" % [_BEANS.bank(), _BEANS.BANK_MAX, _BEANS.vault(), vault_cap]
 
 
 func refresh_gags() -> void:
@@ -1506,6 +1521,14 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 	_beans.position = jar.position
 	_beans.size = jar.size
 	ToonGui.style_title(_beans, Color(0.95, 0.88, 0.1), maxi(int(box.y * 0.22), 14))
+	var note_h := page_size.y * 0.075
+	var note_x := jar.position.x - page_size.x * 0.06
+	var note_w := page_size.x * 0.93 - note_x
+	_saved.position = Vector2(note_x, page_size.y + 2.0)
+	_saved.size = Vector2(note_w, note_h)
+	_saved.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_saved.clip_text = true
+	ToonGui.style_label(_saved, Color(0.05, 0.14, 0.4), maxi(int(note_h * 0.42), 18), Color(0, 0, 0, 0), 0)
 
 
 func _layout_tasks(page_size: Vector2) -> void:

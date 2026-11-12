@@ -20,7 +20,7 @@ const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
 ## A shorter left press is a click. A longer one is a hold.
 const _FLY_CLICK := 0.25
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~ghost   ~collisions off   ~restock   ~max\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~ghost   ~collisions off   ~restock   ~max   ~beans 100\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
 ~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
@@ -57,6 +57,11 @@ const _WORDS: Dictionary = {
 	"restock": "restock",
 	"max": "max",
 	"idkfa": "max",
+	"beans": "beans",
+	"bean": "beans",
+	"jellybeans": "beans",
+	"jellybean": "beans",
+	"jb": "beans",
 	"minigame": "minigame",
 	"mg": "minigame",
 	"trolley": "minigame",
@@ -338,6 +343,8 @@ static func invoke(scene: Node, text: String) -> String:
 			return _restock(scene, false)
 		"max":
 			return _restock(scene, true)
+		"beans":
+			return _give_beans(scene, args)
 		"minigame":
 			return _request_trolley(args)
 		"suit":
@@ -538,8 +545,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 		loadout.save()
 		_sync_battle(scene, loadout.hp, loadout.max_hp)
 		filled = loadout.unlock_all()
-		_BEANS.set_pouch_limit(_BEANS.POUCH_MAX)
-		_BEANS.fill_pouch()
+		_BEANS.max_beans()
 		var tasks := ToonTasks.live()
 		for hood in _TELEPORT_ALL:
 			tasks.grant_teleport(hood)
@@ -555,8 +561,27 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if filled <= 0:
 		return "No gags are unlocked yet. ~max unlocks them."
 	if everything:
-		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, filled %d gags, opened teleport to every playground and Cog HQ, and maxed every Cog suit." % [loadout.max_carry, _BEANS.pouch_limit(), filled]
+		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, bank to %d, and vault to %d, filled %d gags, opened teleport to every playground and Cog HQ, and maxed every Cog suit." % [loadout.max_carry, _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.vault_limit(), filled]
 	return "Restocked %d gags." % filled
+
+
+static func _give_beans(scene: Node, args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "Jellybeans: jar %d/%d, bank %d/%d, vault %d/%d. Use ~beans 100 to add some." % [_BEANS.pouch(), _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.BANK_MAX, _BEANS.vault(), _BEANS.vault_limit()]
+	if not args[0].is_valid_int():
+		return "That jellybean amount isn't a number."
+	var amount := int(args[0])
+	if amount <= 0:
+		return "Use a number above 0. ~beans 100 adds 100 jellybeans."
+	var before := _BEANS.pouch() + _BEANS.bank() + _BEANS.vault()
+	_BEANS.add_beans(amount)
+	var book := _find(scene, "ShtickerBook") as ShtickerBook
+	if book != null:
+		book.refresh_jar()
+	var gained := _BEANS.pouch() + _BEANS.bank() + _BEANS.vault() - before
+	if gained < amount:
+		return "Added %d jellybeans. The jar, bank, and vault are full. Jar %d/%d, bank %d/%d, vault %d/%d." % [gained, _BEANS.pouch(), _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.BANK_MAX, _BEANS.vault(), _BEANS.vault_limit()]
+	return "Added %d jellybeans. Jar %d/%d, bank %d/%d, vault %d/%d." % [amount, _BEANS.pouch(), _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.BANK_MAX, _BEANS.vault(), _BEANS.vault_limit()]
 
 
 static func _get_pos(scene: Node) -> String:

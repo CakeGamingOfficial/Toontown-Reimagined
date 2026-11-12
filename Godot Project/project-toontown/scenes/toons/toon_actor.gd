@@ -898,7 +898,7 @@ func _ensure_clips() -> void:
 		if not _idle_loaded:
 			_idle_missing = true
 	if not load_extra_clips:
-			return
+		return
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
