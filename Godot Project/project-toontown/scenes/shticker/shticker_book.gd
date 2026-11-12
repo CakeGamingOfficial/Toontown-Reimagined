@@ -3,7 +3,7 @@ extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
 ## sit down the right edge, and the pages are Options, Districts, the map,
-## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Cog Disguise, and Events. Harry's reward still opens on the
+## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Cog Disguise, Events, and Developer. Harry's reward still opens on the
 ## map and turns to gags, then tasks.
 
 signal book_opened
@@ -22,7 +22,8 @@ const PAGE_KARTS := 8
 const PAGE_DISGUISE := 9
 const PAGE_GARDEN := 10
 const PAGE_EVENTS := 11
-const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Cog Disguise", "Gardening", "Events"]
+const PAGE_DEVELOPER := 12
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Cog Disguise", "Gardening", "Events", "Developer"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
@@ -118,6 +119,7 @@ const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
 const _KART_PAGE := preload("res://scenes/shticker/kart_page.gd")
 const _GARDEN_PAGE := preload("res://scenes/shticker/garden_page.gd")
 const _EVENTS_PAGE := preload("res://scenes/shticker/events_page.gd")
+const _DEVELOPER_PAGE := preload("res://scenes/shticker/developer_page.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -157,6 +159,7 @@ var _karts: Control
 var _garden: Control
 var _disguise: DisguisePage
 var _events: Control
+var _developer: Control
 var _districts_page: DistrictPage
 var _loadout: ToonLoadout
 var _button: TextureButton
@@ -432,13 +435,17 @@ func _build_book() -> void:
 	_events.name = "EventsPage"
 	_cover.add_child(_events)
 	_pages.append(_events)
+	_developer = _DEVELOPER_PAGE.new()
+	_developer.name = "DeveloperPage"
+	_cover.add_child(_developer)
+	_pages.append(_developer)
 	var kart_icon := load("res://assets/racing/maps/kart_icon.png") as Texture2D
 	if kart_icon == null:
 		kart_icon = _TAB_FISH
 	var flower := load("res://assets/neighborhoods/daisy_gardens/props/flower_treasure_0.png") as Texture2D
 	if flower == null:
 		flower = _TAB_FISH
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, kart_icon, _TAB_DISGUISE, flower, _EVENTS_PAGE.tab_icon()]
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, kart_icon, _TAB_DISGUISE, flower, _EVENTS_PAGE.tab_icon(), _TAB_OPTIONS]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -905,6 +912,8 @@ func _show_page(index: int) -> void:
 		_garden.call("refresh")
 	elif index == PAGE_EVENTS and _events != null:
 		_events.call("refresh")
+	elif index == PAGE_DEVELOPER and _developer != null:
+		_developer.call("refresh")
 	for page_index in _pages.size():
 		_pages[page_index].visible = page_index == index
 	for tab_index in _tabs.size():
@@ -1410,6 +1419,8 @@ func _layout() -> void:
 		_garden.call("layout", page_size)
 	if _events != null:
 		_events.call("layout", page_size)
+	if _developer != null:
+		_developer.call("layout", page_size)
 	# pageTabFrame scale 1.25, each tab scale 0.06, frame ±0.575, step 0.07.
 	var tab_size := Vector2(_cover.size.x * 0.043125, _cover.size.y * 0.0575)
 	for tab_index in _tabs.size():

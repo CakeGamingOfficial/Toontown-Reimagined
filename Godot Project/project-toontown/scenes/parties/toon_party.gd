@@ -178,6 +178,10 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	var show := String(ToonNet.latest("dev:fireworks").get("show", ""))
+	if show != "" and String(get_meta("dev_show", "")) != show:
+		set_meta("dev_show", show)
+		_fireworks()
 	if _busy:
 		return
 	var body := _body()
@@ -365,6 +369,10 @@ func _cog() -> void:
 
 func _fireworks() -> void:
 	_text.text = "The sky fills with fireworks."
+
+
+func show_fireworks(_show_name: String) -> void:
+	_fireworks()
 
 
 func _jukebox() -> void:

@@ -396,6 +396,10 @@ func _home() -> void:
 	ToonLoading.change_to(return_scene)
 
 
+func ride_home() -> String:
+	return return_scene
+
+
 func _multiplier() -> float:
 	var index := _ZONES.find(hood)
 	if index < 0:

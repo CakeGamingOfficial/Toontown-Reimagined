@@ -222,6 +222,8 @@ func _find(node: Node, node_name: String) -> Node3D:
 
 
 func _read(path: String) -> Dictionary:
+	if path.ends_with("cogs/catalog.json"):
+		return CogCatalog.data()
 	if not FileAccess.file_exists(path):
 		return {}
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))

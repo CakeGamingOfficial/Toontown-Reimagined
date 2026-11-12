@@ -36,6 +36,7 @@ var _boss_name := ""
 var _max_hp := 1
 var _hp := 0
 var _phase := ""
+var _phase_seen := 0
 var _over := false
 var _cogs: Array[Dictionary] = []
 var _picked := 0
@@ -128,6 +129,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_follow_phase()
 	if _over:
 		return
 	if _fight_id != 0:
@@ -323,7 +325,7 @@ func _hit_cog(index: int, damage: int, track: int, level: int, loadout: ToonLoad
 		cog["noted"] = true
 		var journal := _journal()
 		if journal != null:
-			journal.note_cog_defeat(String(cog["code"]), _zone, _letter, int(cog["level"]), bool(cog["skeleton"]))
+			journal.note_cog_defeat(String(cog["code"]), _zone, _letter, int(cog["level"]), bool(cog["skeleton"]), 0, false)
 		loadout.add_experience(track, (level + 1) * 2)
 	_cogs[index] = cog
 
@@ -521,8 +523,12 @@ func _start_reward() -> void:
 			journal.note_cfo(_zone)
 		lines.append(_REWARDS.grant_unite())
 	elif _kind == "cj":
+		if journal != null:
+			journal.note_cj(_zone)
 		lines.append(_REWARDS.grant_summon(DisguisePage.promotions(_dept)))
 	else:
+		if journal != null:
+			journal.note_ceo(_zone)
 		lines.append(_REWARDS.grant_pink(1))
 	if DisguisePage.ready_for_promotion(_dept):
 		lines.append(DisguisePage.promote(_dept))
@@ -757,6 +763,94 @@ func _check_boss() -> void:
 
 func current_phase() -> String:
 	return _phase
+
+
+static var _stamp := 0
+
+
+func _stamp_now() -> int:
+	_stamp += 1
+	return ToonNet.peer_id() * 100000 + _stamp
+
+
+func magic_command(command: String) -> String:
+	var parent := get_parent()
+	var file := "" if parent == null else parent.scene_file_path.get_file()
+	if ToonNet.networked() and not ToonNet.is_authority():
+		ToonNet.share_dev("boss", {
+			"file": file,
+			"district": ToonNet.district_id(),
+			"command": command,
+			"serial": _stamp_now(),
+		})
+		return "Asked the district to run ~boss %s." % command
+	var before := _phase
+	var reply := _run_magic(command)
+	if _phase != before:
+		_publish_phase(file)
+	return reply
+
+
+func _follow_phase() -> void:
+	var snap := ToonNet.latest("dev:boss")
+	var serial := int(snap.get("serial", 0))
+	if serial == 0 or serial == _phase_seen:
+		return
+	var parent := get_parent()
+	var file := "" if parent == null else parent.scene_file_path.get_file()
+	if String(snap.get("file", "")) != file or int(snap.get("district", -1)) != ToonNet.district_id():
+		return
+	if snap.has("command"):
+		if not ToonNet.is_authority():
+			return
+		_phase_seen = serial
+		magic_command(String(snap.get("command", "")))
+		return
+	_phase_seen = serial
+	var phase := String(snap.get("phase", ""))
+	if phase != "" and phase != _phase:
+		_go(phase)
+
+
+func _publish_phase(file: String) -> void:
+	var serial := _stamp_now()
+	_phase_seen = serial
+	ToonNet.share_dev("boss", {
+		"file": file,
+		"district": ToonNet.district_id(),
+		"phase": _phase,
+		"serial": serial,
+	})
+
+
+func _run_magic(command: String) -> String:
+	var order := {
+		"vp": ["intro", "cogs", "skele", "pies", "reward"],
+		"cfo": ["intro", "cogs", "cranes", "reward"],
+		"cj": ["intro", "cogs", "cannons", "evidence", "reward"],
+		"ceo": ["intro", "cogs", "banquet", "cogs2", "seltzer", "reward"],
+	}
+	var final_phase := {"vp": "pies", "cfo": "cranes", "cj": "evidence", "ceo": "seltzer"}
+	if command == "start":
+		_go("intro")
+		return "Boss battle started."
+	if command == "stop":
+		return "This boss has no Frolic state yet."
+	if command == "skip":
+		var steps: Array = order.get(_kind, [])
+		var index := steps.find(_phase)
+		if index < 0 or index + 1 >= steps.size():
+			return "Cannot skip the %s state." % _phase
+		var next := String(steps[index + 1])
+		_go(next)
+		return "Skipped to %s." % next
+	if command == "final" or command == "pie" or command == "crane":
+		_go(String(final_phase.get(_kind, "reward")))
+		return "Skipped to the final round."
+	if command == "kill" or command == "victory" or command == "finish":
+		_go("reward")
+		return "Killed the boss."
+	return ""
 
 
 func _say(text: String) -> void:
@@ -1098,16 +1192,16 @@ func _catalog_cog(dept: String, cog_type: int) -> Dictionary:
 
 
 static var _boss_catalog: Array = []
+static var _boss_gen := -1
 
 
 func _load_catalog() -> void:
-	if not _boss_catalog.is_empty():
+	if _boss_gen == CogCatalog.generation() and not _boss_catalog.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
-	if parsed is Dictionary:
-		var rows: Variant = (parsed as Dictionary).get("cogs", [])
-		if rows is Array:
-			_boss_catalog = rows
+	var rows: Variant = CogCatalog.data().get("cogs", [])
+	if rows is Array:
+		_boss_catalog = rows
+		_boss_gen = CogCatalog.generation()
 
 
 func _slot_point(raw: Variant) -> Vector3:

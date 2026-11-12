@@ -179,6 +179,8 @@ func _blocked(actor: Node3D, point: Vector3) -> bool:
 
 
 func _read_json(path: String) -> Dictionary:
+	if path.ends_with("cogs/catalog.json"):
+		return CogCatalog.data()
 	if not FileAccess.file_exists(path):
 		return {}
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))

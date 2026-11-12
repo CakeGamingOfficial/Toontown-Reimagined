@@ -26,6 +26,27 @@ static func experience_line(level: int, mult: float) -> String:
 		return "Experience: %d" % int(roundf(shown))
 	return "Experience: %.1f" % shown
 
+
+## BattleCalculatorAI.itemIsCredit. Gag level 0 is tier 1. creditLevel is the
+## highest cog's displayed level (SuitBase.getActualLevel), so a tier 4 gag
+## (level 3) earns nothing from a level 3 cog, and a tier 5 gag does from a
+## level 5 cog.
+static func earns_experience(gag_level: int, cog_level: int) -> bool:
+	return gag_level >= 0 and gag_level < cog_level
+
+
+## Highest displayed level among cogs still standing at the start of the round.
+static func credit_level(cogs: Array) -> int:
+	var highest := 0
+	for item in cogs:
+		if not (item is Dictionary):
+			continue
+		var suit: Dictionary = item
+		if int(suit.get("hp", 0)) <= 0:
+			continue
+		highest = maxi(highest, int(suit.get("level", 1)))
+	return highest
+
 # ToontownBattleGlobals AvPropDamage, level by level, and AvPropAccuracy.
 const _DAMAGE_MIN: Array = [
 	[8, 15, 25, 40, 60, 90, 210],
@@ -120,8 +141,12 @@ func rolled_accuracy(track: int, level: int) -> int:
 
 
 static func for_selected() -> ToonLoadout:
+	return for_slot(ToonRoster.selected_index())
+
+
+static func for_slot(index: int) -> ToonLoadout:
 	var loadout := ToonLoadout.new()
-	loadout._slot = ToonRoster.selected_index()
+	loadout._slot = index
 	loadout._blank()
 	loadout._load()
 	return loadout
@@ -140,6 +165,9 @@ static func reset_slot(index: int) -> void:
 
 
 func gag_name(track: int, level: int) -> String:
+	var edited := String(_gag_edit(track, level).get("name", ""))
+	if not edited.is_empty():
+		return edited
 	if track < 0 or track >= GAG_NAMES.size():
 		return ""
 	var names: Array = GAG_NAMES[track]
@@ -316,7 +344,13 @@ func gag_usable(track: int, level: int) -> bool:
 	if not _valid(track, level) or not track_open(track):
 		return false
 	var points: Array = _SKILL[track]
-	return experience_of(track) >= int(points[level])
+	var need := int(points[level])
+	var edited := _gag_edit(track, level)
+	if edited.has("skill"):
+		need = int(edited["skill"])
+	if bool(edited.get("off", false)):
+		return false
+	return experience_of(track) >= need
 
 
 func carry_limit(track: int, level: int) -> int:
@@ -371,12 +405,17 @@ static func gag_damage(track: int, level: int, exp: int) -> int:
 	var highs: Array = _DAMAGE_MAX[track]
 	if level < 0 or level >= lows.size():
 		return 0
-	var low := int(lows[level])
-	var high := int(highs[level])
+	var edited := _gag_edit(track, level)
+	if bool(edited.get("off", false)):
+		return 0
+	var low := int(edited["min"]) if edited.has("min") else int(lows[level])
+	var high := int(edited["max"]) if edited.has("max") else int(highs[level])
 	if high <= low:
 		return low
 	var points: Array = _SKILL[track]
 	var min_exp := int(points[level])
+	if edited.has("skill"):
+		min_exp = int(edited["skill"])
 	var max_exp := _MAX_SKILL
 	if level + 1 < points.size():
 		max_exp = int(points[level + 1])
@@ -401,11 +440,88 @@ static func gag_accuracy(track: int, level: int) -> int:
 	var row: Array = _ACCURACY[track]
 	if level < 0 or level >= row.size():
 		return 0
-	var percent := int(row[level])
+	var edited := _gag_edit(track, level)
+	var percent := int(edited["accuracy"]) if edited.has("accuracy") else int(row[level])
 	# Trap stores 0 because it does not roll this table.
 	if percent <= 0:
 		return 100
 	return percent
+
+
+const _GAG_EDITS := "user://dev_gags.json"
+static var _gag_edits: Dictionary = {}
+static var _gag_edits_ready := false
+
+
+static func gag_record(track: int, level: int) -> Dictionary:
+	if track < 0 or track >= TRACK_COUNT or level < 0 or level >= LEVEL_COUNT:
+		return {}
+	var edited := _gag_edit(track, level)
+	var lows: Array = _DAMAGE_MIN[track]
+	var highs: Array = _DAMAGE_MAX[track]
+	var points: Array = _SKILL[track]
+	var row: Array = _ACCURACY[track]
+	var names: Array = GAG_NAMES[track]
+	return {
+		"name": String(edited["name"]) if edited.has("name") else String(names[level]),
+		"min": int(edited["min"]) if edited.has("min") else int(lows[level]),
+		"max": int(edited["max"]) if edited.has("max") else int(highs[level]),
+		"accuracy": int(edited["accuracy"]) if edited.has("accuracy") else int(row[level]),
+		"skill": int(edited["skill"]) if edited.has("skill") else int(points[level]),
+		"off": bool(edited.get("off", false)),
+	}
+
+
+static func store_gag(track: int, level: int, record: Dictionary) -> String:
+	if track < 0 or track >= TRACK_COUNT or level < 0 or level >= LEVEL_COUNT:
+		return "That gag is outside the seven tracks."
+	var table := _gag_table()
+	table["%d:%d" % [track, level]] = {
+		"name": String(record.get("name", "")),
+		"min": int(record.get("min", 0)),
+		"max": int(record.get("max", 0)),
+		"accuracy": int(record.get("accuracy", 0)),
+		"skill": int(record.get("skill", 0)),
+		"off": bool(record.get("off", false)),
+	}
+	_gag_edits = table
+	_write_gag_edits()
+	return ""
+
+
+static func restore_gag(track: int, level: int) -> void:
+	var table := _gag_table()
+	table.erase("%d:%d" % [track, level])
+	_gag_edits = table
+	_write_gag_edits()
+
+
+static func _gag_edit(track: int, level: int) -> Dictionary:
+	var raw: Variant = _gag_table().get("%d:%d" % [track, level], {})
+	if raw is Dictionary:
+		return raw
+	return {}
+
+
+static func _gag_table() -> Dictionary:
+	if not _gag_edits_ready:
+		_gag_edits_ready = true
+		if FileAccess.file_exists(_GAG_EDITS):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_GAG_EDITS))
+			if typeof(parsed) == TYPE_DICTIONARY:
+				_gag_edits = parsed
+	var snap := ToonNet.latest("dev:gags")
+	var shared: Variant = snap.get("edits", null)
+	if shared is Dictionary:
+		return (shared as Dictionary).duplicate(true)
+	return _gag_edits.duplicate(true)
+
+
+static func _write_gag_edits() -> void:
+	var file := FileAccess.open(_GAG_EDITS, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(_gag_edits, "\t"))
+	ToonNet.share_dev("gags", {"edits": _gag_edits})
 
 
 ## The inventory names a gag from its own AvPropAccuracy, not the track's

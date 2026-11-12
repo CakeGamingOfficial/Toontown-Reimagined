@@ -479,7 +479,7 @@ func _credit_building(run: Dictionary) -> void:
 	if not mine:
 		return
 	_credited_run = run_id
-	var tasks := ToonTasks.for_selected()
+	var tasks := ToonTasks.live()
 	if tasks == null:
 		return
 	var host := get_parent()
@@ -494,8 +494,25 @@ func _credit_building(run: Dictionary) -> void:
 		var line := String(rewards.call("grant_field_sos", int(run.get("difficulty", 0))))
 		if line != "" and _banner != null:
 			_banner.text = line
+		# A field office is its own objective. It does not count as a cog building.
+		tasks.note_field(zone, _victor_laff(run))
 		return
-	tasks.note_building(String(run.get("track", "")), int(run.get("floors", 1)), zone)
+	tasks.note_building(String(run.get("track", "")), int(run.get("floors", 1)), zone, _victor_laff(run))
+
+
+func _victor_laff(run: Dictionary) -> Array:
+	var found: Array = []
+	var me := ToonNet.peer_id()
+	for item in run.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		if int(toon.get("id", -1)) == me:
+			continue
+		if int(toon.get("hp", 1)) <= 0:
+			continue
+		found.append(int(toon.get("max_hp", 0)))
+	return found
 
 
 func _smooth_left(run: Dictionary, delta: float) -> float:
@@ -638,9 +655,9 @@ func _sync_cogs(run: Dictionary) -> void:
 func _suit_timing() -> Dictionary:
 	if not _timing.is_empty():
 		return _timing
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
-	if parsed is Dictionary:
-		var timing: Variant = (parsed as Dictionary).get("timing", {})
+	var parsed := CogCatalog.data()
+	if not parsed.is_empty():
+		var timing: Variant = parsed.get("timing", {})
 		if timing is Dictionary:
 			_timing = timing
 	return _timing

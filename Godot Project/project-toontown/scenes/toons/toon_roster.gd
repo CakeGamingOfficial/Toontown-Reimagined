@@ -47,6 +47,16 @@ static func set_slot(index: int, style: ToonStyle) -> void:
 	_FISH.reset_slot(index)
 
 
+## Change a toon that is already in a slot. set_slot is for a brand new toon,
+## and that call clears the slot's tasks, gags, and jellybeans.
+static func update_slot(index: int, style: ToonStyle) -> void:
+	_ensure()
+	if index < 0 or index >= SLOT_COUNT or style == null:
+		return
+	_slots[index] = style
+	_save()
+
+
 static func clear_slot(index: int) -> void:
 	_ensure()
 	if index < 0 or index >= SLOT_COUNT:

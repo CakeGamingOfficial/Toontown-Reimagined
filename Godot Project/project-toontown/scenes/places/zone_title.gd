@@ -50,6 +50,7 @@ const _ZONE: Dictionary = {
 	"res://scenes/cog_hq/sellbot_factory_exterior.tscn": 11200,
 	"res://scenes/cog_hq/sellbot_front_factory.tscn": 11200,
 	"res://scenes/cog_hq/sellbot_side_factory.tscn": 11500,
+	"res://scenes/cog_hq/sellbot_factory.tscn": 11500,
 	"res://scenes/cog_hq/cashbot_trainyard.tscn": 12000,
 	"res://scenes/cog_hq/cashbot_lobby.tscn": 12100,
 	"res://scenes/cog_hq/cashbot_cfo.tscn": 12000,

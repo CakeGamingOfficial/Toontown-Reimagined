@@ -407,7 +407,7 @@ func _catch() -> void:
 	var text := _MISSED
 	var kept_fish := false
 	if code == 2:
-		var tasks := ToonTasks.for_selected()
+		var tasks := ToonTasks.live()
 		if tasks != null:
 			tasks.note_fish(_zone)
 		var genus := int(caught["genus"])

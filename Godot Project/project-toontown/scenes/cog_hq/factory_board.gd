@@ -160,6 +160,8 @@ func _suit(by_code: Dictionary, level: int, skeleton: bool) -> Dictionary:
 
 
 func _read_json(path: String) -> Dictionary:
+	if path.ends_with("cogs/catalog.json"):
+		return CogCatalog.data()
 	if not FileAccess.file_exists(path):
 		return {}
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))

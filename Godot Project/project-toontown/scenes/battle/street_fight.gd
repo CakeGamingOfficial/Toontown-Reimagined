@@ -405,7 +405,7 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 	_ask_seq = seq
 	var building := int(fight.get("building", 0)) != 0
 	var credit := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
-	_menu.setup(loadout, false, building, credit)
+	_menu.setup(loadout, false, building, credit, ToonLoadout.credit_level(fight.get("cogs", [])))
 	_ask(fight, seq, loadout)
 
 
@@ -809,6 +809,10 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 		_credited.clear()
 	if not _mine(fight) or String(beat.get("kind", "")) != "gag":
 		return
+	# A v2.0 gets back up. That knockdown is not a defeat. The Skelecog
+	# that stays down is the one QuestManagerAI puts in suitsKilled.
+	if bool(beat.get("revived", false)):
+		return
 	if int(beat.get("cog_hp", 1)) > 0:
 		return
 	var cog_id := int(beat.get("cog", 0))
@@ -820,6 +824,7 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 	var level := -1
 	var skeleton := false
 	var revives := 0
+	var facility := false
 	for item in fight.get("cogs", []):
 		if item is Dictionary and int((item as Dictionary).get("id", 0)) == cog_id:
 			code = String((item as Dictionary).get("code", ""))
@@ -827,10 +832,23 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 			level = int((item as Dictionary).get("level", -1))
 			skeleton = bool((item as Dictionary).get("skeleton", false))
 			revives = int((item as Dictionary).get("revives", 0))
+			facility = bool((item as Dictionary).get("boss", false))
+			# getMaxSkeleRevives is still set after the suit has used its revive.
+			if bool((item as Dictionary).get("had_revives", false)):
+				revives = maxi(revives, 1)
 			break
-	var tasks := ToonTasks.for_selected()
+	var tasks := ToonTasks.live()
 	if tasks != null:
-		tasks.note_cog_defeat(code, _battle_hood(), dept, level, skeleton, revives)
+		var head := code == "vp" or code == "cfo" or code == "cj" or code == "ceo"
+		var helpers := _other_laff(fight)
+		var place := _battle_hood()
+		tasks.note_cog_defeat(code, place, dept, level, skeleton, revives, head, helpers)
+		# The office boss and the Club President are the facility, the way a
+		# Mint supervisor is the Mint. Their own defeat still counts as a Cog.
+		if facility and place >= 13300 and place <= 13600 and place % 100 == 0:
+			tasks.note_office(place, helpers)
+		elif facility and place >= 10500 and place <= 10700 and place % 100 == 0:
+			tasks.note_course(place, helpers)
 
 
 ## DistributedToon.died starts Toon.getDiedInterval at the hit. Every client
@@ -1475,7 +1493,7 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 	_apply_my_reward(fight)
 	var recovered := ""
 	var quests: Array = []
-	var tasks := ToonTasks.for_selected()
+	var tasks := ToonTasks.live()
 	var leaving := false
 	if bool(fight.get("factory_won", false)):
 		var win_key := "factory:%s" % fight.get("id", 0)
@@ -1484,10 +1502,14 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 			leaving = true
 			var part_line := DisguisePage.grant_factory(_FACTORY.collect())
 			if tasks != null:
-				tasks.note_factory(11000)
-				tasks.note_foreman(11000)
+				var helpers := _other_laff(fight)
+				# SellbotFactoryInt. A Sellbot HQ task still matches, because
+				# 11500 belongs to hood 11000. An interior task does not match
+				# the courtyard.
+				tasks.note_factory(11500, helpers)
+				tasks.note_foreman(11500, helpers)
 				if part_line.contains("recovered"):
-					tasks.note_part(11000)
+					tasks.note_part(11500, helpers)
 			recovered = part_line
 	if String(fight.get("slug", "")) == "cashbot_mint":
 		var mint_key := "mint:%s" % fight.get("id", 0)
@@ -1501,8 +1523,9 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 				which = _MINT_RIDE.mint_id
 			var buck_line := DisguisePage.grant_mint(_MINT.collect(), which)
 			if supervisor and tasks != null:
-				tasks.note_mint(which)
-				tasks.note_supervisor(which)
+				var helpers := _other_laff(fight)
+				tasks.note_mint(which, helpers)
+				tasks.note_supervisor(which, helpers)
 			if buck_line != "":
 				recovered = buck_line if recovered == "" else "%s\n%s" % [recovered, buck_line]
 	if tasks != null:
@@ -1844,6 +1867,21 @@ func _busy() -> bool:
 	if toon == null:
 		return true
 	return bool(toon.call("battle_busy"))
+
+
+func _other_laff(fight: Dictionary) -> Array:
+	var found: Array = []
+	var me := ToonNet.peer_id()
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		if int(toon.get("id", -1)) == me:
+			continue
+		if int(toon.get("hp", 1)) <= 0:
+			continue
+		found.append(int(toon.get("max_hp", 0)))
+	return found
 
 
 func _mine(fight: Dictionary) -> bool:

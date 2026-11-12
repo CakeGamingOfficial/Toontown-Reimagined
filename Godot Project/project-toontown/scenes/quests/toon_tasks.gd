@@ -9,8 +9,14 @@ extends RefCounted
 ## reports note_building. Fishing reports a catch with note_fish. Beating the
 ## Sellbot Factory Foreman reports note_factory and note_foreman. Beating a
 ## Cashbot Mint supervisor reports note_mint and note_supervisor. A defeated
-## Skelecog reports note_cog_defeat with the skeleton flag. Turning a finished
-## task in assigns whatever it points at next. Minnie's Melodyland follows Daisy Gardens.
+## Skelecog reports note_cog_defeat with the skeleton flag. A Skelecog task
+## can name a department; the current ones do not, so they still count every
+## Skelecog. Defeating the Chief Justice reports note_cj, and the Chief
+## Executive Officer reports note_ceo. Defeating the boss of a D.A. Office
+## reports note_office, and the Club President of a Cog Golf Course reports
+## note_course. Clearing a Sellbot Field Office reports note_field. None of
+## the current tasks use those objectives. Turning a finished task in
+## assigns whatever it points at next. Minnie's Melodyland follows Daisy Gardens.
 
 const COG := "cog"
 const TROLLEY := "trolley"
@@ -31,6 +37,11 @@ const CFO := "cfo"
 const RESCUE := "rescue"
 const PART := "cogpart"
 const REVIVE := "revive"
+const CJ := "cj"
+const CEO := "ceo"
+const OFFICE := "office"
+const COURSE := "course"
+const FIELD := "field"
 ## QuestPoster hides the reward on the tasks before Clarabelle.
 const _NO_POSTER_REWARD := [101, 110, 121, 131, 141, 145, 150, 160, 161, 162, 163]
 
@@ -367,6 +378,9 @@ static var _pool: Dictionary = {}
 static var _extra_npcs: Dictionary = {}
 static var _by_reward: Dictionary = {}
 static var _pool_ready := false
+static var _dev_quests: Dictionary = {}
+static var _dev_deleted: Dictionary = {}
+const _DEV_QUESTS := "user://dev_tasks.json"
 
 ## The playground journal. Friend and phone progress write through this, so a
 ## second copy loaded from disk cannot overwrite them.
@@ -595,9 +609,19 @@ func note_phone() -> void:
 	_fill_kind(PHONE)
 
 
-func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1, skeleton: bool = false, revives: int = 0) -> void:
+func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int = -1, skeleton: bool = false, revives: int = 0, department_boss: bool = false, helpers: Array = []) -> void:
+	# The battle used to update a second copy of the journal. The book kept
+	# reading the playground copy, then leaving the street saved that older
+	# copy over the defeat.
+	if is_instance_valid(_live) and _live != self:
+		_live.note_cog_defeat(cog, hood, dept, level, skeleton, revives, department_boss, helpers)
+		return
 	_keep_notes()
 	var code := cog.to_lower()
+	# QuestManagerAI.toonKilledCogs. A VP, CFO, CJ, or CEO is not a CogQuest.
+	# Skelecogs, v2.0s, lasers, and waiters keep their suit code and do count.
+	if department_boss or code == "vp" or code == "cfo" or code == "cj" or code == "ceo":
+		return
 	CogGallery.note(code)
 	var changed := false
 	for entry in _active:
@@ -606,7 +630,10 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			continue
 		var info: Dictionary = _info(quest_id)
 		var kind := String(info["kind"])
-		if not _place_ok(info, hood) or not _newbie_ok(info):
+		if not _place_ok(info, hood):
+			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
 			continue
 		if kind == REVIVE:
 			if revives <= 0:
@@ -614,7 +641,7 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			if int(entry["progress"]) >= int(info["goal"]):
 				continue
 			var before_v2 := int(entry["progress"])
-			entry["progress"] = before_v2 + 1
+			entry["progress"] = before_v2 + gain
 			_remember_gain(quest_id, before_v2, int(entry["progress"]), info)
 			changed = true
 		elif kind == COG:
@@ -630,11 +657,15 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			if int(entry["progress"]) >= int(info["goal"]):
 				continue
 			var before := int(entry["progress"])
-			entry["progress"] = before + 1
+			entry["progress"] = before + gain
 			_remember_gain(quest_id, before, int(entry["progress"]), info)
 			changed = true
 		elif kind == SKELE:
 			if not skeleton:
+				continue
+			# SkelecogTrackQuest. Current Skelecog tasks name no department.
+			var bone_dept := String(info.get("dept", ""))
+			if bone_dept != "" and bone_dept != dept:
 				continue
 			var skele_level := int(info.get("level", 0))
 			if skele_level > 0 and level < skele_level:
@@ -642,7 +673,7 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 			if int(entry["progress"]) >= int(info["goal"]):
 				continue
 			var before_bone := int(entry["progress"])
-			entry["progress"] = before_bone + 1
+			entry["progress"] = before_bone + gain
 			_remember_gain(quest_id, before_bone, int(entry["progress"]), info)
 			changed = true
 		elif kind == RECOVER:
@@ -667,7 +698,7 @@ func note_cog_defeat(cog: String, hood: int = 0, dept: String = "", level: int =
 
 
 ## FactoryQuest. Defeating the Factory Foreman counts. Walking out does not.
-func note_factory(zone: int) -> void:
+func note_factory(zone: int, helpers: Array = []) -> void:
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
@@ -676,33 +707,62 @@ func note_factory(zone: int) -> void:
 		var info: Dictionary = _info(quest_id)
 		if String(info.get("kind", "")) != FACTORY:
 			continue
-		if not _place_ok(info, zone) or not _newbie_ok(info):
+		if not _place_ok(info, zone):
+			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
 			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
-		entry["progress"] = int(entry["progress"]) + 1
+		entry["progress"] = int(entry["progress"]) + gain
 		changed = true
 	if changed:
 		save()
 
 
-func note_vp(zone: int = 11000) -> void:
-	_note_kind(VP, zone)
+func note_vp(zone: int = 11000, helpers: Array = []) -> void:
+	_note_kind(VP, zone, helpers)
 
 
-func note_cfo(zone: int = 12000) -> void:
-	_note_kind(CFO, zone)
+func note_cfo(zone: int = 12000, helpers: Array = []) -> void:
+	_note_kind(CFO, zone, helpers)
 
 
-func note_rescue(zone: int = 11000) -> void:
-	_note_kind(RESCUE, zone)
+func note_rescue(zone: int = 11000, helpers: Array = []) -> void:
+	_note_kind(RESCUE, zone, helpers)
 
 
-func note_part(zone: int) -> void:
-	_note_kind(PART, zone)
+func note_part(zone: int, helpers: Array = []) -> void:
+	_note_kind(PART, zone, helpers)
 
 
-func _note_kind(kind: String, zone: int) -> void:
+func note_cj(zone: int = 13000, helpers: Array = []) -> void:
+	_note_kind(CJ, zone, helpers)
+
+
+func note_ceo(zone: int = 10000, helpers: Array = []) -> void:
+	_note_kind(CEO, zone, helpers)
+
+
+## zone is the office itself (13300 through 13600). Lawbot HQ, 13000, matches
+## every office. One office matches only that office.
+func note_office(zone: int, helpers: Array = []) -> void:
+	_note_kind(OFFICE, zone, helpers)
+
+
+## zone is the course itself (10500, 10600, or 10700). Bossbot HQ, 10000,
+## matches every course. One course matches only that course.
+func note_course(zone: int, helpers: Array = []) -> void:
+	_note_kind(COURSE, zone, helpers)
+
+
+## zone is the street the field office stands on. A playground task matches
+## the whole playground. A street task matches only that street.
+func note_field(zone: int, helpers: Array = []) -> void:
+	_note_kind(FIELD, zone, helpers)
+
+
+func _note_kind(kind: String, zone: int, helpers: Array = []) -> void:
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
@@ -711,18 +771,21 @@ func _note_kind(kind: String, zone: int) -> void:
 		var info: Dictionary = _info(quest_id)
 		if String(info.get("kind", "")) != kind:
 			continue
-		if not _place_ok(info, zone) or not _newbie_ok(info):
+		if not _place_ok(info, zone):
+			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
 			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
-		entry["progress"] = int(entry["progress"]) + 1
+		entry["progress"] = int(entry["progress"]) + gain
 		changed = true
 	if changed:
 		save()
 
 
 ## MintQuest. The supervisor battle counts. Walking out of the mint does not.
-func note_mint(zone: int) -> void:
+func note_mint(zone: int, helpers: Array = []) -> void:
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
@@ -733,16 +796,19 @@ func note_mint(zone: int) -> void:
 			continue
 		if not _place_ok(info, zone):
 			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
+			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
-		entry["progress"] = int(entry["progress"]) + 1
+		entry["progress"] = int(entry["progress"]) + gain
 		changed = true
 	if changed:
 		save()
 
 
 ## SupervisorQuest. The same win that clears the mint.
-func note_supervisor(zone: int) -> void:
+func note_supervisor(zone: int, helpers: Array = []) -> void:
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
@@ -753,16 +819,19 @@ func note_supervisor(zone: int) -> void:
 			continue
 		if not _place_ok(info, zone):
 			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
+			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
-		entry["progress"] = int(entry["progress"]) + 1
+		entry["progress"] = int(entry["progress"]) + gain
 		changed = true
 	if changed:
 		save()
 
 
 ## ForemanQuest. The same win that clears the factory.
-func note_foreman(zone: int) -> void:
+func note_foreman(zone: int, helpers: Array = []) -> void:
 	var changed := false
 	for entry in _active:
 		var quest_id := int(entry["id"])
@@ -773,16 +842,19 @@ func note_foreman(zone: int) -> void:
 			continue
 		if not _place_ok(info, zone):
 			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
+			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
-		entry["progress"] = int(entry["progress"]) + 1
+		entry["progress"] = int(entry["progress"]) + gain
 		changed = true
 	if changed:
 		save()
 
 
 ## QuestManagerAI.toonKilledBuilding. One building, of this department and height.
-func note_building(track: String, floors: int, zone: int) -> void:
+func note_building(track: String, floors: int, zone: int, helpers: Array = []) -> void:
 	_keep_notes()
 	var dept := track.to_lower()
 	var changed := false
@@ -800,10 +872,13 @@ func note_building(track: String, floors: int, zone: int) -> void:
 			continue
 		if floors < int(info.get("floors", 1)):
 			continue
+		var gain := _gain(info, helpers)
+		if gain <= 0:
+			continue
 		if int(entry["progress"]) >= int(info["goal"]):
 			continue
 		var before := int(entry["progress"])
-		entry["progress"] = before + 1
+		entry["progress"] = before + gain
 		_remember_gain(quest_id, before, int(entry["progress"]), info)
 		changed = true
 	if changed:
@@ -831,6 +906,8 @@ func note_fish(zone: int = 0) -> void:
 			continue
 		entry["progress"] = mini(int(entry["progress"]) + 1, int(info["goal"]))
 		changed = true
+		# findItemInWater returns the first item. One catch recovers one task.
+		break
 	if changed:
 		save()
 
@@ -1028,6 +1105,9 @@ func choose_track(quest_id: int, track: int) -> void:
 		return
 	var info: Dictionary = _info(quest_id)
 	if String(info["kind"]) != TRACK:
+		return
+	var allowed: Array = choice_tracks(quest_id)
+	if not allowed.has(track):
 		return
 	if track < 0 or track >= ToonLoadout.TRACK_COUNT:
 		return
@@ -1713,16 +1793,73 @@ func save() -> void:
 
 func _known(quest_id: int) -> bool:
 	_load_pool()
-	return CATALOG.has(quest_id) or _pool.has(quest_id)
+	if _dev_deleted.has(quest_id):
+		return false
+	return _dev_quests.has(quest_id) or CATALOG.has(quest_id) or _pool.has(quest_id)
 
 
 func _info(quest_id: int) -> Dictionary:
 	_load_pool()
+	if _dev_deleted.has(quest_id):
+		return {}
+	if _dev_quests.has(quest_id):
+		return _dev_quests[quest_id]
 	if CATALOG.has(quest_id):
 		return CATALOG[quest_id]
 	if _pool.has(quest_id):
 		return _pool[quest_id]
 	return {}
+
+
+static func quest_ids() -> Array[int]:
+	_load_pool()
+	var have: Dictionary = {}
+	for quest_id in CATALOG.keys():
+		have[int(quest_id)] = true
+	for quest_id in _pool.keys():
+		have[int(quest_id)] = true
+	for quest_id in _dev_quests.keys():
+		have[int(quest_id)] = true
+	for quest_id in _dev_deleted.keys():
+		have.erase(int(quest_id))
+	var found: Array[int] = []
+	for quest_id in have.keys():
+		found.append(int(quest_id))
+	found.sort()
+	return found
+
+
+static func quest_record(quest_id: int) -> Dictionary:
+	_load_pool()
+	if _dev_deleted.has(quest_id):
+		return {}
+	var info: Dictionary = {}
+	if _dev_quests.has(quest_id):
+		info = _dev_quests[quest_id]
+	elif CATALOG.has(quest_id):
+		info = CATALOG[quest_id]
+	elif _pool.has(quest_id):
+		info = _pool[quest_id]
+	return info.duplicate(true)
+
+
+static func store_quest(quest_id: int, record: Dictionary) -> String:
+	_load_pool()
+	if quest_id <= 0:
+		return "Use a task number above 0."
+	if record.is_empty():
+		return "A task needs its fields."
+	_dev_quests[quest_id] = record.duplicate(true)
+	_dev_deleted.erase(quest_id)
+	_write_dev_quests()
+	return ""
+
+
+static func remove_quest(quest_id: int) -> void:
+	_load_pool()
+	_dev_quests.erase(quest_id)
+	_dev_deleted[quest_id] = true
+	_write_dev_quests()
 
 
 func _kind_done(entry: Dictionary, info: Dictionary) -> bool:
@@ -1887,7 +2024,7 @@ func _candidates(key: String, npc_id: int, used: Dictionary, reuse: bool) -> Arr
 		var info: Dictionary = _info(quest_id)
 		if info.is_empty() or not bool(info.get("start", false)):
 			continue
-		if not _giver_ok(info, npc_id) or not _newbie_offer_ok(info):
+		if not _giver_ok(info, npc_id):
 			continue
 		# Central quests have no tier. Dock quests are offered only on their tier.
 		var quest_tier := int(info.get("tier", -1))
@@ -1914,7 +2051,7 @@ func _giver_ok(info: Dictionary, npc_id: int) -> bool:
 	if dest > 1000 and not _npc_live(dest):
 		return false
 	var kind := String(info.get("kind", ""))
-	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == FACTORY or kind == FOREMAN or kind == MINT or kind == SUPERVISOR or kind == SKELE or kind == GAG or kind == TRACK or kind == VP or kind == CFO or kind == RESCUE or kind == PART or kind == REVIVE
+	return kind == COG or kind == RECOVER or kind == VISIT or kind == BUILDING or kind == FACTORY or kind == FOREMAN or kind == MINT or kind == SUPERVISOR or kind == SKELE or kind == GAG or kind == TRACK or kind == VP or kind == CFO or kind == RESCUE or kind == PART or kind == REVIVE or kind == CJ or kind == CEO or kind == OFFICE or kind == COURSE or kind == FIELD
 
 
 func _npc_live(npc_id: int) -> bool:
@@ -1938,37 +2075,58 @@ func _npc_row(npc_id: int) -> Dictionary:
 	return {}
 
 
-func _newbie_ok(info: Dictionary) -> bool:
-	return _newbie_offer_ok(info)
+func _newbie_cap(info: Dictionary) -> int:
+	return int(info.get("newbie", 0))
 
 
-func _newbie_offer_ok(info: Dictionary) -> bool:
-	var cap := int(info.get("newbie", 0))
+## NewbieQuest.getNumNewbies. A normal task adds 1. "Help a Toon with N
+## laff or less" adds one for each other Toon in the fight at or under N.
+## The Toon's own laff is not part of that count.
+func _gain(info: Dictionary, helpers: Array) -> int:
+	var cap := _newbie_cap(info)
 	if cap <= 0:
-		return true
-	var loadout := ToonLoadout.for_selected()
-	if loadout == null:
-		return true
-	return loadout.max_hp <= cap
+		return 1
+	var count := 0
+	for item in helpers:
+		if int(item) > 0 and int(item) <= cap:
+			count += 1
+	return count
 
 
+## Quests.LocationBasedQuest.isLocationMatch. Anywhere is stored as hood 0
+## and zone 0. A playground or Cog HQ courtyard matches the whole hood. A
+## street, factory, or mint matches that branch only. A toon-building interior
+## (the part of a hood at 500 and up, outside a Cog HQ) belongs to the street.
 func _place_ok(info: Dictionary, zone: int) -> bool:
-	var need_zone := int(info.get("zone", 0))
-	var need_hood := int(info.get("hood", 0))
-	if need_zone == 0 and need_hood == 0:
+	var loc := int(info.get("zone", 0))
+	if loc == 0:
+		loc = int(info.get("hood", 0))
+	if loc == 0:
 		return true
-	# SellbotFactoryInt is 11500. The front entrance scene is numbered 11200.
-	if need_zone != 0 and _factory_room(need_zone) and _factory_room(zone):
-		return true
-	var playground := zone - posmod(zone, 1000)
-	if need_zone != 0:
-		var street := zone - posmod(zone, 100)
-		return zone == need_zone or street == need_zone
-	return playground == need_hood
+	if _playground_location(loc):
+		return loc == _hood_id(zone)
+	var branch := _branch_id(zone)
+	return loc == branch or loc == zone
 
 
-func _factory_room(zone: int) -> bool:
-	return zone == 11200 or zone == 11500
+## ZoneUtil.isPlayground. Courtyards are 10000, 11000, 12000, and 13000.
+## A mint (12500) or factory interior (11500) is not a playground.
+func _playground_location(zone: int) -> bool:
+	if posmod(zone, 1000) == 0 and zone < 61000:
+		return true
+	return zone >= 10000 and zone < 15000 and posmod(zone, 1000) < 100
+
+
+func _hood_id(zone: int) -> int:
+	return zone - posmod(zone, 1000)
+
+
+## ZoneUtil.getBranchZone. Building interiors sit 500 above their street.
+func _branch_id(zone: int) -> int:
+	var branch := zone - posmod(zone, 100)
+	if (zone < 10000 or zone >= 15000) and posmod(zone, 1000) >= 500:
+		branch -= 500
+	return branch
 
 
 func _holder_ok(info: Dictionary, code: String, dept: String, level: int) -> bool:
@@ -2014,6 +2172,7 @@ static func _load_pool() -> void:
 	_read_quest_file(_GARDEN_FILE)
 	_read_quest_file(_MELODY_FILE)
 	_read_quest_file(_REST_FILE)
+	_read_dev_quests()
 
 
 static func _read_quest_file(path: String) -> void:
@@ -2047,6 +2206,37 @@ static func _read_quest_file(path: String) -> void:
 		for item in incoming:
 			have.append(int(item))
 		_by_reward[key] = have
+
+
+static func _read_dev_quests() -> void:
+	_dev_quests = {}
+	_dev_deleted = {}
+	if not FileAccess.file_exists(_DEV_QUESTS):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_DEV_QUESTS))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var root: Dictionary = parsed
+	var quests: Dictionary = root.get("quests", {})
+	for key in quests.keys():
+		var raw: Variant = quests[key]
+		if typeof(raw) == TYPE_DICTIONARY:
+			_dev_quests[int(key)] = raw
+	for item in root.get("deleted", []):
+		_dev_deleted[int(item)] = true
+
+
+static func _write_dev_quests() -> void:
+	var quests: Dictionary = {}
+	for quest_id in _dev_quests.keys():
+		quests[str(int(quest_id))] = _dev_quests[quest_id]
+	var deleted: Array = []
+	for quest_id in _dev_deleted.keys():
+		deleted.append(int(quest_id))
+	var file := FileAccess.open(_DEV_QUESTS, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify({"quests": quests, "deleted": deleted}, "\t"))
 
 
 func _money(reward_id: int) -> int:

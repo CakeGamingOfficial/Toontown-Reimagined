@@ -111,6 +111,8 @@ func _act(peer: int, kind: String, a: int, b: float, c: float) -> void:
 		_aim(peer, b)
 	elif kind == "swing":
 		_swing(peer, b, c)
+	elif kind == "skip":
+		_skip_hole(peer)
 	_publish()
 	_since = 0.0
 
@@ -401,6 +403,21 @@ func _advance(game: Dictionary) -> void:
 			game["path"] = []
 			return
 	if int(game["hole_i"]) + 1 >= (game["holes"] as Array).size():
+		game["phase"] = "card"
+		game["timer"] = 8.0
+		game["winner"] = _winner(game)
+		game["path"] = []
+		return
+	game["hole_i"] = int(game["hole_i"]) + 1
+	_start_hole(game)
+
+
+func _skip_hole(peer: int) -> void:
+	var game := _current(peer)
+	if game.is_empty():
+		return
+	var holes: Array = game["holes"]
+	if int(game["hole_i"]) + 1 >= holes.size():
 		game["phase"] = "card"
 		game["timer"] = 8.0
 		game["winner"] = _winner(game)

@@ -30,6 +30,7 @@ const _BLDG: Array = [
 var _runs: Array = []
 var _next := 1
 var _catalog: Array = []
+var _catalog_gen := -1
 var _dirty: Dictionary = {}
 var _wait := 0.0
 
@@ -49,11 +50,16 @@ static func room_kind(level: int, floors: int) -> String:
 
 
 func _ready() -> void:
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
-	if parsed is Dictionary:
-		var rows: Variant = (parsed as Dictionary).get("cogs", [])
-		if rows is Array:
-			_catalog = rows
+	_ensure_catalog()
+
+
+func _ensure_catalog() -> void:
+	if _catalog_gen == CogCatalog.generation() and not _catalog.is_empty():
+		return
+	var rows: Variant = CogCatalog.data().get("cogs", [])
+	if rows is Array:
+		_catalog = rows
+		_catalog_gen = CogCatalog.generation()
 
 
 func _process(delta: float) -> void:
@@ -79,6 +85,7 @@ func _process(delta: float) -> void:
 
 
 func board(district: int, slug: String, block: int, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
+	_ensure_catalog()
 	if not ToonNet.is_authority() or peer < 0 or block == 0:
 		return
 	var building := _building(district, slug, block)

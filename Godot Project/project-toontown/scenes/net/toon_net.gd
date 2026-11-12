@@ -288,6 +288,21 @@ static func submit(channel: String, state: Dictionary) -> void:
 	net._store(channel, packed)
 
 
+## Developer edits that the district has to agree on: gag stats, the cog
+## catalog, a boss phase, and the queued fireworks show. The host stores
+## the record and sends it to everyone, the same way a holiday does.
+static func share_dev(kind: String, state: Dictionary) -> void:
+	var net := live()
+	if net == null or net._role == "offline":
+		return
+	var packed := net._pack(state) as Dictionary
+	if is_authority():
+		net._store("dev:" + kind, packed)
+		return
+	if net._role == "client":
+		net._share_dev.rpc_id(1, kind, packed)
+
+
 static func minigolf_act(kind: String, a: int, b: float, c: float) -> void:
 	var net := live()
 	if net == null:
@@ -2284,6 +2299,15 @@ func _request_summon(district: int, slug: String, query: String, level: int, x: 
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_ask_summon(district, slug, query, level, Vector3(x, y, z))
+
+
+@rpc("any_peer", "reliable")
+func _share_dev(kind: String, state: Dictionary) -> void:
+	if not is_authority():
+		return
+	if kind != "gags" and kind != "cogs" and kind != "boss" and kind != "fireworks":
+		return
+	_store("dev:" + kind, state)
 
 
 @rpc("any_peer", "reliable")

@@ -509,8 +509,11 @@ func _credit_mult(fight: Dictionary) -> float:
 	return mult
 
 
-func _grant(fight: Dictionary, peer: int, track: int, level: int) -> void:
+func _grant(fight: Dictionary, peer: int, track: int, level: int, locked := false) -> void:
 	if peer == 0 or track < 0 or track >= ToonLoadout.TRACK_COUNT or level < 0:
+		return
+	# A trap's credit was decided when it was placed. Later rounds keep that.
+	if not locked and not ToonLoadout.earns_experience(level, int(fight.get("credit_level", 0))):
 		return
 	var book: Dictionary = fight.get("skill", {})
 	var key := str(peer)
@@ -591,6 +594,9 @@ func _resolve(fight: Dictionary) -> void:
 	for body_index in suits.size():
 		var body: Dictionary = suits[body_index]
 		body["was"] = int(body.get("hp", 0))
+	# creditLevel is fixed before any gag resolves, so a cog defeated earlier
+	# in this round still counts toward the cap.
+	fight["credit_level"] = ToonLoadout.credit_level(suits)
 	var beats: Array = []
 	var runners: Array = []
 	var picks: Array = fight["choices"]
@@ -735,6 +741,13 @@ func _apply_reward(fight: Dictionary, choice: Dictionary, beats: Array) -> void:
 			return
 
 
+func _kills_instantly(toon: Dictionary) -> bool:
+	var peer := int(toon.get("id", -1))
+	if bool(ToonNet.latest("toon:%d" % peer).get("instant_kill", false)):
+		return true
+	return peer == ToonNet.peer_id() and MagicWords.instant_kill()
+
+
 func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: Array) -> void:
 	var track := int(choice.get("track", -1))
 	var level := int(choice.get("level", 0))
@@ -753,6 +766,8 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 	if living.is_empty():
 		return
 	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)))
+	if _kills_instantly(toon):
+		damage = 9999
 	var group := ToonLoadout.affects_group(track, level)
 	var target_id := int(choice.get("target", -1))
 	# Trap does not roll. Every other gag rolls once for the whole attack.
@@ -768,7 +783,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		var suit: Dictionary = cog
 		var cog_name := String(suit.get("name", "cog"))
 		if track == 1:
-			suit["trap"] = {"damage": damage, "gag": gag, "by": who, "owner": int(toon.get("id", 0)), "level": level}
+			suit["trap"] = {"damage": damage, "gag": gag, "by": who, "owner": int(toon.get("id", 0)), "level": level, "credit": ToonLoadout.earns_experience(level, int(fight.get("credit_level", 0)))}
 			beats.append(_beat("%s set a %s on the %s." % [who, gag, cog_name], track, level, toon, suit, true, 0))
 			landed = true
 			continue
@@ -828,7 +843,8 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 		beat["cog_hp"] = 0
 		beat["revived"] = true
 	beats.append(beat)
-	_grant(fight, int(laid.get("owner", 0)), 1, int(laid.get("level", 0)))
+	if bool(laid.get("credit", false)):
+		_grant(fight, int(laid.get("owner", 0)), 1, int(laid.get("level", 0)), true)
 	return true
 
 

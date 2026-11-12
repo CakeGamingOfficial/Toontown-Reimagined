@@ -149,6 +149,7 @@ func _battle_cog(row: Dictionary, origin: Vector3) -> Dictionary:
 		"height": float(spec.get("height", 4.0)),
 		"pos": [origin.x, origin.y, origin.z],
 		"skeleton": bool(spec.get("skeleton", false)),
+		"boss": int(spec.get("boss", 0)) == 1,
 	}
 
 
@@ -240,6 +241,8 @@ func _suit(by_code: Dictionary, level: int, skeleton: bool) -> Dictionary:
 
 
 func _read(path: String) -> Dictionary:
+	if path.ends_with("cogs/catalog.json"):
+		return CogCatalog.data()
 	if not FileAccess.file_exists(path):
 		return {}
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))

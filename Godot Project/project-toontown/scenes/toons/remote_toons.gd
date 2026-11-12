@@ -177,6 +177,8 @@ func _send() -> void:
 		"hp": laff.x,
 		"max_hp": laff.y,
 		"ghost": MagicWords.ghosting(),
+		"asleep": MagicWords.asleep(),
+		"instant_kill": MagicWords.instant_kill(),
 		"hidden": concealed,
 		"style": style.to_dict(),
 		"accessories": worn,

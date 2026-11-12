@@ -99,11 +99,14 @@ var _fire: TextureButton
 var _sos_list: VBoxContainer
 var _pass: TextureButton
 var _credit := 1.0
+var _credit_level := -1
+var _no_credit := false
 
 
-func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0) -> void:
+func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0, credit_level := -1) -> void:
 	_loadout = loadout
 	_credit = credit
+	_credit_level = credit_level
 	_tutorial = tutorial
 	# InventoryNew.battleActivateButtons hides Run when bldg == 1.
 	_building = building
@@ -368,6 +371,7 @@ func _show_total() -> void:
 	_detail_amount.visible = false
 	_detail_data.visible = false
 	_detail_credit.visible = false
+	_no_credit = false
 	_paint_total()
 
 
@@ -389,7 +393,9 @@ func _show_detail(track: int, level: int) -> void:
 		ToonLoadout.gag_damage(track, level, exp),
 		ToonLoadout.affects_label(track, level),
 	]
-	_detail_credit.text = ToonLoadout.experience_line(level, _credit)
+	_no_credit = _credit_level >= 0 and not ToonLoadout.earns_experience(level, _credit_level)
+	# InventoryNew.setDetailCredit shows "Skill credit: None" in red.
+	_detail_credit.text = "Experience: None" if _no_credit else ToonLoadout.experience_line(level, _credit)
 
 
 func _pick(track: int, level: int) -> void:
@@ -574,7 +580,8 @@ func _fit_line(label: Label, rect: Rect2, horizontal: HorizontalAlignment, verti
 	label.vertical_alignment = vertical
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.clip_text = true
-	ToonGui.style_label(label, _INK, _px_of(scale), Color(0, 0, 0, 0), 0)
+	var ink := Color(0.5, 0.0, 0.0, 1.0) if label == _detail_credit and _no_credit else _INK
+	ToonGui.style_label(label, ink, _px_of(scale), Color(0, 0, 0, 0), 0)
 
 
 func _point(ax: float, az: float) -> Vector2:

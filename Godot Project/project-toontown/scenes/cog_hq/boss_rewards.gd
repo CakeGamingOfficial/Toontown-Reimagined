@@ -130,6 +130,13 @@ static func pink_slips() -> int:
 	return int(_read().get("pink", 0))
 
 
+static func set_pink(count: int) -> String:
+	var record := _read()
+	record["pink"] = maxi(count, 0)
+	_write(record)
+	return "Pink slips set to %d." % int(record["pink"])
+
+
 static func sos_cards() -> Array:
 	var cards: Array = _read().get("sos", [])
 	return cards.duplicate(true)

@@ -93,6 +93,7 @@ var _tracks: Array = []
 var _levels: Array = []
 var _max_type := 6
 var _catalog: Array = []
+var _catalog_gen := -1
 var _doors: Dictionary = {}
 var _timing: Dictionary = {}
 var _propeller: Dictionary = {}
@@ -455,16 +456,15 @@ func _right_hand_score(route: PackedInt32Array) -> float:
 
 
 func _load_catalog() -> bool:
-	var path := "res://assets/cogs/catalog.json"
-	if not FileAccess.file_exists(path):
+	if _catalog_gen == CogCatalog.generation() and not _catalog.is_empty():
+		return true
+	var data := CogCatalog.data()
+	if data.is_empty():
 		return false
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return false
-	var data: Dictionary = parsed
 	_catalog = data.get("cogs", [])
 	_timing = data.get("timing", {})
 	_propeller = data.get("propeller", {})
+	_catalog_gen = CogCatalog.generation()
 	return not _catalog.is_empty()
 
 

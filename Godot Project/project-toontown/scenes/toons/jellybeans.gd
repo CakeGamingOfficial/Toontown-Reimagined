@@ -19,11 +19,13 @@ const VAULT_TIERS: Array[Dictionary] = [
 const _PATH := "user://jellybeans.json"
 
 static var _loaded := false
-static var _pouch: Array[int] = []
-static var _bank: Array[int] = []
-static var _limit: Array[int] = []
-static var _vault: Array[int] = []
-static var _vault_tier: Array[int] = []
+# PackedInt32Array, not Array[int]. Godot rejects writing slot 0 of a static
+# typed array, which is the crash the first time a jar is saved.
+static var _pouch := PackedInt32Array()
+static var _bank := PackedInt32Array()
+static var _limit := PackedInt32Array()
+static var _vault := PackedInt32Array()
+static var _vault_tier := PackedInt32Array()
 
 
 static func pouch() -> int:
@@ -241,7 +243,7 @@ static func _vault_capacity(tier: int) -> int:
 	return int(VAULT_TIERS[tier - 1].get("capacity", 0))
 
 
-static func _value(values: Array[int]) -> int:
+static func _value(values: PackedInt32Array) -> int:
 	var slot := _slot()
 	if slot < 0:
 		return 0

@@ -97,7 +97,7 @@ func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky,
 	_menu.name = "BattleMenu"
 	_menu.visible = false
 	_hud.add_child(_menu)
-	_menu.setup(loadout, true)
+	_menu.setup(loadout, true, false, 1.0, _flunky.cog_level)
 	_apply_cog_vitals()
 	_build_card()
 	_movie = BattleMovie.new()
@@ -435,7 +435,8 @@ func _toon_attack(track: int, level: int) -> void:
 	if not _loadout.spend_gag(track, level):
 		return
 	_spent.append(Vector2i(track, level))
-	_gained[track] = int(_gained.get(track, 0)) + ToonLoadout.SKILL_CREDIT
+	if ToonLoadout.earns_experience(level, _flunky.cog_level):
+		_gained[track] = int(_gained.get(track, 0)) + ToonLoadout.SKILL_CREDIT
 	_aim(false)
 	# The hit and the number are chosen before the movie. Playback only shows them.
 	var hit := true

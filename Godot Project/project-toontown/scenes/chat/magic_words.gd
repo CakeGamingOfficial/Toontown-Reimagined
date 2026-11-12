@@ -9,6 +9,7 @@ const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _DISGUISE := preload("res://scenes/shticker/disguise_page.gd")
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 
 ## HoodsForTeleportAll. Funny Farm stays off the list.
 const _TELEPORT_ALL: Array[int] = [
@@ -21,7 +22,7 @@ const _FLY_FAST := 90.0
 ## A shorter left press is a click. A longer one is a hold.
 const _FLY_CLICK := 0.25
 const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~ghost   ~collisions off   ~restock   ~max   ~beans 100\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
-~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1"
+~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1\n~gags empty   ~pinkslips 255   ~gagpouch 80   ~instantkill   ~sleep\n~factory   ~boss vp   ~boss kill   ~globaltp   ~exitgame   ~skipgolfhole   ~abortgolf   ~fireworks newyear"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
@@ -52,8 +53,8 @@ const _WORDS: Dictionary = {
 	"collisions": "collisions",
 	"collide": "collisions",
 	"noclip": "noclip",
-	"gags": "restock",
-	"inv": "restock",
+	"gags": "inventory",
+	"inv": "inventory",
 	"restock": "restock",
 	"max": "max",
 	"idkfa": "max",
@@ -112,6 +113,104 @@ const _WORDS: Dictionary = {
 	"spawninvasion": "invasion",
 	"deptinvasion": "deptinvasion",
 	"invasionstatus": "invasionstatus",
+	"sethp": "hp",
+	"setmaxhp": "maxhp",
+	"toggleoobe": "oobe",
+	"togglerun": "run",
+	"maxtoon": "max",
+	"inventory": "inventory",
+	"pinkslips": "pinkslips",
+	"fires": "pinkslips",
+	"setfires": "pinkslips",
+	"setpinkslips": "pinkslips",
+	"exitgame": "abortminigame",
+	"exitminigame": "abortminigame",
+	"quitgame": "abortminigame",
+	"quitminigame": "abortminigame",
+	"skipgame": "abortminigame",
+	"skipminigame": "abortminigame",
+	"abortminigame": "abortminigame",
+	"skipgolfhole": "skipgolf",
+	"skipgolf": "skipgolf",
+	"skiphole": "skipgolf",
+	"skipminigolfhole": "skipgolf",
+	"abortminigolf": "abortgolf",
+	"abortgolf": "abortgolf",
+	"abortcourse": "abortgolf",
+	"leavegolf": "abortgolf",
+	"leavecourse": "abortgolf",
+	"abortgolfcourse": "abortgolf",
+	"factory": "factory",
+	"boss": "boss",
+	"bossbattle": "boss",
+	"globaltp": "globaltp",
+	"tpaccess": "globaltp",
+	"globalteleport": "globaltp",
+	"teleport": "tp",
+	"sleep": "sleep",
+	"nosleep": "sleep",
+	"neversleep": "sleep",
+	"togglesleeping": "sleep",
+	"insomnia": "sleep",
+	"togglesleep": "sleep",
+	"spy": "ghost",
+	"toggleghost": "ghost",
+	"toggleimmortal": "immortal",
+	"gagpouch": "pouch",
+	"pouch": "pouch",
+	"gagcapacity": "pouch",
+	"setmaxcarry": "pouch",
+	"instantkill": "instantkill",
+	"instakill": "instantkill",
+	"toggleinstantkill": "instantkill",
+	"firework": "fireworks",
+	"fireworks": "fireworks",
+}
+
+const _USAGE := {
+	"help": "~help",
+	"tp": "~tp ttc, dd, dg, mml, tb, ddl, aa, gs, estate, or a HQ",
+	"hp": "~hp 15",
+	"maxhp": "~maxhp 137",
+	"run": "~run",
+	"oobe": "~oobe",
+	"getpos": "~getpos",
+	"setpos": "~setpos x y z",
+	"showpaths": "~showpaths",
+	"immortal": "~immortal",
+	"ghost": "~ghost",
+	"collisions": "~collisions off",
+	"noclip": "~noclip",
+	"restock": "~restock",
+	"max": "~max",
+	"beans": "~beans 100",
+	"minigame": "~mg maze, or ~mg random",
+	"suit": "~suit flunky, ~suit pp 5 skelecog, ~suit flunky v2, ~suit flunky laser, ~suit flunky waiter",
+	"spawnbuilding": "~spawnbuilding sellbot 1, ~spawnbuilding flunky, or ~spawnbuilding fieldoffice",
+	"freebldg": "~freebldg",
+	"gm": "~togglegm, or ~setgm 1",
+	"districts": "~districts",
+	"district": "~district host, ~district join 127.0.0.1, or ~district open Name",
+	"accessory": "~acc hbb1, ~hat 0, ~glasses, ~backpack, ~shoes",
+	"quest": "~quest finish 164, ~quest finish 1, ~quest set 164, or ~quest set 2 175",
+	"startholiday": "~startholiday 3",
+	"endholiday": "~endholiday 3",
+	"holiday": "~holiday 7, or ~holiday Fish Bingo",
+	"invasion": "~invasion start flunky 1000, ~invasion start sellbot 1000, ~invasion stop",
+	"deptinvasion": "~deptinvasion sellbot",
+	"invasionstatus": "~invasionstatus",
+	"inventory": "~gags, ~gags empty",
+	"pinkslips": "~pinkslips 255",
+	"abortminigame": "~exitgame",
+	"skipgolf": "~skipgolfhole",
+	"abortgolf": "~abortgolf",
+	"factory": "~factory, or ~factory 1 for the side entrance",
+	"boss": "~boss vp, ~boss skip, ~boss final, ~boss kill",
+	"globaltp": "~globaltp",
+	"sleep": "~sleep",
+	"pouch": "~gagpouch 80",
+	"instantkill": "~instantkill",
+	"fireworks": "~fireworks newyear, summer, combo, or party",
 }
 
 ## Trolley games. Names match ToontownGlobals.MinigameNames.
@@ -246,10 +345,37 @@ static var _fly_held := 0.0
 static var _trolley_next := 0
 ## SetGM icon id. 0 is off. 1..4 are TOON COUNCIL, TOON TROOPER, RESISTANCE RANGER, GC.
 static var _gm := 0
+static var _asleep := false
+static var _instant_kill := false
+static var _firework_show := ""
+static var _firework_hood := ""
 
 
 static func looks_like(text: String) -> bool:
 	return text.begins_with("~")
+
+
+## Every magic word that can be typed, with the other names that run it.
+static func directory() -> Array:
+	var grouped: Dictionary = {}
+	for key in _WORDS.keys():
+		var action := String(_WORDS[key])
+		var names: Array = grouped.get(action, [])
+		names.append(String(key))
+		grouped[action] = names
+	var rows: Array = []
+	for action in grouped.keys():
+		var names: Array = grouped[action]
+		names.sort()
+		rows.append({
+			"word": String(action),
+			"aliases": names,
+			"usage": String(_USAGE.get(action, "~" + String(action))),
+		})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a["word"]) < String(b["word"])
+	)
+	return rows
 
 
 static func run_scale() -> float:
@@ -280,6 +406,25 @@ static func detached_camera() -> bool:
 
 static func ignores_damage() -> bool:
 	return _immortal
+
+
+static func instant_kill() -> bool:
+	return _instant_kill
+
+
+static func asleep() -> bool:
+	return _asleep
+
+
+static func firework_show() -> String:
+	var snap := ToonNet.latest("dev:fireworks")
+	if snap.has("show"):
+		return String(snap.get("show", ""))
+	return _firework_show
+
+
+static func firework_hood() -> String:
+	return _firework_hood
 
 
 static func noclip() -> bool:
@@ -375,6 +520,32 @@ static func invoke(scene: Node, text: String) -> String:
 			return _dept_invasion_word(args)
 		"invasionstatus":
 			return _HOLIDAYS.invasion_status()
+		"inventory":
+			return _inventory(scene, args)
+		"pinkslips":
+			return _pink_slips(args)
+		"abortminigame":
+			return _abort_minigame(scene)
+		"skipgolf":
+			return _skip_golf()
+		"abortgolf":
+			return _abort_golf(scene)
+		"factory":
+			return _factory(args)
+		"boss":
+			return _boss(scene, word, args)
+		"globaltp":
+			return _global_teleport()
+		"sleep":
+			_asleep = not _asleep
+			return "Sleeping is on. The toon will lie down once sleeping is hooked up." if _asleep else "Sleeping is off."
+		"pouch":
+			return _set_pouch(scene, args)
+		"instantkill":
+			_instant_kill = not _instant_kill
+			return "Instant kill is on. Any gag you hit with defeats the cog." if _instant_kill else "Instant kill is off."
+		"fireworks":
+			return _fireworks(scene, args)
 	return "Uh-oh! This Magic Word doesn't exist!"
 
 
@@ -563,6 +734,185 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if everything:
 		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, bank to %d, and vault to %d, filled %d gags, opened teleport to every playground and Cog HQ, and maxed every Cog suit." % [loadout.max_carry, _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.vault_limit(), filled]
 	return "Restocked %d gags." % filled
+
+
+static func _inventory(scene: Node, args: PackedStringArray) -> String:
+	var loadout := _loadout(scene)
+	if loadout == null:
+		return "No gag pouch here."
+	var command := "" if args.is_empty() else args[0].to_lower()
+	var emptying := ["empty", "zero", "null", "clear", "none", "reset"]
+	if emptying.has(command):
+		loadout.zero_gags()
+		loadout.save()
+		var book := _find(scene, "ShtickerBook") as ShtickerBook
+		if book != null:
+			book.refresh_gags()
+		return "Emptied the gag pouch."
+	var filling := ["restock", "max", "all", "fill", ""]
+	if filling.has(command):
+		return _restock(scene, false)
+	return "Use ~gags to restock, or ~gags empty to clear the pouch."
+
+
+static func _pink_slips(args: PackedStringArray) -> String:
+	var amount := 255
+	if not args.is_empty():
+		if not args[0].is_valid_int():
+			return "Use ~pinkslips 255."
+		amount = int(args[0])
+	if amount < 0:
+		return "Pink slips can't be negative."
+	return _REWARDS.set_pink(amount)
+
+
+static func _abort_minigame(scene: Node) -> String:
+	if scene == null or not scene.scene_file_path.ends_with("trolley_ride.tscn"):
+		return "You aren't in a minigame."
+	var back := ""
+	if scene.has_method("ride_home"):
+		back = String(scene.call("ride_home"))
+	if back.is_empty():
+		back = "res://scenes/playgrounds/toontown_central.tscn"
+	_ARRIVAL.teleport_in = true
+	ToonLoading.change_to(back)
+	return "Requested minigame abort."
+
+
+static func _skip_golf() -> String:
+	if MiniGolf.mine().is_empty():
+		return "You aren't in a golf course!"
+	_golf_act("skip")
+	return "Skipped the current hole."
+
+
+static func _abort_golf(scene: Node) -> String:
+	if MiniGolf.mine().is_empty() and (scene == null or not scene.scene_file_path.ends_with("minigolf_round.tscn")):
+		return "You aren't in a golf course!"
+	_golf_act("leave")
+	_ARRIVAL.teleport_in = true
+	ToonLoading.change_to("res://scenes/playgrounds/chip_n_dales_minigolf.tscn")
+	return "Aborted golf course."
+
+
+static func _golf_act(kind: String) -> void:
+	if ToonNet.networked() and not ToonNet.is_authority():
+		ToonNet.minigolf_act(kind, 0, 0.0, 0.0)
+		return
+	MiniGolf.act(ToonNet.peer_id(), kind, 0, 0.0, 0.0)
+
+
+static func _factory(args: PackedStringArray) -> String:
+	var side := 0
+	if not args.is_empty() and args[0].is_valid_int():
+		side = int(args[0])
+	_ARRIVAL.teleport_in = true
+	ToonLoading.change_to("res://scenes/cog_hq/sellbot_factory.tscn")
+	if side > 0:
+		return "Entering the Sellbot Factory from the side."
+	return "Entering the Sellbot Factory."
+
+
+static func _boss(scene: Node, word: String, args: PackedStringArray) -> String:
+	var command := ""
+	var boss_type := ""
+	var start := true
+	if not args.is_empty():
+		command = args[0].to_lower()
+	elif word in ["vp", "cfo", "cj", "ceo"]:
+		command = word
+	if command in ["vp", "cfo", "cj", "ceo"]:
+		boss_type = command
+		command = "create"
+		if args.size() > 1 and args[1].is_valid_int():
+			start = int(args[1]) != 0
+	elif args.size() > 1:
+		boss_type = args[1].to_lower()
+		if args.size() > 2 and args[2].is_valid_int():
+			start = int(args[2]) != 0
+	var rooms := {
+		"vp": "res://scenes/cog_hq/sellbot_vp.tscn",
+		"cfo": "res://scenes/cog_hq/cashbot_cfo.tscn",
+		"cj": "res://scenes/cog_hq/lawbot_cj.tscn",
+		"ceo": "res://scenes/cog_hq/bossbot_ceo.tscn",
+	}
+	var in_boss := false
+	if scene != null and scene.scene_file_path.get_file() in ["sellbot_vp.tscn", "cashbot_cfo.tscn", "lawbot_cj.tscn", "bossbot_ceo.tscn"]:
+		in_boss = true
+	if command == "create":
+		if in_boss:
+			return "You're already in a boss battle. Please finish this one."
+		if not rooms.has(boss_type):
+			return "Unknown boss type. Use vp, cfo, cj, or ceo."
+		_ARRIVAL.teleport_in = true
+		ToonLoading.change_to(String(rooms[boss_type]))
+		if start:
+			return "Created a %s boss battle." % boss_type.to_upper()
+		return "Created a %s boss battle. It still starts from the introduction." % boss_type.to_upper()
+	if command == "list":
+		if not in_boss:
+			return "No ongoing boss battles."
+		return "Boss battle: the one you are standing in."
+	if command == "join":
+		return "Joining another boss battle isn't hooked up yet."
+	if not in_boss:
+		return "You aren't in a boss battle. Use ~boss vp to create one."
+	var boss := scene.get_node_or_null("DeptBoss")
+	if boss != null and boss.has_method("magic_command"):
+		var reply := String(boss.call("magic_command", command))
+		if not reply.is_empty():
+			return reply
+	return "Unknown command. Use start, stop, skip, final, or kill."
+
+
+static func _global_teleport() -> String:
+	var tasks := ToonTasks.live()
+	if tasks == null:
+		tasks = ToonTasks.for_selected()
+	if tasks == null:
+		return "No toon to grant teleport access."
+	for hood in _TELEPORT_ALL:
+		tasks.grant_teleport(hood)
+		tasks._remember(hood)
+	tasks.save()
+	return "Enabled teleport access to every playground and Cog HQ."
+
+
+static func _set_pouch(scene: Node, args: PackedStringArray) -> String:
+	var loadout := _loadout(scene)
+	if loadout == null:
+		return "No gag pouch here."
+	if args.is_empty() or not args[0].is_valid_int():
+		return "Use ~gagpouch 80. The pouch holds %d now." % loadout.max_carry
+	var size := int(args[0])
+	if size < 0 or size > 255:
+		return "The pouch size has to be from 0 to 255."
+	loadout.max_carry = size
+	loadout.save()
+	var toon := scene.get_node_or_null("PlaygroundToon")
+	if toon != null and toon.has_method("battle_loadout"):
+		var live = toon.call("battle_loadout")
+		if live is ToonLoadout:
+			(live as ToonLoadout).max_carry = size
+			(live as ToonLoadout).save()
+	return "Gag pouch size is now %d." % size
+
+
+static func _fireworks(scene: Node, args: PackedStringArray) -> String:
+	var name := "newyear" if args.is_empty() else args[0].to_lower()
+	var hood := "" if args.size() < 2 else args[1].to_lower()
+	var shows := ["newyear", "newyears", "summer", "combo", "party"]
+	if not shows.has(name):
+		return "Unknown firework name. Use newyear, summer, combo, or party."
+	if not hood.is_empty() and hood != "all":
+		return "Use ~fireworks newyear, or ~fireworks newyear all."
+	_firework_show = name
+	_firework_hood = hood
+	ToonNet.share_dev("fireworks", {"show": name, "hood": hood})
+	if scene != null and scene.has_method("show_fireworks"):
+		scene.call("show_fireworks", name)
+		return "Started a %s firework show." % name
+	return "A %s firework show is queued. Playgrounds will run it once the show is hooked up." % name
 
 
 static func _give_beans(scene: Node, args: PackedStringArray) -> String:
@@ -952,10 +1302,10 @@ static func _exact_cog(query: String) -> bool:
 	var wanted := StreetSuits.cog_key(query)
 	if wanted.is_empty():
 		return false
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
-	if not (parsed is Dictionary):
+	var parsed := CogCatalog.data()
+	if parsed.is_empty():
 		return false
-	var cogs: Variant = (parsed as Dictionary).get("cogs", [])
+	var cogs: Variant = parsed.get("cogs", [])
 	if not (cogs is Array):
 		return false
 	for item in cogs:
@@ -970,10 +1320,10 @@ static func _exact_cog(query: String) -> bool:
 
 
 static func _cog_named(query: String) -> Dictionary:
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/catalog.json"))
-	if not (parsed is Dictionary):
+	var parsed := CogCatalog.data()
+	if parsed.is_empty():
 		return {}
-	var cogs: Variant = (parsed as Dictionary).get("cogs", [])
+	var cogs: Variant = parsed.get("cogs", [])
 	if not (cogs is Array):
 		return {}
 	return StreetSuits.match_cog(cogs, query)
