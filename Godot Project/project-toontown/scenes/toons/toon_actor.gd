@@ -1936,7 +1936,7 @@ func _apply_face(mesh: MeshInstance3D, style: ToonStyle, kind: String) -> void:
 		if kind == "front":
 			color = style.painted_color("head")
 		else:
-		var material := source.surface_get_material(surface)
+			var material := source.surface_get_material(surface)
 			if material is BaseMaterial3D:
 				var standard := material as BaseMaterial3D
 				texture = standard.albedo_texture

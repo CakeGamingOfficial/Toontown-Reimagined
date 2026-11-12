@@ -113,7 +113,6 @@ const _WORDS: Dictionary = {
 	"spawninvasion": "invasion",
 	"deptinvasion": "deptinvasion",
 	"invasionstatus": "invasionstatus",
-	"sethp": "hp",
 	"setmaxhp": "maxhp",
 	"toggleoobe": "oobe",
 	"togglerun": "run",
