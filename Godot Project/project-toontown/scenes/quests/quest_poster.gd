@@ -616,43 +616,11 @@ func _show_portrait(style: ToonStyle) -> void:
 	if style == null:
 		_icon.visible = false
 		return
-	_port = SubViewport.new()
-	_port.transparent_bg = true
-	_port.own_world_3d = true
-	_port.size = Vector2i(180, 180)
-	_port.gui_disable_input = true
-	_port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
-	add_child(_port)
-	var stage := Node3D.new()
-	_port.add_child(stage)
-	var world := WorldEnvironment.new()
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0, 0, 0, 0)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color.WHITE
-	env.ambient_light_energy = 1.2
-	world.environment = env
-	stage.add_child(world)
-	var key := DirectionalLight3D.new()
-	key.light_energy = 1.2
-	key.rotation_degrees = Vector3(-28.0, 35.0, 0.0)
-	stage.add_child(key)
-	var actor := ToonActor.new()
-	stage.add_child(actor)
-	actor.show_style(style)
-	var camera := Camera3D.new()
-	camera.fov = 26.0
-	camera.current = true
-	stage.add_child(camera)
-	var focus := actor.position + Vector3(0.0, 3.45, 0.0)
-	var head := _find(actor, "def_head")
-	if head != null:
-		focus = head.global_position if is_inside_tree() else actor.to_global(head.position)
-	camera.position = focus + Vector3(0.0, 0.08, 1.55)
-	camera.look_at(focus, Vector3.UP)
+	var shot := _head_shot(style)
+	_port = shot["port"]
 	_icon.texture = _port.get_texture()
 	_icon.visible = true
+	_frame_head(shot["port"], shot["actor"], shot["camera"])
 
 
 func _npc_style(npc_id: int) -> ToonStyle:
@@ -714,42 +682,79 @@ func _show_officer() -> void:
 	if _officer_port != null and is_instance_valid(_officer_port):
 		_right_icon.texture = _officer_port.get_texture()
 		return
-	_officer_port = SubViewport.new()
-	_officer_port.transparent_bg = true
-	_officer_port.own_world_3d = true
-	_officer_port.size = Vector2i(180, 180)
-	_officer_port.gui_disable_input = true
-	_officer_port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
-	add_child(_officer_port)
+	var shot := _head_shot(_officer_style())
+	_officer_port = shot["port"]
+	_right_icon.texture = _officer_port.get_texture()
+	_frame_head(shot["port"], shot["actor"], shot["camera"])
+
+
+## QuestPoster.createNpcToonHead uses ToonHead with forGui, then fitGeometry.
+## A close perspective lens sits inside the skull and shows the body.
+func _head_shot(style: ToonStyle) -> Dictionary:
+	var port := SubViewport.new()
+	port.transparent_bg = true
+	port.own_world_3d = true
+	port.size = Vector2i(180, 180)
+	port.gui_disable_input = true
+	port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	add_child(port)
 	var stage := Node3D.new()
-	_officer_port.add_child(stage)
+	port.add_child(stage)
 	var world := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0, 0, 0, 0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color.WHITE
-	env.ambient_light_energy = 1.2
+	env.ambient_light_color = Color(1.15, 1.15, 1.15)
+	env.ambient_light_energy = 1.15
 	world.environment = env
 	stage.add_child(world)
 	var key := DirectionalLight3D.new()
-	key.light_energy = 1.2
-	key.rotation_degrees = Vector3(-28.0, 35.0, 0.0)
+	key.light_energy = 1.05
+	key.rotation_degrees = Vector3(-35.0, 25.0, 0.0)
 	stage.add_child(key)
-	var actor := ToonActor.new()
-	stage.add_child(actor)
-	actor.show_style(_officer_style())
 	var camera := Camera3D.new()
-	camera.fov = 26.0
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 1.7
+	camera.near = 0.05
 	camera.current = true
 	stage.add_child(camera)
-	var focus := actor.position + Vector3(0.0, 3.45, 0.0)
-	var head := _find(actor, "def_head")
-	if head != null:
-		focus = head.global_position if is_inside_tree() else actor.to_global(head.position)
-	camera.position = focus + Vector3(0.0, 0.08, 1.55)
+	var actor := ToonActor.new()
+	actor.load_extra_clips = false
+	actor.footsteps = false
+	stage.add_child(actor)
+	actor.show_style(style)
+	_keep_head(actor)
+	actor.set_locomotion(0.0, false, false, 0.0)
+	return {"port": port, "actor": actor, "camera": camera}
+
+
+func _frame_head(port: SubViewport, actor: ToonActor, camera: Camera3D) -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	if port != _port and port != _officer_port:
+		return
+	if not is_instance_valid(actor) or not is_instance_valid(camera):
+		return
+	var focus := actor.global_position + Vector3(0.0, 3.2, 0.0)
+	var neck := actor.find_child("def_head", true, false) as Node3D
+	if neck != null:
+		focus = neck.global_position + Vector3(0.0, 0.24, 0.0)
+	camera.global_position = focus + Vector3(0.0, 0.0, 4.0)
 	camera.look_at(focus, Vector3.UP)
-	_right_icon.texture = _officer_port.get_texture()
+
+
+func _keep_head(actor: Node) -> void:
+	var neck := actor.find_child("def_head", true, false)
+	_keep_head_walk(actor, neck)
+
+
+func _keep_head_walk(node: Node, neck: Node) -> void:
+	if node is MeshInstance3D and (neck == null or not neck.is_ancestor_of(node)):
+		node.visible = false
+	for child in node.get_children():
+		_keep_head_walk(child, neck)
 
 
 static func _officer_style() -> ToonStyle:
