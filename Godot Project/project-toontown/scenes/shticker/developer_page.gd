@@ -289,7 +289,7 @@ func _pick_row(index: int) -> void:
 		var packed := int(_list.get_item_metadata(index))
 		_show_gag(int(packed / 10), packed % 10)
 	else:
-		_body.scroll_to_line(index * 3)
+		_body.set_line_as_first_visible(index * 3)
 
 
 func _show_toon(index: int) -> void:
