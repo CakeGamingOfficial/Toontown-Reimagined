@@ -582,8 +582,11 @@ func _play(fight: Dictionary, _delta: float) -> void:
 			_reward_seq = seq
 			_dance = 0.0
 			if _mine(fight) and not bool(fight.get("floor_clear", false)):
-				_reward_token += 1
-				_show_reward(fight, _reward_token)
+				if String(fight.get("slug", "")).begins_with("boss_vp"):
+					_apply_my_reward(fight)
+				else:
+					_reward_token += 1
+					_show_reward(fight, _reward_token)
 		_dance += _delta
 		_pose_roster(fight, "victory", _dance)
 		return

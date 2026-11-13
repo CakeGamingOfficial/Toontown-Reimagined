@@ -134,7 +134,7 @@ func _ready() -> void:
 	visible = false
 
 
-func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned: Dictionary, quest_line: String, no_skip: bool, quests: Array = []) -> void:
+func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned: Dictionary, quest_line: String, no_skip: bool, quests: Array = [], applied: bool = false) -> void:
 	_loadout = loadout
 	_before = before
 	_earned = earned
@@ -158,14 +158,16 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 		var amount := int(_earned.get(track, 0))
 		var gained: Array[int] = _new_levels(track, start, start + amount)
 		for level in gained:
-			_give_gag(track, level)
-			if _skip:
+			# The VP movie shows points the cog fights already stored.
+			if not applied:
+				_give_gag(track, level)
+			if _skip or applied:
 				continue
 			await _present_new_gag(track, level)
 		if _skip:
 			break
 		# MovieTutorialReward. Only the Toontorial battle explains the next gag.
-		if gained.is_empty() and no_skip:
+		if (gained.is_empty() or applied) and no_skip and amount > 0:
 			var points := "point" if amount == 1 else "points"
 			var goal := loadout.goal_for(track, start + amount)
 			await _acknowledge("You received %d %s %s! When you get %d, you will get a new gag!" % [
@@ -173,7 +175,7 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 			])
 		if _skip:
 			break
-	if _skip:
+	if _skip and not applied:
 		_grant_remaining()
 	if not showed and not _skip:
 		await _wait(2.5)

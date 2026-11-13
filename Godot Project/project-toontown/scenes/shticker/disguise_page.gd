@@ -640,6 +640,16 @@ static func _next_part(have: int) -> int:
 
 ## CogDisguiseGlobals.isSuitComplete. Every part bit in that department's
 ## mask has to be set. The Chief Justice lobby door checks the Lawbot suit.
+## cogTypes and cogLevels for one department. The elevator uses these when the suit is finished.
+static func suit_progress(dept: int) -> Dictionary:
+	if dept < 0 or dept > 3:
+		return {"type": 0, "level": 0}
+	var record := _read_disk()
+	var types := _four(record.get("types", []))
+	var levels := _four(record.get("levels", []))
+	return {"type": int(types[dept]), "level": int(levels[dept])}
+
+
 static func suit_complete(dept: int) -> bool:
 	if dept < 0 or dept >= _MASKS.size():
 		return false
@@ -801,6 +811,33 @@ static func promotion_cap(dept: int) -> int:
 	var types := _four(record.get("types", []))
 	var levels := _four(record.get("levels", []))
 	return _need(dept, int(types[dept]), int(levels[dept]))
+
+
+## The caged Toon's goodbye. Papers when a promotion is waiting, the level-50
+## line on the last step, a laff point at 15, 20, 30, 40, and 50, or the maxed line.
+static func vp_thanks(dept: int) -> String:
+	if dept < 0 or dept > 3:
+		return ""
+	var record := _read_disk()
+	var types := _four(record.get("types", []))
+	var levels := _four(record.get("levels", []))
+	var cog_type := int(types[dept])
+	var cog_level := int(levels[dept])
+	var last := cog_type >= 7
+	if last and cog_level >= 49:
+		return "I see that you have a level 50 Cog suit. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to rescue more Toons!"
+	if not ready_for_promotion(dept):
+		return ""
+	var lines: PackedStringArray = ["Say--that V.P. Cog left behind your promotion papers.\nI'll file them for you on the way out, so you'll get your promotion!"]
+	var new_level := cog_level + 1
+	var max_level := 49 if last else cog_type + 4
+	if last and new_level == 49:
+		lines.append("Wow, you've reached level 50 on your Cog suit!\nCogs don't get promoted higher than that.\nYou can't upgrade your Cog suit anymore, but you can certainly keep rescuing Toons!")
+	if last and _HP_LEVELS.has(new_level):
+		lines.append("You've rescued a lot of Toons from this HQ.\nThe Toon Council has decided to give you another Laff point. Congratulations!")
+	if new_level > max_level and not last:
+		return "\n".join(lines)
+	return "\n".join(lines)
 
 
 static func ready_for_promotion(dept: int) -> bool:

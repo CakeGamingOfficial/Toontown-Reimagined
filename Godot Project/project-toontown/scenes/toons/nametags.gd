@@ -153,6 +153,57 @@ func _bought_font() -> Font:
 	return load(path) as Font
 
 
+## putOnSuit. The toon's card becomes the suit card for the elevator ride.
+func dress_suit(actor: Node3D, text: String, lift: float) -> void:
+	for item in _tags:
+		if item.get("actor") != actor:
+			continue
+		if not item.has("toon_plain"):
+			item["toon_plain"] = String(item.get("plain", ""))
+			item["toon_lift"] = float(item.get("lift", 3.6))
+		item["plain"] = text
+		item["lift"] = lift
+		var panel := item["label"] as Control
+		var written := panel.get_child(0) as Label if panel != null else null
+		if written != null:
+			written.text = text
+			written.add_theme_font_override("font", ToonGui.suit_font())
+			written.add_theme_color_override("font_color", _SUIT_INK)
+		if panel != null:
+			panel.add_theme_stylebox_override("panel", _suit_card())
+		return
+
+
+func undress_suit(actor: Node3D) -> void:
+	for item in _tags:
+		if item.get("actor") != actor:
+			continue
+		if not item.has("toon_plain"):
+			return
+		var text := String(item["toon_plain"])
+		item["plain"] = text
+		item["lift"] = float(item["toon_lift"])
+		item.erase("toon_plain")
+		item.erase("toon_lift")
+		var panel := item["label"] as Control
+		var written := panel.get_child(0) as Label if panel != null else null
+		if written != null:
+			written.text = text
+			written.add_theme_color_override("font_color", Color(0.25, 0.28, 0.75))
+			var face := _bought_font()
+			written.add_theme_font_override("font", face if face != null else ToonGui.font())
+		if panel != null:
+			var box := StyleBoxFlat.new()
+			box.bg_color = Color(1.0, 1.0, 1.0, 0.55)
+			box.set_corner_radius_all(4)
+			box.content_margin_left = 4
+			box.content_margin_right = 4
+			box.content_margin_top = 1
+			box.content_margin_bottom = 1
+			panel.add_theme_stylebox_override("panel", box)
+		return
+
+
 func release(actor: Node3D) -> void:
 	var kept: Array[Dictionary] = []
 	for item in _tags:
@@ -218,7 +269,7 @@ func place() -> void:
 			_hide_icon(item)
 			_hide_chat(item)
 			continue
-		_fit(label, point)
+		_fit(label, point, float(actor.get_meta("nametag_scale", 1.0)))
 		_place(label, point)
 		_place_icon(item, label)
 		_place_chat(item, label, actor)
@@ -428,9 +479,9 @@ func _lift(actor: Node3D) -> float:
 	return 3.6
 
 
-func _fit(panel: Control, point: Vector3) -> void:
+func _fit(panel: Control, point: Vector3, tag_scale := 1.0) -> void:
 	var here := camera.unproject_position(point)
-	var above := camera.unproject_position(point + Vector3(0.0, 0.2, 0.0))
+	var above := camera.unproject_position(point + Vector3(0.0, 0.2 * tag_scale, 0.0))
 	var px := clampi(int(absf(here.y - above.y)), 12, 36)
 	var label := panel.get_child(0) as Label
 	if label:

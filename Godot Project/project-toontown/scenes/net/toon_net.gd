@@ -61,6 +61,8 @@ var _reset_told := false
 var _shutdown_started := false
 var _stop_file := ""
 var _stop_wait := 0.0
+var _vp_idle := 0.0
+var _vp_pub := 0.0
 ## Host unix minus this machine's unix, and the host's local offset from UTC.
 var _clock_skew := 0.0
 var _clock_zone := 0.0
@@ -612,6 +614,8 @@ func _become_dedicated() -> void:
 func _process(delta: float) -> void:
 	if is_authority():
 		_HOLIDAYS.tick_county(delta)
+		_tick_vp_district(delta)
+		_tick_cfo_district(delta)
 	_tick_clock(delta)
 	if _stop_file == "" or _shutdown_started:
 		return
@@ -1171,6 +1175,264 @@ func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> v
 		_choose_gag.rpc_id(1, fight_id, track, level, target, exp)
 
 
+func _vp_script() -> GDScript:
+	return load("res://scenes/cog_hq/vp_district.gd") as GDScript
+
+
+func _vp_begin() -> void:
+	if is_authority():
+		var sim := _vp_script()
+		if sim != null:
+			sim.call("begin")
+		return
+	if _role == "client":
+		_request_vp_begin.rpc_id(1)
+
+
+func _vp_report(kind: String) -> void:
+	if is_authority():
+		_accept_vp_hit(peer_id(), kind)
+		return
+	if _role == "client":
+		_request_vp_hit.rpc_id(1, kind)
+
+
+func _accept_vp_hit(sender: int, kind: String) -> void:
+	var sim := _vp_script()
+	if sim == null:
+		return
+	var peers := _vp_peers()
+	var dealt := int(sim.call("hit", kind, sender, peers))
+	if dealt <= 0 or sender <= 0:
+		return
+	_grant_hurt(sender, dealt)
+
+
+func _grant_hurt(target: int, amount: int) -> void:
+	if target <= 0 or amount <= 0 or not _avatars.has(target):
+		return
+	var shifted: Dictionary = _BANK.shift(int(_avatars[target]), -amount)
+	if shifted.is_empty():
+		return
+	var maximum := int(shifted["max_hp"])
+	var seq := int(shifted["seq"])
+	var gained := int(shifted["gained"])
+	if target == _self_peer():
+		_take_heal(maximum, seq, gained)
+		return
+	_apply_heal.rpc_id(target, maximum, seq, gained)
+
+
+func _tick_vp_district(delta: float) -> void:
+	if _role == "offline":
+		return
+	var sim := _vp_script()
+	if sim == null:
+		return
+	if not _vp_occupied():
+		_vp_idle += delta
+		if _vp_idle > 3.0 and bool(sim.call("running")):
+			sim.call("stop")
+			_store("vp-pies", {"live": false})
+		return
+	_vp_idle = 0.0
+	if not bool(sim.call("running")):
+		return
+	var state: Dictionary = sim.call("tick", delta, _vp_peers())
+	_vp_pub -= delta
+	if bool(sim.call("take_dirty")) or _vp_pub <= 0.0:
+		_vp_pub = 0.2
+		_store("vp-pies", state)
+
+
+func _vp_occupied() -> bool:
+	var mine := district_id()
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if String(state.get("place", "")).ends_with("sellbot_vp.tscn"):
+			return true
+	return false
+
+
+func _cfo_script() -> GDScript:
+	return load("res://scenes/cog_hq/cfo_district.gd") as GDScript
+
+
+func _cfo_begin() -> void:
+	if is_authority():
+		var sim := _cfo_script()
+		if sim != null:
+			sim.call("begin")
+			_store("cfo-boss", sim.call("snapshot"))
+		return
+	if _role == "client":
+		_request_cfo_begin.rpc_id(1)
+
+
+func _accept_cfo_field(sender: int, state: Dictionary) -> void:
+	if sender <= 0 or sender != _cfo_sim_peer():
+		return
+	state["peer"] = sender
+	_store("cfo-field", state)
+
+
+func _cfo_sim_peer() -> int:
+	var mine := district_id()
+	var best := 0
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if not String(state.get("place", "")).ends_with("cashbot_cfo.tscn"):
+			continue
+		var peer := channel.trim_prefix("toon:").to_int()
+		if peer <= 0:
+			continue
+		if best == 0 or peer < best:
+			best = peer
+	return best
+
+
+func _accept_cfo_crane(sender: int, state: Dictionary) -> void:
+	var sim := _cfo_script()
+	if sim == null or sender <= 0:
+		return
+	if not bool(sim.call("running")):
+		sim.call("begin")
+	var granted := int(sim.call("claim", sender, int(state.get("want", -1))))
+	state["crane"] = granted
+	state["peer"] = sender
+	_store("cfo-crane:%d" % sender, state)
+	_store("cfo-boss", sim.call("snapshot"))
+
+
+func _accept_cfo_hit(serial: int, kind: String, impact: float, scale: float) -> void:
+	var sim := _cfo_script()
+	if sim == null:
+		return
+	if not bool(sim.call("running")):
+		sim.call("begin")
+	sim.call("hit", serial, kind, impact, scale)
+	_store("cfo-boss", sim.call("snapshot"))
+
+
+func _tick_cfo_district(delta: float) -> void:
+	if _role == "offline":
+		return
+	var sim := _cfo_script()
+	if sim == null:
+		return
+	if not _cfo_occupied():
+		if bool(sim.call("running")):
+			sim.call("stop")
+			_clear_cfo_cranes()
+		return
+	if not bool(sim.call("running")):
+		return
+	sim.call("tick", delta)
+	if bool(sim.call("take_dirty")):
+		_store("cfo-boss", sim.call("snapshot"))
+
+
+func _cfo_occupied() -> bool:
+	var mine := district_id()
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if String(state.get("place", "")).ends_with("cashbot_cfo.tscn"):
+			return true
+	return false
+
+
+func _clear_cfo_cranes() -> void:
+	var keys: Array = _states.keys()
+	for key in keys:
+		var channel := String(key)
+		if not channel.begins_with("cfo-crane:"):
+			continue
+		_states.erase(channel)
+		state_changed.emit(channel)
+		if _role == "host":
+			_clear_state.rpc(channel)
+	if _states.has("cfo-field"):
+		_states.erase("cfo-field")
+		state_changed.emit("cfo-field")
+		if _role == "host":
+			_clear_state.rpc("cfo-field")
+	_store("cfo-boss", {"live": false, "hp": 0, "helmet": false, "dizzy": 0.0, "seq": 0, "line": ""})
+
+
+func _vp_peers() -> Array:
+	var mine := district_id()
+	var peers: Array = []
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if not String(state.get("place", "")).ends_with("sellbot_vp.tscn"):
+			continue
+		peers.append(channel.trim_prefix("toon:").to_int())
+	return peers
+
+
+func _heal_toon(target: int) -> void:
+	if target <= 0:
+		return
+	if is_authority():
+		_grant_heal(target)
+		return
+	if _role == "client":
+		_request_heal.rpc_id(1, target)
+
+
+func _grant_heal(target: int) -> void:
+	if target <= 0 or not _avatars.has(target):
+		return
+	var amount := 1
+	var sim := load("res://scenes/cog_hq/vp_district.gd") as GDScript
+	if sim != null:
+		amount = int(sim.call("pie_toonup"))
+	var healed: Dictionary = _BANK.heal(int(_avatars[target]), amount)
+	if healed.is_empty():
+		return
+	var maximum := int(healed["max_hp"])
+	var seq := int(healed["seq"])
+	var gained := int(healed["gained"])
+	if target == _self_peer():
+		_take_heal(maximum, seq, gained)
+		return
+	_apply_heal.rpc_id(target, maximum, seq, gained)
+
+
+func _take_heal(max_hp: int, seq: int, gained: int) -> void:
+	if seq <= _BANK.laff_seq() or gained == 0:
+		return
+	_BANK.note_laff_seq(seq)
+	var loadout := ToonLoadout.for_selected()
+	var maximum := maxi(max_hp, loadout.max_hp)
+	if gained > 0:
+		loadout.set_hp(loadout.hp, maximum)
+		loadout.gain_hp(gained)
+	else:
+		loadout.set_hp(loadout.hp + gained, maximum)
+	loadout.save()
+
+
 func _set_battle_laff(hp: int, max_hp: int) -> void:
 	if is_authority():
 		_apply_battle_laff(peer_id(), hp, max_hp)
@@ -1613,6 +1875,68 @@ static func set_battle_laff(hp: int, max_hp: int) -> void:
 	if net == null:
 		return
 	net._set_battle_laff(hp, max_hp)
+
+
+## A pie in the VP hits another Toon. The district adds PieToonup and stores it.
+static func heal_toon(peer: int) -> void:
+	var net := live()
+	if net == null or peer <= 0:
+		return
+	net._heal_toon(peer)
+
+
+static func vp_begin() -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	net._vp_begin()
+
+
+static func vp_hit(kind: String) -> void:
+	var net := live()
+	if net == null or kind == "":
+		return
+	net._vp_report(kind)
+
+
+static func cfo_begin() -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	net._cfo_begin()
+
+
+static func cfo_field(state: Dictionary) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_cfo_field(peer_id(), state)
+		return
+	if net._role == "client":
+		net._request_cfo_field.rpc_id(1, state)
+
+
+static func cfo_crane(state: Dictionary) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_cfo_crane(peer_id(), state)
+		return
+	if net._role == "client":
+		net._request_cfo_crane.rpc_id(1, state)
+
+
+static func cfo_hit(serial: int, kind: String, impact: float, scale: float) -> void:
+	var net := live()
+	if net == null or not net.networked() or kind == "":
+		return
+	if is_authority():
+		net._accept_cfo_hit(serial, kind, impact, scale)
+		return
+	if net._role == "client":
+		net._request_cfo_hit.rpc_id(1, serial, kind, impact, scale)
 
 
 static func persist_laff(av_id: int, hp: int, max_hp: int) -> void:
@@ -2407,7 +2731,7 @@ func _accept_claim(peer: int, av_id: int, record: Dictionary) -> void:
 		return
 	_avatars[peer] = av_id
 	var kept := _BANK.recall(av_id)
-	record = _BANK.merge_exp(av_id, record)
+	record = _BANK.prefer_laff(_BANK.merge_exp(av_id, record), kept)
 	# The first claim, at the start of the toontorial, stores a journal from
 	# before Harry and Flippy. A later claim has to keep the copy that actually
 	# has the book and SpeedChat, not replay that empty row over the file.
@@ -2447,7 +2771,9 @@ func _keep_toon(record: Dictionary) -> void:
 	if av_id <= 0:
 		return
 	_avatars[sender] = av_id
-	_BANK.store(av_id, _BANK.merge_exp(av_id, record))
+	var kept := _BANK.recall(av_id)
+	var merged := _BANK.prefer_laff(_BANK.merge_exp(av_id, record), kept)
+	_BANK.store(av_id, merged)
 
 
 @rpc("authority", "reliable")
@@ -2574,6 +2900,64 @@ func _choose_gag(fight_id: int, track: int, level: int, target: int, exp: int) -
 	if not is_authority():
 		return
 	_choose_fight(fight_id, multiplayer.get_remote_sender_id(), track, level, target, exp)
+
+
+@rpc("any_peer", "reliable")
+func _request_cfo_begin() -> void:
+	if not is_authority():
+		return
+	_cfo_begin()
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_cfo_field(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_cfo_field(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_cfo_crane(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_cfo_crane(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "reliable")
+func _request_cfo_hit(serial: int, kind: String, impact: float, scale: float) -> void:
+	if not is_authority():
+		return
+	_accept_cfo_hit(serial, kind, impact, scale)
+
+
+@rpc("any_peer", "reliable")
+func _request_vp_begin() -> void:
+	if not is_authority():
+		return
+	_vp_begin()
+
+
+@rpc("any_peer", "reliable")
+func _request_vp_hit(kind: String) -> void:
+	if not is_authority():
+		return
+	_accept_vp_hit(multiplayer.get_remote_sender_id(), kind)
+
+
+@rpc("any_peer", "reliable")
+func _request_heal(target: int) -> void:
+	if not is_authority():
+		return
+	if multiplayer.get_remote_sender_id() == target:
+		return
+	_grant_heal(target)
+
+
+@rpc("authority", "reliable")
+func _apply_heal(max_hp: int, seq: int, gained: int) -> void:
+	if is_authority():
+		return
+	_take_heal(max_hp, seq, gained)
 
 
 @rpc("any_peer", "reliable")

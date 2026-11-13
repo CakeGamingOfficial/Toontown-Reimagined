@@ -98,6 +98,8 @@ var _gesture_rate := 1.0
 var _gesture_loop := true
 var _emote := -1
 var _emote_left := 0.0
+var _stun_flash := 0.0
+var _stun_faded := false
 var _emote_hold := false
 var _emote_phase := 0
 var _emote_sound := ""
@@ -1169,7 +1171,7 @@ func _ensure_clips() -> void:
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book", "happy", "wave", "shrug", "angry", "applause", "confused", "bow", "curtsy", "bored", "think", "left", "bad-putt"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book", "happy", "wave", "shrug", "angry", "applause", "confused", "bow", "curtsy", "bored", "think", "left", "bad-putt", "leverReach", "leverNeutral", "leverPull"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -2545,9 +2547,58 @@ func _physics_process(delta: float) -> void:
 	_ground.step(self, delta)
 
 
+## Toon.stunToon. Four half-second fades down to 0.6 and back.
+func flash_stun() -> void:
+	_stun_flash = 3.5
+
+
+func _tick_stun_flash(delta: float) -> void:
+	if _stun_flash <= 0.0:
+		if _stun_faded:
+			_ghost_visuals(self, false)
+			_stun_faded = false
+		return
+	_stun_flash = maxf(_stun_flash - delta, 0.0)
+	var faded := int(_stun_flash / 0.5) % 2 == 1
+	if faded == _stun_faded and _stun_flash > 0.0:
+		return
+	_ghost_visuals(self, faded)
+	if faded:
+		_set_ghost_alpha(0.6)
+	_stun_faded = faded
+	if _stun_flash <= 0.0 and _stun_faded:
+		_ghost_visuals(self, false)
+		_stun_faded = false
+
+
+func _set_ghost_alpha(amount: float) -> void:
+	_set_ghost_alpha_on(self, amount)
+
+
+func _set_ghost_alpha_on(node: Node, amount: float) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.material_override != null:
+			_write_ghost_alpha(mesh.material_override, amount)
+		if mesh.mesh != null:
+			for surface in mesh.mesh.get_surface_count():
+				var material := mesh.get_surface_override_material(surface)
+				if material != null:
+					_write_ghost_alpha(material, amount)
+	for child in node.get_children():
+		_set_ghost_alpha_on(child, amount)
+
+
+func _write_ghost_alpha(material: Material, amount: float) -> void:
+	var shader_mat := material as ShaderMaterial
+	if shader_mat != null:
+		shader_mat.set_shader_parameter("ghost_alpha", amount)
+
+
 func _process(delta: float) -> void:
 	if _style == null:
 		return
+	_tick_stun_flash(delta)
 	if _book_phase != "":
 		_tick_shticker(delta)
 	_tick_blink(delta)

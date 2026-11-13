@@ -190,7 +190,29 @@ func _send() -> void:
 		"pet_yaw": pet_yaw,
 		"pet_anim": pet_anim,
 		"parcel": _actor.carrying_parcel(),
+		"suit_type": _sellbot_type(),
+		"suit_level": int(DisguisePage.suit_progress(3).get("level", 0)),
+		"suit_ready": DisguisePage.suit_complete(3),
+		"vp_ready": bool(_actor.get_meta("vp_ready", false)) if _actor != null else false,
+		"exp": _experience(),
 	})
+
+
+func _experience() -> Array:
+	var loadout := ToonLoadout.for_selected()
+	var points: Array = []
+	if loadout == null:
+		return points
+	for track in ToonLoadout.TRACK_COUNT:
+		points.append(loadout.experience_of(track))
+	return points
+
+
+func _sellbot_type() -> int:
+	# A finished suit is the one they are climbing. Otherwise the elevator uses a Cold Caller.
+	if not DisguisePage.suit_complete(3):
+		return 0
+	return clampi(int(DisguisePage.suit_progress(3).get("type", 0)), 0, 7)
 
 
 func _laff() -> Vector2i:

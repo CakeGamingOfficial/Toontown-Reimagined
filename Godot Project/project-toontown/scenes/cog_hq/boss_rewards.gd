@@ -29,8 +29,25 @@ const _MONEY: PackedInt32Array = [100, 200, 350, 600]
 static var _catalog: Array = []
 
 
+static var _held: Dictionary = {}
+
+
 static func grant_sos() -> String:
 	return _store_sos(_roll_sos(), _CALLS)
+
+
+static func hold_vp_sos() -> Dictionary:
+	if _held.is_empty():
+		_held = _roll_sos()
+	return _held.duplicate(true)
+
+
+static func grant_held_sos() -> String:
+	var card := _held.duplicate(true)
+	_held.clear()
+	if card.is_empty():
+		return grant_sos()
+	return _store_sos(card, _CALLS)
 
 
 ## chooseSOSCard. One call. Stars follow the field office difficulty, and a
@@ -131,6 +148,40 @@ static func grant_unite() -> String:
 	record["unites"] = unites
 	_write(record)
 	return "The Resistance gave you a unite: %s." % _unite_label(menu, item)
+
+
+static func latest_unite() -> Dictionary:
+	var unites: Array = _read().get("unites", [])
+	if unites.is_empty() or not (unites[unites.size() - 1] is Dictionary):
+		return {}
+	return (unites[unites.size() - 1] as Dictionary).duplicate()
+
+
+static func unite_phrase(menu: int, item: int) -> String:
+	return _phrase_label(menu, item)
+
+
+static func unite_when(menu: int, item: int) -> String:
+	# ResistanceToonToonupInstructions and the money and restock lines.
+	if menu == 0:
+		var amount := int(_TOONUP[clampi(item, 0, _TOONUP.size() - 1)])
+		if amount < 0:
+			return "all the Toons near you will gain full Laff points"
+		return "all the Toons near you will gain %d Laff points" % amount
+	if menu == 1:
+		var beans := int(_MONEY[clampi(item, 0, _MONEY.size() - 1)])
+		return "all the Toons near you will gain %d jellybeans" % beans
+	if item >= 7:
+		return "all the Toons near you will restock all their gags"
+	return "all the Toons near you will restock their \"%s\" gags" % _TRACKS[clampi(item, 0, 6)]
+
+
+static func rehearse_unite() -> String:
+	# doEffect during the goodbye. The card stays for the one real use.
+	var card := latest_unite()
+	if card.is_empty():
+		return ""
+	return _apply_unite(int(card.get("menu", 0)), int(card.get("item", 0)))
 
 
 static func give_unite(menu: int, item: int, count: int = 1) -> String:

@@ -1252,7 +1252,9 @@ func _open_reward(fight: Dictionary, toons: Array) -> void:
 	fight["floor_clear"] = false
 	fight["reward_rows"] = _reward_rows(fight, toons)
 	fight["state"] = "reward"
-	fight["left"] = REWARD_TIME
+	# DistributedBattleFinal plays the dance, then the cage drop. The gag card waits for the VP.
+	var boss_floor := String(fight.get("slug", "")).begins_with("boss_vp")
+	fight["left"] = FLOOR_REWARD_TIME if boss_floor else REWARD_TIME
 	fight["finished"] = []
 	fight["beats"] = []
 	fight["seq"] = int(fight.get("seq", 0)) + 1

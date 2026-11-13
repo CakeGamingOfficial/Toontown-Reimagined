@@ -7,6 +7,7 @@ extends Node
 
 const _GATE := preload("res://scenes/cog_hq/boss_gate.gd")
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
+const _PLACES := preload("res://scenes/places/hood_places.gd")
 
 const _ROOMS := {
 	"sellbot_vp.tscn": {"title": "Senior V.P.", "dept": 3, "letter": "s", "zone": 11000, "lobby": "res://scenes/cog_hq/sellbot_lobby.tscn", "max_hp": 100, "kind": "vp"},
@@ -36,6 +37,7 @@ var _boss_name := ""
 var _max_hp := 1
 var _hp := 0
 var _phase := ""
+var _vp_teams: Array = []
 var _phase_seen := 0
 var _over := false
 var _cogs: Array[Dictionary] = []
@@ -75,9 +77,41 @@ var _plates: Array[int] = []
 var _stuffed: Array[bool] = []
 var _diner_level := 11
 var _rounds: Node
+var _show: Node
+var _caged: Dictionary = {}
+var _vp_ending := false
+var _net_doors := false
+var _vp_seq := 0
 var _pies_left := 0
+var _stored := 0
+var _recover_rate := 0.0
+var _recover_at := 0.0
+var _hits := 0
+var _vp_dizzy := false
+var _near := false
+var _attack_wait := 0.0
+var _strafe_wait := 0.0
+var _battle_at := 0.0
+var _attack_open := 0.0
+var _strafe_open := 0.0
+var _pending := ""
+var _event: Dictionary = {}
 var _helmet := false
 var _gave_helmet := false
+var _helmet_left := -1.0
+var _helmet_at := -1000.0
+var _cfo_started := 0.0
+var _cfo_bye := 0
+var _swing_left := 15.0
+var _cfo_seq := -1
+var _cfo_hit_seq := 0
+var _epi_pages: PackedStringArray = PackedStringArray()
+var _cfo_reward_lines: PackedStringArray = PackedStringArray()
+var _cfo_exp_before: Dictionary = {}
+var _cfo_earned: Dictionary = {}
+var _epi_at := 0
+var _epi_danced := false
+var _epi_fired := false
 var _round_line := ""
 
 
@@ -125,6 +159,11 @@ func _ready() -> void:
 	_rounds = load("res://scenes/cog_hq/boss_rounds.gd").new()
 	_rounds.name = "BossRounds"
 	add_child(_rounds)
+	if _kind == "vp":
+		_show = load("res://scenes/cog_hq/vp_show.gd").new()
+		_show.name = "VpShow"
+		add_child(_show)
+		_show.call("bind", self)
 	_go("intro")
 
 
@@ -132,13 +171,27 @@ func _process(delta: float) -> void:
 	_follow_phase()
 	if _over:
 		return
+	if _fight_id == 0 and _kind == "vp" and (_phase == "cogs" or _phase == "skele"):
+		_claim_vp_fight()
 	if _fight_id != 0:
 		_watch_fight()
 		return
 	_clock += delta
 	_cool = maxf(_cool - delta, 0.0)
 	_stun = maxf(_stun - delta, 0.0)
-	if _phase != "cranes":
+	if _phase == "cranes":
+		if ToonNet.networked():
+			_follow_cfo()
+		elif _helmet_left > 0.0 and not _helmet and _dizzy <= 0.0:
+			_helmet_left = maxf(_helmet_left - delta, 0.0)
+			if _helmet_left <= 0.0:
+				_helmet = true
+				_say("He put on a safe helmet.")
+		# waitForNextAttack(15), then BossCogSlowDirectedAttack. The swing ends dizzy.
+		_swing_left -= delta
+		if _swing_left <= 0.0:
+			_cfo_swing()
+	else:
 		_dizzy = maxf(_dizzy - delta, 0.0)
 	_bonus = maxf(_bonus - delta, 0.0)
 	_note_left = maxf(_note_left - delta, 0.0)
@@ -193,7 +246,11 @@ func _build_hud() -> void:
 
 
 func _go(phase: String) -> void:
-	if _rounds != null:
+	# The introduction leaves him standing in the vault for the cog battle.
+	var keep_cfo := _kind == "cfo" and _phase == "intro" and phase == "cogs"
+	if _rounds != null and keep_cfo:
+		_rounds.call("finish_cfo_intro")
+	elif _rounds != null:
 		_rounds.call("shutdown")
 	_phase = phase
 	_clock = 0.0
@@ -205,8 +262,12 @@ func _go(phase: String) -> void:
 		_intro()
 	elif phase == "cogs" or phase == "cogs2" or phase == "skele":
 		_start_cogs(phase == "cogs2", phase == "skele")
+	elif phase == "roll" or phase == "prepare2" or phase == "prepare3":
+		_start_show(phase)
 	elif phase == "pies":
 		_start_pies()
+	elif phase == "lesson":
+		_start_lesson()
 	elif phase == "cranes":
 		_start_cranes()
 	elif phase == "cannons":
@@ -224,13 +285,22 @@ func _go(phase: String) -> void:
 
 func _intro() -> void:
 	_title.text = _boss_name
+	if _kind == "vp" and _show != null:
+		_body.text = ""
+		_show.call("play", "intro")
+		_button("Skip", _skip_show)
+		return
+	if _kind == "cfo":
+		_rounds.call("start_cfo_intro", self)
+		_button("Skip", _skip_cfo_intro)
+		return
 	_body.text = _intro_line()
 	_button("Continue", _after_intro)
 
 
 func _intro_line() -> String:
 	if _kind == "vp":
-		return "The Senior V.P. is in. Defeat his cogs, then his skelecogs. A pie in the open undercarriage stuns him. Pies on his body do 1 damage only while he is stunned. He falls at 100."
+		return "The Senior V.P. is in. Defeat his cogs, then his skelecogs. Get pies from the cage. A pie in the open doors stuns him. While he is stunned, each pie on his body does 1. He falls at 100, then one more pie in the doors ends it."
 	if _kind == "cfo":
 		return "The Chief Financial Officer is in the vault. Defeat his cogs, then use the cranes. The first safe becomes his helmet. Knock it off, drop a goon to dizzy him, then safes do up to 50. He falls at 500."
 	if _kind == "cj":
@@ -242,9 +312,126 @@ func _after_intro() -> void:
 	_go("cogs")
 
 
+func _start_show(phase: String) -> void:
+	_title.text = _boss_name
+	if _show == null:
+		return
+	if phase == "roll":
+		_show.call("play", "roll")
+		return
+	var lines := PackedStringArray()
+	if phase == "prepare2":
+		lines = PackedStringArray([
+			"Look out, he's trying to get away!",
+			"Help me, everyone--get up here and stop him!",
+		])
+	else:
+		lines = PackedStringArray([
+			"Hooray, I'm almost free!",
+			"Now you need to attack the V.P. Cog directly.",
+			"I've got a whole bunch of pies you can use!",
+			"Jump up and touch the bottom of my cage and I'll give you some pies.",
+			"Click to throw pies once you've got them!",
+		])
+	_show.call("pages", phase, lines)
+	_button("Continue", _next_show)
+
+
+func _skip_show() -> void:
+	if _show != null:
+		_show.call("skip")
+
+
+func _next_show() -> void:
+	if _show != null:
+		_show.call("next_page")
+
+
+func show_pages() -> void:
+	_clear_row()
+	_button("Continue", _next_show)
+
+
+func show_finished(which: String) -> void:
+	if which == "intro":
+		_go("cogs")
+	elif which == "roll":
+		_go("prepare2")
+	elif which == "prepare2":
+		_go("skele")
+	elif which == "prepare3":
+		_go("pies")
+	elif which == "victory":
+		_go("reward")
+
+
+func set_line(text: String) -> void:
+	if _body != null:
+		_body.text = text
+
+
+func hold_caged_toon() -> Dictionary:
+	if _caged.is_empty():
+		_caged = _REWARDS.hold_vp_sos()
+	return _caged
+
+
+func promotion_waiting() -> bool:
+	return DisguisePage.ready_for_promotion(_dept)
+
+
+func promotion_note() -> String:
+	return DisguisePage.vp_thanks(_dept)
+
+
+## MovieToonVictory after the fall. The cog fights already stored the points.
+func play_gag_reward(loadout: ToonLoadout, before: Dictionary, earned: Dictionary, toon_name: String = "", grant := true) -> void:
+	if _layer == null or loadout == null:
+		return
+	var panel := RewardPanel.new()
+	panel.name = "VpReward"
+	panel.z_index = 40
+	_layer.add_child(panel)
+	if toon_name == "":
+		toon_name = "Toon"
+		var host := get_parent()
+		var body := host.get_node_or_null("Player") if host != null else null
+		if body != null:
+			for child in body.get_children():
+				if child is ToonActor:
+					toon_name = child.name
+					break
+	await panel.present(toon_name, loadout, before, earned, "", true, [], not grant)
+	if is_instance_valid(panel):
+		panel.queue_free()
+
+
+func place_vp(along: float) -> void:
+	if _show != null:
+		_show.call("place_damage", along)
+
+
+func vp_ending() -> bool:
+	return _vp_ending
+
+
 func _start_cogs(hard: bool, skeleton: bool = false) -> void:
-	# BattleOne / BattleTwo are DistributedBattleFinal fights. The roster is
-	# SuitPlannerInterior for that boss's building code, with reserves.
+	if _kind == "cfo" and _rounds != null:
+		_rounds.call("play_music", "battle")
+		_remember_cfo_exp()
+	# BattleOne / BattleTwo are DistributedBattleFinal fights. The V.P. builds
+	# two floors and splits the Toons. A side with nobody folds into reserves.
+	if _kind == "vp":
+		if _show != null:
+			var alone := _boss_peers().size() < 2
+			var cage := (3 if alone else 2) if skeleton else (1 if alone else 0)
+			_show.call("seat_cage", cage)
+		if ToonNet.is_authority() and _open_vp_sides(skeleton):
+			return
+		if ToonNet.networked() and not ToonNet.is_authority():
+			_title.text = "Battle Two" if skeleton else "Battle One"
+			_body.text = "The V.P.'s skelecogs." if skeleton else "The V.P.'s cogs."
+			return
 	var plan := _battle_plan(hard, skeleton)
 	_title.text = String(plan.get("title", "Battle"))
 	_body.text = String(plan.get("blurb", "The cogs are ready."))
@@ -326,7 +513,10 @@ func _hit_cog(index: int, damage: int, track: int, level: int, loadout: ToonLoad
 		var journal := _journal()
 		if journal != null:
 			journal.note_cog_defeat(String(cog["code"]), _zone, _letter, int(cog["level"]), bool(cog["skeleton"]), 0, false)
-		loadout.add_experience(track, (level + 1) * 2)
+		var gained := (level + 1) * 2
+		if _kind == "cfo":
+			_cfo_earned[track] = int(_cfo_earned.get(track, 0)) + gained
+		loadout.add_experience(track, gained)
 	_cogs[index] = cog
 
 
@@ -354,12 +544,12 @@ func _advance_from_cogs() -> void:
 		_go("seltzer")
 		return
 	if _phase == "skele":
-		_go("pies")
+		_go("prepare3" if _kind == "vp" else "pies")
 		return
 	if _kind == "vp":
-		_go("skele")
+		_go("roll")
 	elif _kind == "cfo":
-		_go("cranes")
+		_go("lesson")
 	elif _kind == "cj":
 		_go("cannons")
 	else:
@@ -369,19 +559,72 @@ func _advance_from_cogs() -> void:
 func _start_pies() -> void:
 	_title.text = "Battle Three"
 	_hp = 0
+	_stored = 0
+	_recover_rate = 0.0
+	_recover_at = _clock
+	_hits = 0
+	_vp_dizzy = false
+	_near = false
 	_pies_left = 0
-	_stun = 0.0
+	_attack_wait = 5.0
+	_strafe_wait = 9.0
+	_battle_at = _clock
+	_attack_open = 0.0
+	_strafe_open = 0.0
+	_pending = ""
+	_event = {}
 	_paint_bar()
+	_vp_seq = 0
+	if ToonNet.networked():
+		ToonNet.vp_begin()
+	if _show != null:
+		_show.call("pose", "neutral")
+		_show.call("music", "battle3")
+		_show.call("widen")
 	_rounds.call("start_vp", self)
 
 
-func _start_cranes() -> void:
+func _start_lesson() -> void:
+	_title.text = "Battle Three"
+	if _rounds != null:
+		_rounds.call("play_music", "battle3")
+	_rounds.call("start_cfo_lesson", self)
+	_button("Skip", _skip_cfo_lesson)
+
+
+func finish_cfo_lesson() -> void:
+	if _phase != "lesson":
+		return
+	_clear_row()
+	_phase = "cranes"
+	_arm_cranes()
+	_rounds.call("enable_cranes")
+
+
+func _skip_cfo_lesson() -> void:
+	if _rounds != null:
+		_rounds.call("finish_cfo_lesson")
+	finish_cfo_lesson()
+
+
+func _arm_cranes() -> void:
 	_title.text = "Battle Three"
 	_hp = 0
 	_helmet = false
 	_gave_helmet = false
 	_dizzy = 0.0
+	_cfo_started = _clock
+	_helmet_at = -1000.0
+	_swing_left = 15.0
+	_cfo_seq = -1
+	_schedule_helmet()
 	_paint_bar()
+	if ToonNet.networked():
+		ToonNet.cfo_begin()
+
+
+func _start_cranes() -> void:
+	_arm_cranes()
 	_rounds.call("start_cranes", self)
 
 
@@ -517,7 +760,7 @@ func _start_reward() -> void:
 		if journal != null:
 			journal.note_vp(_zone)
 			journal.note_rescue(_zone)
-		lines.append(_REWARDS.grant_sos())
+		lines.append(_REWARDS.grant_held_sos())
 	elif _kind == "cfo":
 		if journal != null:
 			journal.note_cfo(_zone)
@@ -536,7 +779,224 @@ func _start_reward() -> void:
 		lines.append("Your Cog suit was not ready for a promotion.")
 	_body.text = "\n".join(lines)
 	_bar.value = _bar.max_value
+	if _kind == "cfo":
+		_cfo_reward_lines = lines
+		_body.text = ""
+		if _rounds != null:
+			_rounds.call("start_cfo_victory")
+		_finish_cfo_victory()
+		return
 	_button("Return to the lobby", _leave)
+
+
+func cfo_intro_line(text: String, cog: bool) -> void:
+	_body.text = text
+	if cog:
+		ToonSpeech.cog(text)
+	else:
+		ToonSpeech.play("p", text)
+
+
+func cfo_intro_done() -> void:
+	if _phase == "intro":
+		_after_intro()
+
+
+func _skip_cfo_intro() -> void:
+	if _rounds != null:
+		_rounds.call("finish_cfo_intro")
+	if _phase == "intro":
+		_after_intro()
+
+
+func cfo_flee_line(text: String) -> void:
+	_body.text = text
+	ToonSpeech.cog(text)
+
+
+func cfo_flee_done() -> void:
+	if _phase == "flee":
+		_go("reward")
+
+
+func cfo_victory_done() -> void:
+	if _phase != "reward":
+		return
+	_open_cfo_pages(_cfo_reward_lines)
+
+
+func _remember_cfo_exp() -> void:
+	_cfo_exp_before.clear()
+	_cfo_earned.clear()
+	var loadout := _loadout()
+	if loadout == null:
+		return
+	for track in ToonLoadout.TRACK_COUNT:
+		_cfo_exp_before[track] = loadout.experience_of(track)
+
+
+func _finish_cfo_victory() -> void:
+	var any := false
+	for track in ToonLoadout.TRACK_COUNT:
+		if int(_cfo_earned.get(track, 0)) > 0:
+			any = true
+			break
+	var loadout := _loadout()
+	if any and loadout != null:
+		await play_gag_reward(loadout, _cfo_exp_before, _cfo_earned, "", false)
+	else:
+		await get_tree().create_timer(4.5).timeout
+	if not is_inside_tree():
+		return
+	if _rounds != null:
+		_rounds.call("finish_cfo_victory")
+	if _phase == "reward":
+		_open_cfo_pages(_cfo_reward_lines)
+
+
+func _cfo_swing() -> void:
+	# BossCogAttackTimes slow directed, plus progressValue(10, 0). Damage is 10.
+	var along := clampf(maxf(float(_hp) / 500.0, (_clock - _cfo_started) / 1800.0), 0.0, 1.0)
+	_swing_left = 7.84 + lerpf(10.0, 0.0, along)
+	if _over:
+		return
+	if ToonNet.networked():
+		ToonNet.cfo_hit(_next_cfo_serial(), "swing", 0.0, 1.0)
+	elif _dizzy > 0.0:
+		_dizzy = 0.0
+		_schedule_helmet()
+	if _rounds != null:
+		_rounds.call("note_cfo_throw")
+	_hurt(10)
+	_say("The C.F.O. swung for 10.")
+
+
+func _open_cfo_pages(lines: PackedStringArray) -> void:
+	# ResistanceToonCongratulations, one chat page at a time.
+	var card := _REWARDS.latest_unite()
+	var menu := int(card.get("menu", 0))
+	var item := int(card.get("item", 0))
+	var phrase := "a unite"
+	var when := "the Toons near you are helped"
+	if not card.is_empty():
+		phrase = _REWARDS.unite_phrase(menu, item)
+		when = _REWARDS.unite_when(menu, item)
+	_epi_pages = PackedStringArray([
+		"You did it!  Congratulations!",
+		"You're an asset to the Resistance!",
+		"Here's a special phrase you can use in a tight spot:\n%s" % phrase,
+		"When you say it, %s." % when,
+		"But you can only use it once, so choose that time well!",
+	])
+	for line in lines:
+		if line.contains("unite:"):
+			continue
+		_epi_pages.append(line)
+	_epi_at = 0
+	_epi_danced = false
+	_epi_fired = false
+	_cfo_bye = 0
+	if _rounds != null:
+		_rounds.call("start_cfo_epilogue")
+	_show_epi_page()
+	_button("Continue", _cfo_epi_next)
+
+
+func _show_epi_page() -> void:
+	if _epi_at < 0 or _epi_at >= _epi_pages.size():
+		return
+	_body.text = _epi_pages[_epi_at]
+	ToonSpeech.play("p", _body.text)
+	if _epi_at == 1 and not _epi_danced:
+		_epi_danced = true
+		if _rounds != null:
+			_rounds.call("epilogue_dance")
+	if _epi_at == 3 and not _epi_fired:
+		_epi_fired = true
+		var spoken := _REWARDS.rehearse_unite()
+		if spoken != "":
+			ToonSpeech.play("p", spoken)
+
+
+func _cfo_epi_next() -> void:
+	_epi_at += 1
+	if _epi_at >= _epi_pages.size():
+		_cfo_bye_next()
+		return
+	_show_epi_page()
+
+
+func _cfo_thanks(lines: PackedStringArray) -> String:
+	# ResistanceToonCongratulations, then the promotion note when it is not the V.P.'s.
+	var speech := "You did it!  Congratulations!\nYou're an asset to the Resistance!\nHere's a special phrase you can use in a tight spot:\n%s\nBut you can only use it once, so choose that time well!" % "\n".join(lines)
+	var extra := DisguisePage.vp_thanks(_dept)
+	if extra != "" and not extra.contains("V.P."):
+		speech += "\n" + extra
+	return speech
+
+
+func _cfo_bye_next() -> void:
+	if _cfo_bye == 0:
+		_cfo_bye = 1
+		_body.text = "See ya!"
+		ToonSpeech.play("p", "See ya!")
+		if _rounds != null:
+			_rounds.call("epilogue_wave")
+		return
+	_clear_row()
+	if _rounds != null:
+		_rounds.call("shutdown")
+	get_tree().create_timer(0.5).timeout.connect(_teleport_home)
+
+
+func _teleport_home() -> void:
+	var hood := _playground_home()
+	var host := get_parent()
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if toon != null and toon.has_method("teleport_to_hood"):
+		toon.call("teleport_to_hood", hood, true)
+		return
+	_GATE.trip = "out"
+	ToonLoading.change_to(_PLACES.scene_for(hood))
+
+
+func clear_pages() -> void:
+	_clear_row()
+
+
+func leave_for_playground() -> void:
+	# localToonToSafeZone. The goodbye sends you to your playground.
+	if _kind != "vp" or _over:
+		return
+	if _rounds != null:
+		_rounds.call("shutdown")
+	_over = true
+	var journal := _journal()
+	if journal != null:
+		journal.note_vp(_zone)
+		journal.note_rescue(_zone)
+	_REWARDS.grant_held_sos()
+	if DisguisePage.ready_for_promotion(_dept):
+		DisguisePage.promote(_dept)
+	_teleport_home()
+
+
+func _playground_home() -> int:
+	var tasks := ToonTasks.for_selected()
+	if tasks == null:
+		return _PLACES.TTC
+	var last := tasks.return_hood()
+	if _is_playground(last):
+		return last
+	var found := _PLACES.TTC
+	for hood in tasks.visited:
+		if _is_playground(int(hood)):
+			found = int(hood)
+	return found
+
+
+func _is_playground(hood: int) -> bool:
+	return hood >= 1000 and hood < 10000
 
 
 func _leave() -> void:
@@ -584,87 +1044,225 @@ func paint_world(detail: String) -> void:
 
 func restock_pies() -> void:
 	if _pies_left > 0:
-		_pies_left = 20
 		return
-	_pies_left = 20
+	# ToontownGlobals.FullPies. One touch of the cage fills the toon.
+	_pies_left = 65535
 	_say("You picked up a stack of pies.")
+	if _show != null:
+		_show.call("sfx", "CHQ_SOS_pies_restock.ogg")
+		_show.call("touched_cage")
 
 
 func take_pie() -> bool:
-	if _pies_left <= 0:
-		_say("Get pies from a pie pile.")
+	if _phase != "pies" or _pies_left <= 0:
+		_say("Get pies from the cage.")
 		return false
 	_pies_left -= 1
+	if _show != null:
+		_show.call("threw_pie")
+		if _pies_left <= 0:
+			_show.call("out_of_pies")
 	return true
 
 
-func note_pie(insides: bool) -> void:
-	if insides:
-		_stun = 4.0
-		_say("The undercarriage is open. He is stunned.")
+func phase() -> String:
+	return _phase
+
+
+func arena_side() -> int:
+	# The side this Toon was given. That ramp is the one they roll up.
+	var teams: Array = vp_teams()
+	if teams.size() > 1 and (teams[1] as Array).has(ToonNet.peer_id()):
+		return 1
+	return 0
+
+
+func nerfed() -> bool:
+	# ToontownGlobals.SELLBOT_NERF_HOLIDAY. Operation: Storm Sellbot.
+	var snap := ToonNet.latest("holidays")
+	var ids: Variant = snap.get("ids", [])
+	if ids is Array:
+		for item in ids:
+			if int(item) == 96:
+				return true
+	return false
+
+
+func tick_vp(delta: float) -> Dictionary:
+	if ToonNet.networked():
+		return _adopt_vp()
+	if _phase != "pies" or _near:
+		var waiting := _vp_state()
+		waiting["event"] = {}
+		return waiting
+	_attack_open = maxf(_attack_open - delta, 0.0)
+	_strafe_open = maxf(_strafe_open - delta, 0.0)
+	_hp = _boss_damage()
+	_attack_wait -= delta
+	if _attack_wait <= 0.0:
+		_choose_attack()
+	_strafe_wait -= delta
+	if _strafe_wait <= 0.0:
+		_choose_strafe()
+	_hp = _boss_damage()
+	var state := _vp_state()
+	state["event"] = _event
+	_event = {}
+	return state
+
+
+func note_opening() -> void:
+	if _phase != "pies":
 		return
-	if _stun <= 0.0:
-		_say("That pie hit his armor.")
+	if _show != null:
+		_show.call("flash")
+	if ToonNet.networked():
+		ToonNet.vp_hit("opening")
+		if _near:
+			_start_victory()
+		else:
+			_say("The doors are open. He is stunned.")
 		return
-	_hp = mini(_hp + 1, _max_hp)
-	_say("The pie did 1.")
-	_check_boss()
+	if _near:
+		_start_victory()
+		return
+	_begin_attack("dizzy")
+	_say("The doors are open. He is stunned.")
+
+
+func note_friend_pie(peer: int) -> void:
+	# SellbotBossGlobals.PieToonup. Storm Sellbot raises it to 2.
+	var up := 2 if nerfed() else 1
+	ToonNet.heal_toon(peer)
+	_say("The pie tooned them up for %d." % up)
+
+
+func note_body() -> void:
+	if _phase != "pies" or _near or not _vp_dizzy:
+		if _phase == "pies" and not _near:
+			_say("That pie hit his armor.")
+		return
+	if ToonNet.networked():
+		ToonNet.vp_hit("body")
+		_say("The pie did %d." % (2 if nerfed() else 1))
+		return
+	var dealt := 2 if nerfed() else 1
+	_set_damage(mini(_boss_damage() + dealt, _max_hp), 0.0)
+	_hits += 1
+	_say("The pie did %d." % dealt)
+	if _boss_damage() >= _max_hp:
+		_enter_near()
+		return
+	var need := 50 if nerfed() else 35
+	if _hits >= 6 and _boss_damage() >= need:
+		_begin_attack("recover")
+	else:
+		_pose_attack("downhit")
 
 
 func note_vp_attack(kind: String) -> void:
-	if _stun > 0.0:
+	if _vp_dizzy or _near:
 		return
-	var amount := 2
-	if kind == "swat":
-		amount = 5
-	elif kind == "area":
-		amount = 10
-	_hurt(amount)
+	var amount := _attack_damage(kind)
+	if ToonNet.networked():
+		ToonNet.vp_hit("struck:" + kind)
+	else:
+		_hurt(amount)
 	_say("The V.P. hit you for %d." % amount)
 
 
 func note_safe(impact: float) -> void:
+	# hitBoss. A dizzy CFO takes the fall. Otherwise the safe is a helmet.
+	if ToonNet.networked():
+		ToonNet.cfo_hit(_next_cfo_serial(), "safe", impact, 1.0)
+		return
 	if _dizzy > 0.0:
 		_record_cfo(maxi(2, int(impact * 50.0)))
 		return
 	if _helmet and impact >= 0.5:
 		_helmet = false
 		_say("The helmet flew off.")
+		_schedule_helmet()
 		return
-	if not _helmet and not _gave_helmet:
+	if not _helmet and _clock - _helmet_at > 300.0:
 		_helmet = true
-		_gave_helmet = true
+		_helmet_at = _clock
+		_helmet_left = -1.0
 		_say("He caught the safe and wore it as a helmet.")
 		return
 	_say("The safe bounced off.")
 
 
-func note_goon_hit(impact: float) -> void:
-	_record_cfo(maxi(2, int(impact * 25.0)))
+func note_goon_hit(impact: float, scale: float = 1.0) -> void:
+	# A goon only hurts him when he is not holding a safe.
+	if ToonNet.networked():
+		ToonNet.cfo_hit(_next_cfo_serial(), "goon", impact, scale)
+		return
+	if _helmet:
+		_say("The goon bounced off his helmet.")
+		return
+	_record_cfo(maxi(2, int(impact * 25.0 * scale)))
+
+
+func _next_cfo_serial() -> int:
+	_cfo_hit_seq += 1
+	return ToonNet.peer_id() * 100000 + _cfo_hit_seq
+
+
+func _follow_cfo() -> void:
+	var snap := ToonNet.latest("cfo-boss")
+	if not bool(snap.get("live", false)):
+		return
+	var seq := int(snap.get("seq", 0))
+	var hp := int(snap.get("hp", _hp))
+	if seq != _cfo_seq:
+		_cfo_seq = seq
+		if hp > _hp and _rounds != null:
+			_rounds.call("note_cfo_hit")
+		var line := String(snap.get("line", ""))
+		if line != "":
+			_say(line)
+	_hp = mini(hp, _max_hp)
+	_helmet = bool(snap.get("helmet", _helmet))
+	_dizzy = float(snap.get("dizzy", _dizzy))
+	_check_boss()
 
 
 func _record_cfo(damage: int) -> void:
+	# recordHit. Fifteen or more dizzies him, and he stays dizzy.
 	_hp = mini(_hp + damage, _max_hp)
+	if _rounds != null:
+		_rounds.call("note_cfo_hit")
 	if _dizzy <= 0.0 and damage >= 15:
-		_dizzy = 5.0
+		_dizzy = 1.0
 		_helmet = false
+		_helmet_left = -1.0
 		_say("The hit did %d and dizzied him." % damage)
-	elif _dizzy > 0.0 and damage < 15:
-		_dizzy = 0.0
-		_say("The hit did %d. He shook it off." % damage)
+	elif _dizzy <= 0.0:
+		_say("The hit did %d." % damage)
+		_schedule_helmet()
 	else:
 		_say("The hit did %d." % damage)
 	_check_boss()
 
 
-func note_goon() -> void:
-	_hurt(5)
-	_say("A goon zapped you for 5.")
+func _schedule_helmet() -> void:
+	# waitForNextHelmet. Forty-five seconds at the start, fifteen near the end.
+	if _dizzy > 0.0 or _helmet:
+		return
+	var along := clampf(maxf(float(_hp) / 500.0, (_clock - _cfo_started) / 1800.0), 0.0, 1.0)
+	_helmet_left = lerpf(45.0, 15.0, along)
 
 
-func note_treasure() -> void:
-	_heal(5)
-	_say("The treasure restored 5 laff.")
+func note_goon(strength: int = 5) -> void:
+	_hurt(maxi(strength, 1))
+	_say("A goon zapped you for %d." % maxi(strength, 1))
+
+
+func note_treasure(amount: int = 5) -> void:
+	var heal := maxi(amount, 1)
+	_heal(heal)
+	_say("The treasure restored %d laff." % heal)
 
 
 func note_chair(toon: bool) -> void:
@@ -755,9 +1353,210 @@ func note_golf(area: bool) -> void:
 	_say("His %s did 15." % ("area swing" if area else "club"))
 
 
+func _boss_damage() -> int:
+	var elapsed := _clock - _recover_at
+	return int(maxf(float(_stored) - _recover_rate * elapsed / 60.0, 0.0))
+
+
+func _set_damage(amount: int, rate: float) -> void:
+	_stored = clampi(amount, 0, _max_hp)
+	_recover_rate = rate
+	_recover_at = _clock
+	_hp = _boss_damage()
+
+
+func _progress(start: float, finish: float) -> float:
+	var along := float(_boss_damage()) / float(_max_hp)
+	var timed := (_clock - _battle_at) / 1800.0
+	var t := clampf(maxf(along, timed), 0.0, 1.0)
+	return start + (finish - start) * t
+
+
+func _choose_attack() -> void:
+	if _vp_dizzy:
+		_begin_attack("recover")
+		return
+	var roll := randi() % 6
+	if roll == 0:
+		_begin_attack("area")
+	elif roll == 1:
+		_begin_attack("front")
+	else:
+		_begin_attack("directed")
+
+
+func _choose_strafe() -> void:
+	_strafe_wait = 9.0
+	if _vp_dizzy or _near:
+		return
+	if not _event.is_empty():
+		_strafe_wait = 0.5
+		return
+	_pending = "strafe"
+	_strafe_open = 0.7 + _strafe_span()
+	_event = {
+		"kind": "strafe",
+		"damage": 2,
+		"delay": _strafe_open,
+		"radius": 6.0,
+		"side": randi() % 2,
+		"dir": randi() % 2,
+		"t": float(_boss_damage()) / 100.0,
+		"target": 0,
+	}
+
+
+func _strafe_span() -> float:
+	var t := float(_boss_damage()) / 100.0
+	return 5.0 - 4.0 * t
+
+
+func _begin_attack(kind: String) -> void:
+	_pending = kind
+	if kind == "dizzy":
+		_vp_dizzy = true
+		_hits = 0
+		var delay := _progress(20.0, 5.0)
+		_attack_open = delay
+		_attack_wait = delay
+		_event = {}
+		_pose_attack(kind)
+		return
+	_vp_dizzy = false
+	if kind == "area":
+		var rate := 2.0 if _recover_rate <= 0.0 else minf(200.0, _recover_rate * 1.2)
+		_set_damage(_boss_damage(), rate)
+		_attack_open = 4.21
+	elif kind == "recover":
+		_attack_open = 5.1
+	elif kind == "directed":
+		_attack_open = 4.84
+	else:
+		kind = "front"
+		_pending = kind
+		_attack_open = 2.65
+	_attack_wait = _attack_open
+	var damage := _attack_damage(kind)
+	var radius := 50.0 if kind == "area" else (4.0 if kind == "directed" else 12.0)
+	var delay := 0.2 if kind == "area" else (1.1 if kind == "directed" else _attack_open * 0.55)
+	_event = {
+		"kind": kind,
+		"damage": damage,
+		"delay": delay,
+		"radius": radius,
+		"side": 0,
+		"dir": 0,
+		"t": float(_boss_damage()) / 100.0,
+		"target": 0,
+	}
+	_pose_attack(kind)
+
+
+func _enter_near() -> void:
+	_near = true
+	_vp_dizzy = true
+	_attack_wait = 99999.0
+	_strafe_wait = 99999.0
+	_attack_open = 99999.0
+	_pending = ""
+	_event = {}
+	_say("He is down. One more pie in the doors.")
+
+
+func _attack_damage(kind: String) -> int:
+	var amount := 3
+	if kind == "area":
+		amount = 10
+	elif kind == "strafe":
+		amount = 2
+	elif kind == "swat":
+		amount = 5
+	if nerfed():
+		amount = maxi(int(round(float(amount) * 0.5)), 1)
+	return amount
+
+
+func _start_victory() -> void:
+	if _vp_ending:
+		return
+	_vp_ending = true
+	if _show != null:
+		_show.call("play", "victory")
+	else:
+		_go("reward")
+
+
+func _pose_attack(kind: String) -> void:
+	if _show == null or kind == "" or kind == "strafe":
+		return
+	var which := "neutral"
+	if kind == "dizzy":
+		which = "hit"
+	elif kind == "downhit":
+		which = "downhit"
+	elif kind == "area":
+		which = "jump"
+	elif kind == "directed":
+		which = "throw"
+	elif kind == "front" or kind == "recover":
+		which = "spin"
+	_show.call("pose", which)
+
+
+func _adopt_vp() -> Dictionary:
+	var snap := ToonNet.latest("vp-pies")
+	var event := {}
+	var was_dizzy := _vp_dizzy
+	if bool(snap.get("live", false)):
+		_stored = int(snap.get("hp", 0))
+		_recover_rate = 0.0
+		_recover_at = _clock
+		_hp = _stored
+		_hits = int(snap.get("hits", 0))
+		_vp_dizzy = bool(snap.get("dizzy", false))
+		_near = bool(snap.get("near", false))
+		_net_doors = bool(snap.get("doors", false))
+		if bool(snap.get("ending", false)):
+			_start_victory()
+		var seq := int(snap.get("seq", 0))
+		if seq != _vp_seq:
+			_vp_seq = seq
+			var raw: Variant = snap.get("event", {})
+			if raw is Dictionary:
+				event = raw
+			var kind := str(event.get("kind", ""))
+			if kind != "":
+				_pose_attack(kind)
+			elif _vp_dizzy and not was_dizzy:
+				_pose_attack("dizzy")
+		elif _vp_dizzy and not was_dizzy:
+			_pose_attack("dizzy")
+	var state := _vp_state()
+	state["event"] = event
+	return state
+
+
+func _vp_state() -> Dictionary:
+	var doors := _net_doors if ToonNet.networked() else (_vp_dizzy or _attack_open > 0.0 or _strafe_open > 0.0 or _near)
+	return {
+		"doors": doors,
+		"dizzy": _vp_dizzy,
+		"near": _near,
+		"hp": _boss_damage(),
+		"pies": _pies_left,
+		"attack": _pending,
+	}
+
+
 func _check_boss() -> void:
 	_paint_bar()
+	if _kind == "vp":
+		return
 	if _hp >= _max_hp and not _over:
+		if _kind == "cfo" and _phase == "cranes":
+			_phase = "flee"
+			_rounds.call("start_flee")
+			return
 		_go("reward")
 
 
@@ -825,7 +1624,7 @@ func _publish_phase(file: String) -> void:
 
 func _run_magic(command: String) -> String:
 	var order := {
-		"vp": ["intro", "cogs", "skele", "pies", "reward"],
+		"vp": ["intro", "cogs", "roll", "prepare2", "skele", "prepare3", "pies", "reward"],
 		"cfo": ["intro", "cogs", "cranes", "reward"],
 		"cj": ["intro", "cogs", "cannons", "evidence", "reward"],
 		"ceo": ["intro", "cogs", "banquet", "cogs2", "seltzer", "reward"],
@@ -853,9 +1652,13 @@ func _run_magic(command: String) -> String:
 	return ""
 
 
-func _say(text: String) -> void:
+func say_for(text: String, seconds: float) -> void:
 	_note = text
-	_note_left = 1.8
+	_note_left = seconds
+
+
+func _say(text: String) -> void:
+	say_for(text, 1.8)
 
 
 func _paint_bar() -> void:
@@ -939,6 +1742,231 @@ func _close_battle() -> void:
 		child.queue_free()
 
 
+func _open_vp_sides(skeleton: bool) -> bool:
+	var code := 10 if skeleton else 9
+	if nerfed():
+		code = 16 if skeleton else 15
+	var left := _building_floor(code, skeleton, 0)
+	var right := _building_floor(code, skeleton, 0)
+	for key in ["active", "reserves"]:
+		for cog in right.get(key, []):
+			if cog is Dictionary:
+				cog["id"] = int(cog.get("id", 0)) + 500
+	var teams := vp_teams()
+	var side_a: Array = teams[0]
+	var side_b: Array = teams[1]
+	if side_a.is_empty() and not side_b.is_empty():
+		var held := side_a
+		side_a = side_b
+		side_b = held
+		var swapped := left
+		left = right
+		right = swapped
+	if side_a.is_empty():
+		return false
+	if side_b.is_empty():
+		_fold_reserves(left, right)
+	var mine := ToonNet.peer_id()
+	var opened := _open_boss_side(left, side_a, 0, skeleton)
+	if not side_b.is_empty():
+		var kept_id := _fight_id
+		var kept_slug := _battle_slug
+		if _open_boss_side(right, side_b, 1, skeleton) and not side_b.has(mine):
+			_fight_id = kept_id
+			_battle_slug = kept_slug
+			opened = kept_id != 0
+		elif side_b.has(mine):
+			opened = _fight_id != 0
+	_title.text = "Battle Two" if skeleton else "Battle One"
+	_body.text = "The V.P.'s skelecogs." if skeleton else "The V.P.'s cogs."
+	if _show != null:
+		_show.call("music", "battle2" if skeleton else "battle")
+	return opened
+
+
+func _fold_reserves(plan: Dictionary, extra: Dictionary) -> void:
+	# An empty side's suits wait in reserve and join as soon as a spot opens.
+	var reserves: Array = plan.get("reserves", [])
+	for cog in extra.get("active", []):
+		if cog is Dictionary:
+			cog["join"] = 0
+			reserves.append(cog)
+	for cog in extra.get("reserves", []):
+		if cog is Dictionary:
+			reserves.append(cog)
+	plan["reserves"] = reserves
+
+
+func reset_vp_teams() -> void:
+	_vp_teams.clear()
+
+
+func vp_teams() -> Array:
+	if _vp_teams.is_empty():
+		_vp_teams = _divide_boss_toons()
+	return _vp_teams
+
+
+func _divide_boss_toons() -> Array:
+	# Same split on every client. Storm Sellbot puts finished suits first, then alternates.
+	var peers := _seeded_order(_boss_peers())
+	var num := mini(peers.size(), 8)
+	var team_a: Array = []
+	var team_b: Array = []
+	if nerfed():
+		var ordered: Array = []
+		var rentals: Array = []
+		for id in peers.slice(0, num):
+			if _rental_suit(int(id)):
+				rentals.append(id)
+			else:
+				ordered.append(id)
+		ordered.append_array(rentals)
+		for index in ordered.size():
+			if index % 2 == 0:
+				team_a.append(ordered[index])
+			else:
+				team_b.append(ordered[index])
+	else:
+		var num_b := num / 2
+		if num >= 4:
+			num_b = (num + (_split_bit(peers) % 2)) / 2
+		team_b = peers.slice(0, num_b)
+		team_a = peers.slice(num_b, num)
+	return [team_a, team_b]
+
+
+func _rental_suit(peer: int) -> bool:
+	if peer == ToonNet.peer_id():
+		return not DisguisePage.suit_complete(3)
+	return not bool(ToonNet.latest("toon:%d" % peer).get("suit_ready", false))
+
+
+func _seeded_order(peers: Array) -> Array:
+	var copy: Array = peers.duplicate()
+	copy.sort()
+	var state := 1
+	for id in copy:
+		state = int((int(state) * 1103515245 + int(id) + 12345) & 0x7fffffff)
+	for index in range(copy.size() - 1, 0, -1):
+		state = int((int(state) * 1103515245 + 12345) & 0x7fffffff)
+		var swap := state % (index + 1)
+		var held: Variant = copy[index]
+		copy[index] = copy[swap]
+		copy[swap] = held
+	return copy
+
+
+func _split_bit(peers: Array) -> int:
+	var state := 1
+	for id in peers:
+		state = int((int(state) * 1103515245 + int(id)) & 0x7fffffff)
+	return state
+
+
+func _boss_peers() -> Array:
+	var peers: Array = [ToonNet.peer_id()]
+	var host := get_parent()
+	if host != null:
+		for node in host.find_children("", "ToonActor", true, false):
+			if not node.has_meta("peer"):
+				continue
+			var peer := int(node.get_meta("peer"))
+			if peer > 0 and not peers.has(peer):
+				peers.append(peer)
+	return peers
+
+
+func _boss_rider(peer: int) -> Dictionary:
+	if peer == ToonNet.peer_id():
+		var avatar := _avatar()
+		var loadout := _loadout()
+		return {
+			"id": peer,
+			"name": String(avatar.call("battle_name")) if avatar != null else "Toon",
+			"hp": loadout.hp if loadout != null else 15,
+			"max_hp": loadout.max_hp if loadout != null else 15,
+		}
+	var state := ToonNet.latest("toon:%d" % peer)
+	return {
+		"id": peer,
+		"name": String(state.get("name", "Toon")),
+		"hp": int(state.get("hp", 15)),
+		"max_hp": int(state.get("max_hp", 15)),
+	}
+
+
+func _open_boss_side(plan: Dictionary, peers: Array, side: int, skeleton: bool) -> bool:
+	if peers.is_empty():
+		return false
+	var riders: Array = []
+	for peer in peers:
+		riders.append(_boss_rider(int(peer)))
+	var round_number := 2 if skeleton else 1
+	_battle_round = round_number
+	_battle_slug = "boss_vp_%d_%s" % [round_number, "b" if side == 1 else "a"]
+	var depth := 60.0 if skeleton else -35.0
+	var height := 18.0 if skeleton else 0.0
+	# BossCogBattleAPosHpr / B, composed with the boss heading of -90.
+	var origin := _panda_world(Vector3(25.0 if side == 1 else -25.0, depth, height))
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights == null or not fights.has_method("open_roster"):
+		return false
+	var fight_id := int(fights.call(
+		"open_roster",
+		ToonNet.district_id(),
+		_battle_slug,
+		plan.get("active", []),
+		plan.get("reserves", []),
+		riders,
+		origin,
+		180.0,
+		0,
+		[origin.x, origin.y, origin.z],
+		false,
+		0,
+		round_number
+	))
+	if fight_id == 0:
+		return false
+	_fight_id = fight_id
+	_fight_seen = false
+	if _layer != null:
+		_layer.visible = false
+	return true
+
+
+func _claim_vp_fight() -> void:
+	var round_number := 2 if _phase == "skele" else 1
+	for side in ["a", "b"]:
+		var slug := "boss_vp_%d_%s" % [round_number, side]
+		var key := "%d:%s" % [ToonNet.district_id(), slug]
+		var rows: Array = ToonNet.latest("fights:" + key).get("rows", [])
+		for item in rows:
+			if not (item is Dictionary):
+				continue
+			var fight: Dictionary = item
+			for toon in fight.get("toons", []):
+				if toon is Dictionary and int((toon as Dictionary).get("id", -1)) == ToonNet.peer_id():
+					_fight_id = int(fight.get("id", 0))
+					_battle_slug = slug
+					_battle_round = round_number
+					_fight_seen = false
+					if _layer != null:
+						_layer.visible = false
+					if _show != null:
+						_show.call("music", "battle2" if round_number == 2 else "battle")
+					return
+
+
+func _panda_world(panda: Vector3) -> Vector3:
+	var host := get_parent()
+	var geom := host.get_node_or_null("Geometry") as Node3D if host != null else null
+	if geom == null:
+		return panda
+	return geom.global_transform * panda
+
+
 func _open_battle(active: Variant, reserves: Variant, round_number: int) -> bool:
 	var cogs: Array = active if active is Array else []
 	var waiting: Array = reserves if reserves is Array else []
@@ -1014,13 +2042,13 @@ func _sync_suits(fight: Dictionary) -> void:
 
 func _battle_plan(hard: bool, skeleton: bool) -> Dictionary:
 	if _kind == "vp" and skeleton:
-		var skele := _building_floor(10, true, 0)
+		var skele := _building_floor(16 if nerfed() else 10, true, 0)
 		skele["title"] = "Battle Two"
 		skele["blurb"] = "The V.P.'s skelecogs."
 		skele["round"] = 2
 		return skele
 	if _kind == "vp":
-		var sellbots := _building_floor(9, false, 0)
+		var sellbots := _building_floor(15 if nerfed() else 9, false, 0)
 		sellbots["title"] = "Battle One"
 		sellbots["blurb"] = "The V.P.'s cogs."
 		sellbots["round"] = 1
@@ -1140,6 +2168,8 @@ func _floor_row(code: int) -> Dictionary:
 		12: {"min": 8, "max": 12, "boss": 12, "pool": 150},
 		13: {"min": 8, "max": 12, "boss": 12, "pool": 275},
 		14: {"min": 9, "max": 12, "boss": 12, "pool": 206},
+		15: {"min": 1, "max": 5, "boss": 5, "pool": 33},
+		16: {"min": 4, "max": 5, "boss": 5, "pool": 50},
 	}
 	return rows.get(code, rows[9])
 

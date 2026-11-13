@@ -7,6 +7,11 @@ extends RefCounted
 const _PATH := "user://toon_bank.json"
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 
+# A heal is written here before the Toon's next save arrives. An older save
+# must not put the laff back. The Toon echoes this number once that save has
+# the new total.
+static var _laff_seq := 0
+
 
 static func recall(av_id: int) -> Dictionary:
 	if av_id <= 0:
@@ -37,6 +42,70 @@ static func set_laff(av_id: int, hp: int, max_hp: int) -> void:
 	row["max_hp"] = maximum
 	row["hp"] = clampi(hp, 0, maximum)
 	store(av_id, row)
+
+
+## SellbotBossGlobals.PieToonup. The district adds the laff, then tells that Toon.
+static func heal(av_id: int, amount: int) -> Dictionary:
+	var row := recall(av_id)
+	if row.is_empty() or amount <= 0:
+		return {}
+	var maximum := maxi(int(row.get("max_hp", 1)), 1)
+	var before := clampi(int(row.get("hp", 1)), 0, maximum)
+	var hp := clampi(before + amount, 0, maximum)
+	if hp == before:
+		return {}
+	row["hp"] = hp
+	row["max_hp"] = maximum
+	row["laff_seq"] = int(row.get("laff_seq", 0)) + 1
+	row["laff_hold"] = int(row.get("laff_hold", 0)) + (hp - before)
+	store(av_id, row)
+	return {"hp": hp, "max_hp": maximum, "seq": int(row["laff_seq"]), "gained": hp - before}
+
+
+## A district hit can take laff. The hold is the laff the Toon has not saved yet.
+static func shift(av_id: int, delta: int) -> Dictionary:
+	if delta >= 0:
+		return heal(av_id, delta)
+	var row := recall(av_id)
+	if row.is_empty():
+		return {}
+	var maximum := maxi(int(row.get("max_hp", 1)), 1)
+	var before := clampi(int(row.get("hp", 1)), 0, maximum)
+	var hp := clampi(before + delta, 0, maximum)
+	if hp == before:
+		return {}
+	row["hp"] = hp
+	row["max_hp"] = maximum
+	row["laff_seq"] = int(row.get("laff_seq", 0)) + 1
+	row["laff_hold"] = int(row.get("laff_hold", 0)) + (hp - before)
+	store(av_id, row)
+	return {"hp": hp, "max_hp": maximum, "seq": int(row["laff_seq"]), "gained": hp - before}
+
+
+static func note_laff_seq(seq: int) -> void:
+	_laff_seq = maxi(_laff_seq, seq)
+
+
+static func laff_seq() -> int:
+	return _laff_seq
+
+
+## A save that left before the district changed laff does not include it yet.
+## laff_hold is that change, positive or negative. Damage in the save remains.
+static func prefer_laff(incoming: Dictionary, kept: Dictionary) -> Dictionary:
+	if kept.is_empty():
+		return incoming
+	var behind := int(kept.get("laff_seq", 0)) - int(incoming.get("laff_seq", 0))
+	if behind <= 0:
+		incoming["laff_hold"] = 0
+		return incoming
+	var cap := maxi(int(incoming.get("max_hp", 1)), int(kept.get("max_hp", 1)))
+	var hold := int(kept.get("laff_hold", 0))
+	incoming["max_hp"] = cap
+	incoming["hp"] = clampi(int(incoming.get("hp", 1)) + hold, 0, cap)
+	incoming["laff_seq"] = int(kept.get("laff_seq", 0))
+	incoming["laff_hold"] = hold
+	return incoming
 
 
 static func zero_gags(av_id: int) -> void:
@@ -137,6 +206,7 @@ static func capture() -> Dictionary:
 		"name": "" if style == null else style.display_name(),
 		"hp": loadout.hp,
 		"max_hp": loadout.max_hp,
+		"laff_seq": _laff_seq,
 		"max_carry": loadout.max_carry,
 		"counts": loadout.pocket_counts(),
 		"unlocked": loadout.pocket_unlocked(),
@@ -164,6 +234,7 @@ static func capture() -> Dictionary:
 static func apply(record: Dictionary) -> void:
 	if record.is_empty():
 		return
+	note_laff_seq(int(record.get("laff_seq", 0)))
 	ToonNet.silence_keep(true)
 	var loadout := ToonLoadout.for_selected()
 	loadout.apply_dict(record)
