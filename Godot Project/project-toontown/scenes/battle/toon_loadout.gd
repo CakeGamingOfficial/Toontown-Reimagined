@@ -246,6 +246,12 @@ func add_experience(track: int, amount: int) -> void:
 	_exp[track] += maxi(amount, 0)
 
 
+func set_experience(track: int, amount: int) -> void:
+	if track < 0 or track >= _exp.size():
+		return
+	_exp[track] = maxi(amount, 0)
+
+
 ## A quit or a crash leaves the Flunky's experience and any lost Laff on the
 ## bank row. merge_exp keeps the higher number, so this writes the lesson's
 ## starting values directly. A playground toon never comes back through here.

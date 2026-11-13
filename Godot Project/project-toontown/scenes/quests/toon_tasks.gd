@@ -436,6 +436,13 @@ static func for_selected() -> ToonTasks:
 	return tasks
 
 
+static func for_slot(index: int) -> ToonTasks:
+	var tasks := ToonTasks.new()
+	tasks._slot = index
+	tasks._load()
+	return tasks
+
+
 ## Make a Toon and deleting a slot both start the journal over.
 static func reset_slot(index: int) -> void:
 	if index < 0 or index >= ToonRoster.SLOT_COUNT:
@@ -1705,6 +1712,35 @@ func finished_ids() -> Array:
 	for quest_id in _done:
 		rows.append(int(quest_id))
 	return rows
+
+
+func snapshot() -> Dictionary:
+	var active: Array = []
+	for entry in _active:
+		active.append({
+			"id": int(entry["id"]),
+			"progress": int(entry.get("progress", 0)),
+			"to_npc": int(entry.get("to_npc", 0)),
+			"pay": int(entry.get("pay", 0)),
+			"misses": int(entry.get("misses", 0)),
+		})
+	return {
+		"has_book": has_book,
+		"met_flippy": met_flippy,
+		"track_id": track_id,
+		"track_progress": track_progress,
+		"reward_tier": reward_tier,
+		"reward_history": reward_history.duplicate(),
+		"quest_carry": quest_carry,
+		"clothing_tickets": clothing_tickets,
+		"teleport": teleport.duplicate(),
+		"in_playground": in_playground,
+		"last_hood": last_hood,
+		"visited": visited.duplicate(),
+		"active": active,
+		"done": _done.duplicate(),
+		"tracked": tracked_id,
+	}
 
 
 func apply_dict(record: Dictionary) -> void:

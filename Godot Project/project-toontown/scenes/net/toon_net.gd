@@ -289,8 +289,9 @@ static func submit(channel: String, state: Dictionary) -> void:
 
 
 ## Developer edits that the district has to agree on: gag stats, the cog
-## catalog, a boss phase, and the queued fireworks show. The host stores
-## the record and sends it to everyone, the same way a holiday does.
+## catalog, street and invasion rules, a boss phase, and the queued
+## fireworks show. The host stores the record and sends it to everyone,
+## the same way a holiday does.
 static func share_dev(kind: String, state: Dictionary) -> void:
 	var net := live()
 	if net == null or net._role == "offline":
@@ -2305,7 +2306,7 @@ func _request_summon(district: int, slug: String, query: String, level: int, x: 
 func _share_dev(kind: String, state: Dictionary) -> void:
 	if not is_authority():
 		return
-	if kind != "gags" and kind != "cogs" and kind != "boss" and kind != "fireworks":
+	if kind != "gags" and kind != "cogs" and kind != "rules" and kind != "boss" and kind != "fireworks":
 		return
 	_store("dev:" + kind, state)
 

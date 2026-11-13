@@ -1052,8 +1052,19 @@ func _age_lures(fight: Dictionary) -> void:
 
 ## SuitBattleGlobals.getSuitAttack. The printed level is getActualLevel, so the
 ## table index is that level minus the cog's base level, minus one.
+func _attack_row(code: String) -> Dictionary:
+	CogRules.note_shared(ToonNet.latest("dev:rules"))
+	var edited := CogRules.attack_for(code)
+	if not edited.is_empty():
+		return edited
+	var shipped: Variant = _attack_tables.get(code, {})
+	if shipped is Dictionary:
+		return shipped
+	return {}
+
+
 func _rel_level(suit: Dictionary) -> int:
-	var table: Dictionary = _attack_tables.get(String(suit.get("code", "")), {})
+	var table := _attack_row(String(suit.get("code", "")))
 	var base := int(table.get("base", 0))
 	return clampi(int(suit.get("level", 1)) - base - 1, 0, 4)
 
@@ -1066,7 +1077,7 @@ func _table_at(row: Array, index: int) -> int:
 
 ## pickSuitAttack rolls 0-99 against the frequency column for this level.
 func _pick_attack(suit: Dictionary) -> Dictionary:
-	var table: Dictionary = _attack_tables.get(String(suit.get("code", "")), {})
+	var table := _attack_row(String(suit.get("code", "")))
 	var attacks: Array = table.get("attacks", [])
 	if attacks.is_empty():
 		return {}

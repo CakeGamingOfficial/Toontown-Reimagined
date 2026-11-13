@@ -318,12 +318,22 @@ func _load_street() -> bool:
 	var span: Vector2i = HOOD.get(_zone, Vector2i(_count, _count))
 	_street_min = span.x
 	_street_max = maxi(span.y, span.x)
+	_tracks = data.get("tracks", [])
+	_levels = data.get("levels", [])
+	CogRules.note_shared(ToonNet.latest("dev:rules"))
+	var tuned := CogRules.spawn_for(_zone)
+	if tuned.has("tracks"):
+		_tracks = tuned["tracks"]
+	if tuned.has("levels"):
+		_levels = tuned["levels"]
+	if tuned.has("min"):
+		_street_min = int(tuned["min"])
+	if tuned.has("max"):
+		_street_max = maxi(int(tuned["max"]), _street_min)
 	_base = int((_street_min + _street_max) / 2)
 	if _base < 1:
 		_base = maxi(_count, 1)
 	_desired = _base
-	_tracks = data.get("tracks", [])
-	_levels = data.get("levels", [])
 	_max_type = int(data.get("max_type", 6))
 	return not _points.is_empty() and not _starts.is_empty() and _count > 0
 

@@ -5,6 +5,7 @@ extends Control
 ## and changed. Magic words are listed, not changed. Edits are saved on
 ## this machine and laid over the original records.
 
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _PILL := preload("res://assets/toons/gui/QuitBtn_UP.png")
 const _PILL_DOWN := preload("res://assets/toons/gui/QuitBtn_DN.png")
 const _PILL_HOVER := preload("res://assets/toons/gui/QuitBtn_RLVR.png")
@@ -174,6 +175,17 @@ var _cog_code := ""
 var _toon_slot := -1
 var _gag_track := -1
 var _gag_level := -1
+var _cog_mode := 0
+var _modes: Array[TextureButton] = []
+var _panel: ScrollContainer
+var _panel_rows: VBoxContainer
+var _panel_lines: Dictionary = {}
+var _panel_groups: Dictionary = {}
+var _cog_dept: OptionButton
+var _attack_rows: Array = []
+var _cog_write := false
+var _spawn_zone := -1
+var _has_book: CheckButton
 
 
 func _ready() -> void:
@@ -220,6 +232,7 @@ func _ready() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(_status)
+	_build_dev_panel()
 	_show_section()
 
 
@@ -325,6 +338,7 @@ func _place_editor() -> void:
 	else:
 		_body.position = Vector2(edit_x, editor_top)
 		_body.size = Vector2(edit_w, editor_h)
+	_place_dev_panel(edit_x, edit_w, editor_top, editor_h, bottom, tab_h, px)
 	for title in _task_labels.keys():
 		ToonGui.style_label(_task_labels[title] as Label, _INK, px, Color(0, 0, 0, 0), 0)
 
@@ -446,10 +460,13 @@ func _show_section() -> void:
 	_body.text = ""
 	_key.text = ""
 	_task_write = false
-	_body.visible = _section <= 1 or _section == 4
-	_json_label.visible = _section == 0
+	_body.visible = _section == 0 or _section == 4 or (_section == 1 and _cog_mode == 0)
+	_json_label.visible = _section == 0 or (_section == 1 and _cog_mode == 0)
 	_task_scroll.visible = _section == 0
-	_key.visible = _section <= 1
+	_panel.visible = _section == 1 or _section == 2
+	for button in _modes:
+		button.visible = _section == 1
+	_key.visible = _section == 0 or (_section == 1 and _cog_mode == 0)
 	_form.visible = _section == 2 or _section == 3
 	_body.editable = _section <= 1
 	_save.visible = _section != 4
@@ -463,13 +480,14 @@ func _show_section() -> void:
 		new_label.text = "Restore" if _section == 3 else "New"
 	_key.placeholder_text = "Task number" if _section == 0 else "Cog code"
 	_key.tooltip_text = "The task number. Save stores this task under that number." if _section == 0 else "The cog's short code, such as f for a Flunky."
-	_json_label.tooltip_text = "The same task written as JSON. The form and this box update each other."
+	_json_label.tooltip_text = "The cog's catalog entry. The form above edits its name and department, and its damage is saved with the cog." if _section == 1 else "The same task written as JSON. The form and this box update each other."
 	_place_editor()
+	_apply_dev_groups()
 	if _section == 0:
 		_fill_task_form({})
 		_fill_tasks()
 	elif _section == 1:
-		_fill_cogs()
+		_show_cog_mode()
 	elif _section == 2:
 		_fill_toons()
 	elif _section == 3:
@@ -541,13 +559,23 @@ func _pick_row(index: int) -> void:
 		_body.text = JSON.stringify(record, "\t")
 		_task_write = false
 		_fill_task_form(record)
-	elif _section == 1:
+	elif _section == 1 and _cog_mode == 0:
 		_cog_code = String(_list.get_item_metadata(index))
 		_key.text = _cog_code
+		var cog := {}
 		for item in CogCatalog.cog_rows():
 			if item is Dictionary and String((item as Dictionary).get("code", "")) == _cog_code:
-				_body.text = JSON.stringify(item, "\t")
+				cog = item
 				break
+		_cog_write = true
+		_body.text = JSON.stringify(cog, "\t")
+		_cog_write = false
+		_fill_cog_form(cog)
+	elif _section == 1 and _cog_mode == 1:
+		_spawn_zone = int(_list.get_item_metadata(index))
+		_fill_spawn_form(_spawn_zone)
+	elif _section == 1 and _cog_mode == 2:
+		pass
 	elif _section == 2:
 		_show_toon(int(_list.get_item_metadata(index)))
 	elif _section == 3:
@@ -563,6 +591,7 @@ func _show_toon(index: int) -> void:
 	if style == null:
 		for field in _TOON_FIELDS:
 			(_fields[field] as LineEdit).text = ""
+		_fill_account(-1)
 		return
 	(_fields["first_name"] as LineEdit).text = style.first_name
 	(_fields["last_name"] as LineEdit).text = style.last_name
@@ -582,6 +611,7 @@ func _show_toon(index: int) -> void:
 	(_fields["hp"] as LineEdit).text = str(loadout.hp)
 	(_fields["max_hp"] as LineEdit).text = str(loadout.max_hp)
 	(_fields["carry"] as LineEdit).text = str(loadout.max_carry)
+	_fill_account(index)
 
 
 func _show_gag(track: int, level: int) -> void:
@@ -596,7 +626,12 @@ func _on_save() -> void:
 	if _section == 0:
 		_save_task()
 	elif _section == 1:
-		_save_cog()
+		if _cog_mode == 1:
+			_save_spawn()
+		elif _cog_mode == 2:
+			_save_invasion()
+		else:
+			_save_cog()
 	elif _section == 2:
 		_save_toon()
 	elif _section == 3:
@@ -607,7 +642,10 @@ func _on_delete() -> void:
 	if _section == 0:
 		_delete_task()
 	elif _section == 1:
-		_delete_cog()
+		if _cog_mode == 0:
+			_delete_cog()
+		else:
+			_status.text = "Switch to Cog to delete one."
 	elif _section == 2:
 		_delete_toon()
 	elif _section == 3:
@@ -627,9 +665,13 @@ func _on_new() -> void:
 		_fill_task_form(_TASK)
 		_status.text = "New task %d. Save stores it." % next
 	elif _section == 1:
+		if _cog_mode != 0:
+			_status.text = "Change the form, then Save."
+			return
 		_cog_code = ""
 		_key.text = ""
 		_body.text = JSON.stringify(_COG, "\t")
+		_fill_cog_form(_COG)
 		_status.text = "New cog. Set its code, then Save."
 	elif _section == 2:
 		_new_toon()
@@ -682,12 +724,15 @@ func _delete_task() -> void:
 
 
 func _on_task_json() -> void:
-	if _task_write or _section != 0:
+	if _task_write or _cog_write:
 		return
 	var parsed: Variant = JSON.parse_string(_body.text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return
-	_fill_task_form(parsed)
+	if _section == 0:
+		_fill_task_form(parsed)
+	elif _section == 1 and _cog_mode == 0:
+		_fill_cog_identity(parsed)
 
 
 func _fill_task_form(record: Dictionary) -> void:
@@ -901,6 +946,555 @@ func _write_fields(changes: Dictionary) -> void:
 	_task_write = false
 
 
+func _build_dev_panel() -> void:
+	for index in ["Cog", "Streets", "Invasions"].size():
+		_modes.append(_pill(["Cog", "Streets", "Invasions"][index], _on_cog_mode.bind(index)))
+	_panel = ScrollContainer.new()
+	_panel.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(_panel)
+	_panel_rows = VBoxContainer.new()
+	_panel_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panel_rows.add_theme_constant_override("separation", 4)
+	_panel.add_child(_panel_rows)
+	_panel_line("identity", "code", "code", "Short code, such as f. This is how the game names the cog.", "text")
+	_panel_line("identity", "name", "name", "The name printed on the cog.", "text")
+	_cog_dept = _panel_choice("identity", "dept", "Bossbot, Lawbot, Cashbot, or Sellbot.")
+	for index in range(1, _DEPT_CODES.size()):
+		_cog_dept.add_item(_DEPT_NAMES[index])
+		_cog_dept.set_item_metadata(_cog_dept.item_count - 1, _DEPT_CODES[index])
+	_cog_dept.item_selected.connect(_on_cog_dept)
+	_panel_line("identity", "body", "body", "Body letter used by the cog model.", "text")
+	_panel_line("identity", "type", "type", "Which suit of that department this is, starting at 1.", "int")
+	_panel_line("identity", "scale", "scale", "How large the model is drawn.", "float")
+	_panel_line("identity", "height", "height", "How tall the cog is for nametags and head height.", "float")
+	_panel_note("combat", "Damage, accuracy, and how often each attack is picked. Five numbers, one per level above the cog's base.")
+	_panel_line("combat", "attack_base", "base level", "Printed level of this cog's weakest version. The first number in each list is that level.", "int")
+	for index in 6:
+		_attack_rows.append(_attack_line(index))
+	_panel_note("spawn", "Chances are out of 100, in this order: Bossbot, Lawbot, Cashbot, Sellbot. They should add up to 100.")
+	_panel_line("spawn", "bossbot", "Bossbot", "Chance out of 100 that a spawned cog is a Bossbot.", "text")
+	_panel_line("spawn", "lawbot", "Lawbot", "Chance out of 100 that a spawned cog is a Lawbot.", "text")
+	_panel_line("spawn", "cashbot", "Cashbot", "Chance out of 100 that a spawned cog is a Cashbot.", "text")
+	_panel_line("spawn", "sellbot", "Sellbot", "Chance out of 100 that a spawned cog is a Sellbot.", "text")
+	_panel_line("spawn", "levels", "levels", "Printed levels that can appear here, such as 1, 2, 3.", "text")
+	_panel_line("spawn", "min", "fewest cogs", "The smallest number of cogs this place tries to keep out.", "text")
+	_panel_line("spawn", "max", "most cogs", "The largest number of cogs this place tries to keep out.", "text")
+	_panel_note("invasion", "A natural invasion rolls one of these. Weight 0 never comes up. Department weight and cog weight are multiplied by the kind you roll.")
+	for index in CogRules.SUITS.size():
+		var suit: Dictionary = CogRules.SUITS[index]
+		_panel_line("invasion", "rarity_%d" % index, String(suit.get("name", "")), "How often this kind of invasion is drawn. The game starts at %d." % int(suit.get("rarity", 0)), "text")
+	_panel_line("invasion", "dept_base", "department weight", "Multiplied by the kind's number when the invasion is a whole department. The game uses 1.", "text")
+	_panel_line("invasion", "cog_base", "cog weight", "Multiplied by the kind's number when the invasion is one cog. The game uses 8, so one cog is much more common than a department.", "text")
+	_panel_note("account", "Jellybeans, gag pockets, and the task journal for the toon you picked. Closet, friends, kart, fishing, and cog disguises stay on their own pages.")
+	_panel_line("account", "pouch", "pouch", "Jellybeans this toon is carrying.", "text")
+	_panel_line("account", "bank", "bank", "Jellybeans in the bank.", "text")
+	_panel_line("account", "vault", "vault", "Jellybeans in the bean vault.", "text")
+	_panel_line("account", "limit", "pouch size", "How many jellybeans the pouch can hold.", "text")
+	_panel_line("account", "vault_tier", "vault tier", "Which bean vault this toon owns. 0 is the smallest.", "text")
+	for track in ToonLoadout.TRACK_COUNT:
+		var gag := ToonLoadout.TRACK_NAMES[track]
+		_panel_line("account", "%s exp" % gag, "%s exp" % gag, "Experience in %s. Higher experience unlocks the next gag in that track." % gag, "text")
+		_panel_line("account", "%s gags" % gag, "%s gags" % gag, "How many of each %s gag are in the pocket, seven numbers from the weakest to the strongest." % gag, "text")
+		_panel_line("account", "%s owned" % gag, "%s owned" % gag, "1 if this toon has that %s gag, 0 if not. Seven numbers, weakest to strongest." % gag, "text")
+	_panel_line("account", "quest_carry", "task slots", "How many tasks this toon can carry at once.", "text")
+	_panel_line("account", "track_id", "gag track", "Which gag-track choice this toon made. -1 means they have not chosen yet.", "text")
+	_panel_line("account", "reward_tier", "reward tier", "How far this toon is through the training rewards.", "text")
+	_panel_line("account", "clothing_tickets", "clothing tickets", "Clothing tickets in the journal.", "text")
+	_panel_line("account", "teleport", "teleport", "Playground zone numbers this toon can teleport to.", "text")
+	_panel_line("account", "active", "tasks", "Current tasks as task number, a colon, then progress. Example: 101:0, 120:2", "text")
+	_panel_line("account", "done", "finished tasks", "Task numbers this toon has already finished.", "text")
+	var book_row := HBoxContainer.new()
+	_has_book = CheckButton.new()
+	_has_book.text = "Has the task book"
+	_has_book.focus_mode = Control.FOCUS_NONE
+	_has_book.tooltip_text = "Whether this toon has been given the Shticker Book."
+	book_row.add_child(_has_book)
+	_panel_rows.add_child(book_row)
+	_keep("account", book_row)
+
+
+func _panel_note(group: String, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size = Vector2(0, 36)
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	label.tooltip_text = text
+	_panel_rows.add_child(label)
+	_keep(group, label)
+
+
+func _panel_line(group: String, field: String, title: String, hint: String, kind: String) -> LineEdit:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = title
+	label.custom_minimum_size = Vector2(132, 24)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	label.tooltip_text = hint
+	row.add_child(label)
+	var edit := LineEdit.new()
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.custom_minimum_size = Vector2(0, 24)
+	edit.tooltip_text = hint
+	row.add_child(edit)
+	_panel_rows.add_child(row)
+	_keep(group, row)
+	_panel_lines[field] = edit
+	if group == "identity":
+		edit.text_changed.connect(_on_cog_text.bind(field, kind))
+	return edit
+
+
+func _panel_choice(group: String, title: String, hint: String) -> OptionButton:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = title
+	label.custom_minimum_size = Vector2(132, 24)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	label.tooltip_text = hint
+	row.add_child(label)
+	var pick := OptionButton.new()
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pick.focus_mode = Control.FOCUS_NONE
+	pick.tooltip_text = hint
+	row.add_child(pick)
+	_panel_rows.add_child(row)
+	_keep(group, row)
+	return pick
+
+
+func _attack_line(index: int) -> Dictionary:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "Attack %d" % (index + 1)
+	label.custom_minimum_size = Vector2(72, 24)
+	label.tooltip_text = "Leave the name blank to drop this attack. The five numbers are damage, chance to hit, and how often it is chosen."
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.add_child(label)
+	var stored := {"row": row}
+	for part in ["name", "hp", "acc", "freq"]:
+		var edit := LineEdit.new()
+		edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		edit.custom_minimum_size = Vector2(0, 24)
+		edit.placeholder_text = part
+		edit.tooltip_text = label.tooltip_text
+		row.add_child(edit)
+		stored[part] = edit
+	_panel_rows.add_child(row)
+	_keep("combat", row)
+	return stored
+
+
+func _keep(group: String, node: Control) -> void:
+	if not _panel_groups.has(group):
+		_panel_groups[group] = []
+	(_panel_groups[group] as Array).append(node)
+
+
+func _on_cog_mode(index: int) -> void:
+	_cog_mode = index
+	_confirm = ""
+	_show_section()
+
+
+func _place_dev_panel(edit_x: float, edit_w: float, editor_top: float, editor_h: float, bottom: float, tab_h: float, px: int) -> void:
+	if _panel == null:
+		return
+	_panel_rows.custom_minimum_size.x = maxf(edit_w - 18.0, 40.0)
+	for button_index in _modes.size():
+		_modes[button_index].modulate = Color.WHITE if button_index == _cog_mode else Color(0.72, 0.72, 0.72)
+	if _section == 1:
+		var gap := 6.0
+		var pill_w := (edit_w - gap * 2.0) / 3.0
+		for button_index in _modes.size():
+			_modes[button_index].position = Vector2(edit_x + float(button_index) * (pill_w + gap), editor_top)
+			_modes[button_index].size = Vector2(pill_w, tab_h)
+		var form_top := editor_top + tab_h + 6.0
+		if _cog_mode == 0:
+			var form_h := (bottom - form_top) * 0.62
+			_panel.position = Vector2(edit_x, form_top)
+			_panel.size = Vector2(edit_w, form_h)
+			_json_label.position = Vector2(edit_x, form_top + form_h + 2.0)
+			_json_label.size = Vector2(edit_w, tab_h * 0.72)
+			ToonGui.style_label(_json_label, _INK, px, Color(0, 0, 0, 0), 0)
+			_body.position = Vector2(edit_x, _json_label.position.y + _json_label.size.y)
+			_body.size = Vector2(edit_w, maxf(bottom - _body.position.y, 24.0))
+		else:
+			_panel.position = Vector2(edit_x, form_top)
+			_panel.size = Vector2(edit_w, maxf(bottom - form_top, 24.0))
+	elif _section == 2:
+		var form_h := editor_h * 0.42
+		_form.position = Vector2(edit_x, editor_top)
+		_form.size = Vector2(edit_w, form_h)
+		_place_fields(px)
+		_panel.position = Vector2(edit_x, editor_top + form_h + 4.0)
+		_panel.size = Vector2(edit_w, maxf(bottom - _panel.position.y, 24.0))
+	elif _section == 3:
+		_form.position = Vector2(edit_x, editor_top)
+		_form.size = Vector2(edit_w, editor_h)
+		_place_fields(px)
+	for child in _panel_rows.get_children():
+		if child is Label:
+			ToonGui.style_label(child, _INK, px, Color(0, 0, 0, 0), 0)
+		elif child is HBoxContainer:
+			for node in child.get_children():
+				if node is Label:
+					ToonGui.style_label(node, _INK, px, Color(0, 0, 0, 0), 0)
+
+
+func _apply_dev_groups() -> void:
+	if _panel_groups.is_empty():
+		return
+	var shown := {
+		"identity": _section == 1 and _cog_mode == 0,
+		"combat": _section == 1 and _cog_mode == 0,
+		"spawn": _section == 1 and _cog_mode == 1,
+		"invasion": _section == 1 and _cog_mode == 2,
+		"account": _section == 2,
+	}
+	for group in _panel_groups.keys():
+		var visible_row := bool(shown.get(group, false))
+		for node in _panel_groups[group]:
+			(node as CanvasItem).visible = visible_row
+
+
+func _show_cog_mode() -> void:
+	CogRules.note_shared(ToonNet.latest("dev:rules"))
+	if _cog_mode == 1:
+		_fill_places()
+	elif _cog_mode == 2:
+		_fill_invasions()
+	else:
+		_fill_cogs()
+
+
+func _fill_places() -> void:
+	for item in CogRules.places(StreetSuits.STREETS, StreetSuits.HOOD):
+		if not item is Dictionary:
+			continue
+		var place: Dictionary = item
+		var zone := int(place.get("zone", 0))
+		_list.add_item("%s  %d" % [_place_title(String(place.get("name", ""))), zone])
+		_list.set_item_metadata(_list.item_count - 1, zone)
+
+
+func _fill_invasions() -> void:
+	var form := CogRules.invasion_form()
+	var suits: Array = form.get("suits", [])
+	for index in suits.size():
+		if not suits[index] is Dictionary:
+			continue
+		var suit: Dictionary = suits[index]
+		_list.add_item("%s  %d" % [String(suit.get("name", "Kind")), int(suit.get("rarity", 0))])
+	_key.text = ""
+	_fill_invasion_form(form)
+
+
+func _place_title(slug: String) -> String:
+	var titled := PackedStringArray()
+	for word in slug.split(" ", false):
+		titled.append(word.substr(0, 1).to_upper() + word.substr(1))
+	return " ".join(titled)
+
+
+func _fill_cog_form(record: Dictionary) -> void:
+	_fill_cog_identity(record)
+	_fill_combat(record)
+
+
+func _fill_cog_identity(record: Dictionary) -> void:
+	_cog_write = true
+	_set_line("code", _shown(record.get("code", "")))
+	_set_line("name", _shown(record.get("name", "")))
+	_set_line("body", _shown(record.get("body", "")))
+	_set_line("type", _shown(record.get("type", "")))
+	_set_line("scale", _shown(record.get("scale", "")))
+	_set_line("height", _shown(record.get("height", "")))
+	if _cog_dept != null:
+		_select_option(_cog_dept, _shown(record.get("dept", "c")), true)
+	_cog_write = false
+
+
+func _fill_combat(record: Dictionary) -> void:
+	var table := CogRules.attack_table(String(record.get("code", "")))
+	_set_line("attack_base", _shown(table.get("base", 0)) if not table.is_empty() else "")
+	var attacks: Array = table.get("attacks", [])
+	for index in _attack_rows.size():
+		var row: Dictionary = _attack_rows[index]
+		var attack: Dictionary = {}
+		if index < attacks.size() and attacks[index] is Dictionary:
+			attack = attacks[index]
+		(row["name"] as LineEdit).text = String(attack.get("name", ""))
+		(row["hp"] as LineEdit).text = _joined(attack.get("hp", [])) if not attack.is_empty() else ""
+		(row["acc"] as LineEdit).text = _joined(attack.get("acc", [])) if not attack.is_empty() else ""
+		(row["freq"] as LineEdit).text = _joined(attack.get("freq", [])) if not attack.is_empty() else ""
+
+
+func _fill_spawn_form(zone: int) -> void:
+	for item in CogRules.places(StreetSuits.STREETS, StreetSuits.HOOD):
+		if item is Dictionary and int((item as Dictionary).get("zone", -1)) == zone:
+			var place: Dictionary = item
+			var tracks: Array = place.get("tracks", [])
+			_set_line("bossbot", str(int(tracks[0])) if tracks.size() > 0 else "0")
+			_set_line("lawbot", str(int(tracks[1])) if tracks.size() > 1 else "0")
+			_set_line("cashbot", str(int(tracks[2])) if tracks.size() > 2 else "0")
+			_set_line("sellbot", str(int(tracks[3])) if tracks.size() > 3 else "0")
+			_set_line("levels", _joined(place.get("levels", [])))
+			_set_line("min", str(int(place.get("min", 0))))
+			_set_line("max", str(int(place.get("max", 0))))
+			_key.text = str(zone)
+			return
+
+
+func _fill_invasion_form(form: Dictionary) -> void:
+	var suits: Array = form.get("suits", [])
+	for index in CogRules.SUITS.size():
+		var rarity := int((CogRules.SUITS[index] as Dictionary).get("rarity", 0))
+		if index < suits.size() and suits[index] is Dictionary:
+			rarity = int((suits[index] as Dictionary).get("rarity", rarity))
+		_set_line("rarity_%d" % index, str(rarity))
+	_set_line("dept_base", str(int(form.get("dept_base", 1))))
+	_set_line("cog_base", str(int(form.get("cog_base", 8))))
+
+
+func _fill_account(index: int) -> void:
+	if _panel_lines.is_empty():
+		return
+	if index < 0:
+		for field in _panel_lines.keys():
+			if String(field) in ["pouch", "bank", "vault", "limit", "vault_tier", "quest_carry", "track_id", "reward_tier", "clothing_tickets", "teleport", "active", "done"] or String(field).contains(" "):
+				_set_line(String(field), "")
+		if _has_book != null:
+			_has_book.button_pressed = false
+		return
+	var beans := _BEANS.read_slot(index)
+	_set_line("pouch", str(int(beans.get("pouch", 0))))
+	_set_line("bank", str(int(beans.get("bank", 0))))
+	_set_line("vault", str(int(beans.get("vault", 0))))
+	_set_line("limit", str(int(beans.get("limit", 0))))
+	_set_line("vault_tier", str(int(beans.get("vault_tier", 0))))
+	var loadout := ToonLoadout.for_slot(index)
+	for track in ToonLoadout.TRACK_COUNT:
+		var gag := ToonLoadout.TRACK_NAMES[track]
+		var counts: Array = []
+		var owned: Array = []
+		for level in ToonLoadout.LEVEL_COUNT:
+			counts.append(loadout.count_of(track, level))
+			owned.append(1 if loadout.unlocked(track, level) else 0)
+		_set_line("%s exp" % gag, str(loadout.experience_of(track)))
+		_set_line("%s gags" % gag, _joined(counts))
+		_set_line("%s owned" % gag, _joined(owned))
+	var journal := ToonTasks.live() if index == ToonRoster.selected_index() else ToonTasks.for_slot(index)
+	var record := journal.snapshot()
+	_set_line("quest_carry", str(int(record.get("quest_carry", 1))))
+	_set_line("track_id", str(int(record.get("track_id", -1))))
+	_set_line("reward_tier", str(int(record.get("reward_tier", 0))))
+	_set_line("clothing_tickets", str(int(record.get("clothing_tickets", 0))))
+	_set_line("teleport", _joined(record.get("teleport", [])))
+	_set_line("done", _joined(record.get("done", [])))
+	var tasks := PackedStringArray()
+	for entry in record.get("active", []):
+		if entry is Dictionary:
+			tasks.append("%d:%d" % [int((entry as Dictionary).get("id", 0)), int((entry as Dictionary).get("progress", 0))])
+	_set_line("active", ", ".join(tasks))
+	if _has_book != null:
+		_has_book.button_pressed = bool(record.get("has_book", false))
+
+
+func _on_cog_text(text: String, field: String, kind: String) -> void:
+	if _cog_write or _section != 1:
+		return
+	if field == "code":
+		_key.text = text.strip_edges()
+	if kind == "int":
+		if text.strip_edges().is_empty():
+			_write_cog(field, 0, true)
+			return
+		_write_cog(field, int(text), false)
+	elif kind == "float":
+		if text.strip_edges().is_empty():
+			return
+		_write_cog(field, float(text), false)
+	else:
+		_write_cog(field, text, false)
+
+
+func _on_cog_dept(index: int) -> void:
+	if _cog_write or _cog_dept == null:
+		return
+	_write_cog("dept", String(_cog_dept.get_item_metadata(index)), false)
+
+
+func _write_cog(field: String, value: Variant, drop: bool) -> void:
+	if _cog_write or _section != 1:
+		return
+	var parsed: Variant = JSON.parse_string(_body.text)
+	var record: Dictionary = {}
+	if typeof(parsed) == TYPE_DICTIONARY:
+		record = parsed
+	elif not _body.text.strip_edges().is_empty():
+		_status.text = "The JSON is not an object, so the form cannot update it."
+		return
+	if drop:
+		record.erase(field)
+	else:
+		record[field] = value
+	_cog_write = true
+	_body.text = JSON.stringify(record, "\t")
+	_cog_write = false
+
+
+func _save_spawn() -> void:
+	if _spawn_zone < 0:
+		_status.text = "Pick a street or Cog HQ."
+		return
+	var tracks: Array = [int(_line("bossbot")), int(_line("lawbot")), int(_line("cashbot")), int(_line("sellbot"))]
+	var total := 0
+	for chance in tracks:
+		total += int(chance)
+	CogRules.store_spawn(_spawn_zone, {
+		"tracks": tracks,
+		"levels": _ints(_line("levels")),
+		"min": int(_line("min")),
+		"max": int(_line("max")),
+	})
+	ToonNet.share_dev("rules", CogRules.bundle())
+	_list.clear()
+	_fill_places()
+	var note := "Saved spawn rules for zone %d. They apply the next time that place loads." % _spawn_zone
+	if total != 100:
+		note += " The four chances add up to %d, so a higher roll picks a Bossbot." % total
+	_status.text = note
+
+
+func _save_invasion() -> void:
+	var suits: Array = []
+	for index in CogRules.SUITS.size():
+		var suit: Dictionary = (CogRules.SUITS[index] as Dictionary).duplicate(true)
+		suit["rarity"] = maxi(int(_line("rarity_%d" % index)), 0)
+		suits.append(suit)
+	CogRules.store_invasion({
+		"dept_base": maxi(int(_line("dept_base")), 0),
+		"cog_base": maxi(int(_line("cog_base")), 0),
+		"suits": suits,
+	})
+	ToonNet.share_dev("rules", CogRules.bundle())
+	_list.clear()
+	_fill_invasions()
+	_status.text = "Saved the invasion pool. The next natural invasion uses these weights."
+
+
+func _save_combat(code: String) -> void:
+	if code.is_empty():
+		return
+	var typed := not _line("attack_base").is_empty()
+	for item in _attack_rows:
+		var shown: Dictionary = item
+		if not (shown["name"] as LineEdit).text.strip_edges().is_empty():
+			typed = true
+	if not typed:
+		return
+	var table := CogRules.attack_table(code)
+	if table.is_empty():
+		table = {"base": 0, "attacks": []}
+	var base_text := _line("attack_base")
+	if not base_text.is_empty():
+		table["base"] = int(base_text)
+	var previous: Array = table.get("attacks", [])
+	var attacks: Array = []
+	for index in _attack_rows.size():
+		var row: Dictionary = _attack_rows[index]
+		var attack_name := (row["name"] as LineEdit).text.strip_edges()
+		if attack_name.is_empty():
+			continue
+		var attack: Dictionary = {}
+		if index < previous.size() and previous[index] is Dictionary:
+			attack = (previous[index] as Dictionary).duplicate(true)
+		attack["name"] = attack_name
+		if String(attack.get("key", "")).is_empty():
+			attack["key"] = attack_name.replace(" ", "").replace("!", "")
+		attack["hp"] = _ints((row["hp"] as LineEdit).text)
+		attack["acc"] = _ints((row["acc"] as LineEdit).text)
+		attack["freq"] = _ints((row["freq"] as LineEdit).text)
+		attacks.append(attack)
+	table["attacks"] = attacks
+	CogRules.store_attack(code, table)
+	ToonNet.share_dev("rules", CogRules.bundle())
+
+
+func _save_account(loadout: ToonLoadout) -> void:
+	_BEANS.write_slot(_toon_slot, int(_line("pouch")), int(_line("bank")), int(_line("vault")), int(_line("limit")), int(_line("vault_tier")))
+	for track in ToonLoadout.TRACK_COUNT:
+		var gag := ToonLoadout.TRACK_NAMES[track]
+		loadout.set_experience(track, int(_line("%s exp" % gag)))
+		var counts := _ints(_line("%s gags" % gag))
+		var owned := _ints(_line("%s owned" % gag))
+		for level in ToonLoadout.LEVEL_COUNT:
+			var amount := int(counts[level]) if level < counts.size() else 0
+			var has_gag := true
+			if level < owned.size():
+				has_gag = int(owned[level]) != 0
+			loadout.set_gag(track, level, amount, has_gag)
+	var journal := ToonTasks.live() if _toon_slot == ToonRoster.selected_index() else ToonTasks.for_slot(_toon_slot)
+	var record := journal.snapshot()
+	record["quest_carry"] = maxi(int(_line("quest_carry")), 1)
+	record["track_id"] = int(_line("track_id"))
+	record["reward_tier"] = int(_line("reward_tier"))
+	record["clothing_tickets"] = maxi(int(_line("clothing_tickets")), 0)
+	record["has_book"] = _has_book.button_pressed if _has_book != null else bool(record.get("has_book", false))
+	record["teleport"] = _ints(_line("teleport"))
+	record["done"] = _ints(_line("done"))
+	var kept: Dictionary = {}
+	for entry in record.get("active", []):
+		if entry is Dictionary:
+			kept[int((entry as Dictionary).get("id", 0))] = entry
+	var active: Array = []
+	var raw := _line("active")
+	if not raw.is_empty():
+		for piece in raw.split(","):
+			var token := piece.strip_edges()
+			if token.is_empty():
+				continue
+			var parts := token.split(":")
+			var quest_id := int(parts[0])
+			var progress := int(parts[1]) if parts.size() > 1 else 0
+			var row := {"id": quest_id, "progress": progress, "to_npc": 0, "pay": 0, "misses": 0}
+			if kept.has(quest_id) and kept[quest_id] is Dictionary:
+				var old: Dictionary = kept[quest_id]
+				row["to_npc"] = int(old.get("to_npc", 0))
+				row["pay"] = int(old.get("pay", 0))
+				row["misses"] = int(old.get("misses", 0))
+			active.append(row)
+	record["active"] = active
+	journal.apply_dict(record)
+	journal.save()
+
+
+func _line(field: String) -> String:
+	var edit: Variant = _panel_lines.get(field)
+	if edit is LineEdit:
+		return (edit as LineEdit).text.strip_edges()
+	return ""
+
+
+func _set_line(field: String, text: String) -> void:
+	var edit: Variant = _panel_lines.get(field)
+	if edit is LineEdit:
+		(edit as LineEdit).text = text
+
+
+func _ints(text: String) -> Array:
+	var rows: Array = []
+	for part in text.split(",", false):
+		var piece := part.strip_edges()
+		if piece.is_empty():
+			continue
+		rows.append(int(piece))
+	return rows
+
+
 func _save_cog() -> void:
 	var parsed: Variant = JSON.parse_string(_body.text)
 	if typeof(parsed) != TYPE_DICTIONARY:
@@ -917,8 +1511,9 @@ func _save_cog() -> void:
 	if not _cog_code.is_empty() and _cog_code != String(cog.get("code", "")):
 		CogCatalog.remove_cog(_cog_code)
 	_cog_code = String(cog.get("code", ""))
+	_save_combat(_cog_code)
 	_fill_cogs()
-	_status.text = "Saved cog %s. Cogs already on the street keep the old copy until they are spawned again." % _cog_code
+	_status.text = "Saved cog %s. Damage applies on its next attack. A new cog uses the new look." % _cog_code
 
 
 func _delete_cog() -> void:
@@ -977,10 +1572,14 @@ func _save_toon() -> void:
 	var maximum := maxi(int((_fields["max_hp"] as LineEdit).text), 1)
 	loadout.set_hp(mini(hp, maximum), maximum)
 	loadout.max_carry = clampi(int((_fields["carry"] as LineEdit).text), 1, ToonLoadout.MAX_CARRY)
+	_save_account(loadout)
 	loadout.save()
 	_write_live_laff(loadout)
 	_fill_toons()
-	_status.text = "Saved %s. The toon on screen updates the next time this slot is played." % style.display_name()
+	if _toon_slot == ToonRoster.selected_index():
+		_status.text = "Saved %s. Laff, gags, jellybeans, and the journal are in use now. A new look shows the next time this slot is played." % style.display_name()
+	else:
+		_status.text = "Saved %s. It applies the next time that slot is played." % style.display_name()
 
 
 func _write_live_laff(loadout: ToonLoadout) -> void:
@@ -991,9 +1590,14 @@ func _write_live_laff(loadout: ToonLoadout) -> void:
 		return
 	var live = toon.call("battle_loadout")
 	if live is ToonLoadout:
-		(live as ToonLoadout).set_hp(loadout.hp, loadout.max_hp)
-		(live as ToonLoadout).max_carry = loadout.max_carry
-		(live as ToonLoadout).save()
+		var pocket := live as ToonLoadout
+		pocket.set_hp(loadout.hp, loadout.max_hp)
+		pocket.max_carry = loadout.max_carry
+		for track in ToonLoadout.TRACK_COUNT:
+			pocket.set_experience(track, loadout.experience_of(track))
+			for level in ToonLoadout.LEVEL_COUNT:
+				pocket.set_gag(track, level, loadout.count_of(track, level), loadout.unlocked(track, level))
+		pocket.save()
 		ToonNet.set_battle_laff(loadout.hp, loadout.max_hp)
 
 

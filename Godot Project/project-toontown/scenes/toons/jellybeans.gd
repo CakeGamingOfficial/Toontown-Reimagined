@@ -225,6 +225,31 @@ static func set_saved(pouch_amount: int, bank_amount: int, pouch_cap: int = -1, 
 	_write()
 
 
+static func read_slot(index: int) -> Dictionary:
+	_ensure()
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return {}
+	return {
+		"pouch": int(_pouch[index]),
+		"bank": int(_bank[index]),
+		"vault": int(_vault[index]),
+		"limit": int(_limit[index]),
+		"vault_tier": int(_vault_tier[index]),
+	}
+
+
+static func write_slot(index: int, pouch_amount: int, bank_amount: int, vault_amount: int, pouch_cap: int, vault_level: int) -> void:
+	_ensure()
+	if index < 0 or index >= ToonRoster.SLOT_COUNT:
+		return
+	_limit[index] = clampi(pouch_cap, 1, POUCH_MAX)
+	_pouch[index] = clampi(pouch_amount, 0, _limit[index])
+	_bank[index] = clampi(bank_amount, 0, BANK_MAX)
+	_vault_tier[index] = clampi(vault_level, 0, VAULT_TIERS.size())
+	_vault[index] = clampi(vault_amount, 0, _vault_capacity(_vault_tier[index]))
+	_write()
+
+
 static func reset_slot(index: int) -> void:
 	_ensure()
 	if index < 0 or index >= ToonRoster.SLOT_COUNT:

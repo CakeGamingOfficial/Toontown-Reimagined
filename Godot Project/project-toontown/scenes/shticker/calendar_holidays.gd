@@ -348,6 +348,7 @@ static var _cog_rows: Array = []
 ## The half hour already rolled for each ordinary district. A stopped invasion stays quiet until the next :00 or :30.
 static var _natural_given: Dictionary = {}
 static var _spawn_pool: Array = []
+static var _invasion_gen := -1
 ## The half-hour invasion has to survive a restart, or the street reads it as over and flies every cog away.
 const _INVASION_PATH := "user://invasion_state.json"
 static var _invasion_loaded := false
@@ -515,6 +516,15 @@ static func _is_cog_county(district_name: String) -> bool:
 const _DEPT_BASE := 1
 const _COG_BASE := 8
 static func _invasion_pool() -> Array:
+	CogRules.note_shared(ToonNet.latest("dev:rules"))
+	var tuned := CogRules.invasion()
+	if tuned.has("suits"):
+		_ensure_cogs()
+		if _invasion_gen != CogRules.generation() or _spawn_pool.is_empty():
+			_spawn_pool.clear()
+			_fill_tuned_pool(tuned)
+			_invasion_gen = CogRules.generation()
+		return _spawn_pool
 	if not _spawn_pool.is_empty():
 		return _spawn_pool
 	_ensure_cogs()
@@ -544,6 +554,28 @@ static func _add_spawn_rows(dept: String, code: String, cog_name: String, base: 
 		entry["cog_name"] = cog_name
 		entry["weight"] = base * int(suit.get("rarity", 1))
 		_spawn_pool.append(entry)
+
+
+static func _fill_tuned_pool(tuned: Dictionary) -> void:
+	var dept_base := int(tuned.get("dept_base", _DEPT_BASE))
+	var cog_base := int(tuned.get("cog_base", _COG_BASE))
+	var suits: Array[Dictionary] = []
+	for item in tuned.get("suits", []):
+		if item is Dictionary:
+			var suit: Dictionary = item
+			suits.append(suit)
+	if suits.is_empty():
+		return
+	for dept in ["s", "m", "l", "c"]:
+		_add_spawn_rows(dept, "", "", dept_base, suits)
+	var rows := CogCatalog.cog_rows()
+	if rows.is_empty():
+		rows = _cog_rows
+	for item in rows:
+		if not item is Dictionary:
+			continue
+		var cog: Dictionary = item
+		_add_spawn_rows(String(cog.get("dept", "")), String(cog.get("code", "")), String(cog.get("name", "Cog")), cog_base, suits)
 
 
 static func _pick_spawn() -> Dictionary:
