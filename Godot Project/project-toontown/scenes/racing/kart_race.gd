@@ -102,7 +102,7 @@ func _physics_process(delta: float) -> void:
 	_drive(delta)
 	_watch_lap()
 	_paint_hud()
-	if Input.is_physical_key_pressed(KEY_CTRL) or Input.is_physical_key_pressed(KEY_L):
+	if Keybinds.held("jump") or Input.is_physical_key_pressed(KEY_L):
 		_throw_gag()
 
 
@@ -119,13 +119,13 @@ func _drive(delta: float) -> void:
 		return
 	var throttle := 0.0
 	var steer_input := 0.0
-	if Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W):
+	if Keybinds.held("forward") or Input.is_physical_key_pressed(KEY_UP):
 		throttle = 1.0
-	elif Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S):
+	elif Keybinds.held("back") or Input.is_physical_key_pressed(KEY_DOWN):
 		throttle = -1.0
-	if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A):
+	if Keybinds.held("left") or Input.is_physical_key_pressed(KEY_LEFT):
 		steer_input = 1.0
-	elif Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D):
+	elif Keybinds.held("right") or Input.is_physical_key_pressed(KEY_RIGHT):
 		steer_input = -1.0
 	_steer = move_toward(_steer, steer_input, delta * 8.0)
 	var braking := throttle < 0.0 and _speed > 12.0

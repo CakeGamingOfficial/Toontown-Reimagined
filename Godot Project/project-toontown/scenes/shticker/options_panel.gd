@@ -20,10 +20,17 @@ var _title: Label
 var _popup := false
 var _locked := false
 var _tab := 0
+var _control_menu := 0
 var _listen := ""
+var _pad_armed := false
 var _tabs: Array[TextureButton] = []
+var _control_tabs: Array[TextureButton] = []
 var _bind_buttons: Array[TextureButton] = []
 var _bind_captions: Array[Label] = []
+var _pad_buttons: Array[TextureButton] = []
+var _pad_captions: Array[Label] = []
+var _pad_restore: TextureButton
+var _pad_clear: TextureButton
 var _audio_captions: Array[Label] = []
 var _audio_toggles: Array[TextureButton] = []
 var _toggle_kinds: Array[String] = []
@@ -81,6 +88,7 @@ func enable_game_actions(on_switch: Callable, on_quit: Callable) -> void:
 
 func cancel_listen() -> void:
 	_listen = ""
+	_pad_armed = false
 	_refresh_binds()
 
 
@@ -152,6 +160,32 @@ func _ensure() -> void:
 		_page.add_child(button)
 		_bind_captions.append(caption)
 		_bind_buttons.append(button)
+	var control_names: PackedStringArray = ["Keyboard", "Controller"]
+	for index in control_names.size():
+		var menu := _pill(control_names[index])
+		menu.pressed.connect(_set_control_menu.bind(index))
+		_page.add_child(menu)
+		_control_tabs.append(menu)
+	for index in _KEYS.PAD_ACTIONS.size():
+		var pad_caption := Label.new()
+		pad_caption.text = _KEYS.PAD_LABELS[index]
+		pad_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		pad_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		pad_caption.mouse_filter = MOUSE_FILTER_IGNORE
+		_page.add_child(pad_caption)
+		var pad_button := _pill(_KEYS.pad_label(_KEYS.PAD_ACTIONS[index]))
+		pad_button.clip_contents = true
+		pad_button.pressed.connect(_on_pad.bind(_KEYS.PAD_ACTIONS[index]))
+		_page.add_child(pad_button)
+		_pad_captions.append(pad_caption)
+		_pad_buttons.append(pad_button)
+	_pad_restore = _pill("Restore Defaults")
+	_pad_restore.clip_contents = true
+	_pad_restore.pressed.connect(_restore_pad)
+	_page.add_child(_pad_restore)
+	_pad_clear = _pill("Unbind")
+	_pad_clear.pressed.connect(_unbind_pad)
+	_page.add_child(_pad_clear)
 	_device_row()
 	_volume_row("Master Volume", "master", false)
 	_volume_row("Music", "music", true)
@@ -215,7 +249,17 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 	var action_h := page_size.y * 0.09
 	var action_pad := maxf(page_size.y * 0.012, 6.0)
 	var action_y := page_size.y - action_pad - action_h
-	var top := tab_y + tab_h + page_size.y * 0.03
+	var top := tab_y + tab_h + page_size.y * 0.02
+	var menu_h := minf(page_size.y * 0.065, 32.0)
+	var menu_w := page_size.x * 0.28
+	var menu_gap := page_size.x * 0.02
+	var menu_x := (page_size.x - menu_w * 2.0 - menu_gap) * 0.5
+	for index in _control_tabs.size():
+		_place_pill(_control_tabs[index], Vector2(menu_x + float(index) * (menu_w + menu_gap), top), Vector2(menu_w, menu_h), maxi(int(menu_h * 0.42), 11))
+		_control_tabs[index].modulate = Color(1.0, 0.86, 0.35) if index == _control_menu else Color.WHITE
+		_control_tabs[index].mouse_filter = MOUSE_FILTER_IGNORE if _locked or _tab != 1 else MOUSE_FILTER_STOP
+	if _tab == 1:
+		top += menu_h + page_size.y * 0.012
 	var room := maxf(action_y - top - page_size.y * 0.015, 1.0)
 	var row_h := minf(room / float(maxi(_bind_buttons.size(), 1)), 36.0)
 	for index in _bind_buttons.size():
@@ -229,6 +273,37 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		button.size = Vector2(page_size.x * 0.28, row_h * 0.76)
 		var key_name := button.get_child(0) as Label
 		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), body_px, Color(0, 0, 0, 0), 0)
+	var restore_h := minf(36.0, room * 0.1)
+	var pad_room := maxf(room - restore_h - page_size.y * 0.008, 1.0)
+	var pad_h := minf(pad_room / float(maxi(_pad_buttons.size(), 1)), 36.0)
+	for index in _pad_buttons.size():
+		var pad_y := top + float(index) * pad_h
+		var pad_px := mini(body_px, maxi(int(pad_h * 0.72), 11))
+		var pad_caption := _pad_captions[index]
+		pad_caption.position = Vector2(0, pad_y)
+		pad_caption.size = Vector2(page_size.x * 0.46, pad_h)
+		ToonGui.style_label(pad_caption, Color(0.1, 0.1, 0.1), pad_px, Color(0, 0, 0, 0), 0)
+		var pad_button := _pad_buttons[index]
+		pad_button.position = Vector2(page_size.x * 0.52, pad_y + pad_h * 0.12)
+		pad_button.size = Vector2(page_size.x * 0.34, pad_h * 0.76)
+		var pad_name := pad_button.get_child(0) as Label
+		pad_name.clip_text = true
+		ToonGui.style_label(pad_name, Color(0.1, 0.1, 0.12), pad_px, Color(0, 0, 0, 0), 0)
+	if _pad_restore != null:
+		var restore_y := top + float(_pad_buttons.size()) * pad_h
+		var restore_box := Vector2(page_size.x * 0.34, maxf(restore_h * 0.86, 22.0))
+		var restore_px := mini(body_px, maxi(int(restore_h * 0.42), 11))
+		_place_pill(_pad_restore, Vector2(page_size.x * 0.52, restore_y), restore_box, restore_px)
+		_pad_restore.mouse_filter = MOUSE_FILTER_IGNORE if _locked else MOUSE_FILTER_STOP
+		var restore_name := _pad_restore.get_child(0) as Label
+		if restore_name != null:
+			restore_name.clip_text = true
+	if _pad_clear != null:
+		var clear_y := top + float(_pad_buttons.size()) * pad_h
+		var clear_box := Vector2(page_size.x * 0.28, maxf(restore_h * 0.86, 22.0))
+		var clear_px := mini(body_px, maxi(int(restore_h * 0.42), 11))
+		_place_pill(_pad_clear, Vector2(page_size.x * 0.18, clear_y), clear_box, clear_px)
+		_pad_clear.mouse_filter = MOUSE_FILTER_IGNORE if _locked else MOUSE_FILTER_STOP
 	var audio_rows := _audio_sliders.size() + (1 if _device_button != null else 0)
 	var audio_h := minf(room / float(maxi(audio_rows, 1)), 52.0)
 	var audio_at := 0
@@ -367,7 +442,8 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 
 func _show_group() -> void:
 	var sound := _tab == 0
-	var keys := _tab == 1
+	var keys := _tab == 1 and _control_menu == 0
+	var pads := _tab == 1 and _control_menu == 1
 	var graphics := _tab == 2
 	var chat := _tab == 3
 	var ui := _tab == 5
@@ -386,6 +462,16 @@ func _show_group() -> void:
 		caption.visible = keys
 	for button in _bind_buttons:
 		button.visible = keys
+	for menu in _control_tabs:
+		menu.visible = _tab == 1
+	for caption in _pad_captions:
+		caption.visible = pads
+	for button in _pad_buttons:
+		button.visible = pads
+	if _pad_restore != null:
+		_pad_restore.visible = pads
+	if _pad_clear != null:
+		_pad_clear.visible = pads
 	for caption in _gfx_captions:
 		caption.visible = graphics
 	for button in _gfx_buttons:
@@ -415,6 +501,20 @@ func _set_tab(index: int) -> void:
 		return
 	_tab = index
 	_listen = ""
+	_pad_armed = false
+	_relayout()
+
+
+func _set_control_menu(index: int) -> void:
+	if _locked:
+		return
+	_control_menu = index
+	_listen = ""
+	_pad_armed = false
+	_relayout()
+
+
+func _relayout() -> void:
 	if _popup:
 		_layout_popup()
 	elif size.y > 1.0:
@@ -1116,6 +1216,49 @@ func _on_bind(action: String) -> void:
 	if _locked:
 		return
 	_listen = action
+	_pad_armed = false
+	_refresh_binds()
+
+
+func _restore_pad() -> void:
+	if _locked:
+		return
+	_listen = ""
+	_pad_armed = false
+	_KEYS.restore_pad()
+	_refresh_binds()
+
+
+func _unbind_pad() -> void:
+	if _locked:
+		return
+	if _listen.begins_with("pad:"):
+		_KEYS.clear_pad(_listen.substr(4))
+		_listen = ""
+		_pad_armed = false
+		_refresh_binds()
+		return
+	if _listen == "clear-pad":
+		_listen = ""
+		_pad_armed = false
+		_refresh_binds()
+		return
+	_listen = "clear-pad"
+	_pad_armed = false
+	_refresh_binds()
+
+
+func _on_pad(action: String) -> void:
+	if _locked:
+		return
+	if _listen == "clear-pad":
+		_KEYS.clear_pad(action)
+		_listen = ""
+		_pad_armed = false
+		_refresh_binds()
+		return
+	_listen = "pad:" + action
+	_pad_armed = not _pad_busy()
 	_refresh_binds()
 
 
@@ -1130,46 +1273,105 @@ func _refresh_binds() -> void:
 		else:
 			caption.text = _KEYS.label(action)
 			_bind_buttons[index].modulate = Color.WHITE
+	for index in _pad_buttons.size():
+		var action := _KEYS.PAD_ACTIONS[index]
+		var caption := _pad_buttons[index].get_child(0) as Label
+		if "pad:" + action == _listen:
+			caption.text = "?"
+			_pad_buttons[index].modulate = listening
+		else:
+			caption.text = _KEYS.pad_label(action)
+			_pad_buttons[index].modulate = Color.WHITE
+	if _pad_clear != null:
+		_pad_clear.modulate = listening if _listen == "clear-pad" else Color.WHITE
 
 
 func _input(event: InputEvent) -> void:
 	if not is_visible_in_tree():
 		return
-	if _popup and event is InputEventKey:
+	var pad_listen := _listen.begins_with("pad:")
+	if event is InputEventKey:
 		var key := event as InputEventKey
-		if _typing():
-			if key.pressed and not key.echo and (key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE):
+		var escape := key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE
+		if _popup and _typing():
+			if key.pressed and not key.echo and escape:
 				get_viewport().gui_get_focus_owner().release_focus()
 				get_viewport().set_input_as_handled()
 			return
-		if key.pressed and not key.echo and (key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE):
+		if key.pressed and not key.echo and escape:
 			if _listen != "":
 				_listen = ""
+				_pad_armed = false
 				_refresh_binds()
-			else:
+				get_viewport().set_input_as_handled()
+			elif _popup:
 				_request_close()
+				get_viewport().set_input_as_handled()
+			return
+		if _listen.begins_with("pad:") and key.pressed and not key.echo and (key.keycode == KEY_BACKSPACE or key.physical_keycode == KEY_BACKSPACE or key.keycode == KEY_DELETE or key.physical_keycode == KEY_DELETE):
+			_KEYS.clear_pad(_listen.substr(4))
+			_listen = ""
+			_pad_armed = false
+			_refresh_binds()
 			get_viewport().set_input_as_handled()
 			return
-		if _listen == "":
-			get_viewport().set_input_as_handled()
+		if pad_listen or _listen == "" or _listen == "clear-pad":
+			if _popup and _listen == "":
+				get_viewport().set_input_as_handled()
 			return
-	if _listen == "" or not (event is InputEventKey):
-		return
-	var key := event as InputEventKey
-	if not key.pressed or key.echo:
-		return
-	if event.is_action_pressed("ui_cancel") or key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
+		if not key.pressed or key.echo:
+			return
+		var code := key.physical_keycode
+		if code == KEY_NONE:
+			code = key.keycode
+		get_viewport().set_input_as_handled()
+		_KEYS.assign(_listen, code)
 		_listen = ""
 		_refresh_binds()
-		get_viewport().set_input_as_handled()
 		return
-	var code := key.physical_keycode
-	if code == KEY_NONE:
-		code = key.keycode
-	get_viewport().set_input_as_handled()
-	_KEYS.assign(_listen, code)
-	_listen = ""
-	_refresh_binds()
+	if not pad_listen:
+		return
+	if event is InputEventJoypadButton:
+		var button := event as InputEventJoypadButton
+		if not button.pressed:
+			_pad_armed = true
+			get_viewport().set_input_as_handled()
+			return
+		if not _pad_armed:
+			get_viewport().set_input_as_handled()
+			return
+		get_viewport().set_input_as_handled()
+		_KEYS.assign_pad(_listen.substr(4), int(button.button_index))
+		_listen = ""
+		_pad_armed = false
+		_refresh_binds()
+		return
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis != JOY_AXIS_TRIGGER_LEFT and motion.axis != JOY_AXIS_TRIGGER_RIGHT:
+			return
+		if motion.axis_value < 0.35:
+			_pad_armed = true
+			return
+		if motion.axis_value < 0.65 or not _pad_armed:
+			return
+		get_viewport().set_input_as_handled()
+		_KEYS.assign_pad(_listen.substr(4), _KEYS.pad_axis(motion.axis))
+		_listen = ""
+		_pad_armed = false
+		_refresh_binds()
+
+
+func _pad_busy() -> bool:
+	for id in Input.get_connected_joypads():
+		for index in 21:
+			if Input.is_joy_button_pressed(id, index as JoyButton):
+				return true
+		if Input.get_joy_axis(id, JOY_AXIS_TRIGGER_LEFT) > 0.4:
+			return true
+		if Input.get_joy_axis(id, JOY_AXIS_TRIGGER_RIGHT) > 0.4:
+			return true
+	return false
 
 
 func _typing() -> bool:

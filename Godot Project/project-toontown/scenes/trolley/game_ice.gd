@@ -134,7 +134,7 @@ func _aim_step(delta: float) -> void:
 	if not _warned and _aim_left < 12.0:
 		_warned = true
 		_banner.text = "Match %d/%d, Round %d/%d\nRemember to press the Ctrl key!" % [_match + 1, _MATCHES, _round + 1, _ROUNDS]
-	if Input.is_physical_key_pressed(KEY_CTRL):
+	if Keybinds.held("jump"):
 		_launch()
 	elif _aim_left <= 0.0:
 		_force = 0.01

@@ -144,7 +144,7 @@ func _steer(delta: float) -> void:
 		_adjust.queue_free()
 		_adjust = null
 		_share_aim(true)
-	var fire := Input.is_physical_key_pressed(KEY_CTRL) or Input.is_physical_key_pressed(KEY_SPACE)
+	var fire := Keybinds.held("jump") or Input.is_physical_key_pressed(KEY_SPACE)
 	if fire and not _fire_down:
 		_fire_down = true
 		_launch()

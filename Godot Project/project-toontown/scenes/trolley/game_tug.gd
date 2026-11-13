@@ -40,9 +40,9 @@ func _build() -> void:
 func _play(delta: float) -> void:
 	_since += delta
 	var tap := ""
-	if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A):
+	if Keybinds.held("left") or Input.is_physical_key_pressed(KEY_LEFT):
 		tap = "l"
-	elif Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D):
+	elif Keybinds.held("right") or Input.is_physical_key_pressed(KEY_RIGHT):
 		tap = "r"
 	if tap != "" and tap != _last:
 		var rate := 1.0 / maxf(_since, 0.05)

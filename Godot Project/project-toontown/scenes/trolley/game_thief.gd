@@ -52,7 +52,7 @@ func _play(delta: float) -> void:
 	if absf(move.x) > 0.1 or absf(move.y) > 0.1:
 		_toon.rotation_degrees.y = rad_to_deg(atan2(-move.x, move.y))
 	_cool = maxf(_cool - delta, 0.0)
-	if _cool == 0.0 and _pie == null and (Input.is_physical_key_pressed(KEY_CTRL) or Input.is_physical_key_pressed(KEY_SPACE)):
+	if _cool == 0.0 and _pie == null and (Keybinds.held("jump") or Input.is_physical_key_pressed(KEY_SPACE)):
 		_cool = 0.55
 		_throw()
 	if _pie != null:

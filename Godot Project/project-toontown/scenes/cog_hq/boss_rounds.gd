@@ -208,7 +208,7 @@ func _tick_vp(delta: float, body: CharacterBody3D) -> void:
 
 func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 	if _crane < 0:
-		if Input.is_physical_key_pressed(KEY_E) and _cool <= 0.0:
+		if _KEYS.use_held() and _cool <= 0.0:
 			var pads := _named("Crane")
 			for index in pads.size():
 				if _near(body, pads[index].global_position, 2.4):
@@ -238,7 +238,7 @@ func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 				_drop_safe()
 			else:
 				_grab_safe()
-		if Input.is_physical_key_pressed(KEY_E) and _cool <= 0.0 and _held < 0:
+		if _KEYS.use_held() and _cool <= 0.0 and _held < 0:
 			_crane = -1
 			_cool = 0.3
 			_free_toon()
@@ -293,7 +293,7 @@ func _tick_cannon(delta: float, body: CharacterBody3D) -> void:
 		_jury.position = _jury_start + Vector3(30.0, 0.0, 12.645) * along
 	var cannons := _named("Cannon")
 	if not _cannon:
-		if Input.is_physical_key_pressed(KEY_E) and _cool <= 0.0:
+		if _KEYS.use_held() and _cool <= 0.0:
 			for pad in cannons:
 				if _near(body, pad.global_position, 3.0):
 					_cannon = true
@@ -389,7 +389,7 @@ func _tick_banquet(delta: float, body: CharacterBody3D) -> void:
 		elif _carry and _near(body, node.global_position, 1.8) and index != hungry and not fed:
 			_carry = false
 			_boss.call("serve_seat", index)
-	if Input.is_physical_key_pressed(KEY_E) and _cool <= 0.0:
+	if _KEYS.use_held() and _cool <= 0.0:
 		_cool = 0.4
 		_boss.call("finish_serving")
 		return
@@ -400,7 +400,7 @@ func _tick_banquet(delta: float, body: CharacterBody3D) -> void:
 func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 	var spot := _root.get_node_or_null("Seltzer") as Node3D
 	if not _golf:
-		if spot != null and Input.is_physical_key_pressed(KEY_E) and _near(body, spot.global_position, 2.4) and _cool <= 0.0:
+		if spot != null and _KEYS.use_held() and _near(body, spot.global_position, 2.4) and _cool <= 0.0:
 			_golf = true
 			_spray = 0.0
 			_cool = 0.3

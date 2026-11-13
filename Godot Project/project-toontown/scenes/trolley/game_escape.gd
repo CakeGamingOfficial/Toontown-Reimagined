@@ -66,7 +66,7 @@ func _play(delta: float) -> void:
 	_bump = maxf(_bump - delta, 0.0)
 	var move := _stick()
 	_toon.position.x += move.x * 8.0 * delta
-	if _grounded and (Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_SPACE)):
+	if _grounded and (Keybinds.held("forward") or Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_SPACE)):
 		_vy = 11.0
 		_grounded = false
 		_sfx("MG_sfx_vine_game_jump", 0.7)
@@ -107,7 +107,7 @@ func _play(delta: float) -> void:
 		_toon.position.x -= 2.0
 		_sfx("MG_cannon_hit_dirt", 0.5)
 	_squirt = maxf(_squirt - delta, 0.0)
-	if _squirt == 0.0 and Input.is_physical_key_pressed(KEY_CTRL):
+	if _squirt == 0.0 and Keybinds.held("jump"):
 		_squirt = 0.45
 		_sfx("AA_squirt_seltzer_miss", 0.7)
 		if absf(_toon.position.x - _cog.position.x) < 9.0:

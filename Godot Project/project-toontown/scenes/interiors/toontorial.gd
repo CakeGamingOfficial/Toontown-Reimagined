@@ -163,6 +163,7 @@ func _process(delta: float) -> void:
 	elif _exit_cam:
 		_frame_shop_exit()
 	elif not _camera_held and (not _cutscene or (_hq != null and _hq.inside())):
+		_stick_look(delta)
 		_place_camera()
 	_face_billboards()
 	_place_tags()
@@ -436,7 +437,7 @@ func _walk(delta: float) -> void:
 	var back_held := _KEYS.held("back")
 	var left_held := _KEYS.held("left")
 	var right_held := _KEYS.held("right")
-	var aim_held := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	var aim_held := _KEYS.aim_held()
 	# The book clips replace walking until the toon closes it.
 	if _player != null and _player.holding_book():
 		forward_held = false
@@ -576,9 +577,40 @@ func _face(actor: Node3D, heading: float) -> void:
 	actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
 
 
+func _stick_look(delta: float) -> void:
+	if _cutscene or _locked or _fading or (_book != null and _book.is_open()):
+		return
+	var look := _KEYS.look()
+	if look.length_squared() < 0.0001:
+		return
+	var yaw := -look.x * 110.0 * delta
+	_cam_pitch = clampf(_cam_pitch + look.y * 70.0 * delta, _CAM_PITCH_MIN, _CAM_PITCH_MAX)
+	var steering := _KEYS.held("forward") or _KEYS.held("back")
+	if _KEYS.aim_held() and steering:
+		if not _cam_steering:
+			_heading += _cam_yaw
+			_cam_yaw = 0.0
+			_cam_steering = true
+		_heading += yaw
+		_right_yaw = 0.0
+	else:
+		_cam_steering = false
+		_cam_yaw += yaw
+		if _KEYS.aim_held():
+			_right_yaw += yaw
+
+
 func _steer_camera(event: InputEvent) -> void:
 	if _cutscene or _locked or _fading or (_book != null and _book.is_open()):
 		_release_camera_mouse(true)
+		return
+	if event is InputEventJoypadButton:
+		var pad := event as InputEventJoypadButton
+		if pad.pressed and pad.button_index == JOY_BUTTON_RIGHT_STICK:
+			_cam_yaw = 0.0
+			_right_yaw = 0.0
+			_cam_pitch = _CAM_PITCH_HOME
+			_cam_distance = 1.0
 		return
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
@@ -1610,7 +1642,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _battle != null and _battle.active():
 		return
-	if event is InputEventKey and _KEYS.event_is(event, "book"):
+	if _KEYS.event_is(event, "book") or _KEYS.event_is_cancel(event):
 		if _book != null and _tasks != null and _tasks.book_ready():
 			_book.toggle_hotkey()
 			get_viewport().set_input_as_handled()
@@ -1631,9 +1663,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _peek_hotkey(event: InputEvent) -> bool:
-	if _book == null or not (event is InputEventKey):
+	if _book == null:
 		return false
-	var key := event as InputEventKey
+	var pressed := false
+	if event is InputEventKey:
+		pressed = (event as InputEventKey).pressed
+	elif event is InputEventJoypadButton:
+		pressed = (event as InputEventJoypadButton).pressed
+	elif event is InputEventJoypadMotion:
+		pressed = (event as InputEventJoypadMotion).axis_value > 0.55
+	else:
+		return false
 	var which := ""
 	if _KEYS.matches(event, "gags"):
 		which = "gags"
@@ -1641,7 +1681,7 @@ func _peek_hotkey(event: InputEvent) -> bool:
 		which = "tasks"
 	else:
 		return false
-	if not key.pressed:
+	if not pressed:
 		_book.hide_peek(which)
 		get_viewport().set_input_as_handled()
 		return true

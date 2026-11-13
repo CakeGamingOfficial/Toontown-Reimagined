@@ -61,9 +61,9 @@ func _play(delta: float) -> void:
 	if _phase == "pound":
 		_idle += delta
 		var tap := ""
-		if Input.is_physical_key_pressed(KEY_LEFT):
+		if Keybinds.held("left") or Input.is_physical_key_pressed(KEY_LEFT):
 			tap = "l"
-		elif Input.is_physical_key_pressed(KEY_RIGHT):
+		elif Keybinds.held("right") or Input.is_physical_key_pressed(KEY_RIGHT):
 			tap = "r"
 		_stretch = maxf(_stretch - delta, 0.0)
 		if tap != "" and tap != _last:

@@ -785,10 +785,13 @@ func _turn(step: int) -> void:
 func _input(event: InputEvent) -> void:
 	if _exit_dialog == null:
 		return
+	if _KEYS.event_is_cancel(event):
+		get_viewport().set_input_as_handled()
+		_close_exit()
+		return
 	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
 		get_viewport().set_input_as_handled()
-		var key := event as InputEventKey
-		if event.is_action_pressed("ui_cancel") or key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
+		if event.is_action_pressed("ui_cancel"):
 			_close_exit()
 
 

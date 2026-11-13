@@ -33,13 +33,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var direction := Vector3.ZERO
-	if Input.is_physical_key_pressed(KEY_W):
+	var look := Keybinds.look()
+	if look.length_squared() > 0.0001:
+		_yaw -= look.x * delta * 1.6
+		_pitch = clampf(_pitch - look.y * delta * 1.2, deg_to_rad(-85.0), deg_to_rad(85.0))
+		rotation = Vector3(_pitch, _yaw, 0.0)
+	if Keybinds.held("forward"):
 		direction.z -= 1.0
-	if Input.is_physical_key_pressed(KEY_S):
+	if Keybinds.held("back"):
 		direction.z += 1.0
-	if Input.is_physical_key_pressed(KEY_A):
+	if Keybinds.held("left"):
 		direction.x -= 1.0
-	if Input.is_physical_key_pressed(KEY_D):
+	if Keybinds.held("right"):
 		direction.x += 1.0
 	if Input.is_physical_key_pressed(KEY_E) or Input.is_physical_key_pressed(KEY_SPACE):
 		direction.y += 1.0

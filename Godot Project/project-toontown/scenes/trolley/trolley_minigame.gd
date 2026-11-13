@@ -377,13 +377,13 @@ func _stick() -> Vector2:
 		return Vector2.ZERO
 	var x := 0.0
 	var y := 0.0
-	if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A):
+	if Keybinds.held("left") or Input.is_physical_key_pressed(KEY_LEFT):
 		x -= 1.0
-	if Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D):
+	if Keybinds.held("right") or Input.is_physical_key_pressed(KEY_RIGHT):
 		x += 1.0
-	if Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W):
+	if Keybinds.held("forward") or Input.is_physical_key_pressed(KEY_UP):
 		y += 1.0
-	if Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S):
+	if Keybinds.held("back") or Input.is_physical_key_pressed(KEY_DOWN):
 		y -= 1.0
 	return Vector2(x, y)
 
