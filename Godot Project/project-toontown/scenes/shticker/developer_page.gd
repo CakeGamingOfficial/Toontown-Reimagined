@@ -1,8 +1,9 @@
 extends Control
 
-## Developer tools on the last Shticker Book page. Tasks, cogs, toons, and
-## gags can be viewed and changed. Magic words are listed, not changed.
-## Edits are saved on this machine and laid over the original records.
+## Developer tools on the last Shticker Book page. Tasks can be edited in
+## the form or in the JSON under it. Cogs, toons, and gags can be viewed
+## and changed. Magic words are listed, not changed. Edits are saved on
+## this machine and laid over the original records.
 
 const _PILL := preload("res://assets/toons/gui/QuitBtn_UP.png")
 const _PILL_DOWN := preload("res://assets/toons/gui/QuitBtn_DN.png")
@@ -15,6 +16,105 @@ const _TOON_FIELDS: PackedStringArray = [
 	"top_tex", "top_color", "bot_tex", "bot_color", "hp", "max_hp", "carry",
 ]
 const _GAG_FIELDS: PackedStringArray = ["name", "min", "max", "accuracy", "skill"]
+const _TASK_KINDS: PackedStringArray = [
+	"cog", "trolley", "recover", "visit", "track", "friend", "phone",
+	"building", "factory", "foreman", "mint", "supervisor", "skelecog",
+	"gag", "vp", "cfo", "rescue", "cogpart", "revive", "cj", "ceo",
+	"office", "course", "field",
+]
+const _TASK_TEXT: PackedStringArray = [
+	"headline", "caption", "speech", "cog", "holder",
+	"holder_name", "holder_type", "track", "turn_in",
+]
+const _TASK_NUMBER: PackedStringArray = [
+	"goal", "hood", "zone", "npc", "from", "reward", "chance", "level",
+	"floors", "tier", "newbie", "laff", "gag_track", "gag_level",
+]
+const _TASK_CHECK: PackedStringArray = ["show_count", "start", "same"]
+const _DEPT_CODES: PackedStringArray = ["", "c", "l", "m", "s"]
+const _DEPT_NAMES: PackedStringArray = ["any", "Bossbot", "Lawbot", "Cashbot", "Sellbot"]
+## Poster wording used by the original tasks, and the hood or zone that
+## makes that place count. apply false keeps a visit's building name from
+## changing where the task is scored.
+const _PLACES: Array[Dictionary] = [
+	{"where": "Anywhere", "hood": 0, "zone": 0},
+	{"where": "in The Playground", "apply": false},
+	{"where": "In Toontown Central", "hood": 2000, "zone": 0},
+	{"where": "On Silly Street", "hood": 0, "zone": 2100},
+	{"where": "On Loopy Lane", "hood": 0, "zone": 2200},
+	{"where": "On Punchline Place", "hood": 0, "zone": 2300},
+	{"where": "In Donald's Dock", "hood": 1000, "zone": 0},
+	{"where": "On Barnacle Boulevard", "hood": 0, "zone": 1100},
+	{"where": "On Seaweed Street", "hood": 0, "zone": 1200},
+	{"where": "On Lighthouse Lane", "hood": 0, "zone": 1300},
+	{"where": "In The Brrrgh", "hood": 3000, "zone": 0},
+	{"where": "On Walrus Way", "hood": 0, "zone": 3100},
+	{"where": "On Sleet Street", "hood": 0, "zone": 3200},
+	{"where": "On Polar Place", "hood": 0, "zone": 3300},
+	{"where": "In Minnie's Melodyland", "hood": 4000, "zone": 0},
+	{"where": "On Alto Avenue", "hood": 0, "zone": 4100},
+	{"where": "On Baritone Boulevard", "hood": 0, "zone": 4200},
+	{"where": "On Tenor Terrace", "hood": 0, "zone": 4300},
+	{"where": "In Daisy Gardens", "hood": 5000, "zone": 0},
+	{"where": "On Elm Street", "hood": 0, "zone": 5100},
+	{"where": "On Maple Street", "hood": 0, "zone": 5200},
+	{"where": "On Oak Street", "hood": 0, "zone": 5300},
+	{"where": "In Donald's Dreamland", "hood": 9000, "zone": 0},
+	{"where": "On Lullaby Lane", "hood": 0, "zone": 9100},
+	{"where": "On Pajama Place", "hood": 0, "zone": 9200},
+	{"where": "In Chip 'n Dale's Acorn Acres", "hood": 6000, "zone": 0},
+	{"where": "In Goofy Speedway", "hood": 8000, "zone": 0},
+	{"where": "In Sellbot HQ", "hood": 11000, "zone": 0},
+	{"where": "In the Sellbot Factory", "hood": 0, "zone": 11500},
+	{"where": "In Cashbot HQ", "hood": 12000, "zone": 0},
+	{"where": "In the Coin Mint", "hood": 12500, "zone": 0},
+	{"where": "In the Dollar Mint", "hood": 12600, "zone": 0},
+	{"where": "In the Bullion Mint", "hood": 12700, "zone": 0},
+	{"where": "In Lawbot HQ", "hood": 13000, "zone": 0},
+	{"where": "In the Lawbot A Office", "hood": 0, "zone": 13300},
+	{"where": "In the Lawbot B Office", "hood": 0, "zone": 13400},
+	{"where": "In the Lawbot C Office", "hood": 0, "zone": 13500},
+	{"where": "In the Lawbot D Office", "hood": 0, "zone": 13600},
+	{"where": "In Bossbot HQ", "hood": 10000, "zone": 0},
+	{"where": "In the Front Three", "hood": 0, "zone": 10500},
+	{"where": "In the Middle Six", "hood": 0, "zone": 10600},
+	{"where": "In the Back Nine", "hood": 0, "zone": 10700},
+]
+const _TIPS := {
+	"kind": "What the toon has to do. This is the objective, such as defeating cogs, visiting an NPC, or clearing a factory.",
+	"dept": "Which cog department counts. Any means every department.",
+	"where": "The place printed on the quest poster. Choosing a location also sets hood and zone, which decide where progress counts. A building name only changes the poster.",
+	"headline": "The word at the top of the quest poster, such as WANTED, VISIT, or RECOVER.",
+	"caption": "The short line on the poster, such as 4 Cogs or A Blackboard Eraser.",
+	"speech": "The one line shown in the Shticker Book when the task has no longer speech.",
+	"cog": "Which cog counts. any means every cog. A letter is one cog, such as f for a Flunky.",
+	"holder": "Who is carrying a recovered item. any, a cog code, a department letter, fish, or a cog level.",
+	"holder_name": "The name in the recover line, such as The Cogs.",
+	"holder_type": "How holder is matched. type is a cog code, track is a department, and level is a minimum cog level.",
+	"track": "The cog building's department, or any.",
+	"turn_in": "Where the finished task is returned. hq is a Toon HQ. A number is that NPC's interior.",
+	"goal": "How many times the objective must be finished.",
+	"hood": "The playground or Cog HQ that counts. 0 means the hood is not the limit.",
+	"zone": "The street, factory, mint, office, or golf course that counts. 0 lets hood decide. Both at 0 means anywhere.",
+	"npc": "The NPC who gives or receives the task. 0 is a Toon HQ officer.",
+	"from": "The NPC who is allowed to offer the task. 0 means any NPC for that tier.",
+	"reward": "Jellybeans paid when the task is turned in.",
+	"chance": "The percent chance that one defeat or catch recovers the item.",
+	"level": "The minimum cog level that counts. 0 means any level.",
+	"floors": "How many floors a cog building must have.",
+	"tier": "Which task tier is allowed to offer this task.",
+	"newbie": "The laff a helped toon must be at or under. 0 uses the usual limit for that place.",
+	"laff": "Laff points given when the task is turned in.",
+	"gag_track": "The gag track a deliver-gags task asks for. 0 is Toon-up.",
+	"gag_level": "The gag in that track. 0 is the first gag.",
+	"next": "The task handed out after this one. One number, or several separated by commas for a random choice.",
+	"tracks": "The gag tracks a track-choice task may offer, separated by commas. 0 is Toon-up and 3 is Sound.",
+	"show_count": "The poster shows how far along the task is, such as 2 of 4.",
+	"start": "A Toon HQ can offer this task at the start of its tier.",
+	"same": "The toon must return to the same NPC who gave the task.",
+	"lines": "What the NPC says when giving the task. Put one sentence on each line.",
+	"busy": "What the NPC says before the task is finished. Put one sentence on each line.",
+}
 const _TASK := {
 	"headline": "WANTED",
 	"caption": "A Cog",
@@ -47,6 +147,19 @@ var _tabs: Array[TextureButton] = []
 var _list: ItemList
 var _key: LineEdit
 var _body: TextEdit
+var _json_label: Label
+var _task_scroll: ScrollContainer
+var _task_rows: VBoxContainer
+var _task_labels: Dictionary = {}
+var _task_lines: Dictionary = {}
+var _task_checks: Dictionary = {}
+var _task_blocks: Dictionary = {}
+var _kind_pick: OptionButton
+var _dept_pick: OptionButton
+var _where_pick: OptionButton
+var _next_edit: LineEdit
+var _tracks_edit: LineEdit
+var _task_write := false
 var _form: Control
 var _fields: Dictionary = {}
 var _field_labels: Dictionary = {}
@@ -85,7 +198,13 @@ func _ready() -> void:
 	add_child(_key)
 	_body = TextEdit.new()
 	_body.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_body.text_changed.connect(_on_task_json)
 	add_child(_body)
+	_json_label = Label.new()
+	_json_label.text = "JSON"
+	_json_label.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(_json_label)
+	_build_task_form()
 	_form = Control.new()
 	_form.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(_form)
@@ -124,10 +243,9 @@ func layout(page_size: Vector2) -> void:
 	var edit_w := page_size.x * 0.58
 	_key.position = Vector2(edit_x, list_top)
 	_key.size = Vector2(edit_w, tab_h)
-	_body.position = Vector2(edit_x, list_top + tab_h + 6.0)
-	_body.size = Vector2(edit_w, bottom - list_top - tab_h - 6.0)
-	_form.position = _body.position
-	_form.size = _body.size
+	_form.position = Vector2(edit_x, list_top + tab_h + 6.0)
+	_form.size = Vector2(edit_w, bottom - list_top - tab_h - 6.0)
+	_place_editor()
 	_place_fields(px)
 	var button_w := edit_w * 0.3
 	var button_y := bottom + 8.0
@@ -181,6 +299,141 @@ func _place_fields(px: int) -> void:
 		ToonGui.style_label(label, _INK, px, Color(0, 0, 0, 0), 0)
 
 
+func _place_editor() -> void:
+	if _page == Vector2.ZERO or _body == null:
+		return
+	var top := _page.y * 0.1
+	var tab_h := _page.y * 0.055
+	var list_top := top + tab_h + 8.0
+	var bottom := _page.y * 0.9
+	var edit_x := _page.x * 0.38
+	var edit_w := _page.x * 0.58
+	var editor_top := list_top + tab_h + 6.0
+	var editor_h := bottom - editor_top
+	var px := maxi(int(_page.y * 0.032), 12)
+	if _section == 0:
+		var form_h := editor_h * 0.58
+		_task_scroll.position = Vector2(edit_x, editor_top)
+		_task_scroll.size = Vector2(edit_w, form_h)
+		_task_rows.custom_minimum_size.x = maxf(edit_w - 18.0, 40.0)
+		var label_h := tab_h * 0.72
+		_json_label.position = Vector2(edit_x, editor_top + form_h + 2.0)
+		_json_label.size = Vector2(edit_w, label_h)
+		ToonGui.style_label(_json_label, _INK, px, Color(0, 0, 0, 0), 0)
+		_body.position = Vector2(edit_x, _json_label.position.y + label_h)
+		_body.size = Vector2(edit_w, maxf(bottom - _body.position.y, 24.0))
+	else:
+		_body.position = Vector2(edit_x, editor_top)
+		_body.size = Vector2(edit_w, editor_h)
+	for title in _task_labels.keys():
+		ToonGui.style_label(_task_labels[title] as Label, _INK, px, Color(0, 0, 0, 0), 0)
+
+
+func _build_task_form() -> void:
+	_task_scroll = ScrollContainer.new()
+	_task_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(_task_scroll)
+	_task_rows = VBoxContainer.new()
+	_task_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_task_rows.add_theme_constant_override("separation", 4)
+	_task_scroll.add_child(_task_rows)
+	_kind_pick = _task_choice("kind")
+	for kind in _TASK_KINDS:
+		_kind_pick.add_item(kind)
+	_kind_pick.item_selected.connect(_on_kind_picked)
+	_dept_pick = _task_choice("dept")
+	for index in _DEPT_CODES.size():
+		_dept_pick.add_item(_DEPT_NAMES[index])
+		_dept_pick.set_item_metadata(index, _DEPT_CODES[index])
+	_dept_pick.item_selected.connect(_on_dept_picked)
+	_where_pick = _task_choice("where")
+	for index in _PLACES.size():
+		_where_pick.add_item(String(_PLACES[index]["where"]))
+		_where_pick.set_item_metadata(index, index)
+	_where_pick.item_selected.connect(_on_where_picked)
+	for field in _TASK_TEXT:
+		var edit := _task_line(field)
+		edit.text_changed.connect(_on_task_text.bind(field))
+		_task_lines[field] = edit
+	for field in _TASK_NUMBER:
+		var edit := _task_line(field)
+		edit.text_changed.connect(_on_task_number.bind(field))
+		_task_lines[field] = edit
+	_next_edit = _task_line("next")
+	_next_edit.text_changed.connect(_on_task_next)
+	_tracks_edit = _task_line("tracks")
+	_tracks_edit.placeholder_text = "0, 3"
+	_tracks_edit.text_changed.connect(_on_task_tracks)
+	for field in _TASK_CHECK:
+		var check := CheckButton.new()
+		check.text = field
+		check.focus_mode = Control.FOCUS_NONE
+		check.toggled.connect(_on_task_check.bind(field))
+		_tip(check, field)
+		_task_rows.add_child(check)
+		_task_checks[field] = check
+	for field in ["lines", "busy"]:
+		var block := _task_block(field)
+		block.text_changed.connect(_on_task_block.bind(field))
+		_task_blocks[field] = block
+
+
+func _task_choice(title: String) -> OptionButton:
+	var row := HBoxContainer.new()
+	row.add_child(_task_caption(title))
+	var pick := OptionButton.new()
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pick.focus_mode = Control.FOCUS_NONE
+	_tip(pick, title)
+	row.add_child(pick)
+	_task_rows.add_child(row)
+	return pick
+
+
+func _task_line(title: String) -> LineEdit:
+	var row := HBoxContainer.new()
+	row.add_child(_task_caption(title))
+	var edit := LineEdit.new()
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.custom_minimum_size = Vector2(0, 24)
+	_tip(edit, title)
+	row.add_child(edit)
+	_task_rows.add_child(row)
+	return edit
+
+
+func _task_block(title: String) -> TextEdit:
+	var row := HBoxContainer.new()
+	row.add_child(_task_caption(title))
+	var edit := TextEdit.new()
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.custom_minimum_size = Vector2(0, 68)
+	edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	edit.placeholder_text = "One line each"
+	_tip(edit, title)
+	row.add_child(edit)
+	_task_rows.add_child(row)
+	return edit
+
+
+func _task_caption(title: String) -> Label:
+	var label := Label.new()
+	label.text = title
+	label.custom_minimum_size = Vector2(118, 24)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tip(label, title)
+	_task_labels[title] = label
+	return label
+
+
+func _tip(node: Control, field: String) -> void:
+	var text := String(_TIPS.get(field, ""))
+	if text.is_empty():
+		return
+	node.tooltip_text = text
+
+
 func _pick_section(index: int) -> void:
 	_section = index
 	_confirm = ""
@@ -188,10 +441,14 @@ func _pick_section(index: int) -> void:
 
 
 func _show_section() -> void:
+	_task_write = true
 	_list.clear()
 	_body.text = ""
 	_key.text = ""
+	_task_write = false
 	_body.visible = _section <= 1 or _section == 4
+	_json_label.visible = _section == 0
+	_task_scroll.visible = _section == 0
 	_key.visible = _section <= 1
 	_form.visible = _section == 2 or _section == 3
 	_body.editable = _section <= 1
@@ -205,7 +462,11 @@ func _show_section() -> void:
 	if new_label != null:
 		new_label.text = "Restore" if _section == 3 else "New"
 	_key.placeholder_text = "Task number" if _section == 0 else "Cog code"
+	_key.tooltip_text = "The task number. Save stores this task under that number." if _section == 0 else "The cog's short code, such as f for a Flunky."
+	_json_label.tooltip_text = "The same task written as JSON. The form and this box update each other."
+	_place_editor()
 	if _section == 0:
+		_fill_task_form({})
 		_fill_tasks()
 	elif _section == 1:
 		_fill_cogs()
@@ -275,7 +536,11 @@ func _pick_row(index: int) -> void:
 	if _section == 0:
 		_task_id = int(_list.get_item_metadata(index))
 		_key.text = str(_task_id)
-		_body.text = JSON.stringify(ToonTasks.quest_record(_task_id), "\t")
+		var record := ToonTasks.quest_record(_task_id)
+		_task_write = true
+		_body.text = JSON.stringify(record, "\t")
+		_task_write = false
+		_fill_task_form(record)
 	elif _section == 1:
 		_cog_code = String(_list.get_item_metadata(index))
 		_key.text = _cog_code
@@ -356,7 +621,10 @@ func _on_new() -> void:
 		var next := 1 if ids.is_empty() else ids[ids.size() - 1] + 1
 		_task_id = next
 		_key.text = str(next)
+		_task_write = true
 		_body.text = JSON.stringify(_TASK, "\t")
+		_task_write = false
+		_fill_task_form(_TASK)
 		_status.text = "New task %d. Save stores it." % next
 	elif _section == 1:
 		_cog_code = ""
@@ -404,10 +672,233 @@ func _delete_task() -> void:
 		return
 	ToonTasks.remove_quest(quest_id)
 	_confirm = ""
+	_task_write = true
 	_body.text = ""
 	_key.text = ""
+	_task_write = false
+	_fill_task_form({})
 	_fill_tasks()
 	_status.text = "Removed task %d. The original file was left as it was." % quest_id
+
+
+func _on_task_json() -> void:
+	if _task_write or _section != 0:
+		return
+	var parsed: Variant = JSON.parse_string(_body.text)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	_fill_task_form(parsed)
+
+
+func _fill_task_form(record: Dictionary) -> void:
+	_task_write = true
+	_select_option(_kind_pick, _shown(record.get("kind", "cog")), false)
+	_select_option(_dept_pick, _shown(record.get("dept", "")), true)
+	_show_where(_shown(record.get("where", "")))
+	for field in _task_lines.keys():
+		var edit: LineEdit = _task_lines[field]
+		if _TASK_NUMBER.has(String(field)) and not record.has(field):
+			edit.text = ""
+		else:
+			edit.text = _shown(record.get(field, ""))
+	_next_edit.text = _joined(record.get("next", ""))
+	_tracks_edit.text = _joined(record.get("tracks", ""))
+	for field in _task_checks.keys():
+		var check: CheckButton = _task_checks[field]
+		check.button_pressed = bool(record.get(field, false))
+	for field in _task_blocks.keys():
+		var block: TextEdit = _task_blocks[field]
+		block.text = _lined(record.get(field, []))
+	_task_write = false
+
+
+func _shown(value: Variant) -> String:
+	if value is int:
+		return str(value)
+	if value is float:
+		var number := float(value)
+		if is_equal_approx(number, snappedf(number, 1.0)):
+			return str(int(number))
+		return str(number)
+	return str(value)
+
+
+func _select_option(pick: OptionButton, wanted: String, by_meta: bool) -> void:
+	for index in pick.item_count:
+		var found := pick.get_item_text(index)
+		if by_meta:
+			found = String(pick.get_item_metadata(index))
+		if found == wanted:
+			pick.select(index)
+			return
+	var shown := wanted if wanted != "" else "any"
+	pick.add_item(shown)
+	var last := pick.item_count - 1
+	pick.set_item_metadata(last, wanted)
+	pick.select(last)
+
+
+func _joined(value: Variant) -> String:
+	if value is Array:
+		var parts := PackedStringArray()
+		for item in value as Array:
+			parts.append(str(item))
+		return ", ".join(parts)
+	return str(value)
+
+
+func _lined(value: Variant) -> String:
+	if value is Array:
+		var parts := PackedStringArray()
+		for item in value as Array:
+			parts.append(_shown(item))
+		return "\n".join(parts)
+	return ""
+
+
+func _on_kind_picked(index: int) -> void:
+	_write_task("kind", _kind_pick.get_item_text(index), false)
+
+
+func _on_dept_picked(index: int) -> void:
+	var code := String(_dept_pick.get_item_metadata(index))
+	if code.is_empty():
+		_write_task("dept", "", true)
+		return
+	_write_task("dept", code, false)
+
+
+func _show_where(text: String) -> void:
+	while _where_pick.item_count > _PLACES.size():
+		_where_pick.remove_item(_PLACES.size())
+	if text.is_empty():
+		_where_pick.selected = -1
+		return
+	for index in _PLACES.size():
+		if String(_PLACES[index]["where"]) == text:
+			_where_pick.select(index)
+			return
+	_where_pick.add_item(text)
+	_where_pick.set_item_metadata(_where_pick.item_count - 1, -1)
+	_where_pick.select(_where_pick.item_count - 1)
+
+
+func _on_where_picked(index: int) -> void:
+	if _task_write or _section != 0:
+		return
+	var where := _where_pick.get_item_text(index)
+	var place_index := int(_where_pick.get_item_metadata(index))
+	if place_index < 0 or place_index >= _PLACES.size():
+		_write_task("where", where, false)
+		return
+	var place: Dictionary = _PLACES[place_index]
+	if not bool(place.get("apply", true)):
+		_write_task("where", where, false)
+		return
+	_task_write = true
+	(_task_lines["hood"] as LineEdit).text = str(int(place["hood"]))
+	(_task_lines["zone"] as LineEdit).text = str(int(place["zone"]))
+	_task_write = false
+	_write_fields({
+		"where": String(place["where"]),
+		"hood": int(place["hood"]),
+		"zone": int(place["zone"]),
+	})
+
+
+func _on_task_text(text: String, field: String) -> void:
+	_write_task(field, text, false)
+
+
+func _on_task_number(text: String, field: String) -> void:
+	var clean := text.strip_edges()
+	if clean.is_empty():
+		_write_task(field, "", true)
+		return
+	if not clean.is_valid_int():
+		return
+	_write_task(field, int(clean), false)
+
+
+func _on_task_next(text: String) -> void:
+	var clean := text.strip_edges()
+	if clean.is_empty():
+		_write_task("next", "", true)
+		return
+	var pieces := clean.split(",")
+	if pieces.size() == 1 and pieces[0].strip_edges().is_valid_int():
+		_write_task("next", int(pieces[0]), false)
+		return
+	var ids: Array = []
+	for piece in pieces:
+		var bit := piece.strip_edges()
+		if bit.is_valid_int():
+			ids.append(int(bit))
+	_write_task("next", ids, false)
+
+
+func _on_task_tracks(text: String) -> void:
+	var ids: Array = []
+	for piece in text.split(","):
+		var bit := piece.strip_edges()
+		if bit.is_valid_int():
+			ids.append(int(bit))
+	if ids.is_empty():
+		_write_task("tracks", "", true)
+		return
+	_write_task("tracks", ids, false)
+
+
+func _on_task_check(on: bool, field: String) -> void:
+	_write_task(field, on, false)
+
+
+func _on_task_block(field: String) -> void:
+	var block: TextEdit = _task_blocks[field]
+	var rows: Array = []
+	for line in block.text.split("\n"):
+		if not String(line).strip_edges().is_empty():
+			rows.append(String(line))
+	if rows.is_empty():
+		_write_task(field, "", true)
+		return
+	_write_task(field, rows, false)
+
+
+func _write_task(field: String, value: Variant, drop: bool) -> void:
+	if _task_write or _section != 0:
+		return
+	var parsed: Variant = JSON.parse_string(_body.text)
+	var record: Dictionary = {}
+	if typeof(parsed) == TYPE_DICTIONARY:
+		record = parsed as Dictionary
+	elif not _body.text.strip_edges().is_empty():
+		_status.text = "The JSON is not an object, so the form cannot update it."
+		return
+	if drop:
+		record.erase(field)
+	else:
+		record[field] = value
+	_task_write = true
+	_body.text = JSON.stringify(record, "\t")
+	_task_write = false
+
+
+func _write_fields(changes: Dictionary) -> void:
+	if _task_write or _section != 0:
+		return
+	var parsed: Variant = JSON.parse_string(_body.text)
+	var record: Dictionary = {}
+	if typeof(parsed) == TYPE_DICTIONARY:
+		record = parsed as Dictionary
+	elif not _body.text.strip_edges().is_empty():
+		_status.text = "The JSON is not an object, so the form cannot update it."
+		return
+	for field in changes.keys():
+		record[field] = changes[field]
+	_task_write = true
+	_body.text = JSON.stringify(record, "\t")
+	_task_write = false
 
 
 func _save_cog() -> void:
