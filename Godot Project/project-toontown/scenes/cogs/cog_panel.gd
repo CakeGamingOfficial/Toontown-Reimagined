@@ -21,7 +21,7 @@ const _CARD_SHIFT := Vector2(-0.1, -0.1) * 0.21 + Vector2(0.0, 0.02)
 const _BODY := ["legs", "hands", "torso", "arms", "node", "CorpIcon"]
 
 var _open := false
-var _actor: Cog
+var _actor: Node3D
 var _dept := "c"
 var _card: TextureRect
 var _head_port: SubViewport
@@ -57,13 +57,13 @@ func _process(_delta: float) -> void:
 		hide_panel()
 
 
-func show_cog(actor: Cog, cog_name: String, dept: String) -> void:
+func show_cog(actor: Node3D, cog_name: String, dept: String) -> void:
 	_actor = actor
 	_dept = dept
 	_open = true
 	visible = true
 	_name_label.text = cog_name
-	_level_label.text = "Level: %d" % actor.cog_level
+	_level_label.text = "Level: %d" % int(actor.get("cog_level"))
 	_dept_label.text = Cog.dept_name(dept)
 	_icon.texture = _icon_for(dept)
 	_icon.modulate = Cog.medallion_color(dept)

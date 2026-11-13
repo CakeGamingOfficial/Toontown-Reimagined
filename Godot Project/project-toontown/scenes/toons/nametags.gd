@@ -77,6 +77,8 @@ func add(actor: Node3D, text: String, kind: String = "player", text_tint: Color 
 		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		panel.z_index = 35
 		panel.set_meta("cog_name", text.get_slice("\n", 0))
+		if actor.get("dept") != null:
+			panel.set_meta("dept", String(actor.get("dept")))
 		panel.gui_input.connect(_on_cog_tag.bind(panel, actor))
 		panel.mouse_entered.connect(_suit_look.bind(panel, label, true))
 		panel.mouse_exited.connect(_suit_look.bind(panel, label, false))
@@ -243,7 +245,35 @@ func _on_cog_tag(event: InputEvent, tag: Control, actor: Node3D) -> void:
 	if host != null and host.has_method("in_cutscene") and bool(host.call("in_cutscene")):
 		return
 	tag.accept_event()
+	_open_cog_card(actor, tag)
 	cog_clicked.emit(actor, tag)
+
+
+func _open_cog_card(actor: Node3D, tag: Control) -> void:
+	if not is_instance_valid(actor) or actor.get("cog_level") == null:
+		return
+	var host := _cog_card_host()
+	var panel := host.get_node_or_null("CogPanel") as CogPanel
+	if panel == null:
+		panel = CogPanel.new()
+		panel.name = "CogPanel"
+		host.add_child(panel)
+	var cog_name := String(tag.get_meta("cog_name", "Cog"))
+	var dept := String(tag.get_meta("dept", "c"))
+	panel.show_cog(actor, cog_name, dept)
+
+
+func _cog_card_host() -> Node:
+	var scene := get_tree().current_scene if get_tree() != null else null
+	if scene != null:
+		var toon := scene.find_child("PlaygroundToon", true, false)
+		if toon != null:
+			var hud := toon.get_node_or_null("Hud")
+			if hud != null:
+				return hud
+	if layer != null:
+		return layer
+	return self
 
 
 func _on_friend_tag(event: InputEvent, actor: Node) -> void:

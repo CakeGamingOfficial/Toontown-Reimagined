@@ -1523,10 +1523,7 @@ func _add_nametag() -> void:
 	if _revives > 0:
 		level_text += " v2.0"
 	# SuitBaseNameWithLevel: name, department, level, on the translucent suit card.
-	var tag: Variant = board.call("add", self, "%s\n%s\n%s" % [cog_name, dept_name, level_text], "cog")
-	var panel := tag as Control
-	if panel != null:
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	board.call("add", self, "%s\n%s\n%s" % [cog_name, dept_name, level_text], "cog")
 
 
 func _attach_propeller() -> void:
