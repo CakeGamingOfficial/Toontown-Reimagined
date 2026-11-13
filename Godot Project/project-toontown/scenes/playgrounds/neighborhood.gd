@@ -6,6 +6,7 @@ extends Node3D
 ## A zones_path turns on the original visgroup stash for that street.
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
+const _FIREWORK_SHOW := preload("res://scenes/effects/firework_show.gd")
 const _BACKDROP := preload("res://scenes/sky/cog_backdrop.gdshader")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -141,6 +142,15 @@ func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	_process_billboards(camera)
+	_watch_fireworks()
+
+
+func show_fireworks(show_name: String, at: int = -1, delay: float = 0.0) -> void:
+	_FIREWORK_SHOW.present(self, show_name, at, delay)
+
+
+func _watch_fireworks() -> void:
+	_FIREWORK_SHOW.follow(self)
 
 
 func _notification(what: int) -> void:
@@ -435,8 +445,12 @@ func _yaw_toward(node: Node3D, rest: Basis, target: Vector3) -> void:
 	to_target.y = 0.0
 	if face.length() < 0.0001 or to_target.length() < 0.0001:
 		return
+	var angle := face.signed_angle_to(to_target, Vector3.UP)
+	if absf(angle_difference(float(node.get_meta(&"billboard_yaw", 999.0)), angle)) < 0.02:
+		return
+	node.set_meta(&"billboard_yaw", angle)
 	var turned := node.global_transform
-	turned.basis = rest.rotated(Vector3.UP, face.signed_angle_to(to_target, Vector3.UP))
+	turned.basis = rest.rotated(Vector3.UP, angle)
 	node.global_transform = turned
 
 

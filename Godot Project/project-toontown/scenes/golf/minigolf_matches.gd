@@ -259,6 +259,7 @@ func _launch(kart: Dictionary) -> void:
 			"lie_x": 0.0,
 			"lie_y": 0.0,
 			"lie_z": 0.0,
+			"aim_time": 0.0,
 		})
 	var game := {
 		"id": _seq,
@@ -319,6 +320,10 @@ func _ready_player(game: Dictionary) -> void:
 func _queue_swing(game: Dictionary, hold: float, aim: float) -> void:
 	if String(game["phase"]) != "aim":
 		return
+	if int(game.get("sim_tries", 0)) == 0:
+		var player: Dictionary = _player(game)
+		var aimed := MiniGolfRules.AIM_TIME - maxf(float(game["timer"]), 0.0)
+		player["aim_time"] = float(player.get("aim_time", 0.0)) + maxf(aimed, 0.0)
 	game["phase"] = "roll"
 	game["timer"] = 60.0
 	_queued.append({"game": game, "hold": hold, "aim": aim})
@@ -333,7 +338,8 @@ func _swing_player(game: Dictionary, hold: float, aim: float) -> void:
 		_hole_id(game),
 		Vector3(float(player["lie_x"]), float(player["lie_y"]), float(player["lie_z"])),
 		aim,
-		hold
+		hold,
+		float(game.get("clock", 0.0))
 	)
 	if not bool(shot.get("ready", true)) and int(game.get("sim_tries", 0)) < 8:
 		game["sim_tries"] = int(game.get("sim_tries", 0)) + 1
@@ -404,7 +410,7 @@ func _advance(game: Dictionary) -> void:
 			return
 	if int(game["hole_i"]) + 1 >= (game["holes"] as Array).size():
 		game["phase"] = "card"
-		game["timer"] = 8.0
+		game["timer"] = 12.0
 		game["winner"] = _winner(game)
 		game["path"] = []
 		return
@@ -419,7 +425,7 @@ func _skip_hole(peer: int) -> void:
 	var holes: Array = game["holes"]
 	if int(game["hole_i"]) + 1 >= holes.size():
 		game["phase"] = "card"
-		game["timer"] = 8.0
+		game["timer"] = 12.0
 		game["winner"] = _winner(game)
 		game["path"] = []
 		return
@@ -542,12 +548,14 @@ func _export() -> Dictionary:
 		var avs: Array = []
 		var names: Array = []
 		var scores: Array = []
+		var aims: Array = []
 		var ins: Array = []
 		var lies: Array = []
 		for player in game["players"]:
 			avs.append(int(player["av"]))
 			names.append(String(player["name"]))
 			scores.append(player["scores"])
+			aims.append(float(player.get("aim_time", 0.0)))
 			ins.append(bool(player["in"]))
 			lies.append(float(player["lie_x"]))
 			lies.append(float(player["lie_y"]))
@@ -572,6 +580,7 @@ func _export() -> Dictionary:
 			"avs": avs,
 			"names": names,
 			"scores": scores,
+			"aims": aims,
 			"ins": ins,
 			"lies": lies,
 			"winner": String(game["winner"]),

@@ -8,6 +8,7 @@ uniform sampler2D zenith_tex : source_color, repeat_enable, filter_linear;
 uniform vec4 crop = vec4(0.0, 0.0, 1.0, 1.0);
 uniform float repeats = 6.0;
 uniform int zenith_mode = 0;
+uniform float night = 1.0;
 
 void sky() {
 	vec3 dir = normalize(EYEDIR);
@@ -29,5 +30,5 @@ void sky() {
 		float cover = smoothstep(0.2, 0.55, horiz);
 		color = mix(top, band, cover);
 	}
-	COLOR = color;
+	COLOR = color * night;
 }

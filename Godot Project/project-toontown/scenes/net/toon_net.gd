@@ -304,6 +304,20 @@ static func share_dev(kind: String, state: Dictionary) -> void:
 		net._share_dev.rpc_id(1, kind, packed)
 
 
+## A public party listing. The host id is the sender, so one toon cannot
+## overwrite another toon's party.
+static func share_party(state: Dictionary) -> void:
+	var net := live()
+	if net == null or net._role == "offline":
+		return
+	var packed := net._pack(state) as Dictionary
+	if is_authority():
+		net._store("party:%d" % peer_id(), packed)
+		return
+	if net._role == "client":
+		net._share_party.rpc_id(1, packed)
+
+
 static func minigolf_act(kind: String, a: int, b: float, c: float) -> void:
 	var net := live()
 	if net == null:
@@ -1567,6 +1581,16 @@ static func stored_laff(peer: int) -> Vector2i:
 	return Vector2i(int(row.get("hp", 1)), int(row.get("max_hp", 1)))
 
 
+static func stored_organic(peer: int, track: int) -> int:
+	var row: Dictionary = _BANK.recall(avatar_of(peer))
+	if row.is_empty():
+		return -1
+	var grown: Array = row.get("organic", [])
+	if track < 0 or track >= grown.size():
+		return -1
+	return int(grown[track])
+
+
 static func stored_exp(peer: int, track: int) -> int:
 	var row: Dictionary = _BANK.recall(avatar_of(peer))
 	if row.is_empty():
@@ -2208,7 +2232,8 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 		var raw: Variant = state.get("taken", [])
 		if raw is Array:
 			taken = (raw as Array).duplicate()
-		if value >= 0 and value < 64 and not taken.has(value):
+		# Catching can drop more than a hundred objects. 64 cut off the later fruit.
+		if value >= 0 and value < 256 and not taken.has(value):
 			taken.append(value)
 		state["taken"] = taken
 	elif kind == "pick":
@@ -2312,6 +2337,13 @@ func _share_dev(kind: String, state: Dictionary) -> void:
 
 
 @rpc("any_peer", "reliable")
+func _share_party(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_store("party:%d" % multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "reliable")
 func _minigolf_act(kind: String, a: int, b: float, c: float) -> void:
 	if not is_authority():
 		return
@@ -2386,6 +2418,7 @@ func _accept_claim(peer: int, av_id: int, record: Dictionary) -> void:
 		kept = _BANK.recall(av_id)
 	else:
 		_BANK.set_exp(av_id, record.get("exp", []))
+		_BANK.set_organic(av_id, record.get("organic", []))
 		kept = _BANK.recall(av_id)
 	var local := false
 	if multiplayer.multiplayer_peer == null:

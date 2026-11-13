@@ -121,6 +121,8 @@ var max_carry := CARRY
 var _counts: Array = []
 var _unlocked: Array = []
 var _exp: Array[int] = []
+## checkGagBonus. -1 means no gag of that track is organic yet.
+var _organic: Array[int] = []
 var _slot := -1
 # The tutorial Flunky fight sets this. It is not written into the save.
 var _tutorial_accuracy := false
@@ -137,7 +139,32 @@ func clear_tutorial_accuracy() -> void:
 func rolled_accuracy(track: int, level: int) -> int:
 	if _tutorial_accuracy:
 		return 100
+	if track == 2 and is_organic(track, level):
+		return _LURE_ORGANIC[clampi(level, 0, _LURE_ORGANIC.size() - 1)]
 	return gag_accuracy(track, level)
+
+
+func is_organic(track: int, level: int) -> bool:
+	if track < 0 or track >= _organic.size() or level < 0:
+		return false
+	return _organic[track] >= level
+
+
+func organic_levels() -> Array:
+	var row: Array = []
+	for level in _organic:
+		row.append(int(level))
+	return row
+
+
+## A ripe gag tree covers that level and every weaker gag on the track.
+func raise_organic(track: int, level: int) -> void:
+	if track < 0 or track >= _organic.size() or level < 0:
+		return
+	if _organic[track] >= level:
+		return
+	_organic[track] = level
+	save()
 
 
 static func for_selected() -> ToonLoadout:
@@ -402,9 +429,20 @@ func _regular_count() -> int:
 	return total
 
 
+## ToontownBattleGlobals.getDamageBonus. Ten percent, and at least one.
+static func damage_bonus(dealt: int) -> int:
+	if dealt <= 0:
+		return 0
+	var bonus := int(float(dealt) * 0.1)
+	if bonus < 1:
+		bonus = 1
+	return bonus
+
+
 ## ToontownBattleGlobals.getAvPropDamage. Experience between this gag's
 ## skill point and the next one climbs from the minimum damage to the maximum.
-static func gag_damage(track: int, level: int, exp: int) -> int:
+## organic is checkGagBonus for the toon who used the gag.
+static func gag_damage(track: int, level: int, exp: int, organic: bool = false) -> int:
 	if track < 0 or track >= _DAMAGE_MIN.size():
 		return 0
 	var lows: Array = _DAMAGE_MIN[track]
@@ -430,13 +468,8 @@ static func gag_damage(track: int, level: int, exp: int) -> int:
 	var dealt := int(floor(float(exp_val - min_exp) / per_point)) + low
 	if dealt <= 0:
 		dealt = low
-	if dealt > 0:
-		var garden := load("res://scenes/estate/garden.gd") as GDScript
-		if garden != null and bool(garden.organic(track, level)):
-			var bonus := int(float(dealt) * 0.1)
-			if bonus < 1:
-				bonus = 1
-			dealt += bonus
+	if organic:
+		dealt += damage_bonus(dealt)
 	return dealt
 
 
@@ -532,10 +565,20 @@ static func _write_gag_edits() -> void:
 
 ## The inventory names a gag from its own AvPropAccuracy, not the track's
 ## one word. 50 and 60 were both "Low", so a $1 bill and a $5 bill read the same.
-static func accuracy_label(track: int, level: int) -> String:
+## AvLureBonusAccuracy. An organic lure uses this table instead of AvPropAccuracy.
+const _LURE_ORGANIC: Array[int] = [60, 60, 70, 70, 80, 80, 100]
+
+
+static func lure_organic_accuracy(level: int) -> int:
+	return _LURE_ORGANIC[clampi(level, 0, _LURE_ORGANIC.size() - 1)]
+
+
+static func accuracy_label(track: int, level: int, organic: bool = false) -> String:
 	if track == 1:
 		return "Perfect"
 	var percent := gag_accuracy(track, level)
+	if organic and track == 2:
+		percent = _LURE_ORGANIC[clampi(level, 0, _LURE_ORGANIC.size() - 1)]
 	return "%s (%d%%)" % [accuracy_word(percent), percent]
 
 
@@ -600,6 +643,9 @@ func apply_dict(record: Dictionary) -> void:
 	var experience: Array = record.get("exp", [])
 	for track in mini(experience.size(), TRACK_COUNT):
 		_exp[track] = maxi(int(experience[track]), 0)
+	var grown: Array = record.get("organic", [])
+	for track in mini(grown.size(), TRACK_COUNT):
+		_organic[track] = int(grown[track])
 	hp_changed.emit(hp, max_hp)
 
 
@@ -716,6 +762,7 @@ func save() -> void:
 		"counts": _counts,
 		"unlocked": _unlocked,
 		"exp": _exp,
+		"organic": organic_levels(),
 	}
 	root["slots"] = slots
 	var file := FileAccess.open(_PATH, FileAccess.WRITE)
@@ -741,6 +788,9 @@ func _blank() -> void:
 	_exp.clear()
 	_exp.resize(TRACK_COUNT)
 	_exp.fill(0)
+	_organic.clear()
+	_organic.resize(TRACK_COUNT)
+	_organic.fill(-1)
 
 
 func _load() -> void:
@@ -766,6 +816,14 @@ func _load() -> void:
 	var experience: Array = stored.get("exp", [])
 	for track in mini(experience.size(), TRACK_COUNT):
 		_exp[track] = int(experience[track])
+	var grown: Array = stored.get("organic", [])
+	for track in mini(grown.size(), TRACK_COUNT):
+		_organic[track] = int(grown[track])
+	# A tree picked before this was saved on the toon still counts.
+	var garden := load("res://scenes/estate/garden.gd") as GDScript
+	if garden != null:
+		for track in TRACK_COUNT:
+			_organic[track] = maxi(_organic[track], int(garden.organic_level(track)))
 
 
 func _read_file() -> Dictionary:

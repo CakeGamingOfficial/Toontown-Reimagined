@@ -31,6 +31,8 @@ var _view := Vector2.ZERO
 var _reload_armed := false
 var _reload_point := Vector3.ZERO
 var _reload_heading := 0.0
+var _ui_hidden := false
+var _ui_layers: Array[CanvasLayer] = []
 
 
 func _ready() -> void:
@@ -51,11 +53,15 @@ func _input(event: InputEvent) -> void:
 		_view = Vector2.ZERO
 		get_viewport().set_input_as_handled()
 		return
-	if not _KEYS.event_is(event, "metrics"):
+	if _KEYS.event_is(event, "metrics"):
+		if _panel != null:
+			_panel.visible = not _panel.visible
+		_view = Vector2.ZERO
+		get_viewport().set_input_as_handled()
 		return
-	if _panel != null:
-		_panel.visible = not _panel.visible
-	_view = Vector2.ZERO
+	if not _KEYS.event_is(event, "interface") or get_viewport().is_input_handled():
+		return
+	_toggle_interface()
 	get_viewport().set_input_as_handled()
 
 
@@ -66,6 +72,8 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if _ui_hidden:
+		_hide_interface()
 	_place_panel()
 	_fps_wait += delta
 	if _fps_wait >= 0.25:
@@ -327,6 +335,36 @@ func _hot_reload() -> void:
 		_push("Scene reload failed.", true)
 		return
 	_push("Reload: %d script(s), %s." % [changed, path.get_file()], false)
+
+
+func _toggle_interface() -> void:
+	if _ui_hidden:
+		for layer in _ui_layers:
+			if is_instance_valid(layer):
+				layer.visible = true
+		_ui_layers.clear()
+		_ui_hidden = false
+		return
+	_ui_hidden = true
+	_hide_interface()
+
+
+func _hide_interface() -> void:
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return
+	_hide_layers(tree.root)
+
+
+func _hide_layers(node: Node) -> void:
+	if node is CanvasLayer:
+		var layer := node as CanvasLayer
+		var spare := String(layer.name) == "ToonLoadingScreen" or String(layer.name) == "DisconnectNotice"
+		if not spare and layer.visible and not _ui_layers.has(layer):
+			layer.visible = false
+			_ui_layers.append(layer)
+	for child in node.get_children():
+		_hide_layers(child)
 
 
 func _on_scene_changed() -> void:

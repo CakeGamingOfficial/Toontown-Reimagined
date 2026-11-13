@@ -3,7 +3,7 @@ extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
 ## sit down the right edge, and the pages are Options, Districts, the map,
-## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Cog Disguise, Events, and Developer. Harry's reward still opens on the
+## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Karts, Golf, Cog Disguise, Events, and Developer. Harry's reward still opens on the
 ## map and turns to gags, then tasks.
 
 signal book_opened
@@ -19,11 +19,12 @@ const PAGE_TRACKS := 5
 const PAGE_COGS := 6
 const PAGE_FISH := 7
 const PAGE_KARTS := 8
-const PAGE_DISGUISE := 9
-const PAGE_GARDEN := 10
-const PAGE_EVENTS := 11
-const PAGE_DEVELOPER := 12
-const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Cog Disguise", "Gardening", "Events", "Developer"]
+const PAGE_GOLF := 9
+const PAGE_DISGUISE := 10
+const PAGE_GARDEN := 11
+const PAGE_EVENTS := 12
+const PAGE_DEVELOPER := 13
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Golf", "Cog Disguise", "Gardening", "Events", "Developer"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
@@ -117,6 +118,8 @@ const _TAB_FISH := preload("res://assets/gui/shticker/fishing/tab_fish.png")
 const _TAB_DISGUISE := preload("res://assets/gui/shticker/disguise/tab_icon.png")
 const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
 const _KART_PAGE := preload("res://scenes/shticker/kart_page.gd")
+const _GOLF_PAGE := preload("res://scenes/shticker/golf_page.gd")
+const _GOLF_TAB := preload("res://assets/gui/golf/score_card_icon.png")
 const _GARDEN_PAGE := preload("res://scenes/shticker/garden_page.gd")
 const _EVENTS_PAGE := preload("res://scenes/shticker/events_page.gd")
 const _DEVELOPER_PAGE := preload("res://scenes/shticker/developer_page.gd")
@@ -156,6 +159,7 @@ var _cogs: CogGallery
 var _tracks_page: TrackPage
 var _fish: Control
 var _karts: Control
+var _golf: Control
 var _garden: Control
 var _disguise: DisguisePage
 var _events: Control
@@ -425,6 +429,9 @@ func _build_book() -> void:
 	_karts = _KART_PAGE.new()
 	_cover.add_child(_karts)
 	_pages.append(_karts)
+	_golf = _GOLF_PAGE.new()
+	_cover.add_child(_golf)
+	_pages.append(_golf)
 	_disguise = DisguisePage.new()
 	_cover.add_child(_disguise)
 	_pages.append(_disguise)
@@ -445,7 +452,7 @@ func _build_book() -> void:
 	var flower := load("res://assets/neighborhoods/daisy_gardens/props/flower_treasure_0.png") as Texture2D
 	if flower == null:
 		flower = _TAB_FISH
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, kart_icon, _TAB_DISGUISE, flower, _EVENTS_PAGE.tab_icon(), _TAB_OPTIONS]
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, kart_icon, _GOLF_TAB, _TAB_DISGUISE, flower, _EVENTS_PAGE.tab_icon(), _TAB_OPTIONS]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -909,6 +916,8 @@ func _show_page(index: int) -> void:
 		_fish.call("refresh")
 	elif index == PAGE_KARTS and _karts != null:
 		_karts.call("refresh")
+	elif index == PAGE_GOLF and _golf != null:
+		_golf.call("refresh")
 	elif index == PAGE_DISGUISE and _disguise != null:
 		_disguise.refresh()
 	elif index == PAGE_GARDEN and _garden != null:
@@ -973,6 +982,8 @@ func _refresh_gags() -> void:
 			if owned:
 				var held := _loadout.count_of(track, level)
 				count.text = str(held)
+				var outline := Color.WHITE if _loadout.is_organic(track, level) else Color(0.05, 0.12, 0.28)
+				count.add_theme_color_override("font_outline_color", outline)
 				if _deleting and held > 0:
 					icon.modulate = Color(1.0, 0.35, 0.35)
 				elif _deleting:
@@ -1020,12 +1031,16 @@ func _on_gag(track: int, level: int) -> void:
 		else:
 			_detail.text = "%s\n\nClick to delete." % _loadout.gag_name(track, level)
 		return
+	var grown := _loadout.is_organic(track, level)
 	var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
-	var accuracy := ToonLoadout.accuracy_label(track, level)
+	var extra := ToonLoadout.damage_bonus(damage) if grown else 0
+	var bonus := " (+%d)" % extra if extra > 0 else ""
+	var accuracy := ToonLoadout.accuracy_label(track, level, grown)
 	var credit := _HOLIDAYS.gag_credit(ToonNet.district_id(), false, 0)
-	_detail.text = "%s\n\nDamage: %d\nAccuracy: %s\n%s\n%s" % [
+	_detail.text = "%s\n\nDamage: %d%s\nAccuracy: %s\n%s\n%s" % [
 		_loadout.gag_name(track, level),
 		damage,
+		bonus,
 		accuracy,
 		ToonLoadout.affects_label(track),
 		ToonLoadout.experience_line(level, credit),
@@ -1416,6 +1431,8 @@ func _layout() -> void:
 		_fish.call("layout", page_size)
 	if _karts != null:
 		_karts.call("layout", page_size)
+	if _golf != null:
+		_golf.call("layout", page_size)
 	if _disguise != null:
 		_disguise.layout(page_size)
 	if _garden != null:

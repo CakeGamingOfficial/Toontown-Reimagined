@@ -7,6 +7,7 @@ extends Node
 ## Toon.getTeleportOutTrack, then getTeleportInTrack on arrival.
 
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _FIREWORKS := preload("res://scenes/effects/firework_show.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _TITLE := preload("res://scenes/places/zone_title.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
@@ -568,6 +569,7 @@ func _process(delta: float) -> void:
 		_place_line(delta)
 		return
 	MagicWords.maintain(get_parent())
+	_FIREWORKS.follow(get_parent())
 	var book_open := _book != null and _book.is_open()
 	if _battle_hold:
 		pass
@@ -580,6 +582,8 @@ func _process(delta: float) -> void:
 		_trolley.aim(_camera)
 	elif _minigolf != null and _minigolf.has_method("holds_camera") and bool(_minigolf.call("holds_camera")):
 		_minigolf.call("aim", _camera)
+	elif _party_camera():
+		pass
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
 	elif _door_cam:
@@ -770,6 +774,16 @@ func quiet_line(expected: String = "") -> void:
 	_line_text = ""
 	_line_left = 0.0
 	_line.visible = false
+
+
+func _party_camera() -> bool:
+	var party := get_parent().get_node_or_null("PartyGrounds")
+	if party == null or not party.has_method("holds_camera"):
+		return false
+	if not bool(party.call("holds_camera")):
+		return false
+	party.call("aim", _camera)
+	return true
 
 
 func _quiet_fly_camera() -> void:
@@ -4477,7 +4491,7 @@ func local_toon() -> ToonActor:
 
 
 func _leave_water() -> void:
-	if _player != null:
+	if _player != null and not _player.has_meta("party_fly"):
 		_player.set_swimming(false)
 
 
@@ -4490,7 +4504,7 @@ func _walk(delta: float) -> void:
 	var right_held := _KEYS.held("right")
 	var aim_held := _KEYS.aim_held()
 	# The book clips replace walking until the toon closes it.
-	if _player != null and _player.holding_book():
+	if _player != null and (_player.holding_book() or _player.holding_emote()):
 		forward_held = false
 		back_held = false
 		left_held = false

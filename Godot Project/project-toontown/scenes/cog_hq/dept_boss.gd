@@ -281,7 +281,7 @@ func _paint_cogs() -> void:
 			if loadout.count_of(track, level) <= 0:
 				continue
 			var gag := loadout.gag_name(track, level)
-			var damage := ToonLoadout.gag_damage(track, level, loadout.experience_of(track))
+			var damage := ToonLoadout.gag_damage(track, level, loadout.experience_of(track), loadout.is_organic(track, level))
 			_button("%s x%d  (%d)" % [gag, loadout.count_of(track, level), damage], _use_gag.bind(track, level))
 
 
@@ -296,7 +296,7 @@ func _use_gag(track: int, level: int) -> void:
 	var loadout := _loadout()
 	if loadout == null or not loadout.spend_gag(track, level):
 		return
-	var damage := ToonLoadout.gag_damage(track, level, loadout.experience_of(track))
+	var damage := ToonLoadout.gag_damage(track, level, loadout.experience_of(track), loadout.is_organic(track, level))
 	if track == ToonLoadout.TOON_UP:
 		loadout.gain_hp(damage)
 		_body.text = "You healed %d laff." % damage

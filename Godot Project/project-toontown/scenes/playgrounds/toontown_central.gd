@@ -122,6 +122,8 @@ func _process_billboards(camera: Camera3D) -> void:
 		return
 	for item in _billboards:
 		var node := item["node"] as Node3D
+		if node == null or not is_instance_valid(node) or not node.is_visible_in_tree():
+			continue
 		var rest := item["rest"] as Basis
 		_yaw_toward(node, rest, camera.global_position)
 
@@ -135,8 +137,14 @@ func _yaw_toward(node: Node3D, rest: Basis, target: Vector3) -> void:
 	to_target.y = 0.0
 	if face.length() < 0.0001 or to_target.length() < 0.0001:
 		return
+	var angle := face.signed_angle_to(to_target, Vector3.UP)
+	# A still camera was rewriting every card anyway. About one degree is
+	# invisible, and it keeps the playground from moving hundreds of nodes.
+	if absf(angle_difference(float(node.get_meta(&"billboard_yaw", 999.0)), angle)) < 0.02:
+		return
+	node.set_meta(&"billboard_yaw", angle)
 	var turned := node.global_transform
-	turned.basis = rest.rotated(Vector3.UP, face.signed_angle_to(to_target, Vector3.UP))
+	turned.basis = rest.rotated(Vector3.UP, angle)
 	node.global_transform = turned
 
 

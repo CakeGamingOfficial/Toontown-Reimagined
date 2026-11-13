@@ -67,6 +67,7 @@ static func merge_exp(av_id: int, record: Dictionary) -> Dictionary:
 		var incoming := int(right[track]) if track < right.size() else 0
 		merged.append(maxi(kept, incoming))
 	record["exp"] = merged
+	record["organic"] = _higher_organic(existing.get("organic", []), record.get("organic", []))
 	return record
 
 
@@ -84,6 +85,25 @@ static func spend_gag(av_id: int, track: int, level: int) -> void:
 	counts[track] = pocket
 	row["counts"] = counts
 	store(av_id, row)
+
+
+static func set_organic(av_id: int, amounts: Array) -> void:
+	var row := recall(av_id)
+	if row.is_empty():
+		return
+	row["organic"] = _higher_organic(row.get("organic", []), amounts)
+	store(av_id, row)
+
+
+static func _higher_organic(left: Variant, right: Variant) -> Array:
+	var kept: Array = left if left is Array else []
+	var incoming: Array = right if right is Array else []
+	var levels: Array = []
+	for track in ToonLoadout.TRACK_COUNT:
+		var older := int(kept[track]) if track < kept.size() else -1
+		var newer := int(incoming[track]) if track < incoming.size() else -1
+		levels.append(maxi(older, newer))
+	return levels
 
 
 static func set_exp(av_id: int, amounts: Array, force: bool = false) -> void:
@@ -121,6 +141,7 @@ static func capture() -> Dictionary:
 		"counts": loadout.pocket_counts(),
 		"unlocked": loadout.pocket_unlocked(),
 		"exp": loadout.track_experience(),
+		"organic": loadout.organic_levels(),
 		"pouch": _BEANS.pouch(),
 		"bank": _BEANS.bank(),
 		"max_money": _BEANS.pouch_limit(),

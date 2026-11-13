@@ -21,6 +21,8 @@ const _UNKNOWN := "That's not anyone's True Friend Code.  Are you sure you spell
 const _OWN_CODE := "You just typed in your own True Friend Code!  Now no one else can use that True Friend Code."
 const _TOO_MANY_CODES := "Sorry, you can't have any more True Friend Codes today.  You've already had more than your fair share!\n\nTry again tomorrow."
 const _LIST_FULL := "You can't be friends because one of you has too many friends on your friends list."
+## ResistanceChat.EFFECT_RADIUS. Same district and scene, then this far.
+const _UNITE_RADIUS := 30.0
 
 static var visit_on := false
 static var visit_scene := ""
@@ -55,7 +57,7 @@ static func lookup(av: int) -> Dictionary:
 	return {}
 
 
-func say(text: String, speedchat: bool) -> void:
+func say(text: String, speedchat: bool, emote: int = -1) -> void:
 	var spoken := text.strip_edges()
 	if spoken == "":
 		return
@@ -63,6 +65,7 @@ func say(text: String, speedchat: bool) -> void:
 		"kind": "say",
 		"text": spoken,
 		"speedchat": speedchat,
+		"emote": emote,
 		"from_av": ToonRoster.avatar_id(),
 		"from_name": _my_name(),
 		"place": _place(),
@@ -196,6 +199,8 @@ func _handle(msg: Dictionary, from_peer: int) -> void:
 		return
 	if kind == "say" or kind == "whisper":
 		_relay_chat(msg, from_peer)
+	elif kind == "unite":
+		_relay_unite(msg, from_peer)
 	elif kind == "invite":
 		_relay_invite(msg, from_peer)
 	elif kind == "answer":
@@ -250,6 +255,52 @@ func _relay_chat(msg: Dictionary, from_peer: int) -> void:
 			if String(state.get("place", "")) != String(msg.get("place", "")):
 				continue
 		_tell(peer, msg.duplicate())
+
+
+func share_unite(menu: int, item: int, origin: Vector3) -> void:
+	_send({
+		"kind": "unite",
+		"menu": menu,
+		"item": item,
+		"x": origin.x,
+		"y": origin.y,
+		"z": origin.z,
+		"from_av": ToonRoster.avatar_id(),
+		"place": _place(),
+		"district": ToonNet.district_id(),
+	})
+
+
+func _relay_unite(msg: Dictionary, from_peer: int) -> void:
+	for peer in _each_peer():
+		if peer == from_peer:
+			continue
+		var state := ToonNet.latest("toon:%d" % peer)
+		if state.is_empty():
+			continue
+		if int(state.get("district", -99)) != int(msg.get("district", -1)):
+			continue
+		if String(state.get("place", "")) != String(msg.get("place", "")):
+			continue
+		_tell(peer, msg.duplicate())
+
+
+func _receive_unite(msg: Dictionary) -> void:
+	if int(msg.get("from_av", 0)) == ToonRoster.avatar_id():
+		return
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return
+	var body := _find_actor(tree.root, ToonRoster.avatar_id())
+	if body == null:
+		return
+	var origin := Vector3(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)), float(msg.get("z", 0.0)))
+	if body.global_position.distance_to(origin) >= _UNITE_RADIUS:
+		return
+	var rewards = load("res://scenes/cog_hq/boss_rewards.gd")
+	if rewards == null:
+		return
+	rewards.receive_unite(int(msg.get("menu", 0)), int(msg.get("item", 0)))
 
 
 func _relay_invite(msg: Dictionary, from_peer: int) -> void:
@@ -399,6 +450,8 @@ func _show(msg: Dictionary) -> void:
 	var kind := String(msg.get("kind", ""))
 	if kind == "say" or kind == "whisper":
 		_show_chat(msg)
+	elif kind == "unite":
+		_receive_unite(msg)
 	elif kind == "note":
 		invite_note.emit(String(msg.get("text", "")))
 	elif kind == "invited":
@@ -433,11 +486,11 @@ func _show_chat(msg: Dictionary) -> void:
 		text = _garble()
 	var called := String(msg.get("from_name", "Toon"))
 	if not whisper:
-		_bubble(from_av, text, bool(msg.get("speedchat", false)))
+		_bubble(from_av, text, bool(msg.get("speedchat", false)), int(msg.get("emote", -1)))
 	heard.emit(called, text, whisper)
 
 
-func _bubble(av: int, text: String, speedchat: bool) -> void:
+func _bubble(av: int, text: String, speedchat: bool, emote: int = -1) -> void:
 	var tree := get_tree()
 	if tree == null or tree.root == null:
 		return
@@ -451,6 +504,8 @@ func _bubble(av: int, text: String, speedchat: bool) -> void:
 	actor.set_meta("chat_kind", kind)
 	actor.set_meta("chat_until", Time.get_ticks_msec() + maxi(2800, text.length() * 45))
 	ToonSpeech.speak(actor, text)
+	if emote >= 0 and actor.has_method("play_emote"):
+		actor.call("play_emote", emote)
 
 
 func _find_actor(node: Node, av: int) -> Node3D:

@@ -16,6 +16,7 @@ const _PANELS: PackedStringArray = [
 const _SPEED := 920.0
 
 var _pointer := false
+var _book: ShtickerBook
 
 
 func _ready() -> void:
@@ -83,15 +84,29 @@ func _wants_pointer() -> bool:
 
 
 func _book_open(node: Node) -> bool:
-	if node is ShtickerBook and (node as ShtickerBook).is_open():
-		return true
+	if _book != null and is_instance_valid(_book):
+		return _book.is_open()
+	_book = _find_book(node)
+	return _book != null and _book.is_open()
+
+
+func _find_book(node: Node) -> ShtickerBook:
+	# The playground mesh is the slow part of this search. The book lives on
+	# the interface layer, so the 3D tree can be skipped.
+	if node is Node3D:
+		return null
+	if node is ShtickerBook:
+		return node
 	for child in node.get_children():
-		if _book_open(child):
-			return true
-	return false
+		var found := _find_book(child)
+		if found != null:
+			return found
+	return null
 
 
 func _panel_open(node: Node) -> bool:
+	if node is Node3D:
+		return false
 	if node is BattleMenu and (node as CanvasItem).visible:
 		return true
 	if node is RewardPanel and (node as CanvasItem).visible:

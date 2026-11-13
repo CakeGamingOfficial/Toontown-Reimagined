@@ -4,7 +4,8 @@ extends Control
 ## QuestMap. On a street, the corner button opens that branch's card from
 ## phase_4/models/questmap. The arrow is the toon. A numbered pin is a
 ## ToonTask that sends you to a building on this street, or a finished task
-## you turn in at Toon HQ. The gray card is SuitHoodInfo's four department
+## you turn in at Toon HQ. A department icon marks a cog building that is
+## standing on this street. The gray card is SuitHoodInfo's four department
 ## percentages: Bossbot, Lawbot, Cashbot, Sellbot.
 
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
@@ -135,6 +136,9 @@ var _arrow: TextureRect
 var _icons: Array[TextureRect] = []
 var _percents: Array[Label] = []
 var _markers: Array[Control] = []
+var _cog_marks: Array[Control] = []
+var _cog_sig := ""
+var _cog_wait := 0.0
 
 
 func setup(tasks: ToonTasks, zone: int) -> bool:
@@ -254,6 +258,11 @@ func _process(delta: float) -> void:
 		return
 	_time += delta
 	_place_arrow()
+	_cog_wait -= delta
+	if _cog_wait <= 0.0:
+		_cog_wait = 0.4
+		_refresh_cogs()
+	_place_cogs()
 	var index := 0
 	for marker in _markers:
 		var rel: Vector2 = marker.get_meta("rel")
@@ -395,6 +404,8 @@ func _layout() -> void:
 		_place_box(_cog, Vector2(cog_at[0], cog_at[1]), 0.3, 0.1)
 	_layout_cogs()
 	_place_arrow()
+	_refresh_cogs()
+	_place_cogs()
 	var index := 0
 	for marker in _markers:
 		var rel: Vector2 = marker.get_meta("rel")
@@ -466,6 +477,61 @@ func _marker_building(card: Dictionary) -> Node:
 	if building == null:
 		building = _landmark(zone)
 	return building
+
+
+func _refresh_cogs() -> void:
+	if _panel == null:
+		return
+	var spots: Array[Dictionary] = []
+	var scene := get_tree().current_scene
+	if scene != null:
+		_gather_cogs(scene, spots)
+	var sig := ""
+	for spot in spots:
+		sig += "%s:%s;" % [String(spot["id"]), String(spot["track"])]
+	if sig == _cog_sig:
+		return
+	_cog_sig = sig
+	for marker in _cog_marks:
+		if is_instance_valid(marker):
+			marker.queue_free()
+	_cog_marks.clear()
+	var icons := {"c": _CORP, "l": _LEGAL, "m": _MONEY, "s": _SALES}
+	for spot in spots:
+		var marker := TextureRect.new()
+		var track := String(spot["track"])
+		marker.texture = icons[track] if icons.has(track) else _SALES
+		marker.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		marker.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		marker.set_meta("rel", spot["rel"])
+		_panel.add_child(marker)
+		if _arrow != null:
+			_panel.move_child(marker, _arrow.get_index())
+		_cog_marks.append(marker)
+
+
+func _gather_cogs(node: Node, spots: Array[Dictionary]) -> void:
+	var label := str(node.name)
+	if node is Node3D and label.begins_with("CogBuilding") and label.substr(11).is_valid_int() and node.has_meta("dept"):
+		var tower := node as Node3D
+		if tower.is_inside_tree():
+			var where := tower.global_position
+			spots.append({
+				"id": label,
+				"track": String(node.get_meta("dept")),
+				"rel": _relative(where.x, -where.z),
+			})
+		return
+	for child in node.get_children():
+		_gather_cogs(child, spots)
+
+
+func _place_cogs() -> void:
+	for marker in _cog_marks:
+		if not is_instance_valid(marker):
+			continue
+		_place_frac(marker, marker.get_meta("rel"), 0.045)
 
 
 ## A taken building keeps its pin, in grey, until the Toons take it back.

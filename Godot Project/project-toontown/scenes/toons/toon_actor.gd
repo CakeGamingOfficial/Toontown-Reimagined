@@ -96,9 +96,23 @@ var _look_enabled := true
 var _gesture := ""
 var _gesture_rate := 1.0
 var _gesture_loop := true
+var _emote := -1
+var _emote_left := 0.0
+var _emote_hold := false
+var _emote_phase := 0
+var _emote_sound := ""
+var _emote_sound_wait := 0.0
+var _idle_rate := 1.0
+var _blink_hold := false
+var _head_emote := ""
+var _head_clock := 0.0
+var _emote_voice: AudioStreamPlayer3D
 ## Place.enterStickerBook plays openBook, then readBook, then closeBook.
 const _BOOK_MODEL := "res://assets/props/shticker_book.glb"
 const _BOOK_CLIP := "res://assets/toons/anims/shticker_book.book"
+const _EMOTE_AUDIO := "res://assets/audio/emotes/"
+const _YES_NOD := [0.1, -30.0, 0.15, 20.0, 0.15, -20.0, 0.15, 20.0, 0.15, -20.0, 0.15, 20.0, 0.1, 0.0]
+const _NO_SHAKE := [0.1, 40.0, 0.15, -40.0, 0.15, 40.0, 0.15, -40.0, 0.15, 20.0, 0.15, -20.0, 0.1, 0.0]
 var _book_phase := ""
 var _book_clock := 0.0
 var _book_hold := 0.0
@@ -168,6 +182,16 @@ func show_style(style: ToonStyle) -> void:
 	_cycle_time = {"walk": 0.0, "run": 0.0, "jump": 0.0, "rjump": 0.0, "land": 0.0, "rland": 0.0}
 	_extra = {}
 	_gesture = ""
+	_emote = -1
+	_emote_left = 0.0
+	_emote_hold = false
+	_emote_phase = 0
+	_emote_sound = ""
+	_emote_sound_wait = 0.0
+	_idle_rate = 1.0
+	_blink_hold = false
+	_head_emote = ""
+	_head_clock = 0.0
 	_book_phase = ""
 	_book_prop = null
 	_book_joints.clear()
@@ -465,8 +489,13 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 		_play_bank("swim", 1.0, delta, true)
 		_footsteps(0.0, false)
 		return
-	if _sad:
+	if _head_emote == "yes" or _head_emote == "no":
+		if absf(forward_speed) > _WALK_SPEED or turning:
+			_clear_emote()
+	_tick_emote(delta)
+	if _sad and _emote < 0:
 		set_expression("sad")
+	if _sad and _gesture == "":
 		_footsteps(forward_speed, turning)
 		var moving := absf(forward_speed) > _WALK_SPEED or turning
 		if moving and _play_bank("sad-walk", 1.2 if forward_speed >= 0.0 else -1.0, delta):
@@ -474,7 +503,9 @@ func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: f
 		if not moving and _play_bank("sad-neutral", 1.0, delta):
 			return
 		jumping = false
-	_look_enabled = _gesture == ""
+	elif _sad:
+		_footsteps(0.0, false)
+	_look_enabled = _gesture == "" and _head_emote == ""
 	if _gesture != "":
 		_play_bank(_gesture, _gesture_rate, delta, _gesture_loop)
 		_footsteps(0.0, false)
@@ -602,6 +633,238 @@ func _hold_head() -> void:
 func clear_gesture() -> void:
 	_gesture = ""
 	_look_enabled = true
+
+
+## A body emotion, sleep, or laugh holds the toon the way the open book does.
+func holding_emote() -> bool:
+	return _emote_hold
+
+
+## TTEmote.doEmote. The index is the one SpeedChat stores on a phrase.
+func play_emote(index: int) -> void:
+	if _style == null or index < 0 or _swimming or _book_phase != "":
+		return
+	_clear_emote()
+	_ensure_clips()
+	_emote = index
+	var skirt := _style.torso.length() > 1 and _style.torso.substr(1, 1) == "d"
+	match index:
+		0:
+			_start_emote_clip("wave", 1.0, "", 0.0)
+		1:
+			_start_emote_clip("happy", 1.0, "", 0.0)
+		2:
+			set_expression("sad")
+			_emote_left = 3.0
+		3:
+			set_expression("angry")
+			_start_emote_clip("angry", 1.0, _EMOTE_AUDIO + ("bear.ogg" if _style.species() == "b" else "angry.ogg"), 0.0)
+		4:
+			_emote_hold = true
+			_emote_left = 4.0
+			_idle_rate = 0.4
+			_blink_hold = true
+			_eyes_shut = true
+			_apply_eyes()
+			_head_emote = "sleep"
+			_head_clock = 0.0
+			_look_enabled = false
+		5:
+			_start_emote_clip("shrug", 1.0, _EMOTE_AUDIO + "shrug.ogg", 0.0)
+		6:
+			_start_emote_clip("victory", 1.0, _EMOTE_AUDIO + "win.ogg", 0.0)
+		7:
+			_start_emote_clip("think", 1.0, "", 0.0)
+		8:
+			_start_emote_clip("bored", 1.0, _EMOTE_AUDIO + "bored.ogg", 2.2)
+		9:
+			_start_emote_clip("applause", 1.0, _EMOTE_AUDIO + "applause.ogg", 0.0)
+		10:
+			_start_emote_clip("cringe", 1.0, "", 0.0)
+		11:
+			_start_emote_clip("confused", 1.0, _EMOTE_AUDIO + "confused.ogg", 0.0)
+		12:
+			_start_emote_clip("slip-forward", 1.0, _EMOTE_AUDIO + "dirt.ogg", 0.7)
+		13:
+			_start_emote_clip("curtsy" if skirt else "bow", 1.0, "", 0.0)
+		14:
+			_start_emote_clip("slip-backward", 1.0, _EMOTE_AUDIO + "dirt.ogg", 0.7)
+		15:
+			_emote_left = (10.0 / 24.0) * (1.0 / 0.75) * 2.0
+			_start_emote_clip("victory", 0.75, "", 0.0)
+		16, 24:
+			_emote_hold = true
+			_emote_left = 2.0
+			_idle_rate = 10.0
+			_queue_emote_sound(_EMOTE_AUDIO + "laugh.ogg", 0.0)
+		17:
+			_head_emote = "yes"
+			_head_clock = 0.0
+			_look_enabled = false
+		18:
+			_head_emote = "no"
+			_head_clock = 0.0
+			_look_enabled = false
+		19:
+			_emote = -1
+		20:
+			set_expression("surprised")
+			_emote_hold = true
+			_emote_left = 3.0
+			_start_emote_clip("conked", 1.0, _EMOTE_AUDIO + "surprise.ogg", 0.0)
+			_emote_left = 3.0
+		21:
+			set_expression("sad")
+			_emote_left = 4.0
+			_start_emote_clip("bad-putt", 1.0, _EMOTE_AUDIO + "cry.ogg", 0.0)
+			_emote_left = 4.0
+		22:
+			_start_emote_clip("left", 1.0, _EMOTE_AUDIO + "delighted.ogg", 0.0)
+		23:
+			set_expression("angry")
+			_start_emote_clip("angry", 1.0, _EMOTE_AUDIO + "furious.ogg", 0.0)
+		_:
+			_emote = -1
+
+
+func _start_emote_clip(suffix: String, rate: float, sound: String, sound_delay: float) -> void:
+	ensure_clip(suffix)
+	var frames := int((_extra.get(suffix, {}) as Dictionary).get("frames", 0))
+	if frames <= 1:
+		if _emote_left <= 0.0 and _head_emote == "":
+			_clear_emote()
+		return
+	_emote_hold = true
+	play_gesture(suffix, rate, false)
+	_queue_emote_sound(sound, sound_delay)
+
+
+func _queue_emote_sound(path: String, delay: float) -> void:
+	if path == "":
+		return
+	if delay > 0.0:
+		_emote_sound = path
+		_emote_sound_wait = delay
+		return
+	_play_emote_sound(path)
+
+
+func _play_emote_sound(path: String) -> void:
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return
+	if _emote_voice == null or not is_instance_valid(_emote_voice):
+		_emote_voice = ToonAudio.effect_3d()
+		add_child(_emote_voice)
+	_emote_voice.stream = stream
+	_emote_voice.play()
+
+
+func _clear_emote() -> void:
+	var had := _emote
+	_emote = -1
+	_emote_left = 0.0
+	_emote_hold = false
+	_emote_phase = 0
+	_emote_sound = ""
+	_emote_sound_wait = 0.0
+	_idle_rate = 1.0
+	var reopen := _blink_hold
+	_blink_hold = false
+	_head_emote = ""
+	_head_clock = 0.0
+	_heading = 0.0
+	_pitch = 0.0
+	for look in _looks:
+		if is_instance_valid(look):
+			look.basis = Basis.IDENTITY
+	if reopen:
+		_eyes_shut = false
+		_apply_eyes()
+	if _emote_voice != null and is_instance_valid(_emote_voice):
+		_emote_voice.stop()
+	if _gesture != "" and _gesture != "swim":
+		clear_gesture()
+	if had >= 0:
+		set_expression("sad" if _sad else "normal")
+		_look_enabled = true
+
+
+func _tick_emote(delta: float) -> void:
+	if _emote < 0:
+		return
+	if _emote_sound_wait > 0.0:
+		_emote_sound_wait -= delta
+		if _emote_sound_wait <= 0.0 and _emote_sound != "":
+			_play_emote_sound(_emote_sound)
+			_emote_sound = ""
+	if _head_emote == "yes" or _head_emote == "no":
+		_head_clock += delta
+		if _head_clock >= _head_span(_head_emote):
+			_clear_emote()
+		return
+	if _head_emote == "sleep":
+		_head_clock += delta
+	if _emote_left > 0.0:
+		_emote_left -= delta
+		if _emote_left <= 0.0:
+			_clear_emote()
+		return
+	if _gesture == "" or _gesture_loop:
+		return
+	if not gesture_finished():
+		return
+	if _emote_phase == 0 and (_emote == 7 or _emote == 22):
+		_emote_phase = 1
+		_gesture = ""
+		play_gesture("think" if _emote == 7 else "left", -1.0, false)
+		return
+	_clear_emote()
+
+
+func _head_span(which: String) -> float:
+	var total := 0.0
+	var keys := _YES_NOD if which == "yes" else _NO_SHAKE
+	var index := 0
+	while index < keys.size():
+		total += float(keys[index])
+		index += 2
+	return total
+
+
+func _head_sample(which: String, clock: float) -> float:
+	var keys := _YES_NOD if which == "yes" else _NO_SHAKE
+	var cursor := 0.0
+	var previous := 0.0
+	var index := 0
+	while index + 1 < keys.size():
+		var span := float(keys[index])
+		var target := float(keys[index + 1])
+		if clock <= cursor + span:
+			var blend := 0.0 if span <= 0.0 else (clock - cursor) / span
+			return lerpf(previous, target, blend)
+		cursor += span
+		previous = target
+		index += 2
+	return previous
+
+
+func _apply_head_emote() -> void:
+	if _head_emote == "" or _look == null:
+		return
+	if _head_emote == "sleep":
+		_pitch = deg_to_rad(lerpf(0.0, -25.0, clampf(_head_clock / 0.25, 0.0, 1.0)))
+		_heading = 0.0
+	elif _head_emote == "yes":
+		_pitch = deg_to_rad(_head_sample("yes", _head_clock))
+		_heading = 0.0
+	else:
+		_heading = deg_to_rad(_head_sample("no", _head_clock))
+		_pitch = 0.0
+	var look_basis := Basis(Vector3(0, 0, 1), _heading) * Basis(Vector3(1, 0, 0), _pitch)
+	for look in _looks:
+		if is_instance_valid(look):
+			look.basis = look_basis
 
 
 ## True from the open clip through the close clip. Walking stays off.
@@ -906,7 +1169,7 @@ func _ensure_clips() -> void:
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book", "happy", "wave", "shrug", "angry", "applause", "confused", "bow", "curtsy", "bored", "think", "left", "bad-putt"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []
@@ -1056,7 +1319,7 @@ func _play_idle(delta: float) -> void:
 		_idle_time = float(randi() % _idle_frames)
 		_posing = true
 		_clip = "idle"
-	_idle_time = fposmod(_idle_time + delta * 24.0, float(_idle_frames))
+	_idle_time = fposmod(_idle_time + delta * 24.0 * _idle_rate, float(_idle_frames))
 	if _idle_time >= float(_idle_frames):
 		_idle_time = 0.0
 	var frame := mini(int(_idle_time), _idle_frames - 1)
@@ -2298,12 +2561,14 @@ func _process(delta: float) -> void:
 		_tick_dog_ears(delta)
 	if footsteps and _step_mode != "" and standing:
 		_footsteps(0.0, false)
+	_apply_head_emote()
 
 
 func _tick_stand(delta: float) -> void:
 	if _swimming:
 		return
 	_ensure_clips()
+	_tick_emote(delta)
 	if _gesture != "":
 		_play_bank(_gesture, _gesture_rate, delta, _gesture_loop)
 		return
@@ -2355,6 +2620,11 @@ func _is_pupil_joint(name: String) -> bool:
 
 
 func _tick_blink(delta: float) -> void:
+	if _blink_hold:
+		if not _eyes_shut:
+			_eyes_shut = true
+			_apply_eyes()
+		return
 	if _mood == "surprised":
 		return
 	if _eyes_shut:
@@ -2385,7 +2655,7 @@ func _shut_eyes() -> void:
 
 
 func _finish_blink() -> void:
-	if not _eyes_shut or _mood == "surprised":
+	if _blink_hold or not _eyes_shut or _mood == "surprised":
 		return
 	_eyes_shut = false
 	_blink_left = 0.0
@@ -2457,7 +2727,7 @@ func _load_closed_eyes() -> Texture2D:
 
 
 func _tick_look(delta: float) -> void:
-	if _look == null or not _look_enabled:
+	if _head_emote != "" or _look == null or not _look_enabled:
 		return
 	if not _looking:
 		_look_wait -= delta

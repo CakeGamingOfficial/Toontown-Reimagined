@@ -135,6 +135,24 @@ TOON_ANIMS = [
     ("sad-walk", "phase_4", "losewalk"),
 ]
 
+# TTEmote body clips. Happy is the phase 3.5 jump hop. The clip named jump
+# in the game is jump-zhang, the hang pose used while leaving the ground.
+# Dance reuses victory. The belly flop and banana peel reuse the slip clips.
+EMOTE_ANIMS = [
+    ("happy", "phase_3.5", "jump"),
+    ("wave", "phase_3.5", "wave"),
+    ("shrug", "phase_3.5", "shrug"),
+    ("angry", "phase_3.5", "angry"),
+    ("applause", "phase_4", "applause"),
+    ("confused", "phase_4", "confused"),
+    ("bow", "phase_4", "bow"),
+    ("curtsy", "phase_4", "curtsy"),
+    ("bored", "phase_4", "bored"),
+    ("think", "phase_4", "think"),
+    ("left", "phase_4", "left"),
+    ("bad-putt", "phase_6", "bad-putt"),
+]
+
 # suitC files. Flunky is a C body. Tutorial reacts live in phase 4;
 # the three Flunky attacks live in phase 3.5.
 COG_ANIMS = [
@@ -503,6 +521,16 @@ def export_shticker_book() -> int:
     return 0
 
 
+def export_emotes() -> int:
+    loadPrcFileData("", "window-type none")
+    loadPrcFileData("", "audio-library-name null")
+    getModelPath().prependDirectory(toon_export.ASSETS)
+    for suffix, phase, anim in EMOTE_ANIMS:
+        for part, model, _neutral, _walk in walk_export.PARTS:
+            export_toon_anim(part, model, suffix, phase, anim)
+    return 0
+
+
 def export_added() -> int:
     loadPrcFileData("", "window-type none")
     loadPrcFileData("", "audio-library-name null")
@@ -527,6 +555,18 @@ def export_added() -> int:
             continue
         for part, model, _neutral, _walk in walk_export.PARTS:
             export_toon_anim(part, model, suffix, phase, anim)
+    # Only the dog heads have slip channels. The head sits on the torso neck,
+    # and these clips are the face that falls with it.
+    heads = ROOT / "assets" / "toons" / "heads"
+    dog_heads = (
+        ("dls", "tt_a_chr_dgm_shorts_head"),
+        ("dss", "tt_a_chr_dgm_skirt_head"),
+        ("dsl", "tt_a_chr_dgs_shorts_head"),
+        ("dll", "tt_a_chr_dgl_shorts_head"),
+    )
+    for suffix in ("slip-forward", "slip-backward"):
+        for code, prefix in dog_heads:
+            export_toon_anim(code, f"phase_3/models/char/{prefix}_1000.bam", suffix, "phase_4", suffix, heads)
     return 0
 
 
@@ -677,6 +717,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "emotes":
+        sys.exit(export_emotes())
     if len(sys.argv) > 1 and sys.argv[1] == "added":
         sys.exit(export_added())
     if len(sys.argv) > 1 and sys.argv[1] == "book":

@@ -19,6 +19,7 @@ const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _Style := preload("res://scenes/chat/speed_chat_style.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _CLICK := "res://assets/gui/speedchat/GUI_quicktalker.mp3"
 var _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
 var _HOVER_ROW := Color(0.53, 0.9, 0.53, 0.95)
@@ -281,7 +282,13 @@ func _press_chat() -> void:
 func _open_menu() -> void:
 	_close_menu()
 	_blocker.visible = not _pinned
-	_panel = _column(_items)
+	var shown := _items.duplicate()
+	var unite := _unite_menu()
+	if shown.is_empty():
+		shown.append(unite)
+	else:
+		shown.insert(1, unite)
+	_panel = _column(shown)
 	add_child(_panel)
 	_panel.z_index = 40
 	_place_phrase_menu()
@@ -359,8 +366,11 @@ func _add_holder(rows: VBoxContainer, item: Dictionary) -> void:
 func _add_phrase(rows: VBoxContainer, item: Dictionary) -> void:
 	var emote := int(item.get("emote", -1))
 	var button := _row(String(item.get("text", "")), false, emote)
-	var spoken := String(item.get("say", item.get("text", "")))
-	button.pressed.connect(_choose.bind(spoken, int(item.get("trick", -1))))
+	if item.has("unite_menu"):
+		button.pressed.connect(_choose_unite.bind(int(item.get("unite_menu", 0)), int(item.get("unite_item", 0))))
+	else:
+		var spoken := String(item.get("say", item.get("text", "")))
+		button.pressed.connect(_choose.bind(spoken, int(item.get("trick", -1)), emote))
 	button.mouse_entered.connect(_hover_line.bind(button))
 	rows.add_child(button)
 
@@ -460,7 +470,53 @@ func _keep_menu_chain(menu: Control) -> void:
 	_open_subs = still
 
 
-func _choose(raw: String, trick: int = -1) -> void:
+func _unite_menu() -> Dictionary:
+	var toonup: Array = []
+	var gags: Array = []
+	var beans: Array = []
+	for group in _REWARDS.unite_groups():
+		if not (group is Dictionary):
+			continue
+		var row := {
+			"text": "%s (%d)" % [String(group.get("label", "")), int(group.get("charges", 0))],
+			"unite_menu": int(group.get("menu", 0)),
+			"unite_item": int(group.get("item", 0)),
+		}
+		var menu := int(group.get("menu", 0))
+		if menu == 0:
+			toonup.append(row)
+		elif menu == 1:
+			beans.append(row)
+		else:
+			gags.append(row)
+	return {
+		"title": "UNITE!",
+		"items": [
+			{"title": "Toon-up", "items": toonup},
+			{"title": "Gag-up", "items": gags},
+			{"title": "jellybeans", "items": beans},
+		],
+	}
+
+
+func _choose_unite(menu: int, item: int) -> void:
+	# Resistance phrases are not whisperable.
+	if _whisper_name != "":
+		return
+	var spoken := String(_REWARDS.speak_unite(menu, item))
+	if spoken == "":
+		return
+	if not _pinned:
+		_close_menu()
+	_remember(spoken)
+	phrase_is_speedchat = true
+	phrase_said.emit(spoken)
+	_publish(spoken, true, -1)
+	if _pinned:
+		_open_menu()
+
+
+func _choose(raw: String, trick: int = -1, emote: int = -1) -> void:
 	if not _pinned:
 		_close_menu()
 	var spoken := _named(raw)
@@ -471,7 +527,9 @@ func _choose(raw: String, trick: int = -1) -> void:
 	_remember(spoken)
 	phrase_is_speedchat = true
 	phrase_said.emit(spoken)
-	_publish(spoken, true)
+	if emote >= 0:
+		_play_emote(emote)
+	_publish(spoken, true, emote)
 
 
 func _named(raw: String) -> String:
@@ -953,7 +1011,7 @@ func _send_typed(text: String) -> void:
 	_remember(spoken)
 	phrase_is_speedchat = false
 	phrase_said.emit(spoken)
-	_publish(spoken, false)
+	_publish(spoken, false, -1)
 	if _click.stream != null:
 		_click.play()
 
@@ -1008,10 +1066,29 @@ func _send_whisper(spoken: String, speedchat: bool) -> void:
 		_click.play()
 
 
-func _publish(spoken: String, speedchat: bool) -> void:
+func _publish(spoken: String, speedchat: bool, emote: int = -1) -> void:
 	var social := ToonSocial.live()
 	if social != null:
-		social.say(spoken, speedchat)
+		social.say(spoken, speedchat, emote)
+
+
+func _play_emote(index: int) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var actor := _local_actor(tree.root)
+	if actor != null and actor.has_method("play_emote"):
+		actor.call("play_emote", index)
+
+
+func _local_actor(node: Node) -> Node:
+	if node is ToonActor and int(node.get_meta("av", 0)) == ToonRoster.avatar_id():
+		return node
+	for child in node.get_children():
+		var found := _local_actor(child)
+		if found != null:
+			return found
+	return null
 
 
 func _hear(from_name: String, text: String, whisper: bool) -> void:
@@ -1310,6 +1387,10 @@ func _append(channel: String, text: String, tab: int) -> void:
 		_select_tab(tab)
 		return
 	_refresh_log()
+
+
+func alert(text: String) -> void:
+	_queue_alert(text)
 
 
 ## Holiday and invasion changes. The line stays in the System tab, and a

@@ -11,20 +11,20 @@ extends RefCounted
 const _PATH := "user://keybinds.cfg"
 const _AXIS := 1000
 
-const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book", "gags", "tasks", "speedchat", "position", "metrics"]
+const ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "book", "gags", "tasks", "speedchat", "position", "metrics", "interface"]
 const LABELS: PackedStringArray = [
-	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book", "Gags", "ToonTasks", "SpeedChat++", "Position", "Metrics",
+	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Shticker Book", "Gags", "ToonTasks", "SpeedChat++", "Position", "Metrics", "Hide Interface",
 ]
-const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I, KEY_HOME, KEY_END, KEY_T, KEY_F1, KEY_F2]
+const DEFAULTS: Array[int] = [KEY_W, KEY_S, KEY_A, KEY_D, KEY_CTRL, KEY_I, KEY_HOME, KEY_END, KEY_T, KEY_F1, KEY_F2, KEY_F3]
 
-const PAD_ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "use", "book", "gags", "tasks", "speedchat", "aim", "cancel", "position", "metrics"]
+const PAD_ACTIONS: PackedStringArray = ["forward", "back", "left", "right", "jump", "use", "book", "gags", "tasks", "speedchat", "aim", "cancel", "position", "metrics", "interface"]
 const PAD_LABELS: PackedStringArray = [
-	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Use", "Shticker Book", "Gags", "ToonTasks", "SpeedChat++", "Aim", "Back", "Position", "Metrics",
+	"Move Up", "Move Down", "Move Left", "Move Right", "Jump", "Use", "Shticker Book", "Gags", "ToonTasks", "SpeedChat++", "Aim", "Back", "Position", "Metrics", "Hide Interface",
 ]
 const PAD_DEFAULTS: Array[int] = [
 	int(JOY_BUTTON_DPAD_UP), int(JOY_BUTTON_DPAD_DOWN), int(JOY_BUTTON_DPAD_LEFT), int(JOY_BUTTON_DPAD_RIGHT),
 	int(JOY_BUTTON_A), int(JOY_BUTTON_Y), int(JOY_BUTTON_START), int(JOY_BUTTON_LEFT_SHOULDER), int(JOY_BUTTON_RIGHT_SHOULDER),
-	int(JOY_BUTTON_X), _AXIS + int(JOY_AXIS_TRIGGER_RIGHT), int(JOY_BUTTON_B), -1, -1,
+	int(JOY_BUTTON_X), _AXIS + int(JOY_AXIS_TRIGGER_RIGHT), int(JOY_BUTTON_B), -1, -1, -1,
 ]
 
 const _DEAD := 0.22
@@ -33,6 +33,10 @@ static var _keys: Dictionary = {}
 static var _pad: Dictionary = {}
 static var _axis_high: Dictionary = {}
 static var _ready := false
+static var _pad_ids := PackedInt32Array()
+static var _pad_frame := -1
+static var _left := Vector2.ZERO
+static var _right := Vector2.ZERO
 
 
 static func held(action: String) -> bool:
@@ -42,6 +46,17 @@ static func held(action: String) -> bool:
 	if Input.is_physical_key_pressed(_code(action)):
 		return true
 	if _pointer() and (action == "forward" or action == "back" or action == "left" or action == "right" or action == "jump"):
+		return false
+	if _pad_pressed(action):
+		return true
+	return _direction_down(action)
+
+
+## The bound pad button, or the left stick. The keyboard key is left out,
+## so a minigame can poll the controller beside its own key handler.
+static func pad_held(action: String) -> bool:
+	_ensure()
+	if typing():
 		return false
 	if _pad_pressed(action):
 		return true
@@ -312,15 +327,42 @@ static func _axis_edge(motion: InputEventJoypadMotion) -> bool:
 
 
 static func _pad_down(button: int) -> bool:
-	for id in Input.get_connected_joypads():
+	_poll_pad()
+	for id in _pad_ids:
 		if Input.is_joy_button_pressed(id, button as JoyButton):
 			return true
 	return false
 
 
 static func _axis(axis: JoyAxis) -> float:
+	_poll_pad()
+	if axis == JOY_AXIS_LEFT_X:
+		return _left.x
+	if axis == JOY_AXIS_LEFT_Y:
+		return _left.y
+	if axis == JOY_AXIS_RIGHT_X:
+		return _right.x
+	if axis == JOY_AXIS_RIGHT_Y:
+		return _right.y
+	return _read_axis(axis)
+
+
+## Walking asks for the stick once per direction, every physics frame. One
+## read per drawn frame is enough, and it keeps Toontown Central from polling
+## the pad dozens of times while the toon is only standing there.
+static func _poll_pad() -> void:
+	var frame := Engine.get_process_frames()
+	if frame == _pad_frame:
+		return
+	_pad_frame = frame
+	_pad_ids = Input.get_connected_joypads()
+	_left = Vector2(_read_axis(JOY_AXIS_LEFT_X), _read_axis(JOY_AXIS_LEFT_Y))
+	_right = Vector2(_read_axis(JOY_AXIS_RIGHT_X), _read_axis(JOY_AXIS_RIGHT_Y))
+
+
+static func _read_axis(axis: JoyAxis) -> float:
 	var best := 0.0
-	for id in Input.get_connected_joypads():
+	for id in _pad_ids:
 		var value := Input.get_joy_axis(id, axis)
 		if absf(value) > absf(best):
 			best = value

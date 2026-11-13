@@ -13,6 +13,9 @@ const _COLLISION := preload("res://scenes/playgrounds/playground_collision.gd")
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _PROPS := "res://assets/racing/track_props.json"
 const _CURVES := "res://assets/racing/tracks/curves.json"
+const _QBOX := "res://assets/racing/props/qbox.glb"
+const _BANANA := "res://assets/battle/props/banana.glb"
+const _ARROW := "res://assets/racing/maps/boost_arrow.png"
 const _SCENE := "res://scenes/racing/kart_race.tscn"
 const _SPEEDWAY := "res://scenes/playgrounds/goofy_speedway.tscn"
 const _MAX_SPEED := 600.0
@@ -296,18 +299,19 @@ func _throw_gag() -> void:
 
 func _drop_peel() -> void:
 	var peel := Area3D.new()
-	peel.position = _kart.global_position - _nose() * 3.0
+	peel.position = _kart.global_position - _nose() * 5.0
 	var shape := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
 	ball.radius = 1.4
 	shape.shape = ball
 	peel.add_child(shape)
-	var show := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.45
-	mesh.height = 0.9
-	show.mesh = mesh
-	peel.add_child(show)
+	var packed := load(_BANANA) as PackedScene
+	if packed != null:
+		var show := packed.instantiate() as Node3D
+		if show != null:
+			# DistributedRace copies the banana prop at scale 2.
+			show.scale = Vector3.ONE * 2.0
+			peel.add_child(show)
 	add_child(peel)
 	peel.body_entered.connect(func(body: Node) -> void:
 		if body == _kart:
@@ -399,11 +403,14 @@ func _build_kart() -> void:
 	shape.position.y = 0.7
 	_kart.add_child(shape)
 	_kart.add_child(_MODEL.build())
+	# Kart.baseScale. The exported body is the unscaled bam.
+	_kart.scale = Vector3(2.0, 2.0, 2.0)
 	_kart.floor_snap_length = 0.45
 	_kart.floor_max_angle = deg_to_rad(50.0)
 	add_child(_kart)
 	_camera = Camera3D.new()
 	_camera.current = true
+	_camera.fov = 52.0
 	_camera.far = 8000.0
 	add_child(_camera)
 
@@ -476,17 +483,19 @@ func _place_props() -> void:
 
 func _make_gag(slot: int, at: Vector3) -> void:
 	var pad := Area3D.new()
-	pad.position = _ground(at + Vector3.UP * 20.0) + Vector3.UP * 1.2
+	pad.position = _ground(at + Vector3.UP * 20.0) + Vector3.UP * 2.0
 	var shape := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
 	ball.radius = 4.0
 	shape.shape = ball
 	pad.add_child(shape)
-	var show := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(1.2, 1.2, 1.2)
-	show.mesh = mesh
-	pad.add_child(show)
+	var packed := load(_QBOX) as PackedScene
+	if packed != null:
+		var box := packed.instantiate() as Node3D
+		if box != null:
+			# RaceGag.genGag grows the question box to scale 4.
+			box.scale = Vector3.ONE * 4.0
+			pad.add_child(box)
 	add_child(pad)
 	pad.body_entered.connect(_take_gag.bind(pad))
 
@@ -507,17 +516,36 @@ func _take_gag(body: Node, pad: Area3D) -> void:
 
 func _make_boost(at: Vector3, panda_heading: float) -> void:
 	var pad := Area3D.new()
-	pad.position = _ground(at + Vector3.UP * 20.0) + Vector3.UP * 0.6
+	pad.position = _ground(at + Vector3.UP * 20.0) + Vector3.UP * 0.15
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(8.0, 2.0, 18.0)
+	# genArrow's tube runs about 60 units along the boost, under three scale-24 cards.
+	box.size = Vector3(10.0, 2.0, 72.0)
 	shape.shape = box
+	shape.position = Vector3(0.0, 0.0, -24.0)
 	pad.add_child(shape)
 	# Panda heading 0 faces +Y. Positive heading turns toward -X.
 	var rad := deg_to_rad(panda_heading)
-	var arrow := Vector3(-sin(rad), 0.0, -cos(rad))
-	if arrow.length_squared() > 0.01:
-		pad.basis = Basis.looking_at(arrow, Vector3.UP)
+	var aim := Vector3(-sin(rad), 0.0, -cos(rad))
+	if aim.length_squared() > 0.01:
+		pad.basis = Basis.looking_at(aim, Vector3.UP)
+	var art := load(_ARROW) as Texture2D
+	if art != null:
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_texture = art
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		for step in 3:
+			var card := MeshInstance3D.new()
+			var quad := QuadMesh.new()
+			quad.size = Vector2(24.0, 24.0)
+			card.mesh = quad
+			card.material_override = material
+			# The card faces +Z. Pitch it onto the road so the arrow follows local -Z.
+			card.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			card.position = Vector3(0.0, 0.08, -24.0 * float(step))
+			pad.add_child(card)
 	add_child(pad)
 	pad.body_entered.connect(_take_boost.bind(pad))
 
@@ -564,9 +592,10 @@ func _aim_camera(delta: float, snap: bool = false) -> void:
 	if forward.length_squared() < 0.0001:
 		return
 	forward = forward.normalized()
-	var back := 15.0 if _turbo > 0.0 else 11.5
-	var want := _kart.global_position - forward * back + Vector3.UP * 4.6
-	var look := _kart.global_position + forward * 8.0 + Vector3.UP * 1.3
+	# Close chase. The old arm sat 11.5 back and looked 8 ahead, so the kart stayed small.
+	var back := 9.5 if _turbo > 0.0 else 6.5
+	var want := _kart.global_position - forward * back + Vector3.UP * 3.2
+	var look := _kart.global_position + forward * 2.0 + Vector3.UP * 1.1
 	if snap:
 		_camera.global_position = want
 	else:

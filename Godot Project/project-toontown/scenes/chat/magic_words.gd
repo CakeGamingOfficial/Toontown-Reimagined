@@ -22,7 +22,7 @@ const _FLY_FAST := 90.0
 ## A shorter left press is a click. A longer one is a hold.
 const _FLY_CLICK := 0.25
 const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~ghost   ~collisions off   ~restock   ~max   ~beans 100\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
-~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1\n~gags empty   ~pinkslips 255   ~gagpouch 80   ~instantkill   ~sleep\n~factory   ~boss vp   ~boss kill   ~globaltp   ~exitgame   ~skipgolfhole   ~abortgolf   ~fireworks newyear"
+~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1\n~gags empty   ~pinkslips 255   ~unite   ~unite all   ~unite toonup 80   ~sos   ~sos all   ~summon   ~summon building flunky   ~gagpouch 80   ~instantkill   ~sleep\n~factory   ~boss vp   ~boss kill   ~globaltp   ~exitgame   ~skipgolfhole   ~abortgolf   ~fireworks newyear"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
@@ -69,7 +69,6 @@ const _WORDS: Dictionary = {
 	"suit": "suit",
 	"cog": "suit",
 	"spawn": "suit",
-	"summon": "suit",
 	"spawnbuilding": "spawnbuilding",
 	"spawnbldg": "spawnbuilding",
 	"building": "spawnbuilding",
@@ -122,6 +121,14 @@ const _WORDS: Dictionary = {
 	"fires": "pinkslips",
 	"setfires": "pinkslips",
 	"setpinkslips": "pinkslips",
+	"unite": "unite",
+	"unites": "unite",
+	"sos": "sos",
+	"soscard": "sos",
+	"soscards": "sos",
+	"summon": "summon",
+	"summons": "summon",
+	"cogsummon": "summon",
 	"exitgame": "abortminigame",
 	"exitminigame": "abortminigame",
 	"quitgame": "abortminigame",
@@ -200,6 +207,9 @@ const _USAGE := {
 	"invasionstatus": "~invasionstatus",
 	"inventory": "~gags, ~gags empty",
 	"pinkslips": "~pinkslips 255",
+	"unite": "~unite, ~unite all, ~unite toonup 80, ~unite gagup all, or ~unite beans 200",
+	"sos": "~sos, ~sos all, or ~sos Lil Oldman",
+	"summon": "~summon, ~summon invasion, or ~summon building flunky",
 	"abortminigame": "~exitgame",
 	"skipgolf": "~skipgolfhole",
 	"abortgolf": "~abortgolf",
@@ -523,6 +533,12 @@ static func invoke(scene: Node, text: String) -> String:
 			return _inventory(scene, args)
 		"pinkslips":
 			return _pink_slips(args)
+		"unite":
+			return _unite_word(scene, args)
+		"sos":
+			return _sos_word(scene, args)
+		"summon":
+			return _summon_word(scene, args)
 		"abortminigame":
 			return _abort_minigame(scene)
 		"skipgolf":
@@ -604,17 +620,21 @@ static func fly_camera(camera: Camera3D, delta: float) -> void:
 		var motion := Input.get_last_mouse_velocity()
 		_fly_yaw -= motion.x * delta * 0.003
 		_fly_pitch = clampf(_fly_pitch - motion.y * delta * 0.003, deg_to_rad(-85.0), deg_to_rad(85.0))
+	var look := _KEYS.look()
+	if look.length_squared() > 0.0001:
+		_fly_yaw -= look.x * delta * 1.6
+		_fly_pitch = clampf(_fly_pitch - look.y * delta * 1.2, deg_to_rad(-85.0), deg_to_rad(85.0))
 	var basis := Basis.from_euler(Vector3(_fly_pitch, _fly_yaw, 0.0))
 	var wish := Vector3.ZERO
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
+	if _KEYS.held("forward") or Input.is_physical_key_pressed(KEY_UP):
 		wish -= basis.z
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
+	if _KEYS.held("back") or Input.is_physical_key_pressed(KEY_DOWN):
 		wish += basis.z
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
+	if _KEYS.held("left") or Input.is_physical_key_pressed(KEY_LEFT):
 		wish -= basis.x
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
+	if _KEYS.held("right") or Input.is_physical_key_pressed(KEY_RIGHT):
 		wish += basis.x
-	if Input.is_physical_key_pressed(KEY_E):
+	if _KEYS.use_held():
 		wish.y += 1.0
 	if Input.is_physical_key_pressed(KEY_Q):
 		wish.y -= 1.0
@@ -752,6 +772,177 @@ static func _inventory(scene: Node, args: PackedStringArray) -> String:
 	if filling.has(command):
 		return _restock(scene, false)
 	return "Use ~gags to restock, or ~gags empty to clear the pouch."
+
+
+static func _unite_word(scene: Node, args: PackedStringArray) -> String:
+	if args.is_empty():
+		var rolled := String(_REWARDS.grant_unite())
+		_refresh_rewards(scene)
+		return rolled
+	var head := args[0].to_lower()
+	if head == "all":
+		var every := String(_REWARDS.give_every_unite())
+		_refresh_rewards(scene)
+		return every
+	if head.is_valid_int():
+		var copies := int(head)
+		if copies < 1 or copies > 50:
+			return "Use a number from 1 to 50. ~unite 5 gives five random unites."
+		for _copy in copies:
+			_REWARDS.grant_unite()
+		_refresh_rewards(scene)
+		return "The Resistance gave you %d unites." % copies
+	var menu := -1
+	var item := -1
+	if head == "toonup" or head == "toon-up" or head == "tu":
+		menu = 0
+		item = _toonup_item(args)
+	elif head == "gagup" or head == "gag-up" or head == "gag" or head == "restock":
+		menu = 2
+		item = _gag_item(args)
+	elif head == "beans" or head == "jellybeans" or head == "money" or head == "jb":
+		menu = 1
+		item = _bean_item(args)
+	else:
+		return "Use ~unite, ~unite all, ~unite toonup 80, ~unite gagup all, or ~unite beans 200."
+	if item < 0:
+		return "Use ~unite toonup 10, 20, 40, 80, or max. Gag-up takes a track or all. Jellybeans take 100, 200, 350, or 600."
+	var count := 1
+	if args.size() >= 3 and args[2].is_valid_int():
+		count = int(args[2])
+	if count < 1 or count > 50:
+		return "Use a count from 1 to 50."
+	var given := String(_REWARDS.give_unite(menu, item, count))
+	_refresh_rewards(scene)
+	return given
+
+
+static func _toonup_item(args: PackedStringArray) -> int:
+	if args.size() < 2:
+		return randi() % 5
+	var word := args[1].to_lower()
+	if word == "max":
+		return 4
+	if not word.is_valid_int():
+		return -1
+	var amounts: PackedInt32Array = [10, 20, 40, 80]
+	return amounts.find(int(word))
+
+
+static func _gag_item(args: PackedStringArray) -> int:
+	if args.size() < 2:
+		return randi() % 8
+	var word := args[1].to_lower()
+	var tracks := {
+		"heal": 0, "toonup": 0, "toon-up": 0,
+		"trap": 1, "lure": 2, "sound": 3, "throw": 4,
+		"squirt": 5, "drop": 6, "all": 7,
+	}
+	if not tracks.has(word):
+		return -1
+	return int(tracks[word])
+
+
+static func _bean_item(args: PackedStringArray) -> int:
+	if args.size() < 2:
+		return randi() % 4
+	if not args[1].is_valid_int():
+		return -1
+	var amounts: PackedInt32Array = [100, 200, 350, 600]
+	return amounts.find(int(args[1]))
+
+
+static func _sos_word(scene: Node, args: PackedStringArray) -> String:
+	var line := ""
+	if args.is_empty():
+		line = String(_REWARDS.grant_sos())
+	elif args[0].to_lower() == "all":
+		line = String(_REWARDS.give_sos_pages())
+	else:
+		line = String(_REWARDS.give_sos_named(" ".join(args)))
+	_refresh_rewards(scene)
+	return line
+
+
+static func _summon_word(scene: Node, args: PackedStringArray) -> String:
+	var kind := ""
+	var name_args := PackedStringArray()
+	for arg in args:
+		var word := arg.to_lower()
+		if word == "building" or word == "bldg":
+			kind = "building"
+		elif word == "invasion":
+			kind = "invasion"
+		elif word == "single" or word == "cog":
+			kind = "single"
+		else:
+			name_args.append(arg)
+	if name_args.is_empty():
+		var line := ""
+		if kind == "":
+			line = String(_REWARDS.grant_summon(616))
+		else:
+			line = String(_REWARDS.give_summon(randi() % 4, randi() % 8, kind))
+		_refresh_rewards(scene)
+		return line
+	var cog := _reward_cog(" ".join(name_args))
+	if cog.is_empty():
+		return "Name a cog. Try ~summon flunky, ~summon building flunky, or ~summon invasion."
+	if String(cog.get("note", "")) != "":
+		return String(cog.get("note", ""))
+	if kind == "":
+		kind = "single"
+	var signed := String(_REWARDS.give_summon(int(cog.get("dept", 0)), int(cog.get("type", 0)), kind, String(cog.get("name", "cog"))))
+	_refresh_rewards(scene)
+	return signed
+
+
+static func _reward_cog(query: String) -> Dictionary:
+	var needle := query.to_lower().replace(" ", "").replace("&", "")
+	if needle == "":
+		return {}
+	var names: PackedStringArray = DisguisePage._COGS
+	var exact := -1
+	var partial: Array[int] = []
+	for index in names.size():
+		var compact := names[index].to_lower().replace(" ", "").replace("&", "")
+		if compact == needle:
+			exact = index
+			break
+		if compact.contains(needle):
+			partial.append(index)
+	var index := exact
+	if index < 0 and partial.size() == 1:
+		index = partial[0]
+	elif index < 0 and partial.size() > 1:
+		var listed := PackedStringArray()
+		for hit in partial:
+			listed.append(names[hit])
+			if listed.size() >= 4:
+				break
+		return {"note": "Which cog? %s." % ", ".join(listed)}
+	if index < 0:
+		return {}
+	return {"dept": int(index / 8), "type": index % 8, "name": names[index]}
+
+
+static func _refresh_rewards(scene: Node) -> void:
+	if scene == null:
+		return
+	var page := _find_disguise(scene)
+	if page == null:
+		return
+	_REWARDS.place(page, page.size)
+
+
+static func _find_disguise(node: Node) -> DisguisePage:
+	if node is DisguisePage:
+		return node as DisguisePage
+	for child in node.get_children():
+		var found := _find_disguise(child)
+		if found != null:
+			return found
+	return null
 
 
 static func _pink_slips(args: PackedStringArray) -> String:
@@ -905,13 +1096,27 @@ static func _fireworks(scene: Node, args: PackedStringArray) -> String:
 		return "Unknown firework name. Use newyear, summer, combo, or party."
 	if not hood.is_empty() and hood != "all":
 		return "Use ~fireworks newyear, or ~fireworks newyear all."
-	_firework_show = name
+	# summer is the July 4 show. party is the party summer show.
+	var show := name
+	if name == "summer":
+		show = "july4"
+	elif name == "party":
+		show = "summer"
+	elif name == "newyears":
+		show = "newyear"
+	_firework_show = show
 	_firework_hood = hood
-	ToonNet.share_dev("fireworks", {"show": name, "hood": hood})
-	if scene != null and scene.has_method("show_fireworks"):
-		scene.call("show_fireworks", name)
-		return "Started a %s firework show." % name
-	return "A %s firework show is queued. Playgrounds will run it once the show is hooked up." % name
+	var at := int(Time.get_unix_time_from_system())
+	var where := ""
+	if scene != null:
+		where = scene.scene_file_path.get_file()
+	ToonNet.share_dev("fireworks", {"show": show, "hood": hood, "scene": where, "at": at, "delay": 0})
+	var fireworks := load("res://scenes/effects/firework_show.gd")
+	if scene != null:
+		fireworks.present(scene, show, at, 0.0)
+	if hood == "all":
+		return "Started a %s firework show in every playground." % name
+	return "Started a %s firework show." % name
 
 
 static func _give_beans(scene: Node, args: PackedStringArray) -> String:

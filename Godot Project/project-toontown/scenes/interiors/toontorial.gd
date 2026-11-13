@@ -439,7 +439,7 @@ func _walk(delta: float) -> void:
 	var right_held := _KEYS.held("right")
 	var aim_held := _KEYS.aim_held()
 	# The book clips replace walking until the toon closes it.
-	if _player != null and _player.holding_book():
+	if _player != null and (_player.holding_book() or _player.holding_emote()):
 		forward_held = false
 		back_held = false
 		left_held = false

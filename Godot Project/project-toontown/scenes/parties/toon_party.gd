@@ -57,15 +57,45 @@ const _ACTIVITIES := [
 ]
 
 static var _party: Dictionary = {}
+static var _visit: Dictionary = {}
 static var _loaded := false
 
+const _CANNON := preload("res://scenes/parties/party_cannon.gd")
+const _TRAMP := preload("res://scenes/parties/party_trampoline.gd")
+const _CATCH := preload("res://scenes/parties/party_catch.gd")
+const _TUG := preload("res://scenes/parties/party_tug.gd")
+const _COG := preload("res://scenes/parties/party_cog.gd")
+const _JUKEBOX := preload("res://scenes/parties/party_jukebox.gd")
+const _DANCE := preload("res://scenes/parties/party_dance.gd")
+
+const _STATION_OF := {
+	0: "jukebox",
+	1: "cannon",
+	2: "trampoline",
+	3: "catch",
+	4: "dance",
+	5: "tug",
+	6: "fireworks",
+	7: "clock",
+	8: "jukebox",
+	9: "dance",
+	10: "cog",
+}
+const _DECOR: PackedStringArray = [
+	"Balloon Anvil", "Party Stage", "Party Bow", "Cake", "Party Castle",
+	"Gift Pile", "Streamer Horn", "Party Gate", "Noise Makers", "Pinwheel",
+	"Gag Globe", "Bean Banner", "Gag Cake",
+]
+
 var gate := false
-var _picked: Array[String] = []
+var _public_pick := ""
 var _layer: CanvasLayer
 var _text: Label
 var _buttons: VBoxContainer
 var _busy := false
 var _gate := false
+var _play: Node
+var _wait_out := false
 
 
 static func place_gate(host: Node) -> void:
@@ -93,7 +123,7 @@ static func _find_gate(node: Node) -> Node3D:
 
 
 static func place_grounds(host: Node) -> void:
-	if not active():
+	if not active() and not visiting():
 		return
 	if host.get_node_or_null("PartyGrounds") != null:
 		return
@@ -104,12 +134,37 @@ static func place_grounds(host: Node) -> void:
 
 static func active() -> bool:
 	_ensure()
+	var now := Time.get_unix_time_from_system()
+	return float(_party.get("until", 0.0)) > now and float(_party.get("start", 0.0)) <= now
+
+
+static func hosting() -> bool:
+	_ensure()
 	return float(_party.get("until", 0.0)) > Time.get_unix_time_from_system()
+
+
+static func visiting() -> bool:
+	var now := Time.get_unix_time_from_system()
+	return float(_visit.get("until", 0.0)) > now and float(_visit.get("start", 0.0)) <= now
+
+
+static func begin_visit(state: Dictionary) -> void:
+	_visit = {
+		"until": float(state.get("until", 0.0)),
+		"start": float(state.get("start", 0.0)),
+		"layout": String(state.get("layout", "")),
+		"cannon": 0,
+		"catch": 0,
+	}
+
+
+static func clear_visit() -> void:
+	_visit = {}
 
 
 static func plan(ids: Array) -> String:
 	_ensure()
-	if active():
+	if hosting():
 		return "You already have a party going."
 	var cost := _BASE
 	var chosen: Array = []
@@ -131,8 +186,10 @@ static func plan(ids: Array) -> String:
 		return "A party costs at least %d jellybeans." % _BASE
 	if not _BEANS.take_beans(cost, true):
 		return "You need %d jellybeans." % cost
+	var started := Time.get_unix_time_from_system()
 	_party = {
-		"until": Time.get_unix_time_from_system() + _LENGTH,
+		"until": started + _LENGTH,
+		"start": started,
 		"activities": chosen,
 		"cannon": 0,
 		"catch": 0,
@@ -143,12 +200,19 @@ static func plan(ids: Array) -> String:
 
 static func summary() -> String:
 	_ensure()
-	if not active():
+	if not hosting():
 		return "No party is planned. A party costs %d jellybeans plus activities." % _BASE
-	var left := int(float(_party.get("until", 0.0)) - Time.get_unix_time_from_system())
-	var names := "Clock"
-	for id in _party.get("activities", []):
-		names += ", " + String(_card(String(id)).get("name", id))
+	var now := Time.get_unix_time_from_system()
+	var start := float(_party.get("start", 0.0))
+	var names := String(_party.get("summary", ""))
+	if names == "":
+		names = "Clock"
+		for id in _party.get("activities", []):
+			names += ", " + String(_card(String(id)).get("name", id))
+	if start > now:
+		var wait := int(start - now)
+		return "Your party starts in %d:%02d.\n%s" % [wait / 60, wait % 60, names]
+	var left := int(float(_party.get("until", 0.0)) - now)
 	return "Party time left: %d:%02d\n%s" % [left / 60, left % 60, names]
 
 
@@ -178,26 +242,27 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	var show := String(ToonNet.latest("dev:fireworks").get("show", ""))
-	if show != "" and String(get_meta("dev_show", "")) != show:
-		set_meta("dev_show", show)
-		_fireworks()
 	if _busy:
 		return
 	var body := _body()
 	if body == null:
 		return
 	if _gate:
-		if global_position.distance_to(body.global_position) > 4.0:
+		var near := global_position.distance_to(body.global_position) <= 4.0
+		if not near:
+			_wait_out = false
+			return
+		if _wait_out:
 			return
 		_busy = true
 		_open_planner()
 		return
+	var inside := false
 	for child in get_children():
 		if not (child is Node3D):
 			continue
-		var id := String(child.name)
-		if _card(id).is_empty():
+		var id := String(child.get_meta("act", ""))
+		if id == "" or _card(id).is_empty():
 			continue
 		var marker := child as Node3D
 		var reach := float(marker.get_meta("reach", 8.0))
@@ -206,44 +271,100 @@ func _process(_delta: float) -> void:
 		)
 		if flat > reach:
 			continue
+		inside = true
+		if _wait_out:
+			continue
 		_busy = true
-		_open_activity(id)
+		_open_activity(id, marker)
 		return
+	if not inside:
+		_wait_out = false
 
 
 func _open_planner() -> void:
 	_hold(true)
-	_picked = []
-	_paint_planner()
+	_announce()
+	_paint_gate()
 
 
-func _paint_planner() -> void:
+func _paint_gate() -> void:
+	_public_pick = ""
 	_clear()
-	var cost := _BASE
-	for id in _picked:
-		cost += int(_card(id).get("cost", 0))
-	_text.text = "Plan a Party\n%s\nTotal: %d jellybeans" % [summary(), cost]
 	_layer.visible = true
 	if active():
+		_text.text = summary()
 		_add("Go to the Party Grounds", _go)
+	elif hosting():
+		_text.text = "You can only host one party at a time, sorry.\n" + summary()
 	else:
-		for card in _ACTIVITIES:
-			var id := String(card.get("id", ""))
-			var mark := "On" if _picked.has(id) else "Off"
-			_add("%s (%d) [%s]" % [String(card.get("name", "")), int(card.get("cost", 0)), mark], _toggle.bind(id))
-		_add("Start Party", _start)
+		_text.text = "Toontown Party Planner\nHosting your own party is a lot of fun!"
+		_add("Plan a Party", _open_editor)
+	_add("Public Parties", _paint_public)
 	_add("Close", _close)
 
 
-func _toggle(id: String) -> void:
-	if _picked.has(id):
-		_picked.erase(id)
-	else:
-		_picked.append(id)
-	_paint_planner()
+func _open_editor() -> void:
+	if hosting():
+		_text.text = "You can only host one party at a time, sorry."
+		return
+	_layer.visible = false
+	var planner := load("res://scenes/parties/party_planner.gd").new() as Node
+	planner.name = "PartyPlanner"
+	add_child(planner)
+
+
+func _paint_public() -> void:
+	_clear()
+	_layer.visible = true
+	_text.text = "Public Parties\nClick on a host, then click on \"Go to Party\""
+	var now := Time.get_unix_time_from_system()
+	var any := false
+	for channel in ToonNet.channels("party:"):
+		var row := ToonNet.latest(channel)
+		var start := float(row.get("start", 0.0))
+		var until := float(row.get("until", 0.0))
+		if until <= now or start > now:
+			continue
+		any = true
+		var mins := int((until - now) / 60.0)
+		var mark := ">" if channel == _public_pick else " "
+		var host := String(row.get("name", "A Toon"))
+		var activities := String(row.get("activities", ""))
+		_add("%s %s | %s | %d min" % [mark, host, activities, mins], _choose_public.bind(channel))
+	if not any:
+		_text.text = "Public Parties\nNobody is hosting a public party right now."
+	if _public_pick != "":
+		_add("Go to Party", _join_public)
+	_add("Back", _paint_gate)
+
+
+func _choose_public(channel: String) -> void:
+	_public_pick = channel
+	_paint_public()
+
+
+func _join_public() -> void:
+	var row := ToonNet.latest(_public_pick)
+	var now := Time.get_unix_time_from_system()
+	if float(row.get("until", 0.0)) <= now or float(row.get("start", 0.0)) > now:
+		_text.text = "Sorry. That party is no longer available."
+		_clear()
+		_add("Back", _paint_public)
+		return
+	var host_id := int(_public_pick.trim_prefix("party:"))
+	if host_id == ToonNet.peer_id():
+		_go()
+		return
+	begin_visit(row)
+	_travel()
 
 
 func _go() -> void:
+	clear_visit()
+	_travel()
+
+
+func _travel() -> void:
 	_layer.visible = false
 	_hold(false)
 	_busy = true
@@ -252,20 +373,28 @@ func _go() -> void:
 	_LOADING.change_to(_GROUNDS)
 
 
-func _start() -> void:
-	var message := plan(_picked)
-	if active():
-		_go()
-		return
-	_text.text = message
-	_clear()
-	_add("Close", _close)
-
-
 func _stations() -> void:
+	if visiting():
+		_place_layout(String(_visit.get("layout", "")))
+		return
+	_ensure()
+	var layout := String(_party.get("layout", ""))
+	if layout != "":
+		_place_layout(layout)
+		return
 	_spot("clock")
 	for id in _party.get("activities", []):
 		_spot(String(id))
+
+
+func _place_layout(layout: String) -> void:
+	for piece in layout.split(",", false):
+		var bits := piece.split(":")
+		if bits.size() < 6:
+			continue
+		var at := Vector2i(int(bits[2]), 14 - int(bits[3]))
+		var size := Vector2i(int(bits[4]), int(bits[5]))
+		_spot_at(String(bits[0]), int(bits[1]), at, size)
 
 
 func _spot(id: String) -> void:
@@ -276,10 +405,47 @@ func _spot(id: String) -> void:
 	marker.name = id
 	marker.position = _grid(layout["at"] as Vector2i, layout["size"] as Vector2i)
 	marker.set_meta("reach", float(layout["reach"]))
+	marker.set_meta("act", id)
+	if id == "jukebox":
+		marker.set_meta("act_id", 0)
+	elif id == "dance":
+		marker.set_meta("act_id", 4)
+	elif id == "fireworks":
+		marker.set_meta("act_id", 6)
 	add_child(marker)
 	var packed = load(String(_MODELS.get(id, "")))
 	if packed is PackedScene:
 		marker.add_child((packed as PackedScene).instantiate())
+
+
+func _spot_at(kind: String, id: int, at: Vector2i, size: Vector2i) -> void:
+	var station := ""
+	if kind == "a":
+		station = String(_STATION_OF.get(id, ""))
+	var marker := Node3D.new()
+	marker.name = "spot_%d_%d_%d" % [id, at.x, at.y]
+	marker.position = _grid(at, size)
+	marker.set_meta("reach", float(maxi(size.x, size.y)) * 4.0 + 6.0)
+	if station != "" and station != "clock":
+		marker.set_meta("act", station)
+	marker.set_meta("act_id", id)
+	add_child(marker)
+	if station != "" and _MODELS.has(station):
+		var packed = load(String(_MODELS[station]))
+		if packed is PackedScene:
+			marker.add_child((packed as PackedScene).instantiate())
+			return
+	if kind != "d" or id < 0 or id >= _DECOR.size():
+		return
+	var label := Label3D.new()
+	label.text = String(_DECOR[id])
+	label.font_size = 64
+	label.pixel_size = 0.02
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.outline_size = 12
+	label.modulate = Color(1, 0.9, 0.95)
+	label.position = Vector3(0, 2.2, 0)
+	marker.add_child(label)
 
 
 func _grid(at: Vector2i, size: Vector2i) -> Vector3:
@@ -293,28 +459,94 @@ func _grid(at: Vector2i, size: Vector2i) -> Vector3:
 	return Vector3(px + _GEOM_SHIFT_X, 0.0, -py)
 
 
-func _open_activity(id: String) -> void:
+func holds_camera() -> bool:
+	return _play != null and is_instance_valid(_play) and _play.has_method("holds_camera") and bool(_play.call("holds_camera"))
+
+
+func aim(camera: Camera3D) -> void:
+	if holds_camera():
+		_play.call("aim", camera)
+
+
+func _open_activity(id: String, marker: Node3D) -> void:
 	_hold(true)
+	if id == "cannon" or id == "trampoline" or id == "catch" or id == "tug" or id == "cog" or id == "jukebox" or id == "dance" or id == "fireworks":
+		_begin(id, marker)
+		return
 	_clear()
 	var card := _card(id)
 	_text.text = String(card.get("name", "Activity"))
 	_layer.visible = true
-	if id == "cannon":
-		_add("Fire the cannon", _cannon)
-	elif id == "trampoline":
-		_add("Bounce", _trampoline)
+	_add("Close", _close)
+
+
+func _begin(id: String, marker: Node3D) -> void:
+	var body := _body() as ToonActor
+	if body == null:
+		_close()
+		return
+	var book := _bean_book()
+	if id == "cannon" and int(book.get("cannon", 0)) >= 200:
+		_show_note("The cannon is out of jellybeans for this party.")
+		return
+	if id == "catch" and int(book.get("catch", 0)) >= 1000:
+		_show_note("You cannot catch any more jellybeans at this party.")
+		return
+	var origin := body.global_position
+	if marker != null:
+		origin = marker.global_position
+	if id == "fireworks":
+		_launch_fireworks(origin, book)
+		return
+	if id == "jukebox":
+		var playing := get_node_or_null("PartyJukebox")
+		if playing != null:
+			playing.call("open_gui")
+			_play = playing
+			return
+	var script: Script = _CANNON
+	if id == "trampoline":
+		script = _TRAMP
 	elif id == "catch":
-		_add("Catch jellybeans", _catch)
+		script = _CATCH
 	elif id == "tug":
-		_add("Heave", _tug)
+		script = _TUG
 	elif id == "cog":
-		_add("Throw a pie", _cog)
-	elif id == "fireworks":
-		_add("Light the show", _fireworks)
+		script = _COG
 	elif id == "jukebox":
-		_add("Play a song", _jukebox)
+		script = _JUKEBOX
 	elif id == "dance":
-		_add("Dance", _dance)
+		script = _DANCE
+	var play := script.new() as Node
+	play.name = "PartyJukebox" if id == "jukebox" else "PartyPlay"
+	if marker != null:
+		play.set_meta("act_id", int(marker.get_meta("act_id", 0)))
+	add_child(play)
+	_play = play
+	if play.has_signal("finished"):
+		play.finished.connect(_played)
+	if play.has_signal("closed"):
+		play.closed.connect(_release)
+	play.call("setup", body, origin, book)
+
+
+func _played(base_beans: int, message: String) -> void:
+	_play = null
+	if not visiting():
+		_save()
+	var paid := _pay(base_beans)
+	if message == "":
+		_close()
+		return
+	if message.contains("%d"):
+		message = message % paid
+	_show_note(message)
+
+
+func _show_note(message: String) -> void:
+	_clear()
+	_text.text = message
+	_layer.visible = true
 	_add("Close", _close)
 
 
@@ -325,68 +557,40 @@ func _pay(gain: int) -> int:
 	return paid
 
 
-func _cannon() -> void:
-	var earned := int(_party.get("cannon", 0))
-	if earned >= 200:
-		_text.text = "The cannon is out of jellybeans for this party."
+func _launch_fireworks(_origin: Vector3, book: Dictionary) -> void:
+	if visiting():
+		_show_note("Only the host can start this activity. Sorry.")
 		return
-	var base := mini(2, 200 - earned)
-	var gain := _pay(base)
-	_party["cannon"] = earned + base
-	_save()
-	_text.text = "You landed in the beans and got %d jellybeans." % gain
-
-
-func _trampoline() -> void:
-	var bonus := 10 if randf() > 0.5 else 0
-	var gain := _pay(12 + bonus)
-	_text.text = "Nice bounce! %d jellybeans." % gain
-
-
-func _catch() -> void:
-	var earned := int(_party.get("catch", 0))
-	if earned >= 1000:
-		_text.text = "You cannot catch any more jellybeans at this party."
+	if bool(book.get("fireworks_done", false)):
+		_show_note("The fireworks show is over.")
 		return
-	var base := mini(randi_range(4, 12), 1000 - earned)
-	var gain := _pay(base)
-	_party["catch"] = earned + base
-	_save()
-	_text.text = "You caught %d jellybeans." % gain
+	var host := get_parent()
+	if host != null and host.get_node_or_null("FireworkShow") != null:
+		_show_note("The fireworks show has already started.")
+		return
+	book["fireworks_done"] = true
+	if not visiting():
+		_save()
+	var at := int(Time.get_unix_time_from_system())
+	ToonNet.share_dev("fireworks", {"show": "summer", "at": at, "delay": 5})
+	if host != null and host.has_method("show_fireworks"):
+		host.call("show_fireworks", "summer", at, 5.0)
+	_release()
 
 
-func _tug() -> void:
-	var win := randf() > 0.45
-	var gain := _pay(12 if win else 8)
-	_text.text = "You won the tug! %d jellybeans." % gain if win else "You were pulled across. %d jellybeans." % gain
-
-
-func _cog() -> void:
-	# CogActivityBeansToAward is 27. A clean hit pays the perfect-win share.
-	var gain := _pay(20 if randf() > 0.35 else 16)
-	_text.text = "The cog is dizzy. %d jellybeans." % gain
-
-
-func _fireworks() -> void:
-	_text.text = "The sky fills with fireworks."
-
-
-func show_fireworks(_show_name: String) -> void:
-	_fireworks()
-
-
-func _jukebox() -> void:
-	_text.text = "The jukebox plays a party song."
-
-
-func _dance() -> void:
-	_text.text = "Everybody dance!"
+func _release() -> void:
+	_play = null
+	_layer.visible = false
+	_hold(false)
+	_busy = false
+	_wait_out = true
 
 
 func _close() -> void:
 	_layer.visible = false
 	_hold(false)
 	_busy = false
+	_wait_out = true
 
 
 func _add(caption: String, call: Callable) -> void:
@@ -416,6 +620,90 @@ func _hold(holding: bool) -> void:
 	var toon := host.get_node_or_null("PlaygroundToon")
 	if toon != null and toon.has_method("hold_for_race"):
 		toon.call("hold_for_race", holding)
+
+
+func commit_party(items: Array, guests: Array, is_public: bool, when_unix: float, theme: String) -> String:
+	_ensure()
+	if hosting():
+		return "Sorry, you are already hosting a party.\nIf you want to plan another party, please\ncancel your current party."
+	var cost := 0
+	var layout := ""
+	var activities: Array = []
+	var seen := {}
+	var summary_text := ""
+	var seen_name := {}
+	var guest_ids: Array = []
+	var guest_names: Array = []
+	for item in items:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var row: Dictionary = item
+		var kind := String(row.get("kind", "a"))
+		var id := int(row.get("id", 0))
+		var piece := "%s:%d:%d:%d:%d:%d" % [kind, id, int(row.get("x", 0)), int(row.get("y", 0)), int(row.get("w", 1)), int(row.get("h", 1))]
+		if layout != "":
+			layout += ","
+		layout += piece
+		cost += int(row.get("cost", 0))
+		var station := String(row.get("station", ""))
+		if station != "" and station != "clock" and not bool(seen.get(station, false)):
+			seen[station] = true
+			activities.append(station)
+		var invite := String(row.get("invite", ""))
+		if kind == "a" and invite != "" and not bool(seen_name.get(invite, false)):
+			seen_name[invite] = true
+			if summary_text != "":
+				summary_text += ", "
+			summary_text += invite
+	for guest in guests:
+		if typeof(guest) != TYPE_DICTIONARY:
+			continue
+		var who: Dictionary = guest
+		guest_ids.append(String(who.get("id", "")))
+		guest_names.append(String(who.get("name", "")))
+	if cost < _BASE:
+		return "It costs a minimum of %d jellybeans to plan a party." % _BASE
+	if not _BEANS.take_beans(cost, true):
+		return "You need %d jellybeans." % cost
+	_party = {
+		"until": when_unix + _LENGTH,
+		"start": when_unix,
+		"activities": activities,
+		"layout": layout,
+		"summary": summary_text,
+		"cannon": 0,
+		"catch": 0,
+		"public": is_public,
+		"theme": theme,
+		"host": ToonRoster.selected_style().display_name(),
+		"guests": guest_ids,
+		"guest_names": guest_names,
+	}
+	_save()
+	_announce()
+	return ""
+
+
+func _announce() -> void:
+	_ensure()
+	if String(_party.get("host", "")) == "" and float(_party.get("until", 0.0)) <= 0.0:
+		return
+	var until := float(_party.get("until", 0.0))
+	if not bool(_party.get("public", false)):
+		until = 0.0
+	ToonNet.share_party({
+		"name": String(_party.get("host", "")),
+		"start": float(_party.get("start", 0.0)),
+		"until": until,
+		"activities": String(_party.get("summary", "")),
+		"layout": String(_party.get("layout", "")),
+	})
+
+
+static func _bean_book() -> Dictionary:
+	if visiting():
+		return _visit
+	return _party
 
 
 static func _card(id: String) -> Dictionary:

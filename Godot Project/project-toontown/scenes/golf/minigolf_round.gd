@@ -2,12 +2,18 @@ extends Node3D
 
 ## One minigolf hole. The district already rolled the ball. This plays that
 ## path, with the camera and the power bar following the local toon.
-## Tab looks down on the green. Up aims at the cup. Hold the mouse button
-## or Ctrl and let go to swing. The bar is the original three-second cycle.
+## Tab looks down on the green. Up aims at the cup. Hold the mouse button,
+## Ctrl, or the Jump button and let go to swing. The right stick aims too.
+## The bar is the original three-second cycle. The score card records
+## trophies, cups, and best scores.
 
 const _HOME := "res://scenes/playgrounds/chip_n_dales_minigolf.tscn"
+const _MILL := preload("res://assets/minigolf/windmill.glb")
+const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _RECORDS := preload("res://scenes/golf/golf_records.gd")
 
 var _world: Node3D
+var _movers: Array[Node3D] = []
 var _camera: Camera3D
 var _balls: Array[MeshInstance3D] = []
 var _toon: ToonActor
@@ -21,6 +27,11 @@ var _roll := 0.0
 var _cup_played := -1
 var _aim := 0.0
 var _hold := -1.0
+var _pad_swing := false
+var _pad_left := false
+var _pad_right := false
+var _pad_forward := false
+var _awarded := -1
 var _aim_sent := 0.0
 var _top := false
 var _leaving := false
@@ -105,6 +116,7 @@ func _process(delta: float) -> void:
 	if shot != _shot and String(game.get("phase", "")) == "roll" and _hit != null and _hit.stream != null:
 		_hit.play()
 	_move_balls(game, delta)
+	_move_obstacles(float(game.get("clock", 0.0)))
 	_move_toon(game)
 	_aim_camera(game, delta)
 	_fill_hud(game)
@@ -166,10 +178,16 @@ func _release() -> void:
 
 
 func _play(game: Dictionary, delta: float) -> void:
+	if String(game.get("phase", "")) == "card" and int(game.get("id", -1)) != _awarded:
+		var match_id := int(game.get("id", -1))
+		if _RECORDS.award(match_id, game):
+			_awarded = match_id
 	if not _my_turn(game):
 		_hold = -1.0
+		_pad_swing = false
 		return
 	var phase := String(game.get("phase", ""))
+	_pad(phase, delta)
 	if phase == "aim":
 		if _hold >= 0.0:
 			_hold += delta
@@ -179,6 +197,39 @@ func _play(game: Dictionary, delta: float) -> void:
 			ToonNet.minigolf_act("aim", 0, _aim, 0.0)
 	else:
 		_hold = -1.0
+		_pad_swing = false
+
+
+func _pad(phase: String, delta: float) -> void:
+	var left := _KEYS.pad_held("left")
+	var right := _KEYS.pad_held("right")
+	var forward := _KEYS.pad_held("forward")
+	var swing := _KEYS.pad_held("jump") or _KEYS.pad_held("use")
+	if phase == "tee":
+		if left and not _pad_left:
+			_nudge(phase, -1)
+		if right and not _pad_right:
+			_nudge(phase, 1)
+		if swing and not _pad_swing:
+			ToonNet.minigolf_act("ready", 0, 0.0, 0.0)
+	elif phase == "aim":
+		var stick := _KEYS.look().x
+		if left:
+			_aim -= delta * 1.4
+		if right:
+			_aim += delta * 1.4
+		if absf(stick) > 0.0:
+			_aim += stick * delta * 1.6
+		if forward and not _pad_forward:
+			_aim = _cup_aim()
+		if swing and not _pad_swing and _hold < 0.0:
+			_hold = 0.0
+		elif not swing and _pad_swing and _hold >= 0.0:
+			_release()
+	_pad_left = left
+	_pad_right = right
+	_pad_forward = forward
+	_pad_swing = swing
 
 
 func _move_balls(game: Dictionary, delta: float) -> void:
@@ -288,12 +339,49 @@ func _aim_camera(game: Dictionary, _delta: float) -> void:
 func _build_hole(info: Dictionary) -> void:
 	for child in _world.get_children():
 		child.queue_free()
+	_movers.clear()
 	var packed := load(String(info["model"])) as PackedScene
 	if packed == null:
 		return
 	var hole := packed.instantiate()
 	hole.name = "Hole"
 	_world.add_child(hole)
+	for record in MiniGolfRules.movers(_hole_id):
+		if typeof(record) != TYPE_DICTIONARY:
+			continue
+		var anchor := Node3D.new()
+		anchor.set_meta("record", record)
+		if String(record.get("kind", "")) == "fan":
+			anchor.transform = MiniGolfRules.fan_root(record)
+			var mill := _MILL.instantiate()
+			anchor.add_child(mill)
+			var fan := mill.find_child("windmillFan0", true, false)
+			if fan is Node3D:
+				anchor.set_meta("fan", fan)
+		else:
+			anchor.transform = MiniGolfRules.slide_transform(record, 0.0)
+			var board := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			var size: Array = record.get("size", [1.0, 1.0])
+			box.size = Vector3(float(size[0]), float(size[1]), 1.0)
+			board.mesh = box
+			var paint := StandardMaterial3D.new()
+			paint.albedo_color = Color(0.2, 0.75, 0.35)
+			board.material_override = paint
+			anchor.add_child(board)
+		_world.add_child(anchor)
+		_movers.append(anchor)
+
+
+func _move_obstacles(when: float) -> void:
+	for anchor in _movers:
+		var record: Dictionary = anchor.get_meta("record", {})
+		if String(record.get("kind", "")) == "fan":
+			var fan: Variant = anchor.get_meta("fan", null)
+			if fan is Node3D:
+				(fan as Node3D).transform = MiniGolfRules.fan_spin(when)
+		else:
+			anchor.transform = MiniGolfRules.slide_transform(record, when)
 
 
 func _fill_hud(game: Dictionary) -> void:
@@ -320,11 +408,14 @@ func _fill_hud(game: Dictionary) -> void:
 	_power.visible = shown
 	_power_fill.visible = shown
 	_power_text.visible = shown
-	_help.visible = _my_turn(game) and (phase == "tee" or phase == "aim")
-	if phase == "tee":
-		_help.text = "Press Left or Right to change tee spot.\nPress Control to select."
-	else:
-		_help.text = "Press Left or Right to aim.\nPress and hold Control to swing."
+	var reward := phase == "card" and _RECORDS.note() != ""
+	_help.visible = reward or (_my_turn(game) and (phase == "tee" or phase == "aim"))
+	if reward:
+		_help.text = _RECORDS.note()
+	elif phase == "tee":
+		_help.text = "Left or Right changes the tee. Control or Jump starts the hole."
+	elif phase == "aim":
+		_help.text = "Left, Right, or the stick aims. Up faces the cup.\nHold Control or Jump, then let go."
 	if shown:
 		var amount := 0
 		if _hold >= 0.0:

@@ -214,6 +214,13 @@ static func harvest(estate: int, plot: int) -> String:
 		var organic_row: Array = _record().get("organic", [])
 		organic_row[track] = maxi(int(organic_row[track]), level)
 		_record()["organic"] = organic_row
+		var pockets := ToonLoadout.for_selected()
+		var tree := Engine.get_main_loop() as SceneTree
+		if tree != null and tree.current_scene != null and tree.current_scene.has_method("battle_loadout"):
+			var live: Variant = tree.current_scene.call("battle_loadout")
+			if live is ToonLoadout:
+				pockets = live
+		pockets.raise_organic(track, level)
 		plant["stage"] = 2
 		plant["growth"] = 0
 		plant["water"] = 1

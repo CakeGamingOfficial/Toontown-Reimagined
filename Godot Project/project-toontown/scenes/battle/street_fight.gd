@@ -751,6 +751,19 @@ func _show_number(beat: Dictionary) -> void:
 		text = "-%d" % damage
 	else:
 		return
+	_float_hp(host, text, color)
+	var combo := int(beat.get("combo", 0))
+	if combo <= 0:
+		return
+	# The combo number replaces the hit number 0.75s later, in yellow.
+	var later := create_tween()
+	later.tween_interval(0.75)
+	later.tween_callback(_float_hp.bind(host, "-%d" % combo, Color(1.0, 1.0, 0.0, 1.0)))
+
+
+func _float_hp(host: Node3D, text: String, color: Color) -> void:
+	if not is_instance_valid(host):
+		return
 	if host.has_meta("hp_text"):
 		var previous: Variant = host.get_meta("hp_text")
 		if is_instance_valid(previous) and previous is Node:

@@ -2,6 +2,7 @@ shader_type sky;
 
 uniform sampler2D gradient_tex : source_color, repeat_disable, filter_linear;
 uniform sampler2D cloud_tex : source_color, repeat_enable, filter_linear;
+uniform float night = 1.0;
 
 // Lod 0 on purpose. The longitude wraps once around the sky, and a mipmap
 // sample at that wrap turns into the vertical seam.
@@ -45,5 +46,5 @@ void sky() {
 		color = mix(color, first.rgb, first.a * cover);
 		color = mix(color, second.rgb, second.a * cover);
 	}
-	COLOR = color;
+	COLOR = color * night;
 }

@@ -88,6 +88,15 @@ const _TRACKS: PackedStringArray = ["TOON-UP", "TRAP", "LURE", "SOUND", "THROW",
 const _ROW_Y: PackedFloat32Array = [56, 64, 72, 80, 88, 96, 104]
 const _CARD_W := 0.4542
 const _CARD_H := 0.9458
+## ToonAvatarDetailPanel is the avatarInfoPanel card at scale 0.5. Its center
+## is (0.525, 0.525). FriendsListPanel sits at (1.1, 0.54). The gag page keeps
+## that offset when the friends menu slides toward a wide screen.
+const _INFO_W := 2.0917 * 0.5
+const _INFO_H := 1.9 * 0.5
+const _FRIENDS_W := 0.5208
+const _FRIENDS_X := 1.1
+const _FRIENDS_Z := 0.54
+const _INFO_FROM_FRIENDS := Vector2(0.525 - 1.1, 0.525 - 0.54)
 const _HOVER_INK := Color(1, 1, 0.5)
 const _DOWN_INK := Color(0.5, 1, 0.5)
 const _DISABLED_INK := Color(0.6, 0.6, 0.6)
@@ -102,8 +111,8 @@ var _detail_state := "off"
 var _detail_token := 0
 var _social_bound := false
 var _card_at := Vector2(1.1, 0.525)
-var _detail_at := Vector2(0.35, 0.525)
-var _detail_size := Vector2(0.92, 0.92)
+var _detail_at := Vector2(0.525, 0.525)
+var _detail_size := Vector2(_INFO_W, _INFO_H)
 var _laid := Vector2.ZERO
 var _well: Texture2D
 var _card: TextureRect
@@ -797,12 +806,13 @@ func _layout() -> void:
 	var edge := view.x / view.y
 	var card_x := maxf(1.1, edge - 0.02 - _CARD_W * 0.5)
 	_card_at = Vector2(card_x, 0.525)
-	_detail_size = Vector2(0.92, 0.92)
-	var detail_x := _card_at.x - _CARD_W * 0.5 - 0.04 - _detail_size.x * 0.5
+	_detail_size = Vector2(_INFO_W, _INFO_H)
+	var friends_x := maxf(_FRIENDS_X, edge - 0.02 - _FRIENDS_W * 0.5)
+	var detail_x := friends_x + _INFO_FROM_FRIENDS.x
 	var min_x := -edge + 0.02 + _detail_size.x * 0.5
 	if detail_x < min_x:
 		detail_x = min_x
-	_detail_at = Vector2(detail_x, 0.525)
+	_detail_at = Vector2(detail_x, _FRIENDS_Z + _INFO_FROM_FRIENDS.y)
 	ToonGui.place(_card, view, _card_at.x, _card_at.y, _CARD_W, _CARD_H)
 	_place_card(_head_box, view, 0.02, 0.31, 0.175, 0.175)
 	_place_card(_name_label, view, 0.0125, 0.40, 0.36, 0.08)

@@ -53,7 +53,19 @@ const _POOLS: Array = [
 ]
 
 static var _book: Dictionary = {}
+static var _movers: Dictionary = {}
 static var _spaces: Dictionary = {}
+static var _mill_fan := Transform3D.IDENTITY
+static var _mill_base := Transform3D.IDENTITY
+static var _mill_ready := false
+## The export stands Z-up models up. A windmill placed on a locator uses the
+## locator with this conversion taken back off, because the windmill file
+## still has that conversion on its own root.
+const _UPRIGHT := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+const _FAN_CENTER := Vector3(-2.33, 0.04, 4.74)
+const _FAN_SIZE := Vector3(0.4, 9.44, 9.31)
+const _BASE_CENTER := Vector3(-0.7, 0.0, 2.94)
+const _BASE_SIZE := Vector3(3.01, 4.87, 5.86)
 
 
 static func course_title(course: int) -> String:
@@ -113,9 +125,9 @@ static func hole(hole_id: int) -> Dictionary:
 	}
 
 
-## Called from the physics frame. The same start, aim, and hold always lands
-## on the same spot.
-static func roll(hole_id: int, origin: Vector3, aim: float, hold: float) -> Dictionary:
+## Called from the physics frame. Movers keep the course clock, so the same
+## swing at a different moment can miss a barrier or a windmill blade.
+static func roll(hole_id: int, origin: Vector3, aim: float, hold: float, when := 0.0) -> Dictionary:
 	var info := hole(hole_id)
 	var cup: Vector3 = info["cup"]
 	var power := power_from_hold(hold)
@@ -128,8 +140,11 @@ static func roll(hole_id: int, origin: Vector3, aim: float, hold: float) -> Dict
 	var steps := 0
 	var elapsed := 0.0
 	var world: Dictionary = _world(info)
+	var bodies := _spawn_movers(world, hole_id, when)
+	_refresh_space(world)
 	var state: PhysicsDirectSpaceState3D = world.get("state")
 	if state == null:
+		_free_bodies(world, bodies)
 		return {
 			"ready": false,
 			"path": [pos.x, pos.y, pos.z],
@@ -144,6 +159,8 @@ static func roll(hole_id: int, origin: Vector3, aim: float, hold: float) -> Dict
 	while steps < 520 and not sunk and not wet:
 		steps += 1
 		elapsed += _STEP
+		_move_bodies(bodies, when + elapsed)
+		_refresh_space(world)
 		if state == null:
 			break
 		vel.y -= _GRAVITY * _STEP
@@ -169,6 +186,7 @@ static func roll(hole_id: int, origin: Vector3, aim: float, hold: float) -> Dict
 		path.append(pos.x)
 		path.append(pos.y)
 		path.append(pos.z)
+	_free_bodies(world, bodies)
 	return {
 		"ready": true,
 		"path": path,
@@ -238,8 +256,10 @@ static func _collect(node: Node, parent: Transform3D, built: Dictionary) -> void
 		var kind := _kind(node)
 		var mesh := (node as MeshInstance3D).mesh
 		if kind != "" and mesh != null:
-			var shape := mesh.create_trimesh_shape()
+			var shape := mesh.create_trimesh_shape() as ConcavePolygonShape3D
 			if shape != null:
+				# The green is a thin card. A one-sided face lets the ball drop through it.
+				shape.backface_collision = true
 				(built["shapes"] as Array).append(shape)
 				var body := PhysicsServer3D.body_create()
 				PhysicsServer3D.body_set_space(body, built["space"])
@@ -287,69 +307,280 @@ static func _settle(info: Dictionary, origin: Vector3) -> Vector3:
 	var state: PhysicsDirectSpaceState3D = world.get("state")
 	if state == null:
 		return origin
-	var ray := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 6.0, origin + Vector3.DOWN * 30.0)
-	var hit := state.intersect_ray(ray)
+	var hit := _ray(state, origin + Vector3.UP * 6.0, origin + Vector3.DOWN * 30.0)
 	if hit.is_empty():
 		return origin
 	return hit["position"] + (hit["normal"] as Vector3) * BALL_RADIUS
 
 
+## A shape sweep misses the thin green. A ray hits the card from either side.
+static func _ray(state: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Dictionary:
+	if from.distance_squared_to(to) < 0.000001:
+		return {}
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.hit_back_faces = true
+	var hit := state.intersect_ray(query)
+	if hit.is_empty():
+		return {}
+	var normal: Vector3 = hit["normal"]
+	if normal.dot(to - from) > 0.0:
+		hit["normal"] = -normal
+	return hit
+
+
+static func _bounce(vel: Vector3, normal: Vector3, touched: String) -> Vector3:
+	var into := vel.dot(normal)
+	if into >= 0.0:
+		return vel
+	var bounce := 0.0
+	var drag := 9.0
+	if touched == "hard":
+		bounce = 0.4
+		drag = 4.5
+	elif touched == "slick":
+		bounce = 0.05
+		drag = 1.1
+	elif touched == "cup":
+		drag = 16.0
+	vel -= normal * into * (1.0 + bounce)
+	if normal.y > 0.45:
+		var flat := Vector3(vel.x, 0.0, vel.z)
+		flat = flat.move_toward(Vector3.ZERO, drag * _STEP)
+		vel.x = flat.x
+		vel.z = flat.z
+		if normal.y > 0.65 and absf(vel.y) < 2.2:
+			vel.y = 0.0
+	return vel
+
+
 static func _slide(world: Dictionary, pos: Vector3, vel: Vector3) -> Dictionary:
 	var state: PhysicsDirectSpaceState3D = world.get("state")
-	var motion := vel * _STEP
 	var touched := ""
-	for _bounce in 3:
-		if motion.length_squared() < 0.0000001:
-			break
-		var params := PhysicsShapeQueryParameters3D.new()
-		params.shape = world["sphere"]
-		params.transform = Transform3D(Basis.IDENTITY, pos)
-		params.motion = motion
-		params.margin = 0.02
-		var frac := state.cast_motion(params)
-		var along := 1.0 if frac.is_empty() else float(frac[0])
-		if along >= 1.0:
-			pos += motion
-			break
-		var safe := maxf(along, 0.0)
-		pos += motion * safe
-		var probe := pos
-		if motion.length_squared() > 0.0000001:
-			probe += motion.normalized() * 0.04
-		params.transform = Transform3D(Basis.IDENTITY, probe)
-		params.motion = Vector3.ZERO
-		var rest := state.get_rest_info(params)
-		var normal := Vector3.UP
-		if not rest.is_empty():
-			normal = rest["normal"]
-			touched = _surface(world, rest)
-		if along <= 0.001:
-			pos += normal * 0.05
-		var into := vel.dot(normal)
-		if into < 0.0:
-			var bounce := 0.0
-			var drag := 9.0
-			if touched == "hard":
-				bounce = 0.4
-				drag = 4.5
-			elif touched == "slick":
-				bounce = 0.05
-				drag = 1.1
-			elif touched == "cup":
-				drag = 16.0
-			vel -= normal * into * (1.0 + bounce)
-			if normal.y > 0.45:
-				var flat := Vector3(vel.x, 0.0, vel.z)
-				flat = flat.move_toward(Vector3.ZERO, drag * _STEP)
-				vel.x = flat.x
-				vel.z = flat.z
-				if normal.y > 0.65 and absf(vel.y) < 2.2:
-					vel.y = 0.0
-		pos += normal * 0.015
-		motion = vel * _STEP * (1.0 - safe)
-		if touched == "water":
-			break
+	var flat_step := Vector3(vel.x, 0.0, vel.z) * _STEP
+	if flat_step.length() > 0.001:
+		var dir := flat_step.normalized()
+		var hit := _ray(state, pos, pos + dir * (flat_step.length() + BALL_RADIUS))
+		var blocked := false
+		if not hit.is_empty():
+			var normal: Vector3 = hit["normal"]
+			var dist := pos.distance_to(hit["position"])
+			if normal.y < 0.45 and dist <= flat_step.length() + BALL_RADIUS:
+				if dist < BALL_RADIUS:
+					pos += normal * (BALL_RADIUS - dist + 0.01)
+				else:
+					pos += dir * minf(dist - BALL_RADIUS, flat_step.length())
+				touched = _surface(world, hit)
+				vel = _bounce(vel, normal, touched)
+				blocked = true
+		if not blocked:
+			pos += flat_step
+	if vel.y > 0.0:
+		var rise := vel.y * _STEP
+		var ceiling := _ray(state, pos, pos + Vector3.UP * (rise + BALL_RADIUS))
+		if not ceiling.is_empty():
+			var normal: Vector3 = ceiling["normal"]
+			var dist := pos.distance_to(ceiling["position"])
+			if normal.y < 0.2 and dist <= rise + BALL_RADIUS:
+				pos += Vector3.UP * clampf(dist - BALL_RADIUS, 0.0, rise)
+				vel.y = 0.0
+				touched = _surface(world, ceiling)
+			else:
+				pos.y += rise
+		else:
+			pos.y += rise
+	else:
+		var drop := -vel.y * _STEP
+		var ground := _ray(state, pos, pos + Vector3.DOWN * (BALL_RADIUS + drop + 0.4))
+		if not ground.is_empty():
+			var normal: Vector3 = ground["normal"]
+			var dist := pos.distance_to(ground["position"])
+			if normal.y > 0.2 and dist <= BALL_RADIUS + drop + 0.05:
+				pos = (ground["position"] as Vector3) + normal * BALL_RADIUS
+				touched = _surface(world, ground)
+				vel = _bounce(vel, normal, touched)
+			else:
+				pos.y -= drop
+		else:
+			pos.y -= drop
 	return {"pos": pos, "vel": vel, "kind": touched}
+
+
+static func movers(hole_id: int) -> Array:
+	_ensure_movers()
+	var raw = _movers.get(str(hole_id), [])
+	if raw is Array:
+		return raw
+	return []
+
+
+static func slide_transform(record: Dictionary, when: float) -> Transform3D:
+	var basis := _basis(record)
+	var origin := _origin(record)
+	origin += basis.y * _slide_distance(float(record.get("travel", 0.0)), when)
+	return Transform3D(basis, origin)
+
+
+static func fan_root(record: Dictionary) -> Transform3D:
+	return Transform3D(_basis(record) * _UPRIGHT.inverse(), _origin(record))
+
+
+static func fan_spin(when: float) -> Transform3D:
+	var spin := Basis(Vector3.RIGHT, when)
+	return Transform3D(spin, _FAN_CENTER - spin * _FAN_CENTER)
+
+
+static func _slide_distance(travel: float, when: float) -> float:
+	var cycle := fposmod(when, 10.0)
+	if cycle < 1.0:
+		return 0.0
+	if cycle < 5.0:
+		return (cycle - 1.0) * travel / 4.0
+	if cycle < 6.0:
+		return travel
+	return travel - (cycle - 6.0) * travel / 4.0
+
+
+static func _basis(record: Dictionary) -> Basis:
+	var row: Array = record.get("basis", [])
+	if row.size() < 9:
+		return Basis.IDENTITY
+	return Basis(
+		Vector3(float(row[0]), float(row[1]), float(row[2])),
+		Vector3(float(row[3]), float(row[4]), float(row[5])),
+		Vector3(float(row[6]), float(row[7]), float(row[8]))
+	)
+
+
+static func _origin(record: Dictionary) -> Vector3:
+	var row: Array = record.get("origin", [])
+	if row.size() < 3:
+		return Vector3.ZERO
+	return _vec(row)
+
+
+static func _ensure_movers() -> void:
+	if _movers.has("_loaded"):
+		return
+	_movers["_loaded"] = true
+	var text := FileAccess.get_file_as_string("res://assets/minigolf/movers.json")
+	var parsed = JSON.parse_string(text)
+	if parsed is Dictionary:
+		for key in (parsed as Dictionary).keys():
+			_movers[key] = (parsed as Dictionary)[key]
+
+
+static func _spawn_movers(world: Dictionary, hole_id: int, when: float) -> Array:
+	var space: RID = world.get("space", RID())
+	if not space.is_valid():
+		return []
+	var made: Array = []
+	for record in movers(hole_id):
+		if typeof(record) != TYPE_DICTIONARY:
+			continue
+		var kind := String(record.get("kind", ""))
+		if kind == "slide":
+			var size: Array = record.get("size", [1.0, 1.0])
+			var shape := BoxShape3D.new()
+			shape.size = Vector3(float(size[0]), float(size[1]), 1.0)
+			made.append({
+				"body": _box_body(world, shape, slide_transform(record, when)),
+				"shape": shape,
+				"kind": "slide",
+				"record": record,
+			})
+		elif kind == "fan":
+			_ensure_mill()
+			var root := fan_root(record)
+			var base_shape := BoxShape3D.new()
+			base_shape.size = _BASE_SIZE
+			made.append({
+				"body": _box_body(world, base_shape, root * _mill_base * Transform3D(Basis.IDENTITY, _BASE_CENTER)),
+				"shape": base_shape,
+				"kind": "base",
+			})
+			var fan_shape := BoxShape3D.new()
+			fan_shape.size = _FAN_SIZE
+			made.append({
+				"body": _box_body(world, fan_shape, root * _mill_fan * Transform3D(Basis(Vector3.RIGHT, when), _FAN_CENTER)),
+				"shape": fan_shape,
+				"kind": "fan",
+				"root": root,
+			})
+	return made
+
+
+static func _move_bodies(bodies: Array, when: float) -> void:
+	for item in bodies:
+		var kind := String(item.get("kind", ""))
+		var body: RID = item.get("body", RID())
+		if not body.is_valid():
+			continue
+		var xform := Transform3D.IDENTITY
+		if kind == "slide":
+			xform = slide_transform(item.get("record", {}), when)
+		elif kind == "fan":
+			var root: Transform3D = item.get("root", Transform3D.IDENTITY)
+			xform = root * _mill_fan * Transform3D(Basis(Vector3.RIGHT, when), _FAN_CENTER)
+		else:
+			continue
+		PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+
+
+static func _box_body(world: Dictionary, shape: BoxShape3D, xform: Transform3D) -> RID:
+	var body := PhysicsServer3D.body_create()
+	PhysicsServer3D.body_set_space(body, world["space"])
+	PhysicsServer3D.body_set_mode(body, PhysicsServer3D.BODY_MODE_STATIC)
+	PhysicsServer3D.body_add_shape(body, shape.get_rid())
+	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+	(world["kind"] as Dictionary)[body] = "hard"
+	return body
+
+
+static func _refresh_space(world: Dictionary) -> void:
+	var space: RID = world.get("space", RID())
+	if space.is_valid():
+		world["state"] = PhysicsServer3D.space_get_direct_state(space)
+
+
+static func _free_bodies(world: Dictionary, bodies: Array) -> void:
+	var kinds: Dictionary = world.get("kind", {})
+	for item in bodies:
+		var body: RID = item.get("body", RID())
+		if not body.is_valid():
+			continue
+		kinds.erase(body)
+		PhysicsServer3D.body_set_space(body, RID())
+		PhysicsServer3D.free_rid(body)
+
+
+static func _ensure_mill() -> void:
+	if _mill_ready:
+		return
+	_mill_ready = true
+	var packed := load("res://assets/minigolf/windmill.glb") as PackedScene
+	if packed == null:
+		return
+	var root := packed.instantiate()
+	var fan := root.find_child("windmillFan0", true, false) as Node3D
+	var base := root.find_child("windmillBase0", true, false) as Node3D
+	if fan != null:
+		_mill_fan = _chain(fan)
+	if base != null:
+		_mill_base = _chain(base)
+	root.free()
+
+
+static func _chain(node: Node3D) -> Transform3D:
+	var order: Array[Node3D] = []
+	var current: Node = node
+	while current is Node3D:
+		order.append(current as Node3D)
+		current = current.get_parent()
+	order.reverse()
+	var xform := Transform3D.IDENTITY
+	for item in order:
+		xform = xform * item.transform
+	return xform
 
 
 static func _surface(world: Dictionary, rest: Dictionary) -> String:

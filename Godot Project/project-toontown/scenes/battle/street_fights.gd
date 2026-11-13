@@ -20,6 +20,8 @@ const NEAR_COG := 15.0
 ## BattleCalculatorAI. Track experience, earlier hits, and the lure's duration.
 const _EXP_BONUS: Array[int] = [0, 10, 20, 30, 40, 50, 60]
 const _PREV_BONUS: Array[int] = [0, 20, 40, 60]
+## BattleCalculatorAI.DamageBonuses. Two or more hits from one track add 20 percent.
+const _COMBO_BONUS: Array[int] = [0, 20, 20, 20]
 const _LURE_ROUNDS: Array[int] = [2, 2, 3, 3, 4, 4, 15]
 const _MAX_TOON_ACC := 95
 ## SuitBattleGlobals.SuitAttributes def, indexed by the cog's relative level.
@@ -341,6 +343,7 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 		"level": level,
 		"target": target,
 		"exp": clampi(exp, 0, 10500),
+		"organic": track >= 0 and track <= 6 and level >= 0 and ToonNet.stored_organic(peer, track) >= level,
 	}
 	if track == -4 or track == -5 or track == -6:
 		if track == -5:
@@ -613,6 +616,7 @@ func _resolve(fight: Dictionary) -> void:
 		roster.erase(leaving)
 	_place(fight)
 	fight["hits"] = []
+	fight["combo"] = []
 	var order: Array[int] = [0, 1, 2, 3, 4, 5, 6]
 	for attack_index in picks.size():
 		var special: Dictionary = picks[attack_index]
@@ -630,6 +634,7 @@ func _resolve(fight: Dictionary) -> void:
 			if attacker.is_empty() or int(attacker.get("hp", 0)) <= 0:
 				continue
 			_apply_gag(fight, attacker, attack, beats)
+	_apply_combos(fight, beats)
 	for fighter_index in suits.size():
 		var fighter: Dictionary = suits[fighter_index]
 		if int(fighter.get("hp", 0)) <= 0:
@@ -765,7 +770,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			living.append(body)
 	if living.is_empty():
 		return
-	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)))
+	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)), bool(choice.get("organic", false)))
 	if _kills_instantly(toon):
 		damage = 9999
 	var group := ToonLoadout.affects_group(track, level)
@@ -811,6 +816,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			beat["cog_hp"] = 0
 			beat["revived"] = true
 		beats.append(beat)
+		_note_combo(fight, track, int(toon.get("id", 0)), int(suit.get("id", 0)), dealt, beats.size() - 1)
 		landed = true
 	if landed and track != 1:
 		_grant(fight, int(toon.get("id", 0)), track, level)
@@ -851,7 +857,7 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String, who: String, beats: Array) -> void:
 	var track := int(choice.get("track", 0))
 	var level := int(choice.get("level", 0))
-	var amount := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)))
+	var amount := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)), bool(choice.get("organic", false)))
 	var targets: Array = []
 	if ToonLoadout.affects_group(track, level):
 		targets = fight["toons"]
@@ -908,9 +914,8 @@ func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictiona
 		if bool(suit.get("lured", false)):
 			num_lured += 1
 	var prop := ToonLoadout.gag_accuracy(track, level)
-	if track == 2 and preload("res://scenes/estate/garden.gd").organic(track, level):
-		var organic_lure: Array[int] = [60, 60, 70, 70, 80, 80, 100]
-		prop = organic_lure[clampi(level, 0, organic_lure.size() - 1)]
+	if track == 2 and bool(choice.get("organic", false)):
+		prop = ToonLoadout.lure_organic_accuracy(level)
 	var attack_acc := prop + _shared_exp(fight, choice, track) + defense
 	var noted := _hit_list(fight)
 	if not noted.is_empty():
@@ -1477,6 +1482,71 @@ func _cog_targets(fight: Dictionary, choice: Dictionary) -> Array:
 	if living.is_empty():
 		return []
 	return [living[0]]
+
+
+func _note_combo(fight: Dictionary, track: int, toon_id: int, cog_id: int, damage: int, beat_index: int) -> void:
+	if damage <= 0 or track == ToonLoadout.TOON_UP or track == 1 or track == 2:
+		return
+	var rows: Array = fight.get("combo", [])
+	rows.append({
+		"track": track,
+		"toon": toon_id,
+		"cog": cog_id,
+		"damage": damage,
+		"beat": beat_index,
+	})
+	fight["combo"] = rows
+
+
+## BattleCalculatorAI.__processBonuses. The last gag of a track pays
+## ceil(20% of every hit that track landed on that Cog).
+func _apply_combos(fight: Dictionary, beats: Array) -> void:
+	var rows: Array = fight.get("combo", [])
+	fight.erase("combo")
+	var piles := {}
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var key := "%d:%d" % [int(row.get("cog", 0)), int(row.get("track", -1))]
+		if not piles.has(key):
+			piles[key] = []
+		(piles[key] as Array).append(row)
+	for key in piles.keys():
+		var hits: Array = piles[key]
+		if hits.size() < 2:
+			continue
+		var total := 0
+		for hit in hits:
+			total += int((hit as Dictionary).get("damage", 0))
+		var rate := _COMBO_BONUS[mini(hits.size() - 1, _COMBO_BONUS.size() - 1)]
+		var bonus := int(ceil(float(total) * float(rate) / 100.0))
+		if bonus <= 0:
+			continue
+		var last: Dictionary = hits[hits.size() - 1]
+		var beat_index := int(last.get("beat", -1))
+		if beat_index < 0 or beat_index >= beats.size():
+			continue
+		var suit := _cog_named(fight, int(last.get("cog", 0)))
+		if suit.is_empty():
+			continue
+		_hurt_cog(suit, bonus)
+		var revived := _revive_suit(suit)
+		var beat: Dictionary = beats[beat_index]
+		beat["combo"] = bonus
+		if revived:
+			beat["cog_hp"] = 0
+			beat["revived"] = true
+		else:
+			beat["cog_hp"] = int(suit.get("hp", 0))
+		beats[beat_index] = beat
+
+
+func _cog_named(fight: Dictionary, cog_id: int) -> Dictionary:
+	for item in fight.get("cogs", []):
+		if item is Dictionary and int((item as Dictionary).get("id", -1)) == cog_id:
+			return item
+	return {}
 
 
 func _hurt_cog(suit: Dictionary, damage: int) -> void:

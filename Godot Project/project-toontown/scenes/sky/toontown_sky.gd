@@ -40,6 +40,7 @@ var kind := "tt"
 var _material: ShaderMaterial
 var _hidden: Array[Node3D] = []
 var _original_environment: Environment
+var _night := 1.0
 
 
 static func ensure(host: Node, sky_kind: String = "tt") -> Node3D:
@@ -112,14 +113,16 @@ func _make_material() -> ShaderMaterial:
 	var shader := Shader.new()
 	var material := ShaderMaterial.new()
 	if kind == "cog":
-		shader.code = "shader_type sky;\nvoid sky() {\n\tfloat height = clamp(normalize(EYEDIR).y, 0.0, 1.0);\n\tCOLOR = mix(vec3(0.55, 0.58, 0.62), vec3(0.28, 0.32, 0.38), height);\n}\n"
+		shader.code = "shader_type sky;\nuniform float night = 1.0;\nvoid sky() {\n\tfloat height = clamp(normalize(EYEDIR).y, 0.0, 1.0);\n\tCOLOR = mix(vec3(0.55, 0.58, 0.62), vec3(0.28, 0.32, 0.38), height) * night;\n}\n"
 		material.shader = shader
+		material.set_shader_parameter("night", _night)
 		return material
 	if kind == "tt" or not PROFILES.has(kind):
 		shader.code = FileAccess.get_file_as_string(SKY_SHADER_PATH)
 		material.shader = shader
 		material.set_shader_parameter("gradient_tex", GRADIENT)
 		material.set_shader_parameter("cloud_tex", CLOUDS)
+		material.set_shader_parameter("night", _night)
 		return material
 	var profile: Dictionary = PROFILES[kind]
 	shader.code = FileAccess.get_file_as_string(HOOD_SHADER_PATH)
@@ -129,7 +132,14 @@ func _make_material() -> ShaderMaterial:
 	material.set_shader_parameter("crop", profile["crop"])
 	material.set_shader_parameter("repeats", float(profile["repeats"]))
 	material.set_shader_parameter("zenith_mode", int(profile["zenith_mode"]))
+	material.set_shader_parameter("night", _night)
 	return material
+
+
+func set_night(amount: float) -> void:
+	_night = clampf(amount, 0.0, 1.0)
+	if _material:
+		_material.set_shader_parameter("night", _night)
 
 
 func _world() -> WorldEnvironment:
@@ -167,7 +177,7 @@ func _collect_imported(node: Node) -> void:
 
 func _hide_imported() -> void:
 	for node in _hidden:
-		if is_instance_valid(node):
+		if is_instance_valid(node) and node.visible:
 			node.visible = false
 
 

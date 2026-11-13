@@ -349,6 +349,9 @@ func _paint_slot(track: int, level: int) -> void:
 		return
 	var owned := _loadout.count_of(track, level)
 	_counts[index].text = str(owned)
+	# InventoryNew.ShadowBuffedColor. An organic gag's count has a white shadow.
+	var outline := Color.WHITE if _loadout.is_organic(track, level) else Color(0.05, 0.12, 0.28)
+	_counts[index].add_theme_color_override("font_outline_color", outline)
 	var blocked := owned <= 0
 	var slot := _slots[index]
 	slot.disabled = blocked
@@ -384,13 +387,18 @@ func _show_detail(track: int, level: int) -> void:
 	_detail_data.visible = true
 	_detail_credit.visible = true
 	var exp := _loadout.experience_of(track)
+	var grown := _loadout.is_organic(track, level)
 	var kind := "Toon-up" if track == ToonLoadout.TOON_UP else "Damage"
+	var base := ToonLoadout.gag_damage(track, level, exp)
+	var extra := ToonLoadout.damage_bonus(base) if grown else 0
+	var bonus := " (+%d)" % extra if extra > 0 else ""
 	_detail_name.text = _loadout.gag_name(track, level)
 	_detail_amount.text = "%d / %d" % [_loadout.count_of(track, level), _loadout.carry_limit(track, level)]
-	_detail_data.text = "Accuracy: %s\n%s: %d\nAffects: %s" % [
-		ToonLoadout.accuracy_label(track, level),
+	_detail_data.text = "Accuracy: %s\n%s: %d%s\nAffects: %s" % [
+		ToonLoadout.accuracy_label(track, level, grown),
 		kind,
-		ToonLoadout.gag_damage(track, level, exp),
+		base,
+		bonus,
 		ToonLoadout.affects_label(track, level),
 	]
 	_no_credit = _credit_level >= 0 and not ToonLoadout.earns_experience(level, _credit_level)

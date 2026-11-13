@@ -442,12 +442,13 @@ func _toon_attack(track: int, level: int) -> void:
 	var hit := true
 	var damage := 0
 	var heal := 0
+	var grown := _loadout.is_organic(track, level)
 	if track == ToonLoadout.TOON_UP:
-		heal = ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+		heal = ToonLoadout.gag_damage(track, level, _loadout.experience_of(track), grown)
 	else:
 		hit = randi() % 100 < _loadout.rolled_accuracy(track, level)
 		if hit:
-			damage = ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
+			damage = ToonLoadout.gag_damage(track, level, _loadout.experience_of(track), grown)
 	ToonNet.publish("battle:%d" % ToonNet.district_id(), {
 		"kind": "toon",
 		"track": track,

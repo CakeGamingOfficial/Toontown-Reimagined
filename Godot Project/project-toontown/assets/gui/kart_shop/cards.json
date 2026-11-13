@@ -1,0 +1,1058 @@
+{
+ "Kart_MainMenuPanel": [
+  {
+   "name": "Kart_MainMenuPanel",
+   "file": "Kart_MainMenuPanel_Kart_MainMenuPanel_0.png",
+   "x": 0.0,
+   "z": 0.1214,
+   "w": 1.2945,
+   "h": 1.1173
+  },
+  {
+   "name": "BuyAccessoryIcon",
+   "file": "Kart_MainMenuPanel_BuyAccessoryIcon_1.png",
+   "x": 0.2874,
+   "z": 0.0369,
+   "w": 0.1757,
+   "h": 0.1453
+  },
+  {
+   "name": "BuyAccessoryButtonDisabled",
+   "file": "Kart_MainMenuPanel_BuyAccessoryButtonDisabled_2.png",
+   "x": 0.0,
+   "z": 0.0361,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyKartButtonDisabled",
+   "file": "Kart_MainMenuPanel_BuyKartButtonDisabled_3.png",
+   "x": 0.0,
+   "z": 0.3478,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyKartIcon",
+   "file": "Kart_MainMenuPanel_BuyKartIcon_4.png",
+   "x": 0.2874,
+   "z": 0.3606,
+   "w": 0.1939,
+   "h": 0.1885
+  },
+  {
+   "name": "BuyAccessoryButtonDown",
+   "file": "Kart_MainMenuPanel_BuyAccessoryButtonDown_5.png",
+   "x": 0.0,
+   "z": 0.0361,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyAccessoryButtonRollover",
+   "file": "Kart_MainMenuPanel_BuyAccessoryButtonRollover_6.png",
+   "x": 0.0,
+   "z": 0.0361,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyAccessoryButtonUp",
+   "file": "Kart_MainMenuPanel_BuyAccessoryButtonUp_7.png",
+   "x": 0.0,
+   "z": 0.0361,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyKartButtonDown",
+   "file": "Kart_MainMenuPanel_BuyKartButtonDown_8.png",
+   "x": 0.0,
+   "z": 0.3478,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyKartButtonRollover",
+   "file": "Kart_MainMenuPanel_BuyKartButtonRollover_9.png",
+   "x": 0.0,
+   "z": 0.3478,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "BuyKartButtonUp",
+   "file": "Kart_MainMenuPanel_BuyKartButtonUp_10.png",
+   "x": 0.0,
+   "z": 0.3478,
+   "w": 0.9853,
+   "h": 0.3055
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "Kart_MainMenuPanel_CancelButtonDown_11.png",
+   "x": 0.0003,
+   "z": -0.202,
+   "w": 0.2295,
+   "h": 0.2211
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "Kart_MainMenuPanel_CancelButtonUp_12.png",
+   "x": 0.0003,
+   "z": -0.202,
+   "w": 0.2295,
+   "h": 0.2211
+  },
+  {
+   "name": "CancelIcon",
+   "file": "Kart_MainMenuPanel_CancelIcon_13.png",
+   "x": -0.0032,
+   "z": -0.2038,
+   "w": 0.102,
+   "h": 0.0983
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "Kart_MainMenuPanel_CancelButtonRollover_14.png",
+   "x": 0.0003,
+   "z": -0.202,
+   "w": 0.2295,
+   "h": 0.2211
+  }
+ ],
+ "BuyKartPanel": [
+  {
+   "name": "BuyKartPanel",
+   "file": "BuyKartPanel_BuyKartPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "rotate_left_inactive",
+   "file": "BuyKartPanel_rotate_left_inactive_1.png",
+   "x": -0.2241,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_right_inactive",
+   "file": "BuyKartPanel_rotate_right_inactive_2.png",
+   "x": 0.2235,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_right_down",
+   "file": "BuyKartPanel_rotate_right_down_3.png",
+   "x": 0.2235,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_down",
+   "file": "BuyKartPanel_rotate_left_down_4.png",
+   "x": -0.2241,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_right_roll",
+   "file": "BuyKartPanel_rotate_right_roll_5.png",
+   "x": 0.2235,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_right_up",
+   "file": "BuyKartPanel_rotate_right_up_6.png",
+   "x": 0.2235,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_roll",
+   "file": "BuyKartPanel_rotate_left_roll_7.png",
+   "x": -0.2241,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_up",
+   "file": "BuyKartPanel_rotate_left_up_8.png",
+   "x": -0.2241,
+   "z": -0.0421,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "ArrowRightButtonInactive",
+   "file": "BuyKartPanel_ArrowRightButtonInactive_9.png",
+   "x": 0.4511,
+   "z": 0.2239,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowLeftButtonInactive",
+   "file": "BuyKartPanel_ArrowLeftButtonInactive_10.png",
+   "x": -0.4544,
+   "z": 0.2239,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "BuyKartButtonDisabled",
+   "file": "BuyKartPanel_BuyKartButtonDisabled_11.png",
+   "x": 0.0,
+   "z": -0.5208,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "ArrowLeftButtonUp",
+   "file": "BuyKartPanel_ArrowLeftButtonUp_12.png",
+   "x": -0.4544,
+   "z": 0.2239,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowLeftButtonRollover",
+   "file": "BuyKartPanel_ArrowLeftButtonRollover_13.png",
+   "x": -0.4544,
+   "z": 0.2239,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowLeftButtonDown",
+   "file": "BuyKartPanel_ArrowLeftButtonDown_14.png",
+   "x": -0.4544,
+   "z": 0.2239,
+   "w": 0.095,
+   "h": 0.1113
+  },
+  {
+   "name": "ArrowRightButtonDown",
+   "file": "BuyKartPanel_ArrowRightButtonDown_15.png",
+   "x": 0.4511,
+   "z": 0.2239,
+   "w": 0.095,
+   "h": 0.1113
+  },
+  {
+   "name": "ArrowRightButtonRollover",
+   "file": "BuyKartPanel_ArrowRightButtonRollover_16.png",
+   "x": 0.4511,
+   "z": 0.2239,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowRightButtonUp",
+   "file": "BuyKartPanel_ArrowRightButtonUp_17.png",
+   "x": 0.4511,
+   "z": 0.2239,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "BuyKartPanel_CancelButtonRollover_18.png",
+   "x": -0.3916,
+   "z": -0.5181,
+   "w": 0.1514,
+   "h": 0.1541
+  },
+  {
+   "name": "CancelIcon",
+   "file": "BuyKartPanel_CancelIcon_19.png",
+   "x": -0.3932,
+   "z": -0.5197,
+   "w": 0.0561,
+   "h": 0.056
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "BuyKartPanel_CancelButtonUp_20.png",
+   "x": -0.3916,
+   "z": -0.5181,
+   "w": 0.1514,
+   "h": 0.1541
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "BuyKartPanel_CancelButtonDown_21.png",
+   "x": -0.3916,
+   "z": -0.5181,
+   "w": 0.1514,
+   "h": 0.1541
+  },
+  {
+   "name": "BuyKartButtonUp",
+   "file": "BuyKartPanel_BuyKartButtonUp_22.png",
+   "x": 0.0,
+   "z": -0.5208,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "BuyKartButtonDown",
+   "file": "BuyKartPanel_BuyKartButtonDown_23.png",
+   "x": 0.0,
+   "z": -0.5208,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "BuyKartButtonRollover",
+   "file": "BuyKartPanel_BuyKartButtonRollover_24.png",
+   "x": 0.0,
+   "z": -0.5208,
+   "w": 0.6391,
+   "h": 0.1823
+  }
+ ],
+ "ReturnKartPanel": [
+  {
+   "name": "ReturnKartPanel",
+   "file": "ReturnKartPanel_ReturnKartPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "ReturnKartPanel_CancelButtonRollover_1.png",
+   "x": -0.1619,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CancelIcon",
+   "file": "ReturnKartPanel_CancelIcon_2.png",
+   "x": -0.1636,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "ReturnKartPanel_CancelButtonUp_3.png",
+   "x": -0.1619,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "ReturnKartPanel_CancelButtonDown_4.png",
+   "x": -0.1619,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonRollover",
+   "file": "ReturnKartPanel_CheckButtonRollover_5.png",
+   "x": 0.1662,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckIcon",
+   "file": "ReturnKartPanel_CheckIcon_6.png",
+   "x": 0.1645,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "ReturnKartPanel_CheckButtonUp_7.png",
+   "x": 0.1662,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "ReturnKartPanel_CheckButtonDown_8.png",
+   "x": 0.1662,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  }
+ ],
+ "BoughtKartPanel": [
+  {
+   "name": "BoughtKartPanel",
+   "file": "BoughtKartPanel_BoughtKartPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "CheckButtonRollover",
+   "file": "BoughtKartPanel_CheckButtonRollover_1.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckIcon",
+   "file": "BoughtKartPanel_CheckIcon_2.png",
+   "x": 0.0005,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "BoughtKartPanel_CheckButtonUp_3.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "BoughtKartPanel_CheckButtonDown_4.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  }
+ ],
+ "ConfirmBuyKartPanel": [
+  {
+   "name": "ConfirmBuyKartPanel",
+   "file": "ConfirmBuyKartPanel_ConfirmBuyKartPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "ConfirmBuyKartPanel_CancelButtonRollover_1.png",
+   "x": -0.3752,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CancelIcon",
+   "file": "ConfirmBuyKartPanel_CancelIcon_2.png",
+   "x": -0.3768,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "ConfirmBuyKartPanel_CancelButtonUp_3.png",
+   "x": -0.3752,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "ConfirmBuyKartPanel_CancelButtonDown_4.png",
+   "x": -0.3752,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonRollover",
+   "file": "ConfirmBuyKartPanel_CheckButtonRollover_5.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckIcon",
+   "file": "ConfirmBuyKartPanel_CheckIcon_6.png",
+   "x": 0.0005,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "ConfirmBuyKartPanel_CheckButtonUp_7.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "ConfirmBuyKartPanel_CheckButtonDown_8.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  }
+ ],
+ "BuyAccessoryPanel": [
+  {
+   "name": "BuyAccessoryPanel",
+   "file": "BuyAccessoryPanel_BuyAccessoryPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "rotate_right_inactive",
+   "file": "BuyAccessoryPanel_rotate_right_inactive_1.png",
+   "x": 0.2235,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_inactive",
+   "file": "BuyAccessoryPanel_rotate_left_inactive_2.png",
+   "x": -0.2241,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "ArrowRightButtonInactive",
+   "file": "BuyAccessoryPanel_ArrowRightButtonInactive_3.png",
+   "x": 0.4511,
+   "z": 0.2895,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowLeftButtonInactive",
+   "file": "BuyAccessoryPanel_ArrowLeftButtonInactive_4.png",
+   "x": -0.4544,
+   "z": 0.2895,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "rotate_right_down",
+   "file": "BuyAccessoryPanel_rotate_right_down_5.png",
+   "x": 0.2235,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_down",
+   "file": "BuyAccessoryPanel_rotate_left_down_6.png",
+   "x": -0.2241,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "BuyAccessoryButtonDisabled",
+   "file": "BuyAccessoryPanel_BuyAccessoryButtonDisabled_7.png",
+   "x": 0.0,
+   "z": -0.5651,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "PaintButtonDisabled",
+   "file": "BuyAccessoryPanel_PaintButtonDisabled_8.png",
+   "x": 0.3943,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "DecalButtonDisabled",
+   "file": "BuyAccessoryPanel_DecalButtonDisabled_9.png",
+   "x": 0.263,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "RimButtonDisabled",
+   "file": "BuyAccessoryPanel_RimButtonDisabled_10.png",
+   "x": 0.1318,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "RearButtonDisabled",
+   "file": "BuyAccessoryPanel_RearButtonDisabled_11.png",
+   "x": 0.0006,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "FrontButtonDisabled",
+   "file": "BuyAccessoryPanel_FrontButtonDisabled_12.png",
+   "x": -0.1307,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "SpoilerButtonDisabled",
+   "file": "BuyAccessoryPanel_SpoilerButtonDisabled_13.png",
+   "x": -0.2619,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "EBlockButtonDisabled",
+   "file": "BuyAccessoryPanel_EBlockButtonDisabled_14.png",
+   "x": -0.3931,
+   "z": -0.1296,
+   "w": 0.1181,
+   "h": 0.1202
+  },
+  {
+   "name": "ArrowLeftButtonUp",
+   "file": "BuyAccessoryPanel_ArrowLeftButtonUp_15.png",
+   "x": -0.4544,
+   "z": 0.2895,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowLeftButtonRollover",
+   "file": "BuyAccessoryPanel_ArrowLeftButtonRollover_16.png",
+   "x": -0.4544,
+   "z": 0.2895,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowLeftButtonDown",
+   "file": "BuyAccessoryPanel_ArrowLeftButtonDown_17.png",
+   "x": -0.4544,
+   "z": 0.2895,
+   "w": 0.095,
+   "h": 0.1113
+  },
+  {
+   "name": "ArrowRightButtonDown",
+   "file": "BuyAccessoryPanel_ArrowRightButtonDown_18.png",
+   "x": 0.4511,
+   "z": 0.2895,
+   "w": 0.095,
+   "h": 0.1113
+  },
+  {
+   "name": "ArrowRightButtonRollover",
+   "file": "BuyAccessoryPanel_ArrowRightButtonRollover_19.png",
+   "x": 0.4511,
+   "z": 0.2895,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "ArrowRightButtonUp",
+   "file": "BuyAccessoryPanel_ArrowRightButtonUp_20.png",
+   "x": 0.4511,
+   "z": 0.2895,
+   "w": 0.1055,
+   "h": 0.1237
+  },
+  {
+   "name": "rotate_right_roll",
+   "file": "BuyAccessoryPanel_rotate_right_roll_21.png",
+   "x": 0.2235,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_right_up",
+   "file": "BuyAccessoryPanel_rotate_right_up_22.png",
+   "x": 0.2235,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_roll",
+   "file": "BuyAccessoryPanel_rotate_left_roll_23.png",
+   "x": -0.2241,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "rotate_left_up",
+   "file": "BuyAccessoryPanel_rotate_left_up_24.png",
+   "x": -0.2241,
+   "z": 0.0071,
+   "w": 0.2368,
+   "h": 0.1184
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "BuyAccessoryPanel_CancelButtonRollover_25.png",
+   "x": -0.3916,
+   "z": -0.5624,
+   "w": 0.1514,
+   "h": 0.1541
+  },
+  {
+   "name": "CancelIcon",
+   "file": "BuyAccessoryPanel_CancelIcon_26.png",
+   "x": -0.3932,
+   "z": -0.564,
+   "w": 0.0561,
+   "h": 0.056
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "BuyAccessoryPanel_CancelButtonUp_27.png",
+   "x": -0.3916,
+   "z": -0.5624,
+   "w": 0.1514,
+   "h": 0.1541
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "BuyAccessoryPanel_CancelButtonDown_28.png",
+   "x": -0.3916,
+   "z": -0.5624,
+   "w": 0.1514,
+   "h": 0.1541
+  },
+  {
+   "name": "BuyAccessoryButtonUp",
+   "file": "BuyAccessoryPanel_BuyAccessoryButtonUp_29.png",
+   "x": 0.0,
+   "z": -0.5651,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "BuyAccessoryButtonDown",
+   "file": "BuyAccessoryPanel_BuyAccessoryButtonDown_30.png",
+   "x": 0.0,
+   "z": -0.5651,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "BuyAccessoryButtonRollover",
+   "file": "BuyAccessoryPanel_BuyAccessoryButtonRollover_31.png",
+   "x": 0.0,
+   "z": -0.5651,
+   "w": 0.6391,
+   "h": 0.1823
+  },
+  {
+   "name": "EBlockButtonUp",
+   "file": "BuyAccessoryPanel_EBlockButtonUp_32.png",
+   "x": -0.3931,
+   "z": -0.1296,
+   "w": 0.1312,
+   "h": 0.1336
+  },
+  {
+   "name": "EBlockButtonRollover",
+   "file": "BuyAccessoryPanel_EBlockButtonRollover_33.png",
+   "x": -0.3931,
+   "z": -0.1296,
+   "w": 0.1312,
+   "h": 0.1336
+  },
+  {
+   "name": "EBlockButtonDown",
+   "file": "BuyAccessoryPanel_EBlockButtonDown_34.png",
+   "x": -0.3931,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  },
+  {
+   "name": "DecalButtonUp",
+   "file": "BuyAccessoryPanel_DecalButtonUp_35.png",
+   "x": 0.263,
+   "z": -0.1296,
+   "w": 0.1312,
+   "h": 0.1336
+  },
+  {
+   "name": "DecalButtonRollover",
+   "file": "BuyAccessoryPanel_DecalButtonRollover_36.png",
+   "x": 0.263,
+   "z": -0.1296,
+   "w": 0.1312,
+   "h": 0.1336
+  },
+  {
+   "name": "DecalButtonDown",
+   "file": "BuyAccessoryPanel_DecalButtonDown_37.png",
+   "x": 0.263,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  },
+  {
+   "name": "SpoilerButtonUp",
+   "file": "BuyAccessoryPanel_SpoilerButtonUp_38.png",
+   "x": -0.2619,
+   "z": -0.1296,
+   "w": 0.1312,
+   "h": 0.1336
+  },
+  {
+   "name": "SpoilerButtonRollover",
+   "file": "BuyAccessoryPanel_SpoilerButtonRollover_39.png",
+   "x": -0.2619,
+   "z": -0.1296,
+   "w": 0.1312,
+   "h": 0.1336
+  },
+  {
+   "name": "SpoilerButtonDown",
+   "file": "BuyAccessoryPanel_SpoilerButtonDown_40.png",
+   "x": -0.2619,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  },
+  {
+   "name": "FrontButtonUp",
+   "file": "BuyAccessoryPanel_FrontButtonUp_41.png",
+   "x": -0.1307,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "FrontButtonRollover",
+   "file": "BuyAccessoryPanel_FrontButtonRollover_42.png",
+   "x": -0.1307,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "FrontButtonDown",
+   "file": "BuyAccessoryPanel_FrontButtonDown_43.png",
+   "x": -0.1307,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  },
+  {
+   "name": "RearButtonUp",
+   "file": "BuyAccessoryPanel_RearButtonUp_44.png",
+   "x": 0.0006,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "RearButtonRollover",
+   "file": "BuyAccessoryPanel_RearButtonRollover_45.png",
+   "x": 0.0006,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "RearButtonDown",
+   "file": "BuyAccessoryPanel_RearButtonDown_46.png",
+   "x": 0.0006,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  },
+  {
+   "name": "RimButtonUp",
+   "file": "BuyAccessoryPanel_RimButtonUp_47.png",
+   "x": 0.1318,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "RimButtonRollover",
+   "file": "BuyAccessoryPanel_RimButtonRollover_48.png",
+   "x": 0.1318,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "RimButtonDown",
+   "file": "BuyAccessoryPanel_RimButtonDown_49.png",
+   "x": 0.1318,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  },
+  {
+   "name": "PaintButtonUp",
+   "file": "BuyAccessoryPanel_PaintButtonUp_50.png",
+   "x": 0.3943,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "PaintButtonRollover",
+   "file": "BuyAccessoryPanel_PaintButtonRollover_51.png",
+   "x": 0.3943,
+   "z": -0.1296,
+   "w": 0.1313,
+   "h": 0.1336
+  },
+  {
+   "name": "PaintButtonDown",
+   "file": "BuyAccessoryPanel_PaintButtonDown_52.png",
+   "x": 0.3943,
+   "z": -0.1296,
+   "w": 0.118,
+   "h": 0.1201
+  }
+ ],
+ "BoughtAccessoryPanel": [
+  {
+   "name": "BoughtAccessoryPanel",
+   "file": "BoughtAccessoryPanel_BoughtAccessoryPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "CheckButtonRollover",
+   "file": "BoughtAccessoryPanel_CheckButtonRollover_1.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckIcon",
+   "file": "BoughtAccessoryPanel_CheckIcon_2.png",
+   "x": 0.0005,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "BoughtAccessoryPanel_CheckButtonUp_3.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "BoughtAccessoryPanel_CheckButtonDown_4.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  }
+ ],
+ "ConfirmBuyAccessory": [
+  {
+   "name": "ConfirmBuyAccessoryPanel",
+   "file": "ConfirmBuyAccessory_ConfirmBuyAccessoryPanel_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.4375,
+   "h": 1.4375
+  },
+  {
+   "name": "CancelButtonRollover",
+   "file": "ConfirmBuyAccessory_CancelButtonRollover_1.png",
+   "x": -0.3752,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CancelIcon",
+   "file": "ConfirmBuyAccessory_CancelIcon_2.png",
+   "x": -0.3768,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CancelButtonUp",
+   "file": "ConfirmBuyAccessory_CancelButtonUp_3.png",
+   "x": -0.3752,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CancelButtonDown",
+   "file": "ConfirmBuyAccessory_CancelButtonDown_4.png",
+   "x": -0.3752,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonRollover",
+   "file": "ConfirmBuyAccessory_CheckButtonRollover_5.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckIcon",
+   "file": "ConfirmBuyAccessory_CheckIcon_6.png",
+   "x": 0.0005,
+   "z": -0.4804,
+   "w": 0.0673,
+   "h": 0.0671
+  },
+  {
+   "name": "CheckButtonUp",
+   "file": "ConfirmBuyAccessory_CheckButtonUp_7.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  },
+  {
+   "name": "CheckButtonDown",
+   "file": "ConfirmBuyAccessory_CheckButtonDown_8.png",
+   "x": 0.0021,
+   "z": -0.4787,
+   "w": 0.1817,
+   "h": 0.185
+  }
+ ]
+}
