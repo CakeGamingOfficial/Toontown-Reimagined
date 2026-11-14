@@ -37,6 +37,9 @@ var _called := 0.0
 var _panel: CanvasLayer
 var _clip := "neutral"
 var _clock := 0.0
+var posing := false
+var _reverse := false
+var _start_frame := 0
 var _blink := 0.0
 var _ground := 0.0
 var _nodes: Dictionary = {}
@@ -128,7 +131,32 @@ func follow(body: Node3D) -> void:
 	_load_life()
 
 
+func hold_trick(clip: String, elapsed: float, reverse := false, start_frame := 0) -> void:
+	posing = true
+	if _clip != clip or _reverse != reverse or _start_frame != start_frame:
+		_shown.clear()
+	_clip = clip
+	_reverse = reverse
+	_start_frame = start_frame
+	_clock = elapsed
+	_pose()
+
+
+func release_trick() -> void:
+	posing = false
+	_reverse = false
+	_start_frame = 0
+	_clip = "neutral"
+	_clock = 0.0
+	_shown.clear()
+	_pose()
+
+
 func _process(delta: float) -> void:
+	if posing:
+		_blink += delta
+		_pose()
+		return
 	if gui:
 		_clip = "happy"
 	elif remote:
@@ -272,7 +300,14 @@ func _pose() -> void:
 		var count := int(frames.get(clip, 1))
 		if count < 1:
 			continue
-		var frame := int(_clock * rate) % count
+		var frame := int(_clock * rate)
+		if posing:
+			if _reverse:
+				frame = maxi(count - 1 - mini(frame, count - 1), 0)
+			else:
+				frame = mini(maxi(frame + _start_frame, 0), count - 1)
+		else:
+			frame = frame % count
 		var stamp := "%s:%d" % [clip, frame]
 		if String(_shown.get(part, "")) == stamp:
 			continue

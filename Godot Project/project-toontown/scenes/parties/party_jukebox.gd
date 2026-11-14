@@ -69,7 +69,8 @@ var _queue_box: VBoxContainer
 
 
 func setup(_player_body: ToonActor, _origin: Vector3, _party: Dictionary) -> void:
-	_wide = int(get_meta("act_id", 0)) == 8
+	var act_id := int(get_meta("act_id", 0))
+	_wide = act_id == 8 or act_id == 18
 	_host = not _PARTY.visiting()
 	for row in _SONGS:
 		var song: Dictionary = row

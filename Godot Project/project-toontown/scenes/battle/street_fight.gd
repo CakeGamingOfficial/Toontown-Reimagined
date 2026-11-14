@@ -37,6 +37,7 @@ var _asking := false
 var _ask_seq := -1
 var _pending := Vector2i(-1, -1)
 var _need_target := false
+var _sos_toons := false
 var _sent_seq := -1
 var _spent_seq := -1
 var _movie_seq := -1
@@ -420,14 +421,26 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 		return
 	if pick.x == -3 or int(_fight.get("seq", -1)) != seq:
 		return
-	if pick.x == -4 or pick.x == -5:
-		var grouped := pick.x == -4 and (pick.y >= 70 or int(pick.y / 10) == 0 or int(pick.y / 10) == 3)
+	if pick.x == -4:
+		var card := _REWARDS.sos_by_id(pick.y)
+		var gag_track := int(card.get("track", 7))
+		var gag_level := int(card.get("level", 0))
+		var grouped := gag_track >= 7 or ToonLoadout.affects_group(gag_track, gag_level)
+		var practiced := 0
+		if gag_track >= 0 and gag_track <= 6:
+			practiced = loadout.experience_of(gag_track)
 		if grouped:
-			_send(pick.x, pick.y, -1, 0)
+			_send(-4, pick.y, -1, practiced)
 		else:
 			_pending = pick
+			_sos_toons = gag_track == ToonLoadout.TOON_UP
 			_need_target = true
 			_show_targets(_fight)
+		return
+	if pick.x == -5:
+		_pending = pick
+		_need_target = true
+		_show_targets(_fight)
 		return
 	if pick.x < 0:
 		_send(pick.x, -1, -1, 0)
@@ -442,7 +455,7 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 
 func _show_targets(fight: Dictionary) -> void:
 	var track := _pending.x
-	var toons := track == ToonLoadout.TOON_UP
+	var toons := track == ToonLoadout.TOON_UP or _sos_toons
 	# TownBattle.__isCogChoiceNecessary. One cog is the target. The panel is for a choice.
 	if not toons:
 		var only := _only_cog(fight)
@@ -503,12 +516,21 @@ func _on_target(slot: int) -> void:
 		return
 	var loadout := _loadout()
 	@warning_ignore("shadowed_global_identifier")
-	var exp := 0 if loadout == null else loadout.experience_of(_pending.x)
+	var exp := 0
+	if _pending.x == -4:
+		var card := _REWARDS.sos_by_id(_pending.y)
+		var gag_track := int(card.get("track", -1))
+		if loadout != null and gag_track >= 0 and gag_track <= 6:
+			exp = loadout.experience_of(gag_track)
+	elif loadout != null:
+		exp = loadout.experience_of(_pending.x)
+	_sos_toons = false
 	_send(_pending.x, _pending.y, int((rows[slot] as Dictionary).get("id", 0)), exp)
 
 
 func _on_back() -> void:
 	_need_target = false
+	_sos_toons = false
 	_pending = Vector2i(-1, -1)
 	_hud.hide_choose()
 	_asking = false
@@ -538,13 +560,9 @@ func _spend(fight: Dictionary) -> void:
 	var track := int(choice.get("track", -1))
 	var level := int(choice.get("level", -1))
 	_spent_seq = seq
+	_apply_restock(fight)
 	if track == -4:
-		_REWARDS.consume_encoded(level)
-		if int(level / 10) == 7:
-			var healed := _toon()
-			if healed != null:
-				var pockets: ToonLoadout = healed.call("battle_loadout")
-				_REWARDS.restock_all(pockets)
+		_REWARDS.consume_id(level)
 		return
 	if track == -5:
 		_REWARDS.consume_pink()
@@ -557,6 +575,28 @@ func _spend(fight: Dictionary) -> void:
 	var loadout: ToonLoadout = toon.call("battle_loadout")
 	if loadout != null and loadout.spend_gag(track, level):
 		loadout.save()
+
+
+## NPCMaxOutInv fills every Toon in the battle, not only the caller.
+func _apply_restock(fight: Dictionary) -> void:
+	if not _has_toon(fight, ToonNet.peer_id()):
+		return
+	var body := _toon()
+	if body == null:
+		return
+	var pockets: ToonLoadout = body.call("battle_loadout")
+	if pockets == null:
+		return
+	for item in fight.get("choices", []):
+		if not (item is Dictionary):
+			continue
+		var choice: Dictionary = item
+		if int(choice.get("track", -1)) != -4:
+			continue
+		var card := _REWARDS.sos_by_id(int(choice.get("level", 0)))
+		if int(card.get("track", -1)) != 7:
+			continue
+		_REWARDS.restock_track(pockets, int(card.get("level", -1)))
 
 
 func _movie_playing() -> bool:
@@ -637,6 +677,9 @@ func _show_movie(fight: Dictionary, token: int) -> void:
 		if not local_throws and int(lead.get("toon", -1)) != ToonNet.peer_id():
 			_pose_local("", 0.0)
 		var applied := {}
+		var banner := String(lead.get("banner", ""))
+		if banner != "":
+			_banner.text = banner
 		await _gags.play(group, Callable(self, "_actor_for"), Callable(self, "_cog_node"), func() -> bool:
 			return token == _show_gen and is_inside_tree()
 		, func() -> void:
@@ -649,6 +692,8 @@ func _show_movie(fight: Dictionary, token: int) -> void:
 				_apply_beat(row)
 				_credit(fight, row)
 		)
+		if banner != "":
+			_banner.text = ""
 		if String(lead.get("kind", "")) == "run" and int(lead.get("toon", -1)) == ToonNet.peer_id():
 			if token == _show_gen and is_inside_tree():
 				_run_home()
@@ -737,7 +782,9 @@ func _show_number(beat: Dictionary) -> void:
 	var track := int(beat.get("track", -1))
 	var hit := bool(beat.get("hit", false))
 	var damage := int(beat.get("damage", 0))
-	var heal := kind != "cog" and track == ToonLoadout.TOON_UP
+	if kind == "pet" and not hit:
+		return
+	var heal := kind == "pet" or (kind != "cog" and track == ToonLoadout.TOON_UP)
 	var host: Node3D = null
 	if kind == "cog" or heal:
 		var shown: Variant = _actor_for(int(beat.get("toon_id", beat.get("toon", 0))))

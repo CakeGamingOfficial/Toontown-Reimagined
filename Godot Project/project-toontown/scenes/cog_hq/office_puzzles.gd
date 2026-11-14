@@ -1,7 +1,8 @@
 extends Node
 
 ## Lasers, doors, buttons, stompers, cameras, platforms, goons, and barrels
-## from the Lawbot office room specs. A laser's switch button wins it outright.
+## from the Lawbot office room specs. The lights room's jellybean barrel is the
+## one spec barrel that shipped without a tank. A laser's switch button wins it outright.
 ## Mine Sweeper and Avoid have no win in the leaked source; clearing the safe
 ## tiles, or lasting three Avoid cycles, finishes those two so the room can
 ## be completed when its button is out of reach.
@@ -14,6 +15,8 @@ const _LASER_ON := "res://assets/cog_hq/audio/LB_laser_beam_on_2.ogg"
 const _LASER_OFF := "res://assets/cog_hq/audio/LB_laser_beam_off_2.ogg"
 const _SHUTTER := "res://assets/cog_hq/audio/LB_camera_shutter_2.ogg"
 const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
+const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
 var _lasers: Array[Dictionary] = []
 var _buttons: Array[Dictionary] = []
@@ -60,6 +63,7 @@ func _ready() -> void:
 		for item in (spec as Dictionary).get("entities", []):
 			if item is Dictionary:
 				_add(piece, piece_index, item)
+		_lights_barrel(piece, room_id)
 
 
 func _physics_process(delta: float) -> void:
@@ -555,6 +559,34 @@ func _poll_goons(toon: Node, here: Vector3, delta: float) -> void:
 			toon.call("squish", int(goon["strength"]))
 
 
+## LawbotOfficeLobby_Lights00 entity 100016. rewardPerGrab is 42. The shipped
+## room kept the marker and left the tank off, so this copies the gag tank
+## already standing beside it.
+func _lights_barrel(piece: Node3D, room_id: int) -> void:
+	if room_id != 12:
+		return
+	var node := _find(piece, "ent-100016")
+	if node == null:
+		return
+	if _find(node, "gagTank") == null:
+		var donor := _find(piece, "ent-100017")
+		var tank := _find(donor, "gagTank") if donor != null else null
+		if tank == null:
+			return
+		var copy := tank.duplicate() as Node3D
+		if copy == null:
+			return
+		node.add_child(copy)
+	_LABEL.dress(node, "beanBarrel", 0, 0)
+	_barrels.append({
+		"node": node,
+		"kind": "beanBarrel",
+		"spec": {"rewardPerGrab": 42},
+		"used": false,
+		"track": 0,
+	})
+
+
 func _poll_barrels(toon: Node, here: Vector3) -> void:
 	for barrel in _barrels:
 		if bool(barrel["used"]):
@@ -569,6 +601,9 @@ func _poll_barrels(toon: Node, here: Vector3) -> void:
 		if str(barrel["kind"]) == "healBarrel":
 			if toon.has_method("heal"):
 				toon.call("heal", reward)
+			continue
+		if str(barrel["kind"]) == "beanBarrel":
+			_BEANS.add_beans(reward * int(_HOLIDAYS.bean_scale("barrel")))
 			continue
 		var loadout: Variant = toon.call("battle_loadout") if toon.has_method("battle_loadout") else null
 		if loadout == null or not loadout.has_method("purchase"):

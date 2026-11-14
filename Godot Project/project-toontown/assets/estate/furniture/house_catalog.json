@@ -1,0 +1,606 @@
+{
+ "furniture": {
+  "100": {
+   "model": "chairA.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "105": {
+   "model": "chairAdesat.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "110": {
+   "model": "chair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "120": {
+   "model": "deskChair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "130": {
+   "model": "BugRoomChair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "140": {
+   "model": "UWlobsterChair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "145": {
+   "model": "UWlifeSaverChair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "150": {
+   "model": "West_saddleStool2.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "160": {
+   "model": "West_nativeChair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "170": {
+   "model": "cupcakeChair.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "205": {
+   "model": "regular_bed_desat.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "210": {
+   "model": "girly_bed.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "220": {
+   "model": "bathtub_bed.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "230": {
+   "model": "bugRoomBed.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "240": {
+   "model": "UWBoatBed.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "250": {
+   "model": "West_cactusHammoc.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "260": {
+   "model": "icecreamBed.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "300": {
+   "model": "Piano.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "310": {
+   "model": "Organ.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "400": {
+   "model": "FireplaceSq.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "410": {
+   "model": "FireplaceGirlee.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "420": {
+   "model": "FireplaceRound.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "430": {
+   "model": "bugRoomFireplace.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "440": {
+   "model": "CarmelAppleFireplace.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "470": {
+   "model": "tt_m_prp_int_fireplace_square.glb",
+   "scale": 0.5,
+   "flags": 0
+  },
+  "480": {
+   "model": "tt_m_prp_int_fireplace_round.glb",
+   "scale": 0.5,
+   "flags": 0
+  },
+  "490": {
+   "model": "tt_m_prp_int_fireplace_girlee.glb",
+   "scale": 0.5,
+   "flags": 0
+  },
+  "491": {
+   "model": "tt_m_prp_int_fireplace_bugRoom.glb",
+   "scale": 0.5,
+   "flags": 0
+  },
+  "492": {
+   "model": "tt_m_prp_int_fireplace_caramelApple.glb",
+   "scale": 0.5,
+   "flags": 0
+  },
+  "502": {
+   "model": "closetBoy.glb",
+   "scale": 1.0,
+   "flags": 2
+  },
+  "512": {
+   "model": "closetGirl.glb",
+   "scale": 1.0,
+   "flags": 2
+  },
+  "600": {
+   "model": "lamp_short.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "610": {
+   "model": "lamp_tall.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "620": {
+   "model": "lampA.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "625": {
+   "model": "lampADesat.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "630": {
+   "model": "bugRoomDaisyLamp1.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "640": {
+   "model": "bugRoomDaisyLamp2.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "650": {
+   "model": "UWlamp_jellyfish.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "660": {
+   "model": "UWlamps_jellyfishB.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "670": {
+   "model": "West_cowboyLamp.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "700": {
+   "model": "couch_1person.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "705": {
+   "model": "couch_1personDesat.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "710": {
+   "model": "couch_2person.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "715": {
+   "model": "couch_2personDesat.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "720": {
+   "model": "West_HayCouch.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "730": {
+   "model": "twinkieCouch.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "800": {
+   "model": "desk_only_wo_phone.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "810": {
+   "model": "BugRoomDesk.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "900": {
+   "model": "umbrella_stand.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "910": {
+   "model": "coatrack.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "920": {
+   "model": "paper_trashcan.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "930": {
+   "model": "BugRoomRedMushroomPot.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "940": {
+   "model": "BugRoomYellowMushroomPot.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "950": {
+   "model": "UWcoralClothRack.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "960": {
+   "model": "west_barrelStand.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "970": {
+   "model": "West_fatCactus.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "980": {
+   "model": "West_Tepee.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1000": {
+   "model": "rug.glb",
+   "scale": 1.0,
+   "flags": 4
+  },
+  "1010": {
+   "model": "rugA.glb",
+   "scale": 1.0,
+   "flags": 4
+  },
+  "1015": {
+   "model": "rugADesat.glb",
+   "scale": 1.0,
+   "flags": 4
+  },
+  "1020": {
+   "model": "rugB.glb",
+   "scale": 2.5,
+   "flags": 4
+  },
+  "1030": {
+   "model": "bugRoomLeafMat.glb",
+   "scale": 1.0,
+   "flags": 4
+  },
+  "1100": {
+   "model": "cabinetRwood.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1110": {
+   "model": "cabinetYwood.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1120": {
+   "model": "bookcase.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1130": {
+   "model": "bookcase_low.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1140": {
+   "model": "icecreamChest.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1200": {
+   "model": "ending_table.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1210": {
+   "model": "table_radio.glb",
+   "scale": 50.0,
+   "flags": 32
+  },
+  "1215": {
+   "model": "table_radioDesat.glb",
+   "scale": 50.0,
+   "flags": 32
+  },
+  "1220": {
+   "model": "coffeetableSq.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1230": {
+   "model": "coffeetableSq_BW.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1240": {
+   "model": "UWtable.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1250": {
+   "model": "cookieTableA.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1260": {
+   "model": "TABLE_Bedroom_Desat.glb",
+   "scale": 1.0,
+   "flags": 32
+  },
+  "1400": {
+   "model": "cezanne_toon.glb",
+   "scale": 2.0,
+   "flags": 8
+  },
+  "1410": {
+   "model": "flowers.glb",
+   "scale": 2.0,
+   "flags": 8
+  },
+  "1420": {
+   "model": "modernistMickey.glb",
+   "scale": 2.0,
+   "flags": 8
+  },
+  "1430": {
+   "model": "rembrandt_toon.glb",
+   "scale": 2.0,
+   "flags": 8
+  },
+  "1440": {
+   "model": "landscape.glb",
+   "scale": 100.0,
+   "flags": 8
+  },
+  "1441": {
+   "model": "whistler-horse.glb",
+   "scale": 2.0,
+   "flags": 8
+  },
+  "1442": {
+   "model": "degasHorseStar.glb",
+   "scale": 2.5,
+   "flags": 8
+  },
+  "1443": {
+   "model": "MagPie.glb",
+   "scale": 2.0,
+   "flags": 8
+  },
+  "1500": {
+   "model": "RADIO_A.glb",
+   "scale": 15.0,
+   "flags": 16
+  },
+  "1510": {
+   "model": "RADIO_B.glb",
+   "scale": 15.0,
+   "flags": 16
+  },
+  "1520": {
+   "model": "radio_c.glb",
+   "scale": 15.0,
+   "flags": 16
+  },
+  "1530": {
+   "model": "bugRoomTV.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1600": {
+   "model": "vaseA_short.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1610": {
+   "model": "vaseA_tall.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1620": {
+   "model": "vaseB_short.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1630": {
+   "model": "vaseB_tall.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1640": {
+   "model": "vaseC_short.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1650": {
+   "model": "vaseD_short.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1660": {
+   "model": "UWcoralVase.glb",
+   "scale": 1.0,
+   "flags": 144
+  },
+  "1661": {
+   "model": "UWshellVase.glb",
+   "scale": 1.0,
+   "flags": 144
+  },
+  "1700": {
+   "model": "popcornCart.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1710": {
+   "model": "bugRoomLadyBug.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1720": {
+   "model": "UWfountain.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1725": {
+   "model": "UWOceanDryer.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "1800": {
+   "model": "UWskullBowl.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1810": {
+   "model": "UWlizardBowl.glb",
+   "scale": 1.0,
+   "flags": 16
+  },
+  "1900": {
+   "model": "UWswordFish.glb",
+   "scale": 0.5,
+   "flags": 8
+  },
+  "1910": {
+   "model": "UWhammerhead.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "1920": {
+   "model": "West_hangingHorns.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "1930": {
+   "model": "West_Sombrero.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "1940": {
+   "model": "West_fancySombrero.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "1950": {
+   "model": "West_CoyotePawdecor.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "1960": {
+   "model": "West_Horseshoe.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "1970": {
+   "model": "West_bisonPortrait.glb",
+   "scale": 1.0,
+   "flags": 8
+  },
+  "2000": {
+   "model": "candySwingSet.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "2010": {
+   "model": "cakeSlide.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "3000": {
+   "model": "BanannaSplitShower.glb",
+   "scale": 1.0,
+   "flags": 0
+  },
+  "4000": {
+   "model": "tt_m_ara_est_accessoryTrunkBoy.glb",
+   "scale": 0.9,
+   "flags": 256
+  },
+  "4010": {
+   "model": "tt_m_ara_est_accessoryTrunkGirl.glb",
+   "scale": 0.9,
+   "flags": 256
+  }
+ },
+ "windows": {
+  "40": {
+   "model": "cityView.glb"
+  },
+  "50": {
+   "model": "westernView.glb"
+  },
+  "60": {
+   "model": "underwaterView.glb"
+  },
+  "70": {
+   "model": "tropicView.glb"
+  },
+  "80": {
+   "model": "spaceView.glb"
+  },
+  "90": {
+   "model": "PoolView.glb"
+  },
+  "100": {
+   "model": "SnowView.glb"
+  },
+  "110": {
+   "model": "FarmView.glb"
+  },
+  "120": {
+   "model": "IndianView.glb"
+  },
+  "130": {
+   "model": "WesternMainStreetView.glb"
+  }
+ }
+}

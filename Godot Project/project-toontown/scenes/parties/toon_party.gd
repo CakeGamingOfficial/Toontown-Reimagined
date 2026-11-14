@@ -80,11 +80,64 @@ const _STATION_OF := {
 	8: "jukebox",
 	9: "dance",
 	10: "cog",
+	11: "trampoline",
+	12: "catch",
+	13: "trampoline",
+	14: "cog",
+	15: "dance",
+	16: "dance",
+	17: "jukebox",
+	18: "jukebox",
+	19: "trampoline",
+}
+const _ACT_MODEL := {
+	11: "res://assets/parties/trampoline_victory.glb",
+	12: "res://assets/parties/catch_winter.glb",
+	13: "res://assets/parties/trampoline_winter.glb",
+	14: "res://assets/parties/cog_winter.glb",
+	15: "res://assets/parties/dance_valentine.glb",
+	16: "res://assets/parties/dance_valentine_20.glb",
+	17: "res://assets/parties/jukebox_valentine.glb",
+	18: "res://assets/parties/jukebox_valentine_40.glb",
+	19: "res://assets/parties/trampoline_valentine.glb",
+}
+const _DECOR_MODEL := {
+	0: "res://assets/parties/decor/balloon_anvil.glb",
+	1: "res://assets/parties/decor/balloon_stage.glb",
+	2: "res://assets/parties/decor/bow.glb",
+	3: "res://assets/parties/decor/cake.glb",
+	4: "res://assets/parties/decor/castle.glb",
+	5: "res://assets/parties/decor/gift_pile.glb",
+	6: "res://assets/parties/decor/horn.glb",
+	7: "res://assets/parties/decor/mardi_gras.glb",
+	8: "res://assets/parties/decor/noise_makers.glb",
+	9: "res://assets/parties/decor/pinwheel.glb",
+	10: "res://assets/parties/decor/gag_globe.glb",
+	11: "res://assets/parties/decor/bean_banner.glb",
+	12: "res://assets/parties/decor/gag_cake.glb",
+	13: "res://assets/parties/decor/heart_target.glb",
+	14: "res://assets/parties/decor/heart_banner.glb",
+	15: "res://assets/parties/decor/flying_heart.glb",
+	16: "res://assets/parties/decor/hydra.glb",
+	17: "res://assets/parties/decor/banner_victory.glb",
+	18: "res://assets/parties/decor/cannon_victory.glb",
+	19: "res://assets/parties/decor/cog_statue_victory.glb",
+	20: "res://assets/parties/decor/tube_cog.glb",
+	21: "res://assets/parties/decor/cog_ice_cream_victory.glb",
+	22: "res://assets/parties/decor/cog_ice_cream_winter.glb",
+	23: "res://assets/parties/decor/stage_winter.glb",
+	24: "res://assets/parties/decor/cog_statue_winter.glb",
+	25: "res://assets/parties/decor/snowman.glb",
+	26: "res://assets/parties/decor/snow_doodle.glb",
+	27: "res://assets/parties/decor/balloon_anvil_valentine.glb",
 }
 const _DECOR: PackedStringArray = [
 	"Balloon Anvil", "Party Stage", "Party Bow", "Cake", "Party Castle",
 	"Gift Pile", "Streamer Horn", "Party Gate", "Noise Makers", "Pinwheel",
-	"Gag Globe", "Bean Banner", "Gag Cake",
+	"Gag Globe", "Bean Banner", "Gag Cake", "Cupid's Heart", "Candy Hearts Banner",
+	"Flying Heart", "Victory Bandstand", "Victory Banner", "Confetti Cannons",
+	"Cog & Doodle", "Cog Flappy Man", "Cog Ice Cream", "CogCicle", "Holiday Bandstand",
+	"Chilly Cog", "Snowman", "SnowDoodle", "ValenToons Anvil",
 ]
 
 var gate := false
@@ -248,6 +301,8 @@ func _process(_delta: float) -> void:
 	if body == null:
 		return
 	if _gate:
+		if _beside_party_person(body):
+			return
 		var near := global_position.distance_to(body.global_position) <= 4.0
 		if not near:
 			_wait_out = false
@@ -307,10 +362,28 @@ func _open_editor() -> void:
 	if hosting():
 		_text.text = "You can only host one party at a time, sorry."
 		return
+	open_planner()
+
+
+func open_planner() -> void:
+	_hold(true)
 	_layer.visible = false
+	if get_node_or_null("PartyPlanner") != null:
+		return
 	var planner := load("res://scenes/parties/party_planner.gd").new() as Node
 	planner.name = "PartyPlanner"
 	add_child(planner)
+
+
+func _beside_party_person(body: Node3D) -> bool:
+	var host := get_parent()
+	if host == null:
+		return false
+	for node in host.find_children("PartyPerson*", "StaticBody3D", true, false):
+		var person := node as Node3D
+		if person.global_position.distance_to(body.global_position) <= 2.4:
+			return true
+	return false
 
 
 func _paint_public() -> void:
@@ -430,8 +503,15 @@ func _spot_at(kind: String, id: int, at: Vector2i, size: Vector2i) -> void:
 		marker.set_meta("act", station)
 	marker.set_meta("act_id", id)
 	add_child(marker)
-	if station != "" and _MODELS.has(station):
-		var packed = load(String(_MODELS[station]))
+	var model_path := ""
+	if kind == "a":
+		model_path = String(_ACT_MODEL.get(id, ""))
+		if model_path == "" and station != "" and _MODELS.has(station):
+			model_path = String(_MODELS[station])
+	elif kind == "d":
+		model_path = String(_DECOR_MODEL.get(id, ""))
+	if model_path != "":
+		var packed = load(model_path)
 		if packed is PackedScene:
 			marker.add_child((packed as PackedScene).instantiate())
 			return

@@ -6,6 +6,8 @@ extends Node
 ## before choosing. The clock is BBbattleInputTimeout, not a delay before the fight.
 
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
+const _RESTOCK_WORD: PackedStringArray = ["Heal", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"]
 const _FACTORY := preload("res://scenes/cog_hq/factory_props.gd")
 const _MINT := preload("res://scenes/cog_hq/mint_props.gd")
 const INPUT_TIME := 20.0
@@ -351,6 +353,10 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 	if track == -4 or track == -5 or track == -6:
 		if track == -5:
 			pick["level"] = -1
+		elif track == -4:
+			if _REWARDS.sos_by_id(level).is_empty():
+				pick["track"] = -1
+				pick["level"] = -1
 		elif level < 0 or level > 90:
 			pick["track"] = -1
 			pick["level"] = -1
@@ -625,6 +631,9 @@ func _resolve(fight: Dictionary) -> void:
 	_place(fight)
 	fight["hits"] = []
 	fight["combo"] = []
+	# Toons Hit and Cogs Miss last for this round only. BattleCalculatorAI clears them after the suits swing.
+	fight.erase("sos_hit")
+	fight.erase("sos_miss")
 	var order: Array[int] = [0, 1, 2, 3, 4, 5, 6]
 	for attack_index in picks.size():
 		var special: Dictionary = picks[attack_index]
@@ -672,12 +681,15 @@ func _apply_pet(fight: Dictionary, choice: Dictionary, beats: Array) -> void:
 	var names: PackedStringArray = ["Jump", "Beg", "Play Dead", "Rollover", "Backflip", "Dance", "Speak"]
 	var heal := preload("res://scenes/pets/doodle_kennel.gd").battle_trick(trick)
 	if heal <= 0:
-		beats.append(_beat("%s's Doodle balked." % who, -6, trick, toon, {}, false, 0))
+		var balked := _beat("%s's Doodle balked." % who, -6, trick, toon, {}, false, 0)
+		balked["kind"] = "pet"
+		beats.append(balked)
 		return
 	var before := int(toon.get("hp", 0))
 	toon["hp"] = mini(before + heal, int(toon.get("max_hp", before)))
 	var word := names[clampi(trick, 0, names.size() - 1)]
 	var line := _beat("%s's Doodle did %s and healed %d laff." % [who, word, int(toon.get("hp", 0)) - before], -6, trick, toon, {}, true, heal)
+	line["kind"] = "pet"
 	line["toon_hp"] = int(toon.get("hp", 0))
 	line["toon_id"] = int(toon.get("id", 0))
 	beats.append(line)
@@ -699,59 +711,177 @@ func _apply_reward(fight: Dictionary, choice: Dictionary, beats: Array) -> void:
 				continue
 			if target >= 0 and int(suit.get("id", -1)) != target:
 				continue
+			var removed := int(suit.get("hp", 0))
 			suit["hp"] = 0
-			beats.append(_beat("%s fired a pink slip. The %s is defeated." % [who, String(suit.get("name", "cog"))], -1, -1, toon, suit, true, int(suit.get("max_hp", 1))))
+			var fired := _beat("%s fired a pink slip. The %s is defeated." % [who, String(suit.get("name", "cog"))], -5, -1, toon, suit, true, removed)
+			fired["kind"] = "fire"
+			beats.append(fired)
 			return
 		return
-	var encoded := int(choice.get("level", 0))
-	var gag_track := int(encoded / 10)
-	var gag_level := encoded % 10
+	var npc_id := int(choice.get("level", 0))
+	var card := _REWARDS.sos_by_id(npc_id)
+	if card.is_empty():
+		return
+	var gag_track := int(card.get("track", -1))
+	var gag_level := int(card.get("level", 0))
+	var npc_hp := int(card.get("hp", 0))
+	var npc_name := String(card.get("name", "SOS Toon"))
+	if gag_track >= 7:
+		_apply_sos_special(fight, toon, who, npc_id, npc_name, gag_track, gag_level, beats)
+		return
+	_apply_sos_gag(fight, toon, choice, who, npc_id, npc_name, gag_track, gag_level, npc_hp, beats)
+
+
+## MovieNPCSOS. Restock, Toons Hit, and Cogs Miss are not gags. The card's hp is unused here.
+func _apply_sos_special(fight: Dictionary, toon: Dictionary, who: String, npc_id: int, npc_name: String, gag_track: int, gag_level: int, beats: Array) -> void:
+	var roster: Array = []
+	var aim := "toon"
+	var banner := ""
+	var line := ""
 	if gag_track == 7:
-		beats.append(_beat("%s called an SOS Toon to restock gags." % who, -1, -1, toon, {}, true, 0))
-		return
-	if gag_track == 8:
+		var word := "All"
+		if gag_level >= 0 and gag_level < _RESTOCK_WORD.size():
+			word = _RESTOCK_WORD[gag_level]
+		roster = _living_ids(fight.get("toons", []), -1)
+		banner = "Restocking %s gags!" % word
+		line = "%s called %s. %s" % [who, npc_name, banner]
+	elif gag_track == 8:
 		fight["sos_hit"] = true
-		beats.append(_beat("%s called an SOS Toon. Your gags will hit." % who, -1, -1, toon, {}, true, 0))
-		return
-	if gag_track == 9:
+		roster = _living_ids(fight.get("toons", []), int(toon.get("id", 0)))
+		banner = "Toons Always Hit!"
+		line = "%s called %s. %s" % [who, npc_name, banner]
+	else:
 		fight["sos_miss"] = true
-		beats.append(_beat("%s called an SOS Toon. The cogs will miss." % who, -1, -1, toon, {}, true, 0))
-		return
+		roster = _living_ids(fight.get("cogs", []), -1)
+		aim = "cog"
+		banner = "Cogs Always Miss!"
+		line = "%s called %s. %s" % [who, npc_name, banner]
+	var beat := _beat(line, gag_track, gag_level, toon, {}, true, 0)
+	beat["kind"] = "sos"
+	beat["npc"] = npc_id
+	beat["caller"] = who
+	beat["banner"] = banner
+	beat["roster"] = roster
+	beat["count"] = roster.size()
+	beat["aim"] = aim
+	beat["sos_track"] = gag_level
+	beats.append(beat)
+
+
+## A damaging or healing SOS uses the card's hp, not the caller's gag damage.
+## NPC heals include the caller and are split across the group. The NPC always hits,
+## except a drop on a lured cog.
+func _apply_sos_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: String, npc_id: int, npc_name: String, gag_track: int, gag_level: int, npc_hp: int, beats: Array) -> void:
 	var names := ToonLoadout.new()
 	var gag := names.gag_name(gag_track, gag_level)
-	var amount := ToonLoadout.gag_damage(gag_track, gag_level, 10500)
+	var before := beats.size()
 	if gag_track == ToonLoadout.TOON_UP:
+		_sos_heal(fight, toon, choice, who, npc_name, gag, gag_level, npc_hp, beats)
+	else:
+		_sos_attack(fight, toon, choice, who, npc_name, gag, gag_track, gag_level, npc_hp, beats)
+	for index in range(before, beats.size()):
+		var row: Dictionary = beats[index]
+		if int(row.get("track", -1)) != gag_track:
+			continue
+		row["npc"] = npc_id
+		row["caller"] = who
+		beats[index] = row
+
+
+func _sos_heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: String, npc_name: String, gag: String, gag_level: int, npc_hp: int, beats: Array) -> void:
+	var patients: Array = []
+	if ToonLoadout.affects_group(ToonLoadout.TOON_UP, gag_level):
 		for item in fight.get("toons", []):
-			if not (item is Dictionary):
-				continue
-			var patient: Dictionary = item
-			if int(patient.get("hp", 0)) <= 0:
-				continue
-			var before := int(patient.get("hp", 0))
-			patient["hp"] = mini(before + amount, int(patient.get("max_hp", before)))
-			var healed := _beat("%s's SOS used %s and healed %d laff." % [who, gag, int(patient.get("hp", 0)) - before], 0, gag_level, toon, {}, true, amount)
-			healed["toon_hp"] = int(patient.get("hp", 0))
-			healed["toon_id"] = int(patient.get("id", 0))
-			beats.append(healed)
+			if item is Dictionary and int((item as Dictionary).get("hp", 0)) > 0:
+				patients.append(item)
+	else:
+		var picked := _toon(fight, int(choice.get("target", -1)))
+		if picked.is_empty():
+			picked = toon
+		if int(picked.get("hp", 0)) > 0:
+			patients.append(picked)
+	if patients.is_empty():
 		return
+	var share := int(float(npc_hp) / float(patients.size())) if ToonLoadout.affects_group(ToonLoadout.TOON_UP, gag_level) else npc_hp
+	for item in patients:
+		var patient: Dictionary = item
+		var was := int(patient.get("hp", 0))
+		patient["hp"] = mini(was + share, int(patient.get("max_hp", was)))
+		var gained := int(patient.get("hp", 0)) - was
+		var healed := _beat("%s called %s, who used %s and healed %d laff." % [who, npc_name, gag, gained], 0, gag_level, toon, {}, true, gained, "")
+		healed["toon_hp"] = int(patient.get("hp", 0))
+		healed["toon_id"] = int(patient.get("id", 0))
+		beats.append(healed)
+
+
+func _sos_attack(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: String, npc_name: String, gag: String, gag_track: int, gag_level: int, npc_hp: int, beats: Array) -> void:
 	var group := ToonLoadout.affects_group(gag_track, gag_level)
 	var target_id := int(choice.get("target", -1))
+	var living: Array = []
 	for item in fight.get("cogs", []):
 		if not (item is Dictionary):
 			continue
+		var body: Dictionary = item
+		if int(body.get("hp", 0)) <= 0:
+			continue
+		if not group and target_id >= 0 and int(body.get("id", -1)) != target_id:
+			continue
+		living.append(body)
+	if living.is_empty():
+		return
+	var rolled: Dictionary = _toon_hit(fight, {"track": gag_track, "level": gag_level, "target": target_id, "exp": int(choice.get("exp", 0)), "id": int(toon.get("id", 0))}, living, true)
+	var hit := bool(rolled.get("hit", true))
+	var acc := int(rolled.get("acc", 95))
+	for item in living:
 		var suit: Dictionary = item
-		if int(suit.get("hp", 0)) <= 0:
-			continue
-		if not group and target_id >= 0 and int(suit.get("id", -1)) != target_id:
-			continue
-		_hurt_cog(suit, amount)
 		var cog_name := String(suit.get("name", "cog"))
-		var line := "%s's SOS used %s on the %s for %d damage." % [who, gag, cog_name, amount]
-		if int(suit.get("hp", 0)) <= 0:
+		var lured := bool(suit.get("lured", false))
+		if gag_track == 1:
+			var trapped := suit.get("trap", {}) is Dictionary and not (suit.get("trap", {}) as Dictionary).is_empty()
+			if lured or trapped:
+				beats.append(_beat("%s called %s, but the %s could not be trapped." % [who, npc_name, cog_name], gag_track, gag_level, toon, suit, false, 0))
+				continue
+			suit["trap"] = {"damage": npc_hp, "gag": gag, "by": npc_name, "owner": int(toon.get("id", 0)), "level": gag_level, "credit": false}
+			beats.append(_beat("%s called %s, who set a %s on the %s." % [who, npc_name, gag, cog_name], gag_track, gag_level, toon, suit, true, 0))
+			continue
+		if gag_track == 2:
+			_lure(fight, toon, suit, gag, hit, acc, beats, gag_track, gag_level)
+			continue
+		if not hit:
+			beats.append(_beat("%s called %s, but the %s missed the %s." % [who, npc_name, gag, cog_name], gag_track, gag_level, toon, suit, false, 0))
+			continue
+		if gag_track == 6 and lured:
+			beats.append(_beat("%s called %s, but the %s missed the lured %s." % [who, npc_name, gag, cog_name], gag_track, gag_level, toon, suit, false, 0))
+			continue
+		_hurt_cog(suit, npc_hp)
+		if gag_track == 3 or gag_track == ToonLoadout.THROW or gag_track == ToonLoadout.SQUIRT:
+			_clear_lure(suit)
+		var revived := _revive_suit(suit)
+		var line := "%s called %s, who used %s on the %s for %d damage." % [who, npc_name, gag, cog_name, npc_hp]
+		if not revived and int(suit.get("hp", 0)) <= 0:
 			line += " The %s is defeated." % cog_name
-		beats.append(_beat(line, gag_track, gag_level, toon, suit, true, amount))
+		var beat := _beat(line, gag_track, gag_level, toon, suit, true, npc_hp)
+		if revived:
+			beat["cog_hp"] = 0
+			beat["revived"] = true
+		beats.append(beat)
 		if not group:
 			return
+
+
+func _living_ids(rows: Array, skip: int) -> Array:
+	var ids: Array = []
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var body: Dictionary = item
+		if int(body.get("hp", 0)) <= 0:
+			continue
+		var id := int(body.get("id", 0))
+		if id == skip:
+			continue
+		ids.append(id)
+	return ids
 
 
 func _kills_instantly(toon: Dictionary) -> bool:
@@ -930,7 +1060,7 @@ func _tag_surge(fight: Dictionary, beat: Dictionary, track: int) -> void:
 ## BattleCalculatorAI.__calcToonAtkHit. One roll covers every target of the gag.
 ## The returned acc is the uncapped prop + experience + defense, which lure
 ## uses as its wake-up chance.
-func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictionary:
+func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array, npc := false) -> Dictionary:
 	if bool(fight.get("sos_hit", false)):
 		return {"hit": true, "acc": 100}
 	var track := int(choice.get("track", -1))
@@ -965,7 +1095,9 @@ func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictiona
 		acc += int(100.0 * float(num_lured) / float(count))
 	if acc > _MAX_TOON_ACC:
 		acc = _MAX_TOON_ACC
-	return {"hit": randi_range(0, 99) < acc, "acc": attack_acc}
+	# An SOS Toon rolls 0, so the gag hits whenever accuracy is above zero.
+	var landed := acc > 0 if npc else randi_range(0, 99) < acc
+	return {"hit": landed, "acc": attack_acc}
 
 
 func _copies_previous(track: int, target: int, group: bool, prev: Dictionary) -> bool:
@@ -1423,7 +1555,7 @@ func _time_beats(beats: Array) -> float:
 			slice.append(beats[index + step])
 		var dur := 0.0
 		if GagMovie.split_parties(slice).size() > 1:
-			dur = GagMovie.chorus_seconds(slice)
+			dur = GagMovie.chorus_seconds(slice) + _sos_extra(slice)
 			if killed:
 				dur += GagMovie.LOSE_SECONDS
 		else:
@@ -1463,10 +1595,37 @@ func _gag_killed(beat: Variant) -> bool:
 func _beat_dur(beat: Dictionary) -> float:
 	# Toon.getDiedInterval starts at the hit. The movie stays up through the shrink.
 	# A defeated cog then plays Suit.getLoseActor for SUIT_LOSE_DURATION.
+	if String(beat.get("kind", "")) == "sos":
+		return GagMovie.sos_seconds(int(beat.get("track", 7)), int(beat.get("count", 0)))
+	if String(beat.get("kind", "")) == "pet":
+		return GagMovie.pet_seconds(int(beat.get("level", 0)), bool(beat.get("hit", false)))
 	var length := GagMovie.seconds(String(beat.get("kind", "")), int(beat.get("track", -1)), int(beat.get("level", 0)), bool(beat.get("died", false)), String(beat.get("attack", "")))
 	if _gag_killed(beat):
 		length += GagMovie.LOSE_SECONDS
+	if int(beat.get("npc", 0)) != 0:
+		length += GagMovie.SOS_IN + GagMovie.SOS_OUT
 	return length
+
+
+## One NPC teleports in, plays, then teleports out. A chorus of several SOS Toons
+## does that one after another, so each one adds both ends.
+func _sos_extra(slice: Array) -> float:
+	var seen := {}
+	var count := 0
+	for item in slice:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if int(row.get("npc", 0)) == 0:
+			continue
+		var who := int(row.get("toon", 0))
+		if seen.has(who):
+			continue
+		seen[who] = true
+		count += 1
+	if count == 0:
+		return 0.0
+	return float(count) * (GagMovie.SOS_IN + GagMovie.SOS_OUT)
 
 
 func _beat(text: String, track: int, level: int, toon: Dictionary, cog: Dictionary, hit: bool, damage: int, react: String = "auto") -> Dictionary:

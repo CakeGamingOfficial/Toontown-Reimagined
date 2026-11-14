@@ -16,6 +16,8 @@ const _SPRAY_LEN := 1.5
 const _SPRAY_SCALE: Array[float] = [0.2, 0.3, 0.1, 0.6, 0.8, 1.0, 2.0]
 # MovieUtil.SUIT_LOSE_DURATION. The lose-mod plays after the hit react.
 const LOSE_SECONDS := 6.0
+## MovieFire. The button press and the cannon that launches the cog run together.
+const FIRE_SECONDS := 10.5
 const _GAGS: Array = [
 	["feather", "megaphone", "lipstick", "cane", "", "cubes", "ladder"],
 	["banana", "rake", "marbles", "quicksand", "trapdoor", "tnt", "traintrack"],
@@ -110,6 +112,16 @@ const _ATTACK_THROWN := {
 	"Tee Off!": "golf-ball",
 }
 const _HEAL_TIME: Array[float] = [3.2, 3.6, 3.4, 6.4, 4.6, 7.7, 9.0]
+## MovieNPCSOS teleportIn (hole plus jump, then the wave) and teleportOut (bow or curtsy, then the 3.4s teleport).
+const SOS_IN := 3.8
+const SOS_OUT := 5.4
+## MoviePetSOS: a short wait, the hole, the trick, the praise, then the hole out.
+const _PET_IN := 2.8
+const _PET_WAIT := 0.5
+const _PET_CHAT := 2.0
+const _PET_OUT := 2.4
+const _SOS_SMOOCH := 3.4
+const _SOS_SPRINKLE := 4.6
 const _SHOTS: Dictionary = {
 	"throw_close": {"rel": true, "x": 3.0, "y": 8.0, "z": 0.66, "chest": true},
 	"three_right": {"rel": true, "x": 5.2, "y": 5.45, "z": 0.66, "chest": true},
@@ -131,6 +143,8 @@ var _attach: Dictionary = {}
 var _party: Array = []
 var _make_owner := 0
 var _chording := false
+var _sos_busy := false
+var _sos_dna: Dictionary = {}
 var _aiming := false
 var _aim_time := 0.0
 var _aim_open := 3.0
@@ -169,6 +183,10 @@ static func seconds(kind: String, track: int, level: int, died: bool, attack := 
 	if kind == "run":
 		# BattleBase.TOON_RUN_T. The hole closes, then the toon is gone.
 		return 3.3
+	if kind == "fire":
+		return FIRE_SECONDS
+	if kind == "pet":
+		return pet_seconds(level, true)
 	if kind == "lured":
 		return 1.3
 	if kind == "cog":
@@ -209,6 +227,52 @@ static func seconds(kind: String, track: int, level: int, died: bool, attack := 
 	if track == 0:
 		return _HEAL_TIME[clampi(level, 0, _HEAL_TIME.size() - 1)]
 	return 2.2
+
+
+## Restock smooches once per Toon. Toons Hit and Cogs Miss sprinkle once per target.
+static func sos_seconds(track: int, count: int) -> float:
+	var body := _SOS_SMOOCH if track == 7 else _SOS_SPRINKLE
+	return SOS_IN + body * float(maxi(count, 0)) + SOS_OUT
+
+
+## Trick lengths follow the exported clip frame counts. A balk is the sad pose.
+static func pet_seconds(trick: int, hit: bool) -> float:
+	return _PET_IN + _PET_WAIT + _pet_body(trick, hit) + _PET_CHAT + _PET_OUT
+
+
+static func _pet_body(trick: int, hit: bool) -> float:
+	var total := 0.0
+	for step in _pet_steps(trick, hit):
+		total += float((step as Dictionary).get("seconds", 0.0))
+	return total
+
+
+static func _pet_steps(trick: int, hit: bool) -> Array:
+	if not hit:
+		return [{"clip": "sad", "seconds": 1.0}]
+	if trick <= 0:
+		return [{"clip": "jump", "seconds": 2.0, "hop": true}]
+	if trick == 1:
+		return [
+			{"clip": "toBeg", "seconds": 26.0 / 24.0},
+			{"clip": "beg", "seconds": 28.0 / 12.0},
+			{"clip": "fromBeg", "seconds": 42.0 / 24.0},
+		]
+	if trick == 2:
+		return [
+			{"clip": "playDead", "seconds": 168.0 / 12.0},
+			{"clip": "fromPlayDead", "seconds": 30.0 / 24.0},
+		]
+	if trick == 3:
+		return [
+			{"clip": "rollover", "seconds": 48.0 / 12.0},
+			{"clip": "rollover", "seconds": 48.0 / 12.0, "reverse": true},
+		]
+	if trick == 4:
+		return [{"clip": "backflip", "seconds": 59.0 / 12.0}]
+	if trick == 5:
+		return [{"clip": "dance", "seconds": 89.0 / 12.0}]
+	return [{"clip": "speak", "seconds": 18.0 / 24.0, "start": 10}]
 
 
 ## Movie groups one track into a single interval. Heal stays a sequence. Trap and
@@ -378,8 +442,169 @@ static func _aimed_delays(parties: Array, track: int) -> PackedFloat32Array:
 
 ## MovieSuitAttacks.getToonTrack. The extra 1.4s is the reaction after the hit.
 static func _cog_length(title: String, body: String) -> float:
+	var span := _attack_span(title, body)
+	if span > 0.0:
+		return span
 	var react := _attack_react(title, body)
 	return maxf(3.8, maxf(float(react["hit_t"]), float(react["dodge_t"])) + 1.4)
+
+
+## How long the spliced react, the cloud, and the scale bounce need.
+static func _attack_span(title: String, body: String) -> float:
+	match title:
+		"Downsize!":
+			return 8.4
+		"Freeze Assets!":
+			return 7.2
+		"Legalese!":
+			return 5.8
+		"Re-Org!":
+			return 7.6
+		"Schmooze!":
+			return 9.0
+		"Spin!":
+			return 7.2
+		"Head Shrink!":
+			return 8.8
+		"Brain Storm!":
+			return 7.8
+		"Buzz Word!":
+			return 5.6 if body == "b" else 7.2
+		"Demotion!":
+			return 7.4
+		_:
+			return 0.0
+
+
+static func _clip_len(clip: String) -> float:
+	match clip:
+		"cringe":
+			return 2.25
+		"juggle":
+			return 8.17
+		"lose":
+			return 6.79
+		"struggle":
+			return 4.0
+		"think":
+			return 3.54
+		"duck":
+			return 3.71
+		"conked":
+			return 4.17
+		"sidestep-right":
+			return 4.38
+		"sidestep-left":
+			return 3.58
+		_:
+			return 1.0
+
+
+## One row is clip, delay, start, play. play 0 runs to the end of the clip.
+## source stretches the frames across play. rev plays backward.
+static func _attack_splices(title: String, hit: bool) -> Array:
+	if hit:
+		match title:
+			"Downsize!":
+				return [
+					{"clip": "juggle", "delay": 0.01, "start": 0.87, "play": 0.5},
+					{"clip": "lose", "delay": 0.01, "start": 2.17, "play": 0.93},
+					{"clip": "lose", "delay": 0.01, "start": 3.1, "play": 0.93, "rev": true},
+					{"clip": "struggle", "delay": 0.01, "start": 0.8, "play": 1.8},
+					{"clip": "sidestep-right", "delay": 0.01, "start": 2.97, "play": 1.49},
+				]
+			"Freeze Assets!", "Brain Storm!":
+				return [
+					{"clip": "cringe", "delay": 0.01, "start": 0.4, "play": 0.8},
+					{"clip": "duck", "delay": 0.01, "start": 1.6, "play": 0.0},
+				]
+			"Legalese!":
+				return [
+					{"clip": "cringe", "delay": 0.01, "start": 0.3, "play": 0.8},
+					{"clip": "cringe", "delay": 0.01, "start": 0.3, "play": 0.8},
+					{"clip": "cringe", "delay": 0.01, "start": 0.3, "play": 0.0},
+				]
+			"Re-Org!":
+				return [
+					{"clip": "juggle", "delay": 0.52, "start": 0.01, "play": 1.48},
+					{"clip": "think", "delay": 0.01, "start": 2.28, "play": 0.0},
+				]
+			"Schmooze!":
+				return [
+					{"clip": "conked", "delay": 0.01, "start": 0.3, "play": 0.71},
+					{"clip": "conked", "delay": 0.01, "start": 0.3, "play": 0.71},
+					{"clip": "conked", "delay": 0.01, "start": 0.3, "play": 0.71},
+					{"clip": "conked", "delay": 0.01, "start": 0.3, "play": 0.0},
+				]
+			"Spin!":
+				return [
+					{"clip": "duck", "delay": 0.01, "start": 0.01, "play": 1.1},
+					{"clip": "think", "delay": 0.0, "start": 2.26, "play": 1.1, "source": 0.66},
+					{"clip": "think", "delay": 0.0, "start": 2.26, "play": 1.1, "source": 0.66},
+				]
+			"Head Shrink!":
+				return [
+					{"clip": "cringe", "delay": 0.01, "start": 0.65, "play": 0.2},
+					{"clip": "cringe", "delay": 0.0, "start": 0.85, "play": 1.0, "source": 0.64},
+					{"clip": "cringe", "delay": 0.4, "start": 1.49, "play": 0.0},
+					{"clip": "conked", "delay": 0.01, "start": 3.6, "play": 1.6, "rev": true},
+					{"clip": "conked", "delay": 0.01, "start": 3.1, "play": 0.4},
+				]
+			"Demotion!":
+				return [
+					{"clip": "cringe", "delay": 0.01, "start": 0.0, "play": 0.5},
+					{"clip": "cringe", "delay": 0.0, "start": 0.5, "play": 0.5, "source": 0.4},
+					{"clip": "cringe", "delay": 0.0, "start": 0.9, "play": 0.5, "source": 0.3},
+					{"clip": "cringe", "delay": 0.0, "start": 1.2, "play": 0.6, "source": 0.3},
+					{"clip": "cringe", "delay": 2.6, "start": 1.5, "play": 0.0},
+				]
+			"Buzz Word!":
+				return [{"clip": "cringe", "delay": 0.0, "start": 0.0, "play": 0.0}]
+			_:
+				return []
+	match title:
+		"Schmooze!":
+			return [
+				{"clip": "duck", "delay": 0.01, "start": 0.2, "play": 2.7},
+				{"clip": "duck", "delay": 0.01, "start": 1.22, "play": 1.28},
+				{"clip": "duck", "delay": 0.01, "start": 3.16, "play": 0.0},
+			]
+		"Demotion!":
+			return [{"clip": "duck", "delay": 0.0, "start": 0.8, "play": 0.0}]
+		"Buzz Word!":
+			return [{"clip": "duck", "delay": 0.0, "start": 1.4, "play": 0.0}]
+		_:
+			return []
+
+
+static func _pose_spliced(actor: ToonActor, rows: Array, elapsed: float) -> void:
+	var cursor := 0.0
+	var clip := ""
+	var at := 0.0
+	for item in rows:
+		var row: Dictionary = item
+		var name := String(row.get("clip", "cringe"))
+		var delay := float(row.get("delay", 0.0))
+		var start := float(row.get("start", 0.0))
+		var play := float(row.get("play", 0.0))
+		if play <= 0.0:
+			play = maxf(_clip_len(name) - start, 0.05)
+		var begin := cursor + delay
+		cursor = begin + play
+		if elapsed < begin:
+			break
+		clip = name
+		var along := clampf((elapsed - begin) / play, 0.0, 1.0)
+		if bool(row.get("rev", false)):
+			at = start - along * play
+		else:
+			at = start + along * float(row.get("source", play))
+		if elapsed < cursor:
+			break
+	if clip == "":
+		return
+	actor.pose_action(clip, maxf(at, 0.0))
+	actor.set_meta("battle_clip", clip)
 
 
 static func _react(hit: String, hit_t: float, dodge: String, dodge_t: float) -> Dictionary:
@@ -420,6 +645,34 @@ static func _attack_react(title: String, body: String) -> Dictionary:
 		return _react("conked", 3.4, "sidestep-left", 2.4)
 	if title == "Head Shrink!":
 		return _react("cringe", 2.1, "sidestep-left", 1.4)
+	if title == "Brain Storm!":
+		return _react("cringe", 4.5, "sidestep-left", 3.3)
+	if title == "Buzz Word!":
+		if body == "b":
+			return _react("cringe", 2.5, "duck", 1.8)
+		return _react("cringe", 4.5, "duck", 3.8)
+	if title == "Demotion!":
+		return _react("cringe", 1.0, "duck", 0.01)
+	if title == "Downsize!":
+		return _react("juggle", 2.3, "sidestep-left", 0.6)
+	if title == "Freeze Assets!":
+		return _react("cringe", 3.5, "sidestep-left", 2.3)
+	if title == "Legalese!":
+		return _react("cringe", 1.9, "sidestep-left", 1.1)
+	if title == "Re-Org!":
+		return _react("juggle", 1.7, "duck", 0.01)
+	if title == "Schmooze!":
+		var praise := 1.8
+		var duck_at := 1.1
+		if body == "b":
+			praise = 2.5
+			duck_at = 1.8
+		elif body == "c":
+			praise = 2.7
+			duck_at = 0.9
+		return _react("conked", praise, "duck", duck_at)
+	if title == "Spin!":
+		return _react("duck", 1.7, "sidestep-left", 0.91)
 	if title == "Sacked!":
 		return _react("struggle", 3.88, "sidestep-left", 3.0)
 	var known := {
@@ -662,6 +915,12 @@ func play(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, c
 		return
 	var lead: Dictionary = beats[0]
 	var kind := String(lead.get("kind", ""))
+	if kind == "sos":
+		await _play_sos_special(lead, actor_of, cog_of, still)
+		return
+	if not _sos_busy and _party_has_npc(beats):
+		await _play_sos_gag(beats, actor_of, cog_of, still, contact)
+		return
 	var parties := split_parties(beats)
 	if kind == "gag" and parties.size() > 1 and joins_chorus(lead):
 		await _play_chorus(beats, parties, actor_of, cog_of, still, contact)
@@ -675,6 +934,332 @@ func play(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, c
 		await _cog_death(marks, still)
 		_finish_revives(marks)
 	_rest(actor, marks)
+
+
+func _party_has_npc(beats: Array) -> bool:
+	for item in beats:
+		if item is Dictionary and int((item as Dictionary).get("npc", 0)) != 0:
+			return true
+	return false
+
+
+## MovieNPCSOS.doNPCTeleports, then the gag, then the bow and teleport out.
+## The caller stays in neutral. The card's Toon is the one who throws.
+func _play_sos_gag(beats: Array, actor_of: Callable, cog_of: Callable, still: Callable, contact: Callable) -> void:
+	var order: Array[int] = []
+	var cards := {}
+	for item in beats:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var npc_id := int(row.get("npc", 0))
+		var who := int(row.get("toon", 0))
+		if npc_id == 0 or cards.has(who):
+			continue
+		cards[who] = npc_id
+		order.append(who)
+	var guests: Array = []
+	_sos_busy = true
+	for who in order:
+		var caller: ToonActor = actor_of.call(who)
+		_sos_neutral(caller)
+		var guest := _sos_summon(int(cards[who]), caller)
+		guests.append(guest)
+		if guest != null and still.call():
+			await _sos_arrive(guest, "Hi %s! Glad to help!" % _sos_caller(beats, who), still)
+	var wrapped := func(peer: int) -> ToonActor:
+		var index := order.find(peer)
+		if index >= 0 and index < guests.size() and guests[index] is ToonActor:
+			return guests[index]
+		return actor_of.call(peer)
+	if still.call():
+		await play(beats, wrapped, cog_of, still, contact)
+	for guest in guests:
+		if guest is ToonActor and is_instance_valid(guest) and still.call():
+			await _sos_leave(guest, still)
+		_sos_free(guest)
+	_sos_busy = false
+
+
+func _play_sos_special(lead: Dictionary, actor_of: Callable, cog_of: Callable, still: Callable) -> void:
+	var who := int(lead.get("toon", 0))
+	var caller: ToonActor = actor_of.call(who)
+	_sos_neutral(caller)
+	var guest := _sos_summon(int(lead.get("npc", 0)), caller)
+	if guest == null:
+		await _wait(sos_seconds(int(lead.get("track", 7)), int(lead.get("count", 0))), still)
+		return
+	var greeting := "Hi %s! Glad to help!" % String(lead.get("caller", "Toon"))
+	if still.call():
+		await _sos_arrive(guest, greeting, still)
+	var track := int(lead.get("track", 7))
+	var roster: Array = lead.get("roster", [])
+	var aim := String(lead.get("aim", "toon"))
+	var home := guest.global_transform
+	for raw in roster:
+		if not still.call():
+			break
+		if track == 7:
+			var patient: ToonActor = actor_of.call(int(raw))
+			if patient == null:
+				await _wait(_SOS_SMOOCH, still)
+			else:
+				var fake: Array = [{"hit": true, "toon_id": int(raw), "toon": int(raw)}]
+				await _heal(guest, "lipstick", 2, fake, actor_of, still, func() -> void:
+					pass)
+		else:
+			await _sos_sprinkle(guest, _sos_mark(int(raw), aim, actor_of, cog_of), still)
+		_clear_spawned()
+	if is_instance_valid(guest):
+		guest.global_transform = home
+	if still.call():
+		await _sos_leave(guest, still)
+	_sos_free(guest)
+
+
+func _sos_caller(beats: Array, who: int) -> String:
+	for item in beats:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if int(row.get("toon", 0)) == who and String(row.get("caller", "")) != "":
+			return String(row.get("caller", "Toon"))
+	return "Toon"
+
+
+func _sos_neutral(caller: ToonActor) -> void:
+	if caller == null:
+		return
+	caller.release_pose()
+	caller.set_locomotion(0.0, false, false, 0.0)
+
+
+func _sos_summon(npc_id: int, caller: ToonActor) -> ToonActor:
+	var style := _sos_style(npc_id)
+	if style == null or caller == null:
+		return null
+	var host := caller.get_parent()
+	if host == null:
+		host = self
+	var npc := ToonActor.new()
+	npc.name = "SosToon%d" % npc_id
+	host.add_child(npc)
+	var ahead := -caller.global_transform.basis.z
+	ahead.y = 0.0
+	if ahead.length_squared() < 0.0001:
+		ahead = Vector3(0.0, 0.0, -1.0)
+	else:
+		ahead = ahead.normalized()
+	npc.global_position = caller.global_position + ahead * 4.0
+	npc.global_basis = caller.global_basis
+	npc.follows_ground = false
+	npc.show_style(style)
+	npc.set_meta("sos_gender", style.gender)
+	var card_name := String(_sos_card(npc_id).get("name", "SOS Toon"))
+	npc.set_meta("sos_name", card_name)
+	var tree := get_tree()
+	if tree != null:
+		for board in tree.get_nodes_in_group("nametag_boards"):
+			if board.has_method("add"):
+				board.call("add", npc, card_name, "npc")
+				break
+	return npc
+
+
+func _sos_card(npc_id: int) -> Dictionary:
+	var path := "res://scenes/shticker/sos_toons.json"
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Array):
+		return {}
+	for item in parsed:
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == npc_id:
+			return item
+	return {}
+
+
+func _sos_style(npc_id: int) -> ToonStyle:
+	if npc_id == 0:
+		return null
+	if _sos_dna.is_empty():
+		var path := "res://scenes/shticker/sos_dna.json"
+		if FileAccess.file_exists(path):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if parsed is Dictionary:
+				_sos_dna = parsed
+	var dna: Variant = _sos_dna.get(str(npc_id), [])
+	if typeof(dna) != TYPE_ARRAY or (dna as Array).size() < 14:
+		return null
+	var row: Array = dna
+	var style := ToonStyle.new()
+	style.head = String(row[0])
+	style.torso = String(row[1])
+	style.legs = String(row[2])
+	style.gender = String(row[3])
+	style.arm_color = int(row[4])
+	style.glove_color = int(row[5])
+	style.leg_color = int(row[6])
+	style.head_color = int(row[7])
+	style.top_tex = int(row[8])
+	style.top_color = int(row[9])
+	style.bot_tex = int(row[12])
+	style.bot_color = int(row[13])
+	return style
+
+
+func _sos_arrive(npc: ToonActor, greeting: String, still: Callable) -> void:
+	var portal := _PORTAL.new() as Node3D
+	portal.name = "SosHole"
+	portal.call("setup")
+	npc.add_child(portal)
+	portal.transform = Transform3D.IDENTITY
+	var gate := {"hole": portal}
+	npc.visible = false
+	await _run(SOS_IN, still, func(elapsed: float) -> void:
+		if not is_instance_valid(npc):
+			return
+		if elapsed < 1.8:
+			_sos_pop(npc, gate.get("hole"), elapsed)
+			return
+		var hole: Variant = gate.get("hole")
+		if hole is Node and is_instance_valid(hole):
+			(hole as Node).queue_free()
+			gate["hole"] = null
+		npc.visible = true
+		npc.set_hole_clip(false, 0.0)
+		npc.pose_action("wave", elapsed - 1.8)
+		npc.set_meta("chat_line", greeting)
+	)
+	var leftover: Variant = gate.get("hole")
+	if leftover is Node and is_instance_valid(leftover):
+		(leftover as Node).queue_free()
+	if is_instance_valid(npc):
+		npc.visible = true
+		npc.end_action("wave")
+		npc.set_meta("chat_line", "")
+
+
+func _sos_pop(npc: ToonActor, portal: Variant, elapsed: float) -> void:
+	if portal is Node and is_instance_valid(portal):
+		var hole_time := 3.4
+		if elapsed < 0.3:
+			hole_time = lerpf(3.4, 3.1, elapsed / 0.3)
+		elif elapsed < 0.9:
+			hole_time = 3.1
+		else:
+			hole_time = lerpf(3.1, 3.4, clampf((elapsed - 0.9) / 0.3, 0.0, 1.0))
+		(portal as Node).call("pose_at", hole_time)
+	if elapsed < 0.3:
+		npc.visible = false
+		return
+	npc.visible = true
+	npc.pose_action("jump", 0.45 + (elapsed - 0.3))
+
+
+func _sos_leave(npc: ToonActor, still: Callable) -> void:
+	if not is_instance_valid(npc):
+		return
+	var bow := "bow" if String(npc.get_meta("sos_gender", "m")) == "m" else "curtsy"
+	await _run(2.0, still, func(elapsed: float) -> void:
+		if is_instance_valid(npc):
+			npc.pose_action(bow, elapsed)
+	)
+	if not is_instance_valid(npc):
+		return
+	npc.end_action(bow)
+	npc.set_meta("chat_line", "See you later!")
+	await _sos_drop(npc, still)
+	if is_instance_valid(npc):
+		npc.set_meta("chat_line", "")
+
+
+func _sos_drop(npc: ToonActor, still: Callable) -> void:
+	var portal := _PORTAL.new() as Node3D
+	portal.name = "SosHole"
+	portal.call("setup")
+	var hand := npc.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		npc.add_child(portal)
+	else:
+		hand.add_child(portal)
+	portal.transform = Transform3D.IDENTITY
+	portal.call("pose_at", 0.0)
+	npc.set_look_enabled(false)
+	var gate := {"sound": false, "drop": false}
+	await _run(3.4, still, func(elapsed: float) -> void:
+		if not is_instance_valid(npc):
+			return
+		npc.set_hole_clip(true, npc.global_position.y)
+		npc.pose_action("teleport", elapsed)
+		if is_instance_valid(portal):
+			portal.call("pose_at", elapsed)
+		if elapsed >= 0.5 and not bool(gate["sound"]):
+			gate["sound"] = true
+			_run_sound()
+		if elapsed >= 1.708 and not bool(gate["drop"]):
+			gate["drop"] = true
+			if is_instance_valid(portal):
+				portal.reparent(npc, false)
+				portal.transform = Transform3D.IDENTITY
+	)
+	if is_instance_valid(portal):
+		portal.queue_free()
+	if is_instance_valid(npc):
+		npc.set_hole_clip(false, 0.0)
+		npc.visible = false
+
+
+func _sos_sprinkle(npc: ToonActor, target: Node3D, still: Callable) -> void:
+	if not is_instance_valid(npc):
+		await _wait(_SOS_SPRINKLE, still)
+		return
+	if target != null:
+		var look := target.global_position
+		look.y = npc.global_position.y
+		if npc.global_position.distance_squared_to(look) > 0.25:
+			npc.look_at(look, Vector3.UP)
+	var gate := {"dust": null}
+	await _run(_SOS_SPRINKLE, still, func(elapsed: float) -> void:
+		if not is_instance_valid(npc):
+			return
+		npc.pose_action("sprinkle-dust", elapsed)
+		if elapsed < 1.5 or target == null or not is_instance_valid(target):
+			return
+		var dust: Node3D = gate["dust"]
+		if dust == null or not is_instance_valid(dust):
+			dust = _make("splat")
+			_tint(dust, Color(0.65, 1.0, 0.75, 0.85))
+			gate["dust"] = dust
+		var flown := clampf((elapsed - 1.5) / 1.9, 0.0, 1.0)
+		var end := target.global_position + Vector3(0.0, 2.2, 0.0)
+		dust.global_position = npc.global_position.lerp(end, flown) + Vector3(0.0, sin(flown * PI) * 1.2, 0.0)
+		dust.scale = Vector3.ONE * lerpf(0.12, 0.5, flown)
+		_face_camera(dust)
+		_once("sos-pixie", elapsed, 2.0, "AA_heal_pixiedust.ogg", npc.get_instance_id())
+	)
+	if is_instance_valid(npc):
+		npc.end_action("sprinkle-dust")
+
+
+func _sos_mark(id: int, aim: String, actor_of: Callable, cog_of: Callable) -> Node3D:
+	if aim == "cog":
+		var cog: Variant = cog_of.call(id)
+		if cog is Node3D:
+			return cog
+		return null
+	return actor_of.call(id)
+
+
+func _sos_free(guest: Variant) -> void:
+	if not (guest is Node) or not is_instance_valid(guest):
+		return
+	var tree := get_tree()
+	if tree != null:
+		for board in tree.get_nodes_in_group("nametag_boards"):
+			if board.has_method("release"):
+				board.call("release", guest)
+	(guest as Node).queue_free()
 
 
 func _attack_one(lead: Dictionary, beats: Array, actor: ToonActor, marks: Array, actor_of: Callable, still: Callable, contact: Callable) -> void:
@@ -701,6 +1286,10 @@ func _attack_one(lead: Dictionary, beats: Array, actor: ToonActor, marks: Array,
 		await _sound(actor, _prop_name(track, level), level, marks, still, contact)
 	elif kind == "gag" and actor != null and track == 0:
 		await _heal(actor, _prop_name(track, level), level, beats, actor_of, still, contact)
+	elif kind == "fire":
+		await _fire(actor, marks, still, contact)
+	elif kind == "pet":
+		await _play_pet(lead, actor, still, contact)
 	elif kind == "run":
 		await _run_out(actor, still)
 		if still.call():
@@ -709,6 +1298,402 @@ func _attack_one(lead: Dictionary, beats: Array, actor: ToonActor, marks: Array,
 		await _wait(1.2, still)
 		if still.call():
 			contact.call()
+
+
+## MoviePetSOS.__healJuggle. The doodle pops in, does the trick, and pops out.
+func _play_pet(lead: Dictionary, actor: ToonActor, still: Callable, contact: Callable) -> void:
+	var trick := int(lead.get("level", 0))
+	var hit := bool(lead.get("hit", false))
+	var length := pet_seconds(trick, hit)
+	if actor == null:
+		await _wait(length, still)
+		if still.call():
+			contact.call()
+		return
+	_sos_neutral(actor)
+	var look := _pet_look(int(lead.get("toon", 0)))
+	var pet := _pet_spawn(actor, look)
+	if pet == null:
+		await _wait(length, still)
+		if still.call():
+			contact.call()
+		return
+	var follower := _pet_follower(int(lead.get("toon", 0)))
+	var shown := true
+	if follower != null:
+		shown = follower.visible
+		follower.visible = false
+	var spot := pet.global_position
+	var portal := _pet_hole(pet)
+	var gate := {"sound": false, "said": false}
+	await _run(_PET_IN, still, func(elapsed: float) -> void:
+		_pet_arrive(pet, portal, elapsed, gate)
+	)
+	if still.call():
+		await _run(_PET_WAIT, still, func(_elapsed: float) -> void:
+			if is_instance_valid(pet):
+				pet.visible = true
+				pet.call("hold_trick", "neutral", 0.0)
+		)
+	for step in _pet_steps(trick, hit):
+		if not still.call() or not is_instance_valid(pet):
+			break
+		var row: Dictionary = step
+		await _pet_step(pet, spot, row, still)
+	if still.call() and not bool(gate["said"]):
+		gate["said"] = true
+		_pet_praise(actor, look, hit)
+		contact.call()
+	if still.call() and is_instance_valid(pet):
+		await _run(_PET_CHAT, still, func(_elapsed: float) -> void:
+			if is_instance_valid(pet):
+				pet.call("hold_trick", "neutral", 0.0)
+		)
+	if still.call() and is_instance_valid(pet):
+		await _pet_leave(pet, still)
+	if not bool(gate["said"]) and still.call():
+		gate["said"] = true
+		contact.call()
+	_pet_drop(pet, portal, follower, shown, actor)
+
+
+func _pet_step(pet: Node3D, spot: Vector3, row: Dictionary, still: Callable) -> void:
+	var clip := String(row.get("clip", "neutral"))
+	var reverse := bool(row.get("reverse", false))
+	var start := int(row.get("start", 0))
+	var hop := bool(row.get("hop", false))
+	await _run(float(row.get("seconds", 1.0)), still, func(elapsed: float) -> void:
+		if not is_instance_valid(pet):
+			return
+		pet.visible = true
+		pet.call("hold_trick", clip, elapsed, reverse, start)
+		var lift := 0.0
+		if hop and elapsed >= 0.36 and elapsed <= 1.36:
+			lift = sin((elapsed - 0.36) * PI) * 2.0
+		pet.global_position = spot + Vector3(0.0, lift, 0.0)
+	)
+
+
+func _pet_look(peer: int) -> Dictionary:
+	var fallback := {"dna": [-1, 0, 0, -1, 2, 0, 4, 0, 1], "name": "Smiley"}
+	if peer == ToonNet.peer_id():
+		var record: Dictionary = preload("res://scenes/pets/doodle_kennel.gd").current()
+		var owned: Variant = record.get("dna", [])
+		if owned is Array and (owned as Array).size() >= 9:
+			return {"dna": owned, "name": String(record.get("name", ""))}
+	var state := ToonNet.latest("toon:%d" % peer)
+	var remote: Variant = state.get("pet_dna", [])
+	if remote is Array and (remote as Array).size() >= 9:
+		return {"dna": remote, "name": String(state.get("pet_name", ""))}
+	return fallback
+
+
+func _pet_spawn(caller: ToonActor, look: Dictionary) -> Node3D:
+	var host := caller.get_parent()
+	if host == null:
+		return null
+	var pet := preload("res://scenes/pets/doodle.gd").new() as Node3D
+	pet.name = "BattleDoodle"
+	host.add_child(pet)
+	var dna: Array = look.get("dna", [])
+	pet.call("show_pet", dna, String(look.get("name", "")))
+	var ahead := -caller.global_transform.basis.z
+	ahead.y = 0.0
+	if ahead.length_squared() < 0.0001:
+		ahead = Vector3(0.0, 0.0, -1.0)
+	else:
+		ahead = ahead.normalized()
+	pet.global_position = caller.global_position + ahead * 4.0
+	pet.global_basis = caller.global_basis
+	pet.visible = false
+	pet.call("hold_trick", "neutral", 0.0)
+	return pet
+
+
+func _pet_follower(peer: int) -> Node3D:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var label := "Doodle" if peer == ToonNet.peer_id() else "RemoteDoodle%d" % peer
+	return tree.root.find_child(label, true, false) as Node3D
+
+
+func _pet_hole(pet: Node3D) -> Node:
+	if pet == null:
+		return null
+	var portal := _PORTAL.new() as Node3D
+	portal.name = "PetHole"
+	portal.call("setup")
+	pet.add_child(portal)
+	portal.transform = Transform3D.IDENTITY
+	portal.scale = Vector3(0.75, 0.75, 0.75)
+	portal.call("pose_at", 3.4)
+	return portal
+
+
+func _pet_arrive(pet: Node3D, portal: Node, elapsed: float, gate: Dictionary) -> void:
+	if not is_instance_valid(pet):
+		return
+	if elapsed < 1.0:
+		pet.visible = false
+		return
+	var hole := elapsed - 1.0
+	if portal != null and is_instance_valid(portal):
+		var hole_time := 3.4
+		if hole < 0.3:
+			hole_time = lerpf(3.4, 3.1, hole / 0.3)
+		elif hole < 1.3:
+			hole_time = 3.1
+		else:
+			hole_time = lerpf(3.1, 3.4, clampf((hole - 1.3) / 0.3, 0.0, 1.0))
+		portal.call("pose_at", hole_time)
+		portal.visible = hole < 1.6
+	if hole < 0.3:
+		pet.visible = false
+		return
+	if not bool(gate["sound"]):
+		gate["sound"] = true
+		_run_sound()
+	pet.visible = true
+	pet.call("hold_trick", "neutral", 0.0)
+
+
+func _pet_leave(pet: Node3D, still: Callable) -> void:
+	var portal := _pet_hole(pet)
+	var gate := {"sound": false}
+	await _run(_PET_OUT, still, func(elapsed: float) -> void:
+		if not is_instance_valid(pet):
+			return
+		if elapsed < 1.0:
+			pet.visible = true
+			pet.call("hold_trick", "neutral", 0.0)
+			if portal != null and is_instance_valid(portal):
+				portal.visible = false
+			return
+		var hole := elapsed - 1.0
+		if portal != null and is_instance_valid(portal):
+			var hole_time := 3.4
+			if hole < 0.3:
+				hole_time = lerpf(3.4, 3.1, hole / 0.3)
+			else:
+				hole_time = lerpf(3.1, 3.4, clampf((hole - 0.3) / 0.3, 0.0, 1.0))
+			portal.call("pose_at", hole_time)
+			portal.visible = hole < 0.6
+		if hole >= 0.3 and not bool(gate["sound"]):
+			gate["sound"] = true
+			_run_sound()
+		pet.visible = hole < 0.3
+	)
+	if portal != null and is_instance_valid(portal):
+		portal.queue_free()
+
+
+func _pet_praise(actor: ToonActor, look: Dictionary, hit: bool) -> void:
+	var line := "Sigh"
+	if hit:
+		var dna: Array = look.get("dna", [])
+		var boy := dna.size() > 8 and int(dna[8]) == 1
+		line = "Good boy!" if boy else "Good girl!"
+	actor.set_meta("chat_line", line)
+
+
+func _pet_drop(pet: Node3D, portal: Node, follower: Node3D, shown: bool, actor: ToonActor) -> void:
+	if portal != null and is_instance_valid(portal):
+		portal.queue_free()
+	if pet != null and is_instance_valid(pet):
+		pet.call("release_trick")
+		pet.queue_free()
+	if follower != null and is_instance_valid(follower):
+		follower.visible = shown
+	if actor != null and is_instance_valid(actor):
+		actor.set_meta("chat_line", "")
+
+
+## MovieFire.__throwPie. The toon presses the button. A cannon rises under the
+## cog, tips, and fires them out. There is no thrown pie in this movie.
+func _fire(actor: ToonActor, marks: Array, still: Callable, contact: Callable) -> void:
+	var cog := _first_cog(marks)
+	var button: Node3D = null
+	var face := Basis()
+	var faced := false
+	if actor != null:
+		face = actor.global_basis
+		if cog != null:
+			var look := cog.global_position
+			look.y = actor.global_position.y
+			if actor.global_position.distance_squared_to(look) > 0.25:
+				actor.look_at(look, Vector3.UP)
+				faced = true
+		button = _make("button")
+		_hand(button, actor, "def_joint_left_hold")
+	var state := {"face": faced, "rig": {}}
+	var gate := {}
+	await _run(FIRE_SECONDS, still, func(elapsed: float) -> void:
+		if actor != null and is_instance_valid(actor):
+			if elapsed < 3.5:
+				actor.pose_action("pushbutton", elapsed)
+			elif elapsed < 5.5:
+				actor.pose_action("wave", elapsed - 3.5)
+			elif elapsed < 7.3:
+				actor.pose_action("duck", elapsed - 5.5)
+			else:
+				if bool(state.get("face", false)):
+					actor.global_basis = face
+					state["face"] = false
+				actor.set_locomotion(0.0, false, false, 0.0)
+		if button != null and is_instance_valid(button):
+			var grown := 1.0
+			if elapsed < 1.0:
+				grown = lerpf(0.01, 1.0, elapsed)
+			elif elapsed < 3.5:
+				grown = 1.0
+			elif elapsed < 4.5:
+				grown = lerpf(1.0, 0.01, (elapsed - 3.5) / 1.0)
+			else:
+				grown = 0.01
+				button.visible = false
+			button.scale = Vector3.ONE * grown
+		_once("fire-box", elapsed, 2.15, "AA_drop_trigger_box.ogg")
+		var live: Dictionary = state.get("rig", {})
+		if elapsed >= 3.0 and cog != null and is_instance_valid(cog) and live.is_empty():
+			live = _fire_rig(cog)
+			state["rig"] = live
+		if not live.is_empty():
+			_fire_cannon(live, elapsed - 3.0)
+		_once("fire-adjust", elapsed, 5.0, "res://assets/audio/sfx/MG_cannon_adjust.ogg")
+		_once("fire-adjust-back", elapsed, 7.6, "res://assets/audio/sfx/MG_cannon_adjust.ogg")
+		_once("fire-boom", elapsed, 7.25, "res://assets/audio/sfx/MG_cannon_fire_alt.ogg")
+		_once("fire-whistle", elapsed, 7.25, "res://assets/effects/fireworks/firework_whistle_01.ogg")
+		if elapsed >= 3.0 and _latch(gate, "hit"):
+			contact.call()
+	)
+	if actor != null and is_instance_valid(actor):
+		actor.end_action("pushbutton")
+		actor.end_action("wave")
+		actor.end_action("duck")
+		if bool(state.get("face", false)):
+			actor.global_basis = face
+		actor.set_locomotion(0.0, false, false, 0.0)
+	_fire_clear(state.get("rig", {}))
+
+
+func _fire_rig(cog: Node3D) -> Dictionary:
+	var host := cog.get_parent()
+	var holder := Node3D.new()
+	holder.name = "FireCannon"
+	if host != null:
+		host.add_child(holder)
+	else:
+		add_child(holder)
+	holder.global_position = cog.global_position
+	holder.global_basis = Basis(cog.global_transform.basis.get_rotation_quaternion())
+	var packed := load("res://assets/minigames/toon_cannon.glb") as PackedScene
+	var barrel: Node3D = holder
+	if packed != null:
+		var model := packed.instantiate()
+		holder.add_child(model)
+		model.position = Vector3(0.0, -8.6, 0.0)
+		var found := model.find_child("cannon", true, false) as Node3D
+		barrel = found if found != null else model
+	barrel.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+	barrel.scale = Vector3(1.6, 1.0, 1.6)
+	var seat := Node3D.new()
+	seat.name = "CogSeat"
+	barrel.add_child(seat)
+	seat.position = Vector3(0.0, 6.7, 0.0)
+	seat.scale = Vector3(1.0 / 1.6, 1.0, 1.0 / 1.6)
+	var home_scale := cog.scale
+	var home_xform := cog.transform
+	cog.reparent(seat, false)
+	cog.position = Vector3.ZERO
+	cog.rotation = Vector3.ZERO
+	cog.scale = home_scale
+	if cog.has_method("begin_react"):
+		cog.call("begin_react", "pie-small", 0.0)
+	var suit_level := 1
+	if cog.get("cog_level") != null:
+		suit_level = maxi(int(cog.get("cog_level")), 1)
+	return {
+		"holder": holder,
+		"barrel": barrel,
+		"seat": seat,
+		"cog": cog,
+		"host": host,
+		"xform": home_xform,
+		"scale": home_scale,
+		"base": holder.global_position,
+		"deep": 2.5 + float(suit_level) * 0.2,
+		"small": maxf(0.9 - sqrt(float(suit_level)) * 0.1, 0.2),
+	}
+
+
+func _fire_cannon(rig: Dictionary, local: float) -> void:
+	var holder := rig.get("holder") as Node3D
+	var barrel := rig.get("barrel") as Node3D
+	var cog := rig.get("cog") as Node3D
+	if holder == null or not is_instance_valid(holder):
+		return
+	var base: Vector3 = rig.get("base", holder.global_position)
+	var lift := 0.0
+	var pitch := 90.0
+	if local < 2.0:
+		lift = smoothstep(0.0, 2.0, local) * 7.0
+	elif local < 2.6:
+		lift = 7.0
+		pitch = lerpf(90.0, 45.0, (local - 2.0) / 0.6)
+	elif local < 4.6:
+		lift = 7.0
+		pitch = 45.0
+	elif local < 5.2:
+		lift = 7.0
+		pitch = lerpf(45.0, 90.0, (local - 4.6) / 0.6)
+	elif local < 6.2:
+		lift = lerpf(7.0, 0.0, smoothstep(0.0, 1.0, (local - 5.2) / 1.0))
+		pitch = 90.0
+	holder.global_position = base + Vector3.UP * lift
+	if barrel != null and is_instance_valid(barrel):
+		barrel.rotation_degrees = Vector3(pitch, 0.0, 0.0)
+	if cog == null or not is_instance_valid(cog):
+		return
+	var home: Vector3 = rig.get("scale", Vector3.ONE)
+	var deep := float(rig.get("deep", 2.5))
+	var small := float(rig.get("small", 0.9))
+	if local < 0.25:
+		cog.position = Vector3(0.0, lerpf(0.0, -1.0, local / 0.25), 0.0)
+		cog.scale = home * lerpf(1.0, small, local / 1.0)
+	elif local < 1.75:
+		var sunk := clampf((local - 0.25) / 1.5, 0.0, 1.0)
+		cog.position = Vector3(0.0, lerpf(-1.0, -deep, sunk), 0.0)
+		cog.scale = home * small
+		if cog.has_method("begin_react"):
+			cog.call("begin_react", "pie-small", local)
+	elif local < 4.25:
+		cog.position = Vector3(0.0, -deep, 0.0)
+		cog.scale = home * small
+	else:
+		var flown := clampf((local - 4.25) / 3.0, 0.0, 1.0)
+		cog.position = Vector3(0.0, lerpf(-deep, 150.0, flown), 0.0)
+		cog.scale = home * lerpf(small, 0.01, flown)
+		if flown >= 1.0:
+			cog.visible = false
+
+
+func _fire_clear(rig: Dictionary) -> void:
+	if rig.is_empty():
+		return
+	var cog := rig.get("cog") as Node3D
+	var host := rig.get("host") as Node
+	var holder := rig.get("holder") as Node3D
+	if cog != null and is_instance_valid(cog):
+		if host != null and is_instance_valid(host):
+			cog.reparent(host, false)
+			cog.transform = rig.get("xform", Transform3D.IDENTITY)
+			cog.scale = rig.get("scale", Vector3.ONE)
+		cog.visible = false
+		if cog.has_method("begin_react"):
+			cog.call("begin_react", "", 0.0)
+	if holder != null and is_instance_valid(holder):
+		holder.queue_free()
 
 
 func _play_chorus(beats: Array, parties: Array, actor_of: Callable, cog_of: Callable, still: Callable, contact: Callable) -> void:
@@ -1526,6 +2511,7 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 			props.append(shown)
 	var victims: Array = lead.get("victims", [])
 	var gate := {}
+	var fx := _begin_suit_fx(title, body, code, cog, victims, actor_of)
 	if _live(cog) and title != "":
 		cog.set_meta("chat_line", title)
 		cog.set_meta("chat_until", Time.get_ticks_msec() + int(length * 1000.0))
@@ -1579,7 +2565,13 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 			if actor == null:
 				continue
 			var clip := hit_anim if landed else dodge_anim
-			actor.pose_action(clip, elapsed - react_at)
+			var rows := _attack_splices(title, landed)
+			if rows.is_empty():
+				actor.pose_action(clip, elapsed - react_at)
+				actor.set_meta("battle_clip", clip)
+			else:
+				_pose_spliced(actor, rows, elapsed - react_at)
+		_step_suit_fx(fx, elapsed, victims, actor_of)
 		var cues := _attack_cues(title, body, not missed)
 		for index in cues.size():
 			var cue: Array = cues[index]
@@ -1596,11 +2588,390 @@ func _suit(beats: Array, actor_of: Callable, marks: Array, still: Callable, cont
 		var actor: ToonActor = actor_of.call(int((item as Dictionary).get("id", 0)))
 		if actor == null:
 			continue
-		var clip := hit_anim if bool((item as Dictionary).get("hit", false)) else dodge_anim
-		actor.end_action(clip)
+		var played := String(actor.get_meta("battle_clip", ""))
+		if played == "":
+			played = hit_anim if bool((item as Dictionary).get("hit", false)) else dodge_anim
+		actor.end_action(played)
+		actor.remove_meta("battle_clip")
+	_end_suit_fx(fx)
 	if _live(cog):
 		cog.set_meta("chat_line", "")
 		cog.set_meta("chat_until", 0)
+
+
+const _PARTICLE_CARDS := "res://assets/battle/particles/"
+const _SPARKLE := "res://assets/effects/fireworks/tt_t_efx_ext_particleSparkle.png"
+
+
+## MovieSuitAttacks particle intervals, the storm cloud, and the scale bounces.
+func _begin_suit_fx(title: String, body: String, code: String, cog: Node3D, victims: Array, actor_of: Callable) -> Dictionary:
+	var fx := {"sprays": [], "free": [], "actors": [], "hit": false, "title": title}
+	if cog == null or _attack_span(title, body) <= 0.0:
+		return fx
+	var struck := false
+	for item in victims:
+		if item is Dictionary and bool((item as Dictionary).get("hit", false)) and not bool((item as Dictionary).get("died", false)):
+			struck = true
+	fx["hit"] = struck
+	var tall := 4.8
+	if cog.get("height") != null:
+		tall = float(cog.get("height"))
+	var toon := _fx_toon(victims, actor_of, false)
+	var gold := Color(1.0, 0.84, 0.0, 1.0)
+	var snow := Color(1, 1, 1, 1)
+	var yellow := Color(1, 1, 0, 0.8)
+	var red := Color(1, 0, 0, 1)
+	match title:
+		"Brain Storm!":
+			_storm_cloud(fx, cog, tall, 1.2, 2.2)
+			_cloud_card(fx, "brainstorm-box", Color(0.65, 0.79, 0.93, 0.85), 0.0, 2.2, 0.6, 18)
+			_cloud_card(fx, "brainstorm-env", Color(0.65, 0.79, 0.93, 0.85), 0.5, 1.7, 0.5, 18)
+			_cloud_card(fx, "brainstorm-track", Color(0.65, 0.79, 0.93, 0.85), 1.0, 1.2, 0.45, 18)
+		"Freeze Assets!":
+			_storm_cloud(fx, cog, tall, 0.2, 2.1)
+			_cloud_card(fx, "snow-particle", snow, 0.0, 2.1, 0.08, 40)
+		"Buzz Word!":
+			var delay := 1.3 if body == "b" else 4.0
+			var span := 2.0 if body == "b" else 2.2
+			var mouth := Vector3(0.0, 3.0, -2.0)
+			if code == "m":
+				mouth = Vector3(0.0, tall - 2.5, -2.8)
+			elif code == "mm":
+				mouth = Vector3(0.0, tall - 0.8, -2.1)
+			var words: PackedStringArray = ["buzzwords-crash", "buzzwords-inc", "buzzwords-main", "buzzwords-over", "buzzwords-syn"]
+			for word in words:
+				var ink := Color(1, 0.94, 0.02, 1) if randf() > 0.5 else Color(0, 0, 0, 1)
+				_suit_card(fx, cog, word, ink, mouth, 8.0, 1.0, 7, 0.3, delay, span, 18.0, Vector3(0, 0, -1), 0.0)
+		"Demotion!":
+			_suit_card(fx, cog, "snow-particle", snow, Vector3(0, 3, -4), 6.0, 0.8, 40, 0.08, 0.7, 1.1, 25.0, Vector3(0, 0, -1), -2.0)
+			if struck and toon != null:
+				_suit_card(fx, toon, "snow-particle", snow, Vector3(0, 3, 0), 1.0, 0.5, 40, 0.08, 1.4, 2.9, 180.0, Vector3.UP, 0.0)
+				_suit_card(fx, toon, "snow-particle", snow, Vector3(0, 3, 0), 4.0, 0.5, 30, 0.08, 6.65, 0.5, 80.0, Vector3.UP, 0.0)
+		"Downsize!":
+			_suit_card(fx, cog, "snow-particle", yellow, Vector3(0, 3.4, -2.9), 7.0, 1.3, 50, 0.08, 1.0, 1.28, 22.0, Vector3(0, 0, -1), -2.0)
+			if struck and toon != null:
+				_suit_card(fx, toon, "snow-particle", yellow, Vector3(0, 1.6, 0), 1.0, 0.3, 40, 0.06, 2.1, 1.9, 180.0, Vector3.UP, 0.0)
+		"Legalese!":
+			var pages: PackedStringArray = ["legalese-hc", "legalese-qpq", "legalese-vd"]
+			for index in pages.size():
+				_suit_card(fx, cog, pages[index], Color(0.4, 0, 0, 1), Vector3(0, 3, -2), 7.0, 1.15, 8, 0.8, 1.3 + float(index) * 0.8, 1.15, 16.0, Vector3(0, 0, -1), -1.0)
+		"Re-Org!":
+			_suit_card(fx, cog, "snow-particle", red, Vector3(0, 2.7, -5.7), 6.0, 0.8, 40, 0.05, 1.0, 1.9, 30.0, Vector3(0, 0, -1), 0.0)
+		"Schmooze!":
+			var lines: PackedStringArray = ["schmooze-genius", "schmooze-instant", "schmooze-master", "schmooze-viz"]
+			for index in lines.size():
+				var blue := Color(0, 0, 1, 1)
+				var at := 1.3 + float(index) * 0.65
+				_suit_card(fx, cog, lines[index], blue, Vector3(0, 4, -3), 5.0, 0.8, 6, 0.7, at, 0.8, 12.0, Vector3(0, 0, -1), 0.0)
+				_suit_card(fx, cog, lines[index], blue, Vector3(0, 3.3, -6.6), 5.0, 1.0, 6, 0.7, at + 0.7, 1.0, 12.0, Vector3(0, 0, -1), 0.0)
+		"Spin!":
+			_suit_card(fx, cog, "snow-particle", red, Vector3(0, 3.2, -6.5), 6.0, 1.2, 36, 0.05, 1.0, 1.9, 28.0, Vector3(0, 0, -1), 0.0)
+			if struck and toon != null:
+				_suit_card(fx, toon, "snow-particle", red, Vector3(0.8, 2.2, 0.7), 4.0, 1.3, 24, 0.06, 2.1, 3.9, 70.0, Vector3.UP, 0.0)
+				_suit_card(fx, toon, "snow-particle", red, Vector3(0.8, 1.3, 0.7), 4.0, 1.3, 24, 0.06, 2.1, 3.9, 70.0, Vector3.UP, 0.0)
+				_suit_card(fx, toon, "snow-particle", red, Vector3(0.8, 0.5, 0.7), 4.0, 1.3, 24, 0.06, 2.1, 3.9, 70.0, Vector3.UP, 0.0)
+		"Head Shrink!":
+			_suit_card(fx, cog, "", gold, Vector3(0, 4.2, -2.9), 12.0, 1.15, 40, 0.16, 0.3, 1.4, 24.0, Vector3(0, 0, -1), -1.0)
+			var ring := Node3D.new()
+			ring.name = "HeadShrinkCloud"
+			add_child(ring)
+			(fx["free"] as Array).append(ring)
+			fx["ring"] = ring
+			var dust := _word_cards("", gold, 4.0, 0.3, 28, 0.12, 180.0, Vector3.UP, 0.0)
+			ring.add_child(dust)
+			(fx["sprays"] as Array).append({"node": dust, "start": 1.42, "dur": 3.5})
+			if toon != null:
+				_suit_card(fx, toon, "", gold, Vector3(0, 7.5, 0), 2.3, 1.2, 24, 0.14, 1.5, 2.5, 20.0, Vector3.DOWN, -4.0)
+	return fx
+
+
+func _storm_cloud(fx: Dictionary, cog: Node3D, tall: float, part_delay: float, part_dur: float) -> void:
+	var cloud := _make("stormcloud")
+	cloud.visible = false
+	cloud.global_basis = _Z_UP
+	var home := cog.global_position + Vector3(0.0, tall + 3.0, 0.0) + _forward(cog) * 3.0
+	cloud.global_position = home
+	fx["cloud"] = cloud
+	fx["cloud_home"] = home
+	fx["part_delay"] = part_delay
+	fx["part_dur"] = part_dur
+
+
+func _cloud_card(fx: Dictionary, file_name: String, tint: Color, offset: float, span: float, size: float, amount: int) -> void:
+	var cloud: Node3D = fx.get("cloud")
+	if cloud == null:
+		return
+	var part_at := 2.8 + float(fx.get("part_delay", 0.0))
+	var cards := _word_cards(file_name, tint, 5.0, 1.0, amount, size, 160.0, Vector3.UP, 0.0)
+	cloud.add_child(cards)
+	(fx["sprays"] as Array).append({"node": cards, "start": part_at + offset, "dur": span})
+
+
+func _suit_card(fx: Dictionary, parent: Node3D, file_name: String, tint: Color, local: Vector3, speed: float, life: float, amount: int, size: float, start: float, span: float, spread: float, direction: Vector3, gravity: float) -> void:
+	if parent == null:
+		return
+	var cards := _word_cards(file_name, tint, speed, life, amount, size, spread, direction, gravity)
+	parent.add_child(cards)
+	cards.position = local
+	(fx["sprays"] as Array).append({"node": cards, "start": start, "dur": span})
+	(fx["free"] as Array).append(cards)
+
+
+func _word_cards(file_name: String, tint: Color, speed: float, life: float, amount: int, size: float, spread: float, direction: Vector3, gravity: float) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.amount = maxi(amount, 1)
+	particles.lifetime = maxf(life, 0.05)
+	particles.explosiveness = 0.0
+	particles.local_coords = true
+	particles.emitting = false
+	particles.visibility_aabb = AABB(Vector3(-12, -12, -12), Vector3(24, 24, 24))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = 0.2
+	process.direction = direction
+	process.spread = spread
+	process.initial_velocity_min = speed * 0.8
+	process.initial_velocity_max = speed
+	process.gravity = Vector3(0.0, gravity, 0.0)
+	process.scale_min = size
+	process.scale_max = size
+	particles.process_material = process
+	var quad := QuadMesh.new()
+	quad.size = Vector2.ONE
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true
+	mat.albedo_color = tint
+	var path := _SPARKLE if file_name == "" else _PARTICLE_CARDS + file_name + ".png"
+	if ResourceLoader.exists(path):
+		mat.albedo_texture = load(path)
+	quad.material = mat
+	particles.draw_pass_1 = quad
+	return particles
+
+
+func _step_suit_fx(fx: Dictionary, elapsed: float, victims: Array, actor_of: Callable) -> void:
+	if fx.is_empty() or not fx.has("sprays"):
+		return
+	for item in fx["sprays"]:
+		var row: Dictionary = item
+		var node := row.get("node") as GPUParticles3D
+		if node == null:
+			continue
+		var start := float(row.get("start", 0.0))
+		node.emitting = elapsed >= start and elapsed < start + float(row.get("dur", 0.0))
+	var cloud: Node3D = fx.get("cloud")
+	if cloud != null and is_instance_valid(cloud):
+		_step_cloud(fx, cloud, elapsed, victims, actor_of)
+	var ring: Node3D = fx.get("ring")
+	if ring != null and is_instance_valid(ring):
+		var toon := _fx_toon(victims, actor_of, false)
+		var age := elapsed - 1.42
+		if toon != null and age >= 0.0 and age < 3.5:
+			var spin := age / 1.4 * TAU
+			ring.global_position = toon.global_position + Vector3(cos(spin) * 0.7, 8.0, sin(spin) * 0.7)
+			ring.visible = true
+		else:
+			ring.visible = false
+	if bool(fx.get("hit", false)):
+		_apply_body_fx(fx, elapsed, victims, actor_of)
+
+
+func _step_cloud(fx: Dictionary, cloud: Node3D, elapsed: float, victims: Array, actor_of: Callable) -> void:
+	cloud.visible = true
+	cloud.global_basis = _Z_UP
+	var home: Vector3 = fx.get("cloud_home", cloud.global_position)
+	var target := home
+	var toon := _fx_toon(victims, actor_of, false)
+	if toon != null:
+		target = toon.global_position + Vector3(0.0, 6.0, 0.0)
+	var part_at := 2.8 + float(fx.get("part_delay", 0.0))
+	var shrink_at := part_at + float(fx.get("part_dur", 2.0)) + 0.4
+	if elapsed < 0.7:
+		cloud.global_position = home
+		cloud.scale = Vector3.ONE * lerpf(0.01, 3.0, elapsed / 0.7)
+		_pose_prop(cloud, "stormcloud", 0.0)
+	elif elapsed < 1.8:
+		cloud.global_position = home
+		cloud.scale = Vector3.ONE * 3.0
+		_pose_prop(cloud, "stormcloud", 0.0)
+	elif elapsed < 2.8:
+		cloud.global_position = home.lerp(target, (elapsed - 1.8) / 1.0)
+		cloud.scale = Vector3.ONE * 3.0
+		_pose_prop(cloud, "stormcloud", 0.0)
+	elif elapsed < shrink_at:
+		cloud.global_position = target
+		cloud.scale = Vector3.ONE * 3.0
+		var age := elapsed - part_at
+		if age < 0.5:
+			_pose_prop(cloud, "stormcloud", 3.0 + age)
+		elif age < 1.0:
+			_pose_prop(cloud, "stormcloud", 2.5 + (age - 0.5))
+		else:
+			_pose_prop(cloud, "stormcloud", 1.0 + (age - 1.0))
+	else:
+		cloud.global_position = target
+		cloud.scale = Vector3.ONE * lerpf(3.0, 0.01, clampf((elapsed - shrink_at) / 0.5, 0.0, 1.0))
+
+
+func _apply_body_fx(fx: Dictionary, elapsed: float, victims: Array, actor_of: Callable) -> void:
+	for item in victims:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if not bool(row.get("hit", false)) or bool(row.get("died", false)):
+			continue
+		var actor: ToonActor = actor_of.call(int(row.get("id", 0)))
+		if actor == null:
+			continue
+		_keep_actor(fx, actor)
+		var title := String(fx.get("title", ""))
+		if title == "Downsize!":
+			actor.scale = _saved_scale(fx, actor) * _ramp(elapsed, [[2.8, 1.0], [3.8, 0.44], [3.9, 0.36], [4.0, 0.42], [4.1, 0.38], [4.2, 0.4], [6.3, 0.4], [6.8, 1.5], [6.95, 0.5], [7.1, 1.2], [7.25, 0.8], [7.4, 1.0]], 1.0)
+		elif title == "Head Shrink!":
+			var factor := _ramp(elapsed, [[2.9, 1.0], [4.0, 0.6], [5.6, 0.6], [6.0, 3.2], [6.4, 0.7], [6.7, 2.5], [7.0, 0.8], [7.2, 1.9], [7.4, 0.85], [7.55, 1.7], [7.7, 0.9], [7.8, 1.3], [7.9, 1.0]], 1.0)
+			_scale_heads(fx, actor, factor)
+		elif title == "Spin!":
+			var yaw := _ramp(elapsed, [[2.6, 0.0], [3.3, -10.0], [3.8, -30.0], [4.0, -60.0], [4.7, -700.0], [5.7, -1310.0], [6.1, 0.0]], 0.0)
+			var base: Basis = _saved_basis(fx, actor)
+			actor.global_basis = base.rotated(Vector3.UP, deg_to_rad(yaw))
+		elif title == "Re-Org!":
+			_reorg_head(fx, actor, elapsed)
+
+
+func _keep_actor(fx: Dictionary, actor: ToonActor) -> void:
+	var kept: Array = fx.get("actors", [])
+	for item in kept:
+		if (item as Dictionary).get("actor") == actor:
+			return
+	var heads: Array = []
+	for node in actor.find_children("head_look", "Node3D", true, false):
+		var look := node as Node3D
+		var parts: Array = []
+		for child in look.get_children():
+			if child is Node3D:
+				parts.append({"node": child, "scale": (child as Node3D).scale})
+		heads.append({"node": look, "scale": look.scale, "pos": look.position, "rot": look.rotation, "parts": parts})
+	kept.append({"actor": actor, "scale": actor.scale, "basis": actor.global_basis, "heads": heads})
+	fx["actors"] = kept
+	if actor.has_method("set_look_enabled"):
+		actor.set_look_enabled(false)
+
+
+func _saved_scale(fx: Dictionary, actor: ToonActor) -> Vector3:
+	for item in fx.get("actors", []):
+		var row: Dictionary = item
+		if row.get("actor") == actor:
+			return row.get("scale", Vector3.ONE)
+	return actor.scale
+
+
+func _saved_basis(fx: Dictionary, actor: ToonActor) -> Basis:
+	for item in fx.get("actors", []):
+		var row: Dictionary = item
+		if row.get("actor") == actor:
+			return row.get("basis", actor.global_basis)
+	return actor.global_basis
+
+
+func _scale_heads(fx: Dictionary, actor: ToonActor, factor: float) -> void:
+	for item in fx.get("actors", []):
+		var row: Dictionary = item
+		if row.get("actor") != actor:
+			continue
+		for head_item in row.get("heads", []):
+			var head: Dictionary = head_item
+			for part_item in head.get("parts", []):
+				var part: Dictionary = part_item
+				var mesh := part.get("node") as Node3D
+				if mesh == null:
+					continue
+				var base: Vector3 = part.get("scale", Vector3.ONE)
+				mesh.scale = base * factor
+
+
+func _reorg_head(fx: Dictionary, actor: ToonActor, elapsed: float) -> void:
+	var lift := _ramp(elapsed, [[1.7, 0.0], [1.8, -0.03], [2.2, -0.04], [2.45, 2.2], [2.85, 2.2], [3.15, 3.1], [3.3, 0.3], [4.85, 0.3], [5.0, 1.0], [5.5, 1.0], [5.6, 0.0]], 0.0)
+	var sway := _ramp(elapsed, [[1.7, 0.0], [1.8, -0.2], [1.9, 0.4], [2.0, -0.4], [2.1, 0.4], [2.2, -0.2], [2.45, 0.0]], 0.0)
+	var heading := _ramp(elapsed, [[2.45, 0.0], [2.85, 360.0], [3.45, 360.0], [4.05, -745.0], [4.85, 25.0], [5.15, 0.0]], 0.0)
+	var roll := _ramp(elapsed, [[2.45, 0.0], [2.85, 180.0], [4.85, 180.0], [5.15, 0.0]], 0.0)
+	for item in fx.get("actors", []):
+		var row: Dictionary = item
+		if row.get("actor") != actor:
+			continue
+		for head_item in row.get("heads", []):
+			var head: Dictionary = head_item
+			var look := head.get("node") as Node3D
+			if look == null:
+				continue
+			var pos: Vector3 = head.get("pos", Vector3.ZERO)
+			var rot: Vector3 = head.get("rot", Vector3.ZERO)
+			look.position = pos + Vector3(sway, lift, 0.0)
+			look.rotation = Vector3(rot.x, deg_to_rad(heading), deg_to_rad(roll))
+
+
+func _ramp(elapsed: float, keys: Array, before: float) -> float:
+	if keys.is_empty():
+		return before
+	var first: Array = keys[0]
+	if elapsed <= float(first[0]):
+		return before
+	var prev_t := float(first[0])
+	var prev_v := float(first[1])
+	for index in range(1, keys.size()):
+		var row: Array = keys[index]
+		var at := float(row[0])
+		var goal := float(row[1])
+		if elapsed < at:
+			return lerpf(prev_v, goal, clampf((elapsed - prev_t) / maxf(at - prev_t, 0.001), 0.0, 1.0))
+		prev_t = at
+		prev_v = goal
+	return prev_v
+
+
+func _fx_toon(victims: Array, actor_of: Callable, hit_only: bool) -> ToonActor:
+	for item in victims:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if bool(row.get("died", false)):
+			continue
+		if hit_only and not bool(row.get("hit", false)):
+			continue
+		var actor: ToonActor = actor_of.call(int(row.get("id", 0)))
+		if actor != null:
+			return actor
+	return null
+
+
+func _end_suit_fx(fx: Dictionary) -> void:
+	if fx.is_empty():
+		return
+	for item in fx.get("actors", []):
+		var row: Dictionary = item
+		var actor := row.get("actor") as Node3D
+		if actor != null and is_instance_valid(actor):
+			actor.scale = row.get("scale", actor.scale)
+			actor.global_basis = row.get("basis", actor.global_basis)
+			if actor.has_method("set_look_enabled"):
+				actor.set_look_enabled(true)
+		for head_item in row.get("heads", []):
+			var head: Dictionary = head_item
+			var look := head.get("node") as Node3D
+			if look != null and is_instance_valid(look):
+				look.scale = head.get("scale", look.scale)
+				look.position = head.get("pos", look.position)
+				look.rotation = head.get("rot", look.rotation)
+			for part_item in head.get("parts", []):
+				var part: Dictionary = part_item
+				var mesh := part.get("node") as Node3D
+				if mesh != null and is_instance_valid(mesh):
+					mesh.scale = part.get("scale", mesh.scale)
+	for node in fx.get("free", []):
+		if node is Node and is_instance_valid(node):
+			(node as Node).queue_free()
 
 
 func _plant(cog: Node3D, prop: Node3D, cog_id: int, sound_name: String, level: int) -> void:
@@ -2377,6 +3748,11 @@ func _begin_camera(lead: Dictionary, actor: ToonActor, marks: Array) -> void:
 	_aim_close_name = "group_low"
 	_aim_open_on = "battle"
 	_aim_close_on = "battle"
+	if kind == "pet":
+		_aim_open = 2.8
+		_aim_open_name = "toon_group"
+		_aim_close_name = "toon_group"
+		return
 	if kind == "cog":
 		_aim_open = 2.8
 		_aim_open_name = "throw_close"
@@ -3114,7 +4490,7 @@ func _latch(gate: Dictionary, id: String) -> bool:
 
 
 func _sfx(file_name: String) -> void:
-	var path := _SFX + file_name
+	var path := file_name if file_name.begins_with("res://") else _SFX + file_name
 	var stream: AudioStream = null
 	if ResourceLoader.exists(path):
 		stream = load(path) as AudioStream

@@ -56,7 +56,8 @@ var _note: Label
 func setup(player: ToonActor, origin: Vector3, _party: Dictionary) -> void:
 	_body = player
 	_origin = origin
-	_wide = int(get_meta("act_id", 4)) == 9
+	var act_id := int(get_meta("act_id", 4))
+	_wide = act_id == 9 or act_id == 16
 	for row in _MOVES:
 		var move: Dictionary = row
 		if bool(move.get("extra", false)) and not _wide:

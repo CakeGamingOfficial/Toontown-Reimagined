@@ -2,9 +2,10 @@ class_name FactoryProps
 extends Node
 
 ## The moving Sellbot Factory. Stompers, gears, barrels, lifts, the conveyor,
-## crates, and goons come from SellbotLegFactorySpec. Defeated cog levels are
-## remembered here until the foreman falls, which is when the suit part and
-## merits are paid out.
+## crates, and goons come from SellbotLegFactorySpec. The crusher-cell floor,
+## the signature and lookout camera triggers, and the spinning gear discs come
+## from that same spec. Defeated cog levels are remembered here until the
+## foreman falls, which is when the suit part and merits are paid out.
 
 const _PROPS := "res://assets/cog_hq/sellbot_factory_props.json"
 const _MOTION := "res://assets/cog_hq/facility_motion.json"
@@ -17,8 +18,12 @@ const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _WEAR := "res://assets/cog_hq/floor_wear.png"
 const _STICK := 0.2
 const _TURN := 0.95
+const _WEAR_SPAN := 6.25
+const _WEAR_TEX := 6.0
+const _CELL := 3.0
 
 static var _levels: Array[int] = []
 
@@ -34,6 +39,8 @@ var _belts: Array[Dictionary] = []
 var _crates: Array[Dictionary] = []
 var _goons: Array[Dictionary] = []
 var _mixers: Array[Dictionary] = []
+var _views: Array[Dictionary] = []
+var _grid: Node3D
 var _goon_scene: PackedScene
 var _motion: Dictionary = {}
 
@@ -64,6 +71,7 @@ static func place(host: Node) -> void:
 
 
 func _ready() -> void:
+	process_priority = 20
 	_levels.clear()
 	var host := get_parent()
 	if host == null:
@@ -96,9 +104,15 @@ func _physics_process(delta: float) -> void:
 		_move_goons(null, delta)
 
 
+func _process(_delta: float) -> void:
+	if _leaving or _busy():
+		return
+	_aim_view()
+
+
 func _index(node: Node, found: Dictionary) -> void:
 	var node_name := String(node.name)
-	if node_name.begins_with("stomper-") or node_name.begins_with("gear-") or node_name.begins_with("healBarrel-") or node_name.begins_with("gagBarrel-") or node_name.begins_with("beanBarrel-") or node_name.begins_with("lift-") or node_name.begins_with("conveyorBelt-") or node_name.begins_with("crate-") or node_name.begins_with("goon-") or node_name.begins_with("paintMixer-"):
+	if node_name.begins_with("stomper-") or node_name.begins_with("gear-") or node_name.begins_with("healBarrel-") or node_name.begins_with("gagBarrel-") or node_name.begins_with("beanBarrel-") or node_name.begins_with("lift-") or node_name.begins_with("conveyorBelt-") or node_name.begins_with("crate-") or node_name.begins_with("goon-") or node_name.begins_with("paintMixer-") or node_name.begins_with("grid-") or node_name.begins_with("trigger-"):
 		found[node_name] = node
 	for child in node.get_children():
 		_index(child, found)
@@ -134,6 +148,7 @@ func _read(found: Dictionary) -> void:
 			"damage": int(spec.get("damage", 0)),
 			"motion": motion,
 			"switch": int(wired.get("switch", 0)),
+			"cell": int(wired.get("cell", 0)),
 			"pose": "up",
 			"from": head.position.y,
 			"age": 0.0,
@@ -145,7 +160,7 @@ func _read(found: Dictionary) -> void:
 			continue
 		var spec: Dictionary = item
 		var root := _node(found, "gear-%s" % spec.get("id", 0))
-		var mesh := _model(root)
+		var mesh := _gear_disc(root)
 		if mesh == null:
 			continue
 		_gears.append({
@@ -254,8 +269,11 @@ func _read(found: Dictionary) -> void:
 			"index": 0,
 			"wait": 0.0,
 			"stun": 0.0,
+			"cell": int(route.get("cell", 0)),
 		})
 	_take_mixers(found)
+	_lay_floors(found)
+	_take_views(found)
 
 
 ## DistributedStomperAI.reactToSwitch. MotionSwitched stays raised until its button.
@@ -271,7 +289,6 @@ func note_switch(ent_id: int, on: bool) -> void:
 			item["from"] = head.position.y
 			item["age"] = 0.0
 			item["pose"] = "slam"
-			_crush_under(head)
 			var voice: AudioStreamPlayer3D = item["voice"]
 			if voice != null:
 				voice.play()
@@ -340,7 +357,10 @@ func _move_switch(item: Dictionary, head: Node3D, body: Node3D, busy: bool) -> v
 	elif pose == "down":
 		y = down
 	head.position = Vector3(rest.x, y, rest.z)
-	if arrived and not busy and body != null and body.global_position.distance_to(head.global_position) <= 3.0:
+	if not arrived:
+		return
+	_crush_cell(item, head)
+	if not busy and body != null and body.global_position.distance_to(head.global_position) <= 3.0:
 		_hurt(int(item["damage"]), "stomp-%s" % item["id"])
 
 
@@ -358,13 +378,171 @@ func _crush_under(head: Node3D) -> void:
 	_goons = kept
 
 
+## CrusherCellAI.doCrush. A switched stomper crushes the goon registered to its
+## cell, and only while that goon is standing on the cell.
+func _crush_cell(item: Dictionary, head: Node3D) -> void:
+	var cell := int(item.get("cell", 0))
+	var row := _cell_row(cell)
+	var col := _cell_col(cell)
+	if cell == 0 or row < 0 or _grid == null:
+		_crush_under(head)
+		return
+	var kept: Array[Dictionary] = []
+	for goon in _goons:
+		var root: Node3D = goon["root"]
+		if root == null or not is_instance_valid(root):
+			continue
+		if int(goon.get("cell", 0)) == cell and _stands_on(root, row, col):
+			_flatten(root)
+			continue
+		kept.append(goon)
+	_goons = kept
+
+
+func _stands_on(root: Node3D, row: int, col: int) -> bool:
+	var local := _grid.to_local(root.global_position)
+	var at_row := int(floor(local.y / _CELL))
+	var at_col := int(floor(local.x / _CELL))
+	return row >= at_row and row <= at_row + 1 and col >= at_col and col <= at_col + 1
+
+
+func _flatten(root: Node3D) -> void:
+	root.scale = Vector3(root.scale.x * 1.2, root.scale.y * 1.2, root.scale.z * 0.2)
+	var tree := get_tree()
+	if tree == null:
+		root.queue_free()
+		return
+	tree.create_timer(5.0).timeout.connect(_drop_goon.bind(root))
+
+
+func _drop_goon(root: Node3D) -> void:
+	if is_instance_valid(root):
+		root.queue_free()
+
+
+func _cell_row(cell: int) -> int:
+	if cell == 20024 or cell == 20026 or cell == 20027 or cell == 20028:
+		return 14
+	return -1
+
+
+func _cell_col(cell: int) -> int:
+	if cell == 20024:
+		return 1
+	if cell == 20026:
+		return 10
+	if cell == 20027:
+		return 21
+	if cell == 20028:
+		return 28
+	return -1
+
+
+## DistributedGrid.loadModel. FloorWear is one stretched card, tinted and lifted
+## just off the floor. The long side follows the longer grid axis.
+func _lay_floors(found: Dictionary) -> void:
+	_grid = _node(found, "grid-20025")
+	_lay_floor(found, "grid-20025", 30, 16)
+	_lay_floor(found, "grid-20080", 2, 5)
+	_lay_floor(found, "grid-20090", 2, 9)
+
+
+func _lay_floor(found: Dictionary, node_name: String, cols: int, rows: int) -> void:
+	var grid := _node(found, node_name)
+	if grid == null or grid.get_node_or_null("FloorWear") != null:
+		return
+	var long := cols
+	var short := rows
+	var heading := 0.0
+	if cols < rows:
+		long = rows
+		short = cols
+		heading = 90.0
+	var factor := _CELL / _WEAR_TEX
+	var wear := MeshInstance3D.new()
+	wear.name = "FloorWear"
+	var quad := QuadMesh.new()
+	quad.orientation = PlaneMesh.FACE_Z
+	quad.size = Vector2(_WEAR_SPAN * factor * float(long), _WEAR_SPAN * factor * float(short))
+	wear.mesh = quad
+	wear.position = Vector3(_CELL * float(cols) * 0.5, _CELL * float(rows) * 0.5, 0.025)
+	wear.rotation.z = deg_to_rad(heading)
+	var mat := StandardMaterial3D.new()
+	var texture := load(_WEAR) as Texture2D
+	if texture != null:
+		mat.albedo_texture = texture
+	mat.albedo_color = Color(0.588, 0.588, 0.459, 0.4)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	wear.material_override = mat
+	grid.add_child(wear)
+
+
+## FactoryCameraViews. Entering the volume switches to that camera. Leaving it
+## lets the usual follow camera, which already ran this frame, stand.
+func _take_views(found: Dictionary) -> void:
+	_keep_view(found, "trigger-20050", Vector3(0.0, -14.8419799805, 13.212685585), Vector3(0.0, -13.9563484192, 12.749215126))
+	_keep_view(found, "trigger-20057", Vector3(0.0, -17.7, 28.8), Vector3(0.0, 10.0, 0.0))
+
+
+func _keep_view(found: Dictionary, node_name: String, cam: Vector3, look: Vector3) -> void:
+	var trigger := _node(found, node_name)
+	if trigger == null:
+		return
+	_views.append({"trigger": trigger, "cam": cam, "look": look})
+
+
+func _aim_view() -> void:
+	var body := _body()
+	if body == null:
+		return
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var actor := _actor(body)
+	for item in _views:
+		var trigger: Node3D = item["trigger"]
+		if trigger == null or not is_instance_valid(trigger):
+			continue
+		var radius := trigger.global_transform.basis.x.length()
+		if body.global_position.distance_to(trigger.global_position) > radius:
+			continue
+		var basis := actor.global_transform.basis
+		var right := basis.x
+		var forward := basis.y
+		var up := basis.z
+		if right.length_squared() < 0.0001 or forward.length_squared() < 0.0001:
+			return
+		right = right.normalized()
+		forward = forward.normalized()
+		up = up.normalized() if up.length_squared() > 0.0001 else Vector3.UP
+		var cam: Vector3 = item["cam"]
+		var look: Vector3 = item["look"]
+		var at := actor.global_position
+		camera.global_position = at + right * cam.x + forward * cam.y + up * cam.z
+		var focus := at + right * look.x + forward * look.y + up * look.z
+		if camera.global_position.distance_squared_to(focus) > 0.04:
+			camera.look_at(focus, Vector3.UP)
+		return
+
+
+func _actor(body: Node3D) -> Node3D:
+	for child in body.get_children():
+		if child is CollisionShape3D:
+			continue
+		if child is Node3D:
+			return child
+	return body
+
+
 func _spin_gears(delta: float, body: Node3D, busy: bool) -> void:
 	for item in _gears:
 		var mesh: Node3D = item["mesh"]
 		if mesh == null:
 			continue
-		var axis := Vector3(1.0, 0.0, 0.0) if bool(item["vertical"]) else Vector3(0.0, 0.0, 1.0)
-		mesh.rotate_object_local(axis, deg_to_rad(float(item["deg"])) * delta)
+		# GearEntity spins the disc's heading. On these nodes that axis is local Z.
+		mesh.rotate_object_local(Vector3(0.0, 0.0, 1.0), deg_to_rad(float(item["deg"])) * delta)
 		if busy or body == null or not bool(item["vertical"]):
 			continue
 		if body.global_position.distance_to(mesh.global_position) <= 1.8:
@@ -719,6 +897,28 @@ func _load_motion() -> Dictionary:
 	if parsed is Dictionary:
 		return parsed
 	return {}
+
+
+func _gear_disc(root: Node) -> Node3D:
+	if root == null:
+		return null
+	var parent := _named(root, "gearParent")
+	if parent == null:
+		return null
+	for child in parent.get_children():
+		if child is Node3D:
+			return child
+	return null
+
+
+func _named(node: Node, node_name: String) -> Node:
+	if String(node.name) == node_name:
+		return node
+	for child in node.get_children():
+		var found := _named(child, node_name)
+		if found != null:
+			return found
+	return null
 
 
 func _model(root: Node) -> Node3D:

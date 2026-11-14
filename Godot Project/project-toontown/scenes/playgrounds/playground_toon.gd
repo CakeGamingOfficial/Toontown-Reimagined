@@ -455,6 +455,7 @@ func _ready() -> void:
 	_place_mailbox()
 	if _PLACES.is_house(_scene_path()):
 		_SURFACES.apply(get_parent())
+		preload("res://scenes/interiors/house_furniture.gd").place(get_parent())
 	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	_paint_interior()

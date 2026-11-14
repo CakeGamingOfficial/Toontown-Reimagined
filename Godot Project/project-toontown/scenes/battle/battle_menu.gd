@@ -469,23 +469,18 @@ func _open_sos() -> void:
 		if not (card is Dictionary):
 			continue
 		var body: Dictionary = card
-		var track := int(body.get("track", 0))
-		var level := int(body.get("level", 0))
-		var encoded := track * 10 + level
-		if track >= 7:
-			encoded = track * 10
 		var button := Button.new()
 		button.text = "%s (%d)" % [String(body.get("name", "SOS")), int(body.get("calls", 1))]
-		button.pressed.connect(_use_sos.bind(encoded))
+		button.pressed.connect(_use_sos.bind(int(body.get("id", 0))))
 		_sos_list.add_child(button)
 
 
-func _use_sos(encoded: int) -> void:
+func _use_sos(npc_id: int) -> void:
 	if not _waiting:
 		return
 	_waiting = false
 	_hide_sos()
-	picked.emit(-4, encoded)
+	picked.emit(-4, npc_id)
 
 
 func _open_doodle() -> void:

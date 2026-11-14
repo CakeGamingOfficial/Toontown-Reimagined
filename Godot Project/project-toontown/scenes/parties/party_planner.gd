@@ -7,6 +7,7 @@ extends Node
 
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _COLS := 18
 const _ROWS := 15
 const _CELL := 20
@@ -157,7 +158,7 @@ func _nav_button(caption: String, at: Vector2, call: Callable) -> Button:
 	return button
 
 
-func _page(id: String, panel_size: Vector2) -> Control:
+func _make_page(id: String, panel_size: Vector2) -> Control:
 	var box := Control.new()
 	box.position = Vector2(12, 148)
 	box.size = Vector2(panel_size.x - 24, panel_size.y - 210)
@@ -168,10 +169,21 @@ func _page(id: String, panel_size: Vector2) -> Control:
 
 
 func _build_editor(panel_size: Vector2) -> void:
-	var page := _page("editor", panel_size)
+	var page := _make_page("editor", panel_size)
+	var themes := GridContainer.new()
+	themes.columns = 2
+	themes.position = Vector2(0, 0)
+	page.add_child(themes)
+	for theme in _THEMES:
+		var theme_button := Button.new()
+		theme_button.text = theme
+		theme_button.custom_minimum_size = Vector2(128, 28)
+		theme_button.pressed.connect(_set_theme.bind(theme))
+		themes.add_child(theme_button)
+		_theme_buttons.append(theme_button)
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 0)
-	scroll.size = Vector2(270, page.size.y - 44)
+	scroll.position = Vector2(0, 140)
+	scroll.size = Vector2(270, page.size.y - 184)
 	page.add_child(scroll)
 	_list = VBoxContainer.new()
 	_list.custom_minimum_size = Vector2(250, 0)
@@ -213,7 +225,7 @@ func _build_editor(panel_size: Vector2) -> void:
 
 
 func _build_guests(panel_size: Vector2) -> void:
-	var page := _page("guests", panel_size)
+	var page := _make_page("guests", panel_size)
 	var scroll := ScrollContainer.new()
 	scroll.size = Vector2(page.size.x, page.size.y - 90)
 	page.add_child(scroll)
@@ -255,7 +267,7 @@ func _build_guests(panel_size: Vector2) -> void:
 
 
 func _build_date(panel_size: Vector2) -> void:
-	var page := _page("date", panel_size)
+	var page := _make_page("date", panel_size)
 	var asap := Button.new()
 	asap.text = "As Soon As Possible"
 	asap.custom_minimum_size = Vector2(280, 36)
@@ -283,7 +295,7 @@ func _build_date(panel_size: Vector2) -> void:
 
 
 func _build_time(panel_size: Vector2) -> void:
-	var page := _page("time", panel_size)
+	var page := _make_page("time", panel_size)
 	_time_label = _label(Vector2(0, 0), Vector2(page.size.x, 80), 22)
 	page.add_child(_time_label)
 	_time_step(page, "Hour", Vector2(0, 100), 1)
@@ -312,7 +324,7 @@ func _time_step(page: Control, caption: String, at: Vector2, amount: int) -> voi
 
 
 func _build_invite(panel_size: Vector2) -> void:
-	var page := _page("invite", panel_size)
+	var page := _make_page("invite", panel_size)
 	_invite_label = _label(Vector2(0, 0), Vector2(page.size.x, 180), 18)
 	page.add_child(_invite_label)
 	var row := 0
@@ -340,7 +352,7 @@ func _show(page: String) -> void:
 		_info.text = "Hosting your own party is a lot of fun!\nStart planning with the arrows at the bottom!"
 	elif page == "editor":
 		_title.text = "Design Your Party\nPlace Activities and Decorations"
-		_info.text = "Click on the Party Activity or Decoration you would like to purchase."
+		_info.text = _theme_note()
 		_paint_editor()
 	elif page == "guests":
 		_title.text = "Choose Your Guests"
@@ -483,7 +495,13 @@ func _paint_privacy() -> void:
 
 func _set_theme(theme: String) -> void:
 	_theme = theme
+	_drop_unoffered()
+	if _catalog_index >= 0 and _catalog_index < _catalog.size() and not _offered(_catalog[_catalog_index]):
+		_catalog_index = -1
 	_paint_invite()
+	if _page == "editor":
+		_info.text = _theme_note()
+		_paint_editor()
 
 
 func _paint_invite() -> void:
@@ -529,6 +547,9 @@ func _paint_editor() -> void:
 	_paint_list()
 	_paint_buy()
 	_cost.text = "Total Cost: %d beans" % _total()
+	for index in _theme_buttons.size():
+		var theme_button := _theme_buttons[index] as Button
+		theme_button.modulate = Color(1, 1, 0.55) if theme_button.text == _theme else Color.WHITE
 
 
 func _paint_grid() -> void:
@@ -559,6 +580,7 @@ func _paint_list() -> void:
 		var button := _list.get_child(index) as Button
 		if button == null:
 			continue
+		button.visible = _offered(entry)
 		var caption := "%d  %s" % [int(entry["cost"]), String(entry["editor"])]
 		if _count(entry) >= int(entry["limit"]):
 			caption += "  SOLD OUT"
@@ -687,7 +709,7 @@ func _put(entry: Dictionary, at: Vector2i) -> void:
 func _drop_conflicts(added: Dictionary) -> String:
 	if String(added.get("kind", "")) != "a":
 		return ""
-	var pairs := [[0, 8], [4, 9]]
+	var pairs := [[0, 8], [4, 9], [15, 16], [17, 18]]
 	var id := int(added.get("id", -1))
 	var note := ""
 	for pair in pairs:
@@ -911,13 +933,22 @@ func _possessive(who: String) -> String:
 func _make_catalog() -> Array:
 	return [
 		_act(10, "Cog-O-War", "Cog-O-War", "The team vs. team game of Cog splatting!", 300, 5, 5, 1, "cog"),
+		_act(14, "Holiday Cog-O-War", "Holiday Cog-O-War", "The team vs. team game of Cog splattering!", 300, 5, 5, 1, "cog"),
 		_act(0, "Jukebox - 20", "a 20 song Jukebox", "Listen to music with your own 20 song jukebox!", 50, 1, 1, 1, "jukebox"),
 		_act(8, "Jukebox - 40", "a 40 song jukebox", "Listen to music with your own 40 song jukebox!", 100, 1, 1, 1, "jukebox"),
+		_act(17, "Jukebox - 20", "a 20 song Valentoons Jukebox", "Nothing sets the mood like music!", 50, 1, 1, 1, "jukebox"),
+		_act(18, "Jukebox - 40", "a 40 song Valentoons jukebox", "Nothing sets the mood like music!", 100, 1, 1, 1, "jukebox"),
 		_act(1, "Cannons", "Party Cannons", "Fire yourself out of the cannons and into fun!", 50, 1, 1, 10, "cannon"),
 		_act(2, "Trampoline", "Trampoline", "Collect jellybeans and bounce the highest!", 50, 2, 2, 8, "trampoline"),
+		_act(19, "Trampoline", "ValenToons Trampoline", "Jump to your heart's content!", 50, 2, 2, 8, "trampoline"),
+		_act(11, "Cog Trampoline", "Cog Trampoline", "Jump on a Cog's face!", 50, 2, 2, 8, "trampoline"),
+		_act(13, "Holiday Trampoline", "Holiday Trampoline", "Jump if you love Winter Holidays!", 50, 2, 2, 8, "trampoline"),
 		_act(3, "Party Catch", "Party Catch", "Catch fruit to win beans! Dodge those anvils!", 300, 5, 5, 1, "catch"),
+		_act(12, "Present Catch", "Present Catch", "Catch presents to win beans! Dodge those anvils!", 300, 5, 5, 1, "catch"),
 		_act(4, "Dance Floor - 10", "a 10 move Dance Floor", "Show off all 10 of your moves, toon style!", 100, 3, 3, 1, "dance"),
 		_act(9, "Dance Floor - 20", "a 20 move Dance Floor", "Show off all 20 of your moves, toon style!", 200, 3, 3, 1, "dance"),
+		_act(15, "Dance Floor - 10", "a 10 move ValenToons Dance Floor", "Get your ValenToon Groove On!", 100, 3, 3, 1, "dance"),
+		_act(16, "Dance Floor - 20", "a 20 move ValenToons Dance Floor", "Get your ValenToon Groove On!", 200, 3, 3, 1, "dance"),
 		_act(5, "Tug-of-War", "Party Tug-of-War", "Up to 4 on 4 toon tugging craziness!", 200, 4, 4, 1, "tug"),
 		_act(6, "Fireworks", "Party Fireworks", "Launch your very own fireworks show!", 200, 4, 2, 1, "fireworks"),
 		_act(7, "Party Clock", "a Party Clock", "Counts down the time left in your party.", 100, 1, 1, 1, "clock"),
@@ -934,6 +965,21 @@ func _make_catalog() -> Array:
 		_decor(10, "Gag Globe", "Gag and star globe designed by Olivea", 25),
 		_decor(11, "Bean Banner", "A Jellybean banner designed by Cassidy", 25),
 		_decor(12, "Gag Cake", "A Topsy Turvy gag cake designed by Felicia", 25),
+		_decor(13, "Cupid's Heart", "Ready...Aim...\nValenToons!", 25),
+		_decor(14, "Candy Hearts Banner", "Who doesn't love candy hearts?", 25),
+		_decor(15, "Flying Heart", "This heart is getting carried away!", 25),
+		_decor(16, "Victory Bandstand", "All our new friends are ready to dance!", 25, 2, 2),
+		_decor(17, "Victory Banner", "Not just a normal banner!", 25),
+		_decor(18, "Confetti Cannons", "BOOM! Confetti! Fun!", 25),
+		_decor(19, "Cog & Doodle", "Ouch! That's gotta hurt.", 25),
+		_decor(20, "Cog Flappy Man", "A Cog full of hot air, what a shock!", 25),
+		_decor(21, "Cog Ice Cream", "A Cog looking his best.", 25),
+		_decor(22, "CogCicle", "A Cog looking his holiday best.", 25),
+		_decor(23, "Holiday Bandstand", "Everyone loves a Holiday Party!", 25, 2, 2),
+		_decor(24, "Chilly Cog", "Ouch! That's gotta hurt.", 25),
+		_decor(25, "Snowman", "So cool, he's hot!", 25),
+		_decor(26, "SnowDoodle", "His only trick is being cold!", 25),
+		_decor(27, "ValenToons Anvil", "We've got your heart on a string!", 10),
 	]
 
 
@@ -952,7 +998,7 @@ func _act(id: int, editor: String, invite: String, desc: String, cost: int, w: i
 	}
 
 
-func _decor(id: int, editor: String, desc: String, cost: int) -> Dictionary:
+func _decor(id: int, editor: String, desc: String, cost: int, w: int = 1, h: int = 1) -> Dictionary:
 	return {
 		"kind": "d",
 		"id": id,
@@ -960,8 +1006,60 @@ func _decor(id: int, editor: String, desc: String, cost: int) -> Dictionary:
 		"invite": "",
 		"desc": desc,
 		"cost": cost,
-		"w": 1,
-		"h": 1,
+		"w": w,
+		"h": h,
 		"limit": 5,
 		"station": "",
 	}
+
+
+func _season_flags() -> Dictionary:
+	return {
+		"winter": _theme == "Winter" or _HOLIDAYS.running(4) or _HOLIDAYS.running(121),
+		"valentine": _theme == "ValenToons" or _HOLIDAYS.running(59),
+		"victory": _theme == "Victory" or _HOLIDAYS.running(95),
+	}
+
+
+func _offered(entry: Dictionary) -> bool:
+	var flags := _season_flags()
+	var id := int(entry.get("id", -1))
+	var winter: bool = bool(flags["winter"])
+	var valentine: bool = bool(flags["valentine"])
+	var victory: bool = bool(flags["victory"])
+	if String(entry.get("kind", "")) == "a":
+		if (not victory and id == 11) or (not winter and (id == 12 or id == 13 or id == 14)) or (not valentine and (id >= 15 and id <= 19)):
+			return false
+		if (victory and id == 2) or (winter and (id == 2 or id == 3 or id == 10)) or (valentine and (id == 0 or id == 2 or id == 4 or id == 8 or id == 9)):
+			return false
+		return true
+	if (not victory and id >= 16 and id <= 21) or (not winter and id >= 22 and id <= 26) or (not valentine and (id == 13 or id == 14 or id == 15 or id == 27)):
+		return false
+	if (victory and id == 11) or (valentine and (id == 0 or id == 11)):
+		return false
+	return true
+
+
+func _theme_note() -> String:
+	var flags := _season_flags()
+	var bits: PackedStringArray = []
+	if bool(flags["winter"]):
+		bits.append("Winter")
+	if bool(flags["valentine"]):
+		bits.append("ValenToons")
+	if bool(flags["victory"]):
+		bits.append("Victory")
+	if bits.is_empty():
+		return "Click on the Party Activity or Decoration you would like to purchase."
+	return "Offering " + ", ".join(bits) + " party activities and decorations."
+
+
+func _drop_unoffered() -> void:
+	var index := _items.size() - 1
+	while index >= 0:
+		var item: Dictionary = _items[index]
+		if not _offered(item):
+			_items.remove_at(index)
+		index -= 1
+	_selected = 0 if not _items.is_empty() else -1
+	_moving = false

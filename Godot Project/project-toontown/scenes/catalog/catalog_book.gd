@@ -2,8 +2,8 @@ extends Control
 
 ## Clarabelle's Cattlelog. One series week, plus whatever she sells this month.
 ## The week changes every seven days across the 78-week schedule.
-## Wallpaper, flooring, and furniture can be ordered. The house does not
-## redecorate with them yet.
+## Wallpaper, flooring, and furniture can be ordered. Accepting the mail
+## paints the house and stands the furniture and windows in the rooms.
 
 signal finished
 

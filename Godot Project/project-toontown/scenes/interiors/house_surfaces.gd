@@ -24,13 +24,12 @@ static func apply(host: Node) -> void:
 	if paper.is_empty() and mould.is_empty() and floor.is_empty() and wain.is_empty():
 		return
 	var shared: Dictionary = {}
-	for node in host.find_children("*", "MeshInstance3D", true, false):
-		var mesh := node as MeshInstance3D
-		var kind := _kind(String(mesh.name))
-		var row := {}
-		if kind == "wallpaper" or kind == "ceiling" or kind == "border":
-			row = paper
-		elif kind == "moulding":
+	for node in host.find_children("*", "", true, false):
+		var kind := _kind(String(node.name))
+		if kind == "":
+			continue
+		var row := paper
+		if kind == "moulding":
 			row = mould
 		elif kind == "floor":
 			row = floor
@@ -38,20 +37,27 @@ static func apply(host: Node) -> void:
 			row = wain
 		if row.is_empty():
 			continue
-		var stamp := String(row.get("texture", ""))
-		if kind == "border":
-			stamp = String(row.get("border", stamp))
-		elif kind == "ceiling":
-			stamp = "ceiling"
-		var key := kind + ":" + stamp
-		if not shared.has(key):
-			shared[key] = _material(mesh, row, kind)
-		var mat := shared[key] as Material
-		var count := 1
-		if mesh.mesh != null:
-			count = maxi(mesh.mesh.get_surface_count(), 1)
-		for index in count:
-			mesh.set_surface_override_material(index, mat)
+		var meshes: Array[MeshInstance3D] = []
+		if node is MeshInstance3D:
+			meshes.append(node)
+		for child in node.find_children("*", "MeshInstance3D", true, false):
+			if _kind(String(child.name)) == "":
+				meshes.append(child)
+		for mesh in meshes:
+			var stamp := String(row.get("texture", ""))
+			if kind == "border":
+				stamp = String(row.get("border", stamp))
+			elif kind == "ceiling":
+				stamp = "ceiling"
+			var key := kind + ":" + stamp
+			if not shared.has(key):
+				shared[key] = _material(mesh, row, kind)
+			var mat := shared[key] as Material
+			var count := 1
+			if mesh.mesh != null:
+				count = maxi(mesh.mesh.get_surface_count(), 1)
+			for index in count:
+				mesh.set_surface_override_material(index, mat)
 
 
 static func _kind(node_name: String) -> String:
@@ -77,6 +83,8 @@ static func _material(mesh: MeshInstance3D, row: Dictionary, kind: String) -> St
 	if current is StandardMaterial3D:
 		mat = (current as StandardMaterial3D).duplicate() as StandardMaterial3D
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.texture_repeat = true
+	mat.vertex_color_use_as_albedo = false
 	var color := _color(row.get("color", []))
 	var path := String(row.get("texture", ""))
 	if kind == "border":

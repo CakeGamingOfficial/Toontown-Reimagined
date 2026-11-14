@@ -20,6 +20,7 @@ var _drops: Array[Dictionary] = []
 var _next := 0
 var _caught := 0
 var _fruits := 0
+var _winter := false
 var _down := 0.0
 var _note: Label
 var _done := false
@@ -33,6 +34,7 @@ func setup(player: ToonActor, origin: Vector3, party: Dictionary) -> void:
 	_player = player
 	_party = party
 	_origin = origin
+	_winter = int(get_meta("act_id", 3)) == 12
 	global_position = origin
 	_player.global_position = origin + Vector3(0.0, 0.2, 0.0)
 	_schedule()
@@ -55,7 +57,10 @@ func _process(delta: float) -> void:
 	_walk(delta)
 	_fall(delta)
 	_spawn()
-	_note.text = "Party Catch\nCatch the fruit. Dodge the anvils.\nFruit: %d    %d" % [_caught, maxi(int(_LENGTH - _time), 0)]
+	var caught_word := "Presents" if _winter else "Fruit"
+	var title := "Present Catch" if _winter else "Party Catch"
+	var ask := "Catch the presents. Dodge the anvils." if _winter else "Catch the fruit. Dodge the anvils."
+	_note.text = "%s\n%s\n%s: %d    %d" % [title, ask, caught_word, _caught, maxi(int(_LENGTH - _time), 0)]
 	if _time < _LENGTH:
 		return
 	var pending := false
@@ -186,7 +191,8 @@ func _finish() -> void:
 	_player.set("velocity", Vector3.ZERO)
 	_done = true
 	var word := "PERFECT GAME!" if _fruits > 0 and _caught >= _fruits else "Good Game!"
-	var line := "%s\nPieces of fruit caught: %d\n\nJellybeans earned: " % [word, _caught]
+	var caught_word := "Presents caught" if _winter else "Pieces of fruit caught"
+	var line := "%s\n%s: %d\n\nJellybeans earned: " % [word, caught_word, _caught]
 	finished.emit(beans, line + "%d")
 	queue_free()
 

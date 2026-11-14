@@ -113,6 +113,19 @@ static func flower_choices() -> Array:
 	return rows
 
 
+static func plant_recipe(estate: int, plot: int, beans: String) -> String:
+	if beans.is_empty():
+		return "Choose the jellybeans you want to plant."
+	if beans.length() > shovel_power():
+		return "Your shovel cannot plant a recipe that long yet."
+	var found := _match_recipe(beans)
+	if found.is_empty():
+		if not _BEANS.take_beans(beans.length(), true):
+			return "You do not have enough jellybeans."
+		return "That didn't work.  Please try a different combination of jellybeans."
+	return plant_flower(estate, plot, int(found.get("species", 0)), int(found.get("variety", 0)), beans)
+
+
 static func plant_flower(estate: int, plot: int, species: int, variety: int, beans: String) -> String:
 	var spots := plots(estate)
 	if plot < 0 or plot >= spots.size():
@@ -390,6 +403,30 @@ static func _note_collection(species: int, variety: int) -> void:
 				var maximum := loadout.max_hp + 1
 				loadout.set_hp(maximum, maximum)
 				loadout.save()
+
+
+static func _match_recipe(beans: String) -> Dictionary:
+	var book := _load_book()
+	var recipes: Dictionary = book.get("recipes", {})
+	var species: Dictionary = book.get("species", {})
+	for spec_key in species.keys():
+		var spec: Dictionary = species[spec_key]
+		var index := 0
+		for item in spec.get("varieties", []):
+			if item is Dictionary:
+				var recipe: Dictionary = recipes.get(str(int((item as Dictionary).get("recipe", -1))), {})
+				if String(recipe.get("beans", "")) == beans:
+					return {"species": int(spec_key), "variety": index}
+			index += 1
+	return {}
+
+
+static func flower_color(species: int, variety: int) -> String:
+	var spec: Dictionary = _load_book().get("species", {}).get(str(species), {})
+	var rows: Array = spec.get("varieties", [])
+	if variety >= 0 and variety < rows.size() and rows[variety] is Dictionary:
+		return String((rows[variety] as Dictionary).get("color", "red"))
+	return "red"
 
 
 static func _species_name(species: int) -> String:

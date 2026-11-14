@@ -64,6 +64,7 @@ func _ready() -> void:
 	if scene_file_path.ends_with("goofy_speedway.tscn"):
 		preload("res://scenes/racing/speedway_racing.gd").place(self)
 	preload("res://scenes/parties/toon_party.gd").place_gate(self)
+	preload("res://scenes/playgrounds/party_people.gd").place(self)
 	_ready_playground_treasures()
 	_attach_returning_toon()
 	preload("res://scenes/cog_hq/factory_rooms.gd").place(self)

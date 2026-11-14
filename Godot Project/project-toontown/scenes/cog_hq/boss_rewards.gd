@@ -284,6 +284,33 @@ static func sos_cards() -> Array:
 	return cards.duplicate(true)
 
 
+static func sos_by_id(npc_id: int) -> Dictionary:
+	_load_catalog()
+	for item in _catalog:
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == npc_id:
+			return (item as Dictionary).duplicate(true)
+	return {}
+
+
+static func consume_id(npc_id: int) -> void:
+	var record := _read()
+	var cards: Array = record.get("sos", [])
+	for index in cards.size():
+		if not (cards[index] is Dictionary):
+			continue
+		var card: Dictionary = cards[index]
+		if int(card.get("id", 0)) != npc_id:
+			continue
+		card["calls"] = int(card.get("calls", 1)) - 1
+		if int(card["calls"]) <= 0:
+			cards.remove_at(index)
+		else:
+			cards[index] = card
+		record["sos"] = cards
+		_write(record)
+		return
+
+
 static func consume_encoded(encoded: int) -> void:
 	var track := int(encoded / 10)
 	var level := 0 if track >= 7 else encoded % 10
@@ -319,6 +346,17 @@ static func restock_all(loadout) -> void:
 	var pockets = load(_POCKETS)
 	for track in pockets.TRACK_COUNT:
 		_fill_track(loadout, track)
+	loadout.save()
+
+
+## InventoryBase.NPCMaxOutInv. Level -1 fills every track. A track number fills that one.
+static func restock_track(loadout, track: int) -> void:
+	if loadout == null:
+		return
+	if track < 0:
+		restock_all(loadout)
+		return
+	_fill_track(loadout, track)
 	loadout.save()
 
 
