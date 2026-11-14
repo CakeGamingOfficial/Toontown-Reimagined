@@ -10,13 +10,13 @@ const _REMOTE := "https://github.com/CakeGamingOfficial/Toontown-Reimagined.git"
 const _CONFIG := "user://launcher.json"
 const _FALLBACK_GODOT := "C:/Users/fukuy/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64.exe"
 
-const _FONT: Font = preload("res://assets/ImpressBT.ttf")
-const _LOGO: Texture2D = preload("res://assets/logo.png")
-const _SKY: Texture2D = preload("res://assets/sky.png")
-const _SCROLL: Texture2D = preload("res://assets/scroll.png")
-const _BUTTON_UP: Texture2D = preload("res://assets/button_up.png")
-const _BUTTON_DOWN: Texture2D = preload("res://assets/button_down.png")
-const _BUTTON_HOVER: Texture2D = preload("res://assets/button_hover.png")
+var _font: Font
+var _logo: Texture2D
+var _sky: Texture2D
+var _scroll: Texture2D
+var _button_up: Texture2D
+var _button_down: Texture2D
+var _button_hover: Texture2D
 
 const _INK := Color(0.33, 0.2, 0.08)
 const _INK_SOFT := Color(0.48, 0.32, 0.16)
@@ -50,6 +50,7 @@ var _buttons: Array[Button] = []
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_load_art()
 	_load_config()
 	_repo = _find_repo()
 	_build()
@@ -739,14 +740,52 @@ func _set_buttons_disabled(disabled: bool) -> void:
 			button.disabled = disabled
 
 
+func _load_art() -> void:
+	# A new download has the pictures, but not Godot's import cache. Reading
+	# the files directly lets the window open before that cache exists.
+	_font = _read_font("res://assets/ImpressBT.ttf")
+	_logo = _read_png("res://assets/logo.png")
+	_sky = _read_png("res://assets/sky.png")
+	_scroll = _read_png("res://assets/scroll.png")
+	_button_up = _read_png("res://assets/button_up.png")
+	_button_down = _read_png("res://assets/button_down.png")
+	_button_hover = _read_png("res://assets/button_hover.png")
+
+
+func _read_png(path: String) -> Texture2D:
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.is_empty():
+		return null
+	var image := Image.new()
+	if image.load_png_from_buffer(bytes) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+
+func _read_font(path: String) -> Font:
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.is_empty():
+		return null
+	var font := FontFile.new()
+	font.data = bytes
+	return font
+
+
 func _build() -> void:
-	var sky := TextureRect.new()
-	sky.texture = _SKY
-	sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	sky.stretch_mode = TextureRect.STRETCH_SCALE
-	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(sky)
+	if _sky != null:
+		var sky := TextureRect.new()
+		sky.texture = _sky
+		sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sky.stretch_mode = TextureRect.STRETCH_SCALE
+		sky.set_anchors_preset(Control.PRESET_FULL_RECT)
+		sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sky)
+	else:
+		var sky_flat := ColorRect.new()
+		sky_flat.color = Color(0.08, 0.35, 0.83)
+		sky_flat.set_anchors_preset(Control.PRESET_FULL_RECT)
+		sky_flat.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sky_flat)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
@@ -820,8 +859,10 @@ func _build() -> void:
 
 
 func _logo_texture() -> Texture2D:
+	if _logo == null:
+		return null
 	var atlas := AtlasTexture.new()
-	atlas.atlas = _LOGO
+	atlas.atlas = _logo
 	atlas.region = Rect2(28, 86, 978, 782)
 	return atlas
 
@@ -841,7 +882,8 @@ func _field(placeholder: String) -> LineEdit:
 	var edit := LineEdit.new()
 	edit.placeholder_text = placeholder
 	edit.custom_minimum_size = Vector2(0, 38)
-	edit.add_theme_font_override("font", _FONT)
+	if _font != null:
+		edit.add_theme_font_override("font", _font)
 	edit.add_theme_font_size_override("font_size", 18)
 	edit.add_theme_color_override("font_color", _INK)
 	edit.add_theme_color_override("font_placeholder_color", _INK_SOFT)
@@ -870,16 +912,17 @@ func _button(caption: String, action: Callable) -> Button:
 	button.text = caption
 	button.custom_minimum_size = Vector2(0, 46)
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_override("font", _FONT)
+	if _font != null:
+		button.add_theme_font_override("font", _font)
 	button.add_theme_font_size_override("font_size", 22)
 	button.add_theme_color_override("font_color", Color(0.16, 0.1, 0.02))
 	button.add_theme_color_override("font_hover_color", Color(0.05, 0.12, 0.28))
 	button.add_theme_color_override("font_pressed_color", Color(0.16, 0.1, 0.02))
 	button.add_theme_color_override("font_disabled_color", Color(0.28, 0.24, 0.16, 0.65))
-	var normal := _pill(_BUTTON_UP)
-	var hover := _pill(_BUTTON_HOVER)
-	var pressed := _pill(_BUTTON_DOWN)
-	var disabled := _pill(_BUTTON_UP, Color(0.72, 0.72, 0.72))
+	var normal := _pill(_button_up)
+	var hover := _pill(_button_hover)
+	var pressed := _pill(_button_down)
+	var disabled := _pill(_button_up, Color(0.72, 0.72, 0.72))
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
@@ -890,9 +933,15 @@ func _button(caption: String, action: Callable) -> Button:
 	return button
 
 
-func _scroll_box() -> StyleBoxTexture:
+func _scroll_box() -> StyleBox:
+	if _scroll == null:
+		var plain := StyleBoxFlat.new()
+		plain.bg_color = Color(0.93, 0.9, 0.8)
+		plain.set_corner_radius_all(16)
+		plain.set_content_margin_all(24)
+		return plain
 	var box := StyleBoxTexture.new()
-	box.texture = _SCROLL
+	box.texture = _scroll
 	box.texture_margin_left = 32
 	box.texture_margin_right = 32
 	box.texture_margin_top = 46
@@ -906,7 +955,14 @@ func _scroll_box() -> StyleBoxTexture:
 	return box
 
 
-func _pill(texture: Texture2D, tint: Color = Color.WHITE) -> StyleBoxTexture:
+func _pill(texture: Texture2D, tint: Color = Color.WHITE) -> StyleBox:
+	if texture == null:
+		var plain := StyleBoxFlat.new()
+		plain.bg_color = Color(0.95, 0.9, 0.15) * Color(tint.r, tint.g, tint.b, 1.0)
+		plain.set_corner_radius_all(12)
+		plain.content_margin_top = 6
+		plain.content_margin_bottom = 6
+		return plain
 	var box := StyleBoxTexture.new()
 	box.texture = texture
 	box.texture_margin_left = 18
@@ -918,6 +974,7 @@ func _pill(texture: Texture2D, tint: Color = Color.WHITE) -> StyleBoxTexture:
 
 
 func _paint(label: Label, size: int, color: Color) -> void:
-	label.add_theme_font_override("font", _FONT)
+	if _font != null:
+		label.add_theme_font_override("font", _font)
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)

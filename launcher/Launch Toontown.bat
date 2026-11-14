@@ -30,13 +30,4 @@ if not exist "%ROOT%git\cmd\git.exe" (
   exit /b 1
 )
 :startgame
-if exist "%ROOT%.godot\imported" goto ready
-echo Preparing the launcher...
-"%GODOT%" --headless --path "%ROOT%." --import --quit
-if errorlevel 1 (
-  echo The launcher could not be prepared.
-  pause
-  exit /b 1
-)
-:ready
 start "" "%GODOT%" --path "%ROOT%."
