@@ -80,6 +80,7 @@ func _build() -> void:
 
 
 func _play(delta: float) -> void:
+	_sync_pickups()
 	if _phase == "aim":
 		_aim_step(delta)
 	elif _phase == "slide":
@@ -193,6 +194,7 @@ func _collect() -> void:
 		(item["node"] as Node3D).visible = false
 		score += 1
 		_sfx("SZ_DD_treasure")
+		_claim_pickup(int(item.get("id", -1)))
 	for item in _penalties:
 		if bool(item["gone"]):
 			continue
@@ -203,6 +205,36 @@ func _collect() -> void:
 		(item["node"] as Node3D).visible = false
 		score -= 1
 		_sfx("MG_neg_buzzer")
+		_claim_pickup(int(item.get("id", -1)))
+
+
+func _claim_pickup(id: int) -> void:
+	if party_size() <= 1 or id < 0:
+		return
+	ToonNet.note_minigame("take", id)
+
+
+func _sync_pickups() -> void:
+	if party_size() <= 1:
+		return
+	var raw: Variant = ToonNet.minigame_state().get("taken", [])
+	if not (raw is Array):
+		return
+	for item in raw:
+		_hide_pickup(int(item))
+
+
+func _hide_pickup(id: int) -> void:
+	for item in _treasures:
+		if int(item.get("id", -1)) != id or bool(item["gone"]):
+			continue
+		item["gone"] = true
+		(item["node"] as Node3D).visible = false
+	for item in _penalties:
+		if int(item.get("id", -1)) != id or bool(item["gone"]):
+			continue
+		item["gone"] = true
+		(item["node"] as Node3D).visible = false
 
 
 func _next_launch() -> void:
@@ -275,7 +307,7 @@ func _place_round_props(fresh: bool) -> void:
 			add_child(node)
 			node.position = _panda(spot.x, spot.y, 0.8)
 		_props.append(node)
-		_treasures.append({"node": node, "at": spot, "gone": false})
+		_treasures.append({"node": node, "at": spot, "gone": false, "id": _match * 40 + _treasures.size()})
 	for _i in range(_penalty_count()):
 		var spot := _open_spot()
 		var node := _spawn("res://assets/minigames/ice_tnt.glb", spot.x, spot.y, 0.0)
@@ -284,7 +316,7 @@ func _place_round_props(fresh: bool) -> void:
 			add_child(node)
 			node.position = _panda(spot.x, spot.y, 0.6)
 		_props.append(node)
-		_penalties.append({"node": node, "at": spot, "gone": false})
+		_penalties.append({"node": node, "at": spot, "gone": false, "id": _match * 40 + 20 + _penalties.size()})
 
 
 func _open_spot() -> Vector2:

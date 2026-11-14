@@ -34,8 +34,11 @@ static var return_scene := ""
 static var previous_id := 0
 static var players := 1
 static var seat := 0
+## Playground file the seats belong to. Released once this ride has the party.
+static var place := ""
 ## Seat order from the ride that just left. Each card is peer, name, style, accessories.
 static var riders: Array = []
+const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 
 var _game: Node
 var _rules: Control
@@ -52,6 +55,7 @@ var _choice: Dictionary = {}
 var _asked_skip := false
 var _asked_ready := false
 var _did_skip := false
+var _dealt := false
 var _chat: SpeedChat
 
 
@@ -104,7 +108,9 @@ func _speaker() -> Node3D:
 
 
 func _on_net_game(channel: String) -> void:
-	if _rules != null or not channel.begins_with("trolley:"):
+	# Ready votes, scores, and a later round all republish this channel.
+	# Arming again stacked a second game on everyone still playing.
+	if _dealt or _rules != null or not channel.begins_with("trolley:"):
 		return
 	_choice = _pick()
 	if _choice.is_empty():
@@ -113,12 +119,65 @@ func _on_net_game(channel: String) -> void:
 
 
 func _arm() -> void:
+	_dealt = true
+	_adopt_party()
 	previous_id = int(_choice["id"])
 	var posted := ToonNet.latest("trolley:%d" % ToonNet.district_id())
 	if int(posted.get("by", -1)) == ToonNet.self_peer():
 		MagicWords.note_played(previous_id)
-	_play_song()
 	_show_rules()
+	if _rules_open():
+		_play_song(false)
+
+
+## The district published one party. Every client builds seats from that list.
+func _adopt_party() -> void:
+	var state := ToonNet.latest("trolley:%d" % ToonNet.district_id())
+	var listed: Variant = state.get("party", [])
+	if not (listed is Array) or (listed as Array).is_empty():
+		return
+	var cards: Array = []
+	var seen := {}
+	for item in listed:
+		var peer := int(item)
+		if peer <= 0 or seen.has(peer) or cards.size() >= 4:
+			continue
+		seen[peer] = true
+		cards.append(_card_for(peer))
+	if cards.is_empty():
+		return
+	riders = cards
+	players = cards.size()
+
+
+func _card_for(peer: int) -> Dictionary:
+	var state := ToonNet.latest("toon:%d" % peer)
+	var style: Variant = state.get("style", {})
+	var worn: Variant = state.get("accessories", {})
+	var name := String(state.get("name", ""))
+	if peer == ToonNet.peer_id():
+		var mine := ToonRoster.selected_style()
+		if mine != null:
+			style = mine.to_dict()
+			name = mine.display_name()
+		worn = _CLOSET.accessory_ids()
+	if not (style is Dictionary):
+		style = {}
+	if not (worn is Dictionary):
+		worn = {}
+	return {"peer": peer, "name": name, "style": style, "accessories": worn}
+
+
+func _release_seats() -> void:
+	if place == "":
+		return
+	var held := place
+	place = ""
+	ToonNet.release_trolley_seat(held)
+
+
+func _exit_tree() -> void:
+	_release_seats()
 
 
 func _process(delta: float) -> void:
@@ -302,7 +361,9 @@ func _paint_skip(state: Dictionary) -> void:
 func _start() -> void:
 	if _rules == null:
 		return
+	_release_seats()
 	_drop_rules()
+	_play_song(true)
 	_game.begin()
 
 
@@ -314,6 +375,7 @@ func _apply_skip() -> void:
 	_did_skip = true
 	if _rules == null:
 		return
+	_release_seats()
 	_drop_rules()
 	if _game != null:
 		if _game.finished.is_connected(_reward):
@@ -375,8 +437,9 @@ func _after_shop(reason: String) -> void:
 			_game = null
 		_choice = _pick()
 		previous_id = int(_choice["id"])
-		_play_song()
 		_show_rules()
+		if _rules_open():
+			_play_song(false)
 		return
 	_home()
 
@@ -485,16 +548,48 @@ func _rules_px(aspect_height: float) -> int:
 	return maxi(int(round(aspect_height * get_viewport().get_visible_rect().size.y * 0.5)), 8)
 
 
-func _play_song() -> void:
+func _rules_open() -> bool:
+	var until := int(ToonNet.latest("trolley:%d" % ToonNet.district_id()).get("rules_until", 0))
+	if until <= 0:
+		return true
+	return Time.get_unix_time_from_system() * 1000.0 < float(until)
+
+
+func _play_song(at_play: bool) -> void:
 	var path := String(_choice.get("music", ""))
 	if path.is_empty() or not FileAccess.file_exists(path):
 		return
 	var stream := AudioStreamOggVorbis.load_from_file(path)
 	if stream == null:
 		return
-	stream.loop = bool(_choice.get("loop", true))
+	var looping := bool(_choice.get("loop", true))
+	stream.loop = looping
+	var from := _music_from(stream.get_length(), looping, at_play)
+	if from < 0.0:
+		return
+	var playing := get_node_or_null("MinigameMusic") as AudioStreamPlayer
+	if playing != null:
+		playing.stop()
+		playing.queue_free()
 	var player := ToonAudio.music_player()
+	player.name = "MinigameMusic"
 	player.stream = stream
 	player.volume_db = linear_to_db(float(_choice.get("volume", 0.8)))
 	add_child(player)
-	player.play()
+	player.play(from)
+
+
+## Rules follow the round stamp. Play follows rules_until, so the song starts over together.
+func _music_from(length: float, looping: bool, at_play: bool) -> float:
+	var state := ToonNet.latest("trolley:%d" % ToonNet.district_id())
+	var origin := int(state.get("rules_until" if at_play else "stamp", 0))
+	var from := 0.0
+	if origin > 0:
+		from = (Time.get_unix_time_from_system() * 1000.0 - float(origin)) / 1000.0
+	if from <= 0.0 or length <= 0.05:
+		return 0.0
+	if looping:
+		return fmod(from, length)
+	if from >= length:
+		return -1.0
+	return from

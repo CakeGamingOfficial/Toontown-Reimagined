@@ -1939,9 +1939,19 @@ func _begin_trolley(avoid: int, peer: int = -1, district: int = -1, group: int =
 		return 0
 	if peer < 0:
 		peer = _self_peer()
-	group = clampi(group, 1, 4)
-	if party.is_empty():
-		party = [peer]
+	var clean: Array = []
+	for item in party:
+		var id := int(item)
+		if id <= 0 or clean.has(id) or clean.size() >= 4:
+			continue
+		clean.append(id)
+	if peer > 0 and not clean.has(peer) and clean.size() < 4:
+		clean.append(peer)
+	if clean.is_empty():
+		clean.append(peer if peer > 0 else 1)
+	# The pool follows who is actually seated, not a client that counted only itself.
+	group = clean.size()
+	party = clean
 	# The toon who boarded asked for this game with ~mg. Anyone else's request waits.
 	var picked := int(_trolley_for.get(peer, 0))
 	_trolley_for.erase(peer)
@@ -2054,7 +2064,6 @@ func _finish_trolley(score: int, pouch: int = 0, limit: int = 0, district: int =
 		peer = _self_peer()
 	var channel := "trolley:%d" % district
 	var have := latest(channel)
-	have["open"] = false
 	have["score"] = score
 	var results := {}
 	var raw: Variant = have.get("results", {})
@@ -2064,6 +2073,16 @@ func _finish_trolley(score: int, pouch: int = 0, limit: int = 0, district: int =
 			results[key] = prior[key]
 	results[str(peer)] = {"beans": score, "pouch": pouch, "limit": limit}
 	have["results"] = results
+	have["score"] = score
+	var waiting := false
+	var listed: Variant = have.get("party", [])
+	if listed is Array:
+		for item in listed:
+			var id := int(item)
+			if id > 0 and not results.has(str(id)):
+				waiting = true
+	# The first score used to close the round. Everyone else then dealt a new game.
+	have["open"] = waiting
 	publish(channel, have)
 
 

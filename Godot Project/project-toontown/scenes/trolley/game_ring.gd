@@ -61,11 +61,13 @@ func _play(delta: float) -> void:
 	if _gap <= 0.0 and _sent < 16:
 		_gap = 3.0
 		_sent += 1
-		var ring := _spawn("res://assets/minigames/swimming_ring.glb", shared_float(-7.0, 7.0), 90.0, shared_float(0.5, 8.0))
+		var ring_x := shared_float(-7.0, 7.0)
+		var ring_z := shared_float(0.5, 8.0)
+		var ring := _spawn("res://assets/minigames/swimming_ring.glb", ring_x, 90.0, ring_z)
 		if ring == null:
 			ring = _ball(1.4, _COLORS[_want])
 			add_child(ring)
-			ring.position = _panda(shared_float(-7.0, 7.0), 90.0, shared_float(0.5, 8.0))
+			ring.position = _panda(ring_x, 90.0, ring_z)
 		else:
 			_tint(ring, _COLORS[_want])
 		_rings.append({"node": ring, "taken": false, "index": _sent - 1})

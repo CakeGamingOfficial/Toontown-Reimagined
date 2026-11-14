@@ -47,6 +47,7 @@ func _build() -> void:
 
 
 func _play(delta: float) -> void:
+	_sync_gems()
 	var move := _stick()
 	_px = clampf(_px + move.x * 8.0 * delta, -16.0, 16.0)
 	_pz = clampf(_pz + move.y * 7.0 * delta, -16.0, 1.5)
@@ -80,7 +81,10 @@ func _play(delta: float) -> void:
 		_carry = null
 		_sfx("diving_game_hit", 0.8)
 	if _carry == null:
-		for gem in _treasures:
+		for index in _treasures.size():
+			var gem := _treasures[index]
+			if not is_instance_valid(gem) or bool(gem.get_meta("spent", false)):
+				continue
 			if gem.position.distance_to(_toon.position) < 1.5:
 				_carry = gem
 				_sfx("diving_treasure_pick_up")
@@ -90,12 +94,47 @@ func _play(delta: float) -> void:
 		if _pz >= -0.2 and absf(_px) < 5.0:
 			score += 1
 			_sfx("diving_treasure_drop_off")
-			_treasures.erase(_carry)
-			_carry.queue_free()
+			_spend_gem(_carry)
 			_carry = null
-			if _treasures.is_empty():
+			if not _gems_left():
 				_end()
 	_aim(_px, 24.0, _pz + 4.0, _px, -2.0, _pz - 2.0)
+
+
+func _spend_gem(gem: Node3D) -> void:
+	var index := _treasures.find(gem)
+	gem.set_meta("spent", true)
+	gem.visible = false
+	gem.queue_free()
+	if party_size() > 1 and index >= 0:
+		ToonNet.note_minigame("take", index)
+
+
+func _gems_left() -> bool:
+	for gem in _treasures:
+		if is_instance_valid(gem) and not bool(gem.get_meta("spent", false)):
+			return true
+	return false
+
+
+func _sync_gems() -> void:
+	if party_size() <= 1:
+		return
+	var raw: Variant = ToonNet.minigame_state().get("taken", [])
+	if not (raw is Array):
+		return
+	for item in raw:
+		var index := int(item)
+		if index < 0 or index >= _treasures.size():
+			continue
+		var gem := _treasures[index]
+		if not is_instance_valid(gem) or bool(gem.get_meta("spent", false)):
+			continue
+		gem.set_meta("spent", true)
+		gem.visible = false
+		if _carry == gem:
+			_carry = null
+		gem.queue_free()
 
 
 func _to_panda(point: Vector3) -> Vector3:

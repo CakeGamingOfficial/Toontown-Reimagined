@@ -190,7 +190,8 @@ func _go_play() -> void:
 	ride.players = _rider_count()
 	ride.seat = maxi(_seat, 0)
 	ride.riders = _rider_cards()
-	ToonNet.release_trolley_seat(_place)
+	# Held through the rules screen so every rider copies the same seat row.
+	ride.place = _place if _place != "" else _place_name()
 	ride.hood = _host._hood if _host != null else 2000
 	ride.return_scene = _host._scene_path() if _host != null else ""
 	ToonLoading.change_to(RIDE_SCENE)
