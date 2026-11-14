@@ -187,7 +187,10 @@ func _start_game() -> void:
 		return
 	_launch_project = project
 	if _import_needed(project):
-		_set_phase("Preparing the game. The first time takes a while.")
+		if _shipped_cache_ready() and not FileAccess.file_exists(project.path_join(".godot/uid_cache.bin")):
+			_set_phase("Installing the prepared game...")
+		else:
+			_set_phase("Preparing the game. The first time takes a while.")
 		_worker = Thread.new()
 		_worker.start(_import_thread)
 		return
@@ -200,7 +203,35 @@ func _import_needed(project: String) -> bool:
 	return not FileAccess.file_exists(project.path_join(".godot/uid_cache.bin"))
 
 
+func _shipped_cache_ready() -> bool:
+	return FileAccess.file_exists(_repo.path_join("Godot Project/import-cache/uid_cache.bin"))
+
+
+func _install_shipped_cache() -> bool:
+	var source := _repo.path_join("Godot Project/import-cache")
+	var dest := _launch_project.path_join(".godot")
+	if not FileAccess.file_exists(source.path_join("uid_cache.bin")):
+		return false
+	_set_phase("Installing the prepared game...")
+	var exe := "C:/Windows/System32/robocopy.exe"
+	if not FileAccess.file_exists(exe):
+		exe = "robocopy"
+	# Robocopy uses 0-7 for a finished copy. 1 means files were copied.
+	var result := _run_watched(exe, PackedStringArray([
+		source, dest, "/E", "/MT:8", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/nc", "/ns", "/np",
+	]), "the prepared game", false)
+	var code := int(result.get("code", 16))
+	return code >= 0 and code < 8 and FileAccess.file_exists(dest.path_join("uid_cache.bin"))
+
+
 func _import_thread() -> void:
+	var uid := _launch_project.path_join(".godot/uid_cache.bin")
+	if not FileAccess.file_exists(uid) and _install_shipped_cache():
+		_lock.lock()
+		_outcome = {"imported": true, "ok": true, "error": ""}
+		_sync_done = true
+		_lock.unlock()
+		return
 	var exe := _godot_exe()
 	var result := _run_watched(exe, PackedStringArray([
 		"--headless", "--path", _launch_project, "--import", "--quit",
