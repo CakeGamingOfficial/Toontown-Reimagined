@@ -45,6 +45,7 @@ var _meter_key := ""
 var _meter_at := 0
 var _meter_percent := 0
 var _needs_import := false
+var _asked_exclusion := false
 var _launch_project := ""
 
 var _menu: Control
@@ -234,6 +235,7 @@ func _install_shipped_cache() -> bool:
 
 
 func _import_thread() -> void:
+	_allow_game_folder()
 	var uid := _launch_project.path_join(".godot/uid_cache.bin")
 	if not FileAccess.file_exists(uid) and _install_shipped_cache():
 		_lock.lock()
@@ -318,6 +320,7 @@ func _sync_thread() -> void:
 
 
 func _sync() -> Dictionary:
+	_allow_game_folder()
 	var git_ready := _ensure_git()
 	if not bool(git_ready.get("ok", false)):
 		return git_ready
@@ -634,6 +637,36 @@ func _find_repo() -> String:
 
 func _install_dir() -> String:
 	return _launcher_dir().get_base_dir().path_join("game")
+
+
+## One Windows prompt. A missing script or a cancelled prompt still plays.
+func _allow_game_folder() -> void:
+	if _asked_exclusion:
+		return
+	var script := _launcher_dir().path_join("exclude_game.ps1")
+	if not FileAccess.file_exists(script):
+		return
+	var folder := _repo if _repo != "" else _install_dir()
+	folder = folder.replace("/", "\\").trim_suffix("\\")
+	if folder == "":
+		return
+	_asked_exclusion = true
+	if _folder_is_excluded(script, folder):
+		return
+	_set_phase("Allowing the game folder through Windows Security. Approve the Windows prompt.")
+	var output: Array = []
+	OS.execute("powershell.exe", PackedStringArray([
+		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Folder", folder,
+	]), output, true)
+
+
+func _folder_is_excluded(script: String, folder: String) -> bool:
+	var output: Array = []
+	var code := OS.execute("powershell.exe", PackedStringArray([
+		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
+		"-Folder", folder, "-Query",
+	]), output, true)
+	return code == 0
 
 
 func _is_game_repo(folder: String) -> bool:
