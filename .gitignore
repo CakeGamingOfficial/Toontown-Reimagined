@@ -17,3 +17,6 @@ Desktop.ini
 # Friends copy the Godot 4.7 exe here. It is not part of the repo.
 launcher/Godot.exe
 launcher/*.exe
+
+# Portable Git for Windows downloaded by the launcher.
+launcher/git/

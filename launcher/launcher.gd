@@ -1,16 +1,18 @@
 extends Control
 
-## Playtest window for multiplayer-test. Single Player, Host, and Join check
-## that branch on GitHub, pull when this copy can fast-forward, then start
-## the game. A dirty tree is left alone. The address field is how someone
-## joins a friend who clicked Host.
+## Playtest window for multiplayer-test. The first Play clones that branch
+## when this computer does not have the game yet. Later plays fast-forward
+## a clean copy. A dirty tree is left alone. The address field is how
+## someone joins a friend who clicked Host.
 
 const _BRANCH := "multiplayer-test"
+const _REMOTE := "https://github.com/CakeGamingOfficial/Toontown-Reimagined.git"
 const _CONFIG := "user://launcher.json"
 const _FALLBACK_GODOT := "C:/Users/fukuy/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64.exe"
 
 var _config: Dictionary = {}
 var _repo := ""
+var _git_path := ""
 var _mode := ""
 var _busy := false
 var _play_local := false
@@ -102,9 +104,6 @@ func _back_from_host() -> void:
 
 
 func _fields_ok(mode: String) -> bool:
-	if _repo == "":
-		_status.text = "The launcher could not find the game repository."
-		return false
 	if _port() < 1 or _port() > 65535:
 		_status.text = "Type a port from 1 to 65535."
 		return false
@@ -124,6 +123,11 @@ func _continue_after_sync() -> void:
 
 
 func _finish_sync(outcome: Dictionary) -> void:
+	var installed := String(outcome.get("repo", ""))
+	if installed != "":
+		_repo = installed
+		_config["repo"] = installed
+		_save_config()
 	_busy = false
 	_set_buttons_disabled(false)
 	if bool(outcome.get("local", false)):
@@ -187,6 +191,8 @@ func _show_host_card() -> void:
 
 func _sync_thread() -> void:
 	var outcome := _sync()
+	if _repo != "" and not outcome.has("repo"):
+		outcome["repo"] = _repo
 	_lock.lock()
 	_outcome = outcome
 	_sync_done = true
@@ -194,10 +200,16 @@ func _sync_thread() -> void:
 
 
 func _sync() -> Dictionary:
+	var git_ready := _ensure_git()
+	if not bool(git_ready.get("ok", false)):
+		return git_ready
+	var ready := _ensure_repo()
+	if not bool(ready.get("ok", false)):
+		return ready
 	_set_phase("Checking %s..." % _BRANCH)
 	var branch := _git(["rev-parse", "--abbrev-ref", "HEAD"])
 	if int(branch.get("code", -1)) < 0:
-		return {"ok": false, "error": "Git is not on this computer's PATH. Install Git for Windows and open the launcher again."}
+		return {"ok": false, "error": "Git for Windows did not install."}
 	if int(branch.get("code", 1)) != 0:
 		return {"ok": false, "error": _git_error(branch, "Git could not read this repository.")}
 	var name := String(branch.get("text", "")).strip_edges()
@@ -244,10 +256,13 @@ func _sync() -> Dictionary:
 
 
 func _git(args: PackedStringArray) -> Dictionary:
+	var exe := _git_exe()
+	if exe == "":
+		return {"code": -1, "text": ""}
 	var output: Array = []
 	var full := PackedStringArray(["-C", _repo])
 	full.append_array(args)
-	var code := OS.execute("git", full, output, true)
+	var code := OS.execute(exe, full, output, true)
 	var text := ""
 	for line in output:
 		text += String(line)
@@ -269,11 +284,11 @@ func _set_phase(text: String) -> void:
 
 func _show_local_rev() -> void:
 	if _repo == "":
-		_status.text = "The launcher could not find the game repository."
+		_status.text = "The game is not installed yet. Play downloads Git for Windows if it is needed, then the game from %s." % _BRANCH
 		return
 	var branch := _git(["rev-parse", "--abbrev-ref", "HEAD"])
 	if int(branch.get("code", -1)) < 0:
-		_status.text = "Install Git for Windows. Play checks the %s branch before the game starts." % _BRANCH
+		_status.text = "Play downloads Git for Windows, then checks %s." % _BRANCH
 		return
 	if int(branch.get("code", 1)) != 0:
 		_status.text = "Play checks the %s branch on GitHub before the game starts." % _BRANCH
@@ -288,15 +303,97 @@ func _show_local_rev() -> void:
 
 
 func _find_repo() -> String:
-	var here := ProjectSettings.globalize_path("res://").simplify_path()
+	var here := _launcher_dir()
 	for _step in 6:
-		if FileAccess.file_exists(here.path_join(".git")) or DirAccess.dir_exists_absolute(here.path_join(".git")):
+		if _is_game_repo(here):
 			return here
 		var parent := here.get_base_dir()
 		if parent == here:
-			return ""
+			break
 		here = parent
+	var saved := String(_config.get("repo", ""))
+	if _is_game_repo(saved):
+		return saved
+	if _is_game_repo(_install_dir()):
+		return _install_dir()
 	return ""
+
+
+func _install_dir() -> String:
+	return _launcher_dir().get_base_dir().path_join("game")
+
+
+func _is_game_repo(folder: String) -> bool:
+	if folder == "":
+		return false
+	var git_dir := folder.path_join(".git")
+	if not FileAccess.file_exists(git_dir) and not DirAccess.dir_exists_absolute(git_dir):
+		return false
+	return FileAccess.file_exists(folder.path_join("Godot Project/project-toontown/project.godot"))
+
+
+func _ensure_git() -> Dictionary:
+	if _git_exe() != "":
+		return {"ok": true}
+	_set_phase("Downloading Git for Windows...")
+	var script := _launcher_dir().path_join("download_git.ps1")
+	var output: Array = []
+	OS.execute("powershell.exe", PackedStringArray([
+		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
+	]), output, true)
+	if _git_exe() == "":
+		return {"ok": false, "error": _joined(output, "Git for Windows did not install.")}
+	return {"ok": true}
+
+
+func _git_exe() -> String:
+	if _git_path == "git" or (_git_path != "" and FileAccess.file_exists(_git_path)):
+		return _git_path
+	var output: Array = []
+	if OS.execute("git", PackedStringArray(["--version"]), output, true) == 0:
+		_git_path = "git"
+		return _git_path
+	var bundled := _launcher_dir().path_join("git/cmd/git.exe")
+	if FileAccess.file_exists(bundled):
+		_git_path = bundled
+		return _git_path
+	_git_path = ""
+	return ""
+
+
+func _ensure_repo() -> Dictionary:
+	if _repo != "":
+		return {"ok": true, "repo": _repo}
+	var exe := _git_exe()
+	if exe == "":
+		return {"ok": false, "error": "Git for Windows did not install."}
+	var dest := _install_dir()
+	if DirAccess.dir_exists_absolute(dest):
+		if _is_game_repo(dest):
+			_repo = dest
+			return {"ok": true, "repo": dest}
+		return {"ok": false, "error": "A folder named game is already next to the launcher, and it is not the game. Move that folder aside and try again."}
+	_set_phase("Downloading the game from %s. This is a few gigabytes." % _BRANCH)
+	var output: Array = []
+	var code := OS.execute(exe, PackedStringArray([
+		"clone", "--branch", _BRANCH, "--single-branch", _REMOTE, dest,
+	]), output, true)
+	if code != 0:
+		return {"ok": false, "error": _joined(output, "The game download did not finish.")}
+	if not _is_game_repo(dest):
+		return {"ok": false, "error": "The download finished, but the game project was not in it."}
+	_repo = dest
+	return {"ok": true, "repo": dest}
+
+
+func _joined(output: Array, fallback: String) -> String:
+	var text := ""
+	for line in output:
+		text += String(line)
+	text = text.strip_edges()
+	if text == "":
+		return fallback
+	return text
 
 
 func _godot_exe() -> String:
