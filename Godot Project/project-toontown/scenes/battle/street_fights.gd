@@ -328,16 +328,41 @@ func toon_hp(fight_id: int, peer: int) -> int:
 	return -1
 
 
+## DistributedBattleBaseAI.isRunable. Street WaitForInput is the only runable state.
+func can_run(fight: Dictionary) -> bool:
+	if fight.is_empty() or int(fight.get("building", 0)) != 0:
+		return false
+	if String(fight.get("state", "")) != "input":
+		return false
+	var slug := String(fight.get("slug", ""))
+	if slug == "sellbot_factory" or slug == "cashbot_mint" or slug == "lawbot_office" or slug == "bossbot_course":
+		return false
+	if slug.begins_with("boss_"):
+		return false
+	return true
+
+
 func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: int) -> void:
 	if not ToonNet.is_authority():
 		return
 	var fight := _by_id(fight_id)
 	if fight.is_empty() or String(fight.get("state", "")) != "input":
 		return
+	var toon := _toon(fight, peer)
+	if toon.is_empty() or int(toon.get("hp", 0)) <= 0 or bool(toon.get("running", false)):
+		return
+	# toonRequestRun. The toon leaves during input. It is not a gag for this round.
+	if track == -2:
+		if not can_run(fight):
+			return
+		_begin_run(fight, peer)
+		return
 	if _choice_for(fight, peer) >= 0:
 		return
-	var toon := _toon(fight, peer)
-	if toon.is_empty() or int(toon.get("hp", 0)) <= 0:
+	var marked := _toon(fight, target)
+	if target >= 0 and not marked.is_empty() and bool(marked.get("running", false)):
+		_mark_redo(fight, peer)
+		_mark(fight)
 		return
 	var known := ToonNet.stored_exp(peer, track)
 	if known >= 0:
@@ -364,12 +389,116 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 		pick["track"] = -1
 		pick["level"] = -1
 	(fight["choices"] as Array).append(pick)
+	_clear_redo(fight, peer)
 	_mark(fight)
+
+
+## __makeToonRun. The hole plays now. The toon stays on the field for TOON_RUN_T, then leaves.
+func _begin_run(fight: Dictionary, peer: int) -> void:
+	var toon := _toon(fight, peer)
+	if toon.is_empty() or bool(toon.get("running", false)):
+		return
+	_clear_aimed(fight, peer)
+	var existing := _choice_for(fight, peer)
+	if existing >= 0:
+		(fight["choices"] as Array).remove_at(existing)
+	toon["running"] = true
+	toon["run_left"] = 3.3
+	_clear_redo(fight, peer)
+	_place(fight)
+	_mark(fight)
+
+
+## Attacks aimed at the runner are cleared. A group Toon-Up is cleared when two or fewer toons are still in.
+func _clear_aimed(fight: Dictionary, runner: int) -> void:
+	var active := 0
+	for item in fight.get("toons", []):
+		var body: Dictionary = item
+		if int(body.get("hp", 0)) > 0 and not bool(body.get("running", false)):
+			active += 1
+	var kept: Array = []
+	for item in fight.get("choices", []):
+		if not (item is Dictionary):
+			continue
+		var choice: Dictionary = item
+		var who := int(choice.get("id", -1))
+		if who == runner:
+			continue
+		var track := int(choice.get("track", -1))
+		var level := int(choice.get("level", -1))
+		var aimed := int(choice.get("target", -1)) == runner
+		var group_heal := track == ToonLoadout.TOON_UP and ToonLoadout.affects_group(track, level) and active <= 2
+		if aimed or group_heal:
+			_mark_redo(fight, who)
+			continue
+		kept.append(choice)
+	fight["choices"] = kept
+
+
+func _mark_redo(fight: Dictionary, peer: int) -> void:
+	var redo: Array = fight.get("redo", [])
+	if not redo.has(peer):
+		redo.append(peer)
+	fight["redo"] = redo
+	fight["redo_token"] = int(fight.get("redo_token", 0)) + 1
+
+
+func _clear_redo(fight: Dictionary, peer: int) -> void:
+	var redo: Array = fight.get("redo", [])
+	if redo.has(peer):
+		redo.erase(peer)
+	fight["redo"] = redo
+
+
+func _age_runs(fight: Dictionary, delta: float) -> void:
+	var roster: Array = fight.get("toons", [])
+	var kept: Array = []
+	var left := false
+	for item in roster:
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		if not bool(toon.get("running", false)):
+			kept.append(toon)
+			continue
+		var remain := float(toon.get("run_left", 0.0)) - delta
+		if remain > 0.0:
+			toon["run_left"] = remain
+			kept.append(toon)
+			continue
+		left = true
+	if not left:
+		return
+	fight["toons"] = kept
+	var living := 0
+	for item in kept:
+		if int((item as Dictionary).get("hp", 0)) > 0:
+			living += 1
+	# __serverRunDone. The last toon ran home, so the battle resumes with no reward.
+	if living == 0 and int(fight.get("building", 0)) == 0:
+		fight["state"] = "gone"
+		_mark(fight)
+		return
+	_place(fight)
+	_mark(fight)
+
+
+func _has_standing(fight: Dictionary) -> bool:
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var toon: Dictionary = item
+		if int(toon.get("hp", 0)) > 0 and not bool(toon.get("running", false)):
+			return true
+	return false
 
 
 func _tick(fight: Dictionary, delta: float) -> void:
 	var state := String(fight.get("state", ""))
 	if state == "gone" or state == "":
+		return
+	_age_runs(fight, delta)
+	if String(fight.get("state", "")) == "gone":
 		return
 	fight["left"] = maxf(float(fight.get("left", 0.0)) - delta, 0.0)
 	if state == "faceoff" or state == "input":
@@ -387,6 +516,9 @@ func _tick(fight: Dictionary, delta: float) -> void:
 		if (fight["toons"] as Array).is_empty():
 			fight["state"] = "gone"
 			_mark(fight)
+			return
+		# Everyone still here is in the hole. Wait out TOON_RUN_T, then end the fight.
+		if not _has_standing(fight):
 			return
 		if float(fight["left"]) <= 0.0 or _all_chosen(fight):
 			_resolve(fight)
@@ -584,6 +716,7 @@ func _begin_input(fight: Dictionary) -> void:
 	fight["state"] = "input"
 	fight["left"] = INPUT_TIME
 	fight["choices"] = []
+	fight["redo"] = []
 	fight["beats"] = []
 	fight["seq"] = int(fight.get("seq", 0)) + 1
 	_mark(fight)
@@ -593,6 +726,8 @@ func _resolve(fight: Dictionary) -> void:
 	var roster: Array = fight["toons"]
 	for member_index in roster.size():
 		var member: Dictionary = roster[member_index]
+		if bool(member.get("running", false)):
+			continue
 		if _choice_for(fight, int(member.get("id", -1))) < 0:
 			(fight["choices"] as Array).append({
 				"id": int(member.get("id", 0)),
@@ -792,13 +927,13 @@ func _sos_heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: Str
 	var patients: Array = []
 	if ToonLoadout.affects_group(ToonLoadout.TOON_UP, gag_level):
 		for item in fight.get("toons", []):
-			if item is Dictionary and int((item as Dictionary).get("hp", 0)) > 0:
+			if item is Dictionary and int((item as Dictionary).get("hp", 0)) > 0 and not bool((item as Dictionary).get("running", false)):
 				patients.append(item)
 	else:
 		var picked := _toon(fight, int(choice.get("target", -1)))
 		if picked.is_empty():
 			picked = toon
-		if int(picked.get("hp", 0)) > 0:
+		if int(picked.get("hp", 0)) > 0 and not bool(picked.get("running", false)):
 			patients.append(picked)
 	if patients.is_empty():
 		return
@@ -1008,7 +1143,7 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 	var patients: Array = []
 	for item in targets:
 		var body: Dictionary = item
-		if int(body.get("hp", 0)) > 0:
+		if int(body.get("hp", 0)) > 0 and not bool(body.get("running", false)):
 			patients.append(body)
 	if patients.is_empty():
 		return
@@ -1268,7 +1403,7 @@ func _suit_attack(fight: Dictionary, suit: Dictionary, beats: Array) -> void:
 	var living: Array = []
 	for item in fight["toons"]:
 		var candidate: Dictionary = item
-		if int(candidate.get("hp", 0)) > 0:
+		if int(candidate.get("hp", 0)) > 0 and not bool(candidate.get("running", false)):
 			living.append(candidate)
 	if living.is_empty():
 		return
@@ -1857,10 +1992,16 @@ func _place(fight: Dictionary) -> void:
 		right = right.normalized()
 	var cogs: Array = fight.get("cogs", [])
 	var toons: Array = fight.get("toons", [])
+	var standing := 0
+	for index in toons.size():
+		var member: Dictionary = toons[index]
+		if bool(member.get("running", false)):
+			continue
+		standing += 1
 	var suit_row: Array = _SUIT_POINTS[clampi(cogs.size(), 1, 4) - 1]
-	var toon_row: Array = _TOON_POINTS[clampi(toons.size(), 1, 4) - 1]
+	var toon_row: Array = _TOON_POINTS[clampi(maxi(standing, 1), 1, 4) - 1]
 	var suit_head: Array = _SUIT_HEAD[clampi(cogs.size(), 1, 4) - 1]
-	var toon_head: Array = _TOON_HEAD[clampi(toons.size(), 1, 4) - 1]
+	var toon_head: Array = _TOON_HEAD[clampi(maxi(standing, 1), 1, 4) - 1]
 	var indoors := int(fight.get("building", 0)) != 0
 	for index in cogs.size():
 		var cog: Dictionary = cogs[index]
@@ -1868,12 +2009,16 @@ func _place(fight: Dictionary) -> void:
 		cog["slot"] = _battle_slot(origin, right, forward, spot)
 		if indoors:
 			cog["h"] = float(suit_head[mini(index, suit_head.size() - 1)])
+	var placed := 0
 	for index in toons.size():
 		var toon: Dictionary = toons[index]
-		var spot: Vector2 = toon_row[mini(index, toon_row.size() - 1)] as Vector2
+		if bool(toon.get("running", false)):
+			continue
+		var spot: Vector2 = toon_row[mini(placed, toon_row.size() - 1)] as Vector2
 		toon["slot"] = _battle_slot(origin, right, forward, spot)
 		if indoors:
-			toon["h"] = float(toon_head[mini(index, toon_head.size() - 1)])
+			toon["h"] = float(toon_head[mini(placed, toon_head.size() - 1)])
+		placed += 1
 
 
 func _battle_slot(origin: Vector3, right: Vector3, forward: Vector3, spot: Vector2) -> Array:
@@ -1912,13 +2057,21 @@ func _battle_forward(heading: float) -> Vector3:
 
 
 func _all_chosen(fight: Dictionary) -> bool:
+	var pending := false
+	var running := false
 	for item in fight.get("toons", []):
 		var toon: Dictionary = item
 		if int(toon.get("hp", 0)) <= 0:
 			continue
+		if bool(toon.get("running", false)):
+			running = true
+			continue
+		pending = true
 		if _choice_for(fight, int(toon.get("id", -1))) < 0:
 			return false
-	return true
+	if pending:
+		return true
+	return not running
 
 
 func _choice_for(fight: Dictionary, peer: int) -> int:

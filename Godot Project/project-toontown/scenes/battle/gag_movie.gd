@@ -3671,6 +3671,11 @@ func _run(length: float, still: Callable, step: Callable) -> void:
 		step.call(length)
 
 
+## MovieUtil.getToonTeleportOutInterval. The street calls this the moment Run is accepted.
+func run_away(actor: ToonActor) -> void:
+	await _run_out(actor, func() -> bool: return is_inside_tree())
+
+
 func _run_out(actor: ToonActor, still: Callable) -> void:
 	if actor == null:
 		await _wait(3.3, still)

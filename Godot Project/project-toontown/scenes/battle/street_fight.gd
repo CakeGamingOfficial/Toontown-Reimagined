@@ -39,6 +39,9 @@ var _pending := Vector2i(-1, -1)
 var _need_target := false
 var _sos_toons := false
 var _sent_seq := -1
+var _redo_token := -1
+var _running_home := false
+var _flee_pin: Dictionary = {}
 var _spent_seq := -1
 var _movie_seq := -1
 var _show_gen := 0
@@ -127,7 +130,12 @@ func _process(delta: float) -> void:
 	if _dying:
 		_place_cog_cards([])
 		return
+	if _running_home:
+		return
 	var rows := _rows()
+	_notice_runs(rows)
+	if _running_home:
+		return
 	var fight := _joined(rows)
 	var mine := not fight.is_empty()
 	_hold(mine)
@@ -141,6 +149,7 @@ func _process(delta: float) -> void:
 				_apply_my_reward(item)
 	_place_cog_cards(rows)
 	_release_idle(rows)
+	_keep_flee_pins(delta)
 	if not mine:
 		_stop_win()
 		_watch(rows, delta)
@@ -385,6 +394,12 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 func _choose(fight: Dictionary, mine: bool) -> void:
 	var state := String(fight.get("state", ""))
 	var seq := int(fight.get("seq", 0))
+	if mine and state == "input" and _take_redo(fight):
+		_sent_seq = -1
+	if _toon_running(fight, ToonNet.peer_id()):
+		_sent_seq = seq
+		_hide_gag_gui()
+		return
 	if not mine or state != "input" or _sent_seq == seq:
 		if _asking and _ask_seq != seq:
 			_menu.cancel()
@@ -409,7 +424,7 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 	_ask_seq = seq
 	var building := int(fight.get("building", 0)) != 0
 	var credit := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
-	_menu.setup(loadout, false, building, credit, ToonLoadout.credit_level(fight.get("cogs", [])), int(fight.get("bonus", -1)))
+	_menu.setup(loadout, false, building, credit, ToonLoadout.credit_level(fight.get("cogs", [])), int(fight.get("bonus", -1)), _fight_can_run(fight))
 	_ask(fight, seq, loadout)
 
 
@@ -441,6 +456,9 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 		_pending = pick
 		_need_target = true
 		_show_targets(_fight)
+		return
+	if pick.x == -2:
+		_send(-2, -1, -1, 0)
 		return
 	if pick.x < 0:
 		_send(pick.x, -1, -1, 0)
@@ -545,6 +563,7 @@ func _loadout() -> ToonLoadout:
 
 @warning_ignore("shadowed_global_identifier")
 func _send(track: int, level: int, target: int, exp: int) -> void:
+	_sent_seq = int(_fight.get("seq", _ask_seq))
 	_need_target = false
 	_hud.hide_choose()
 	ToonNet.ask_gag(int(_fight.get("id", 0)), track, level, target, exp)
@@ -1011,6 +1030,91 @@ func _ride_mint() -> void:
 		ride.call("win_leave")
 
 
+func _fight_can_run(fight: Dictionary) -> bool:
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	if fights != null and fights.has_method("can_run"):
+		return bool(fights.call("can_run", fight))
+	return false
+
+
+func _toon_running(fight: Dictionary, peer: int) -> bool:
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var body: Dictionary = item
+		if int(body.get("id", -1)) == peer and bool(body.get("running", false)):
+			return true
+	return false
+
+
+func _take_redo(fight: Dictionary) -> bool:
+	var token := int(fight.get("redo_token", 0))
+	if token == _redo_token:
+		return false
+	var redo: Array = fight.get("redo", [])
+	if not redo.has(ToonNet.peer_id()):
+		return false
+	_redo_token = token
+	return true
+
+
+## A published running flag starts the hole once. The local toon then goes home.
+func _notice_runs(rows: Array) -> void:
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var fight: Dictionary = item
+		for member in fight.get("toons", []):
+			if not (member is Dictionary):
+				continue
+			var body: Dictionary = member
+			if not bool(body.get("running", false)):
+				continue
+			var peer := int(body.get("id", 0))
+			if _flee_pin.has(peer):
+				continue
+			var spot := _vec(body.get("slot", []))
+			var facing := _line_heading(body, spot, _center(fight.get("cogs", [])))
+			_flee_pin[peer] = {"pos": spot, "heading": facing, "left": 3.3}
+			if peer == ToonNet.peer_id():
+				_running_home = true
+				_sent_seq = int(fight.get("seq", 0))
+				_hide_gag_gui()
+			_play_flee(peer)
+
+
+func _play_flee(peer: int) -> void:
+	var movie: Node = _gags
+	if movie != null and movie.has_method("run_away"):
+		await movie.run_away(_actor_for(peer))
+	if peer == ToonNet.peer_id() and is_inside_tree():
+		_run_home()
+
+
+func _keep_flee_pins(delta: float) -> void:
+	var toon := _toon()
+	if toon == null:
+		return
+	var drop: Array = []
+	for peer in _flee_pin.keys():
+		var pin: Dictionary = _flee_pin[peer]
+		var remain := float(pin.get("left", 0.0)) - delta
+		pin["left"] = remain
+		if remain <= 0.0:
+			drop.append(peer)
+			continue
+		var spot: Vector3 = pin.get("pos", Vector3.ZERO)
+		var heading := float(pin.get("heading", 0.0))
+		if int(peer) == ToonNet.peer_id():
+			toon.call("place_for_battle", spot, heading)
+		else:
+			toon.call("pin_remote", int(peer), spot, heading)
+	for peer in drop:
+		_flee_pin.erase(peer)
+		if int(peer) != ToonNet.peer_id():
+			toon.call("unpin_remote", int(peer))
+
+
 func _run_home() -> void:
 	var zone := _battle_hood()
 	var hood := _PLACES.hood_of(zone)
@@ -1168,7 +1272,9 @@ func _idle_others(active: Array) -> void:
 		if not (item is Dictionary):
 			continue
 		var peer := int((item as Dictionary).get("id", 0))
-		if peer == ToonNet.peer_id() or active.has(peer):
+		if peer == ToonNet.peer_id() or active.has(peer) or _flee_pin.has(peer):
+			continue
+		if bool((item as Dictionary).get("running", false)):
 			continue
 		var actor: ToonActor = toon.call("remote_actor", peer)
 		if actor != null:
@@ -1182,7 +1288,7 @@ func _pose_local(clip: String, elapsed: float) -> void:
 	if toon == null:
 		return
 	var actor: ToonActor = toon.call("battle_actor")
-	if actor == null:
+	if actor == null or _flee_pin.has(ToonNet.peer_id()):
 		return
 	if clip == "":
 		actor.set_locomotion(0.0, false, false, 0.0)
@@ -1732,6 +1838,8 @@ func _battle_actors() -> Array:
 func _pose_roster(fight: Dictionary, clip: String, elapsed: float) -> void:
 	for item in fight.get("toons", []):
 		if not (item is Dictionary):
+			continue
+		if bool((item as Dictionary).get("running", false)):
 			continue
 		var actor := _actor_for(int((item as Dictionary).get("id", 0)))
 		if actor == null:

@@ -16,6 +16,12 @@ const _DN := preload("res://assets/gui/rules/InventoryButtonDown.png")
 const _OVER := preload("res://assets/gui/rules/InventoryButtonRollover.png")
 const _FLAT := preload("res://assets/gui/tutorial/InventoryButtonFlat.png")
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _OK_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+const _OK_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+const _OK_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
+const _CANCEL_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _CANCEL_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _CANCEL_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
 const _ICONS: Array[Texture2D] = [
 	preload("res://assets/gui/tutorial/gags/inventory_feather.png"),
 	preload("res://assets/gui/tutorial/gags/inventory_megaphone.png"),
@@ -76,6 +82,8 @@ var _waiting := false
 var _built := false
 var _tutorial := false
 var _building := false
+var _runnable := true
+var _run_dialog: Control
 ## The street prop's track. InventoryNew paints those buttons orange and flashes them.
 var _bonus_track := -1
 const _PROP_BONUS := Color(1.0, 0.6, 0.0, 1.0)
@@ -106,14 +114,17 @@ var _credit_level := -1
 var _no_credit := false
 
 
-func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0, credit_level := -1, bonus_track := -1) -> void:
+func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0, credit_level := -1, bonus_track := -1, runnable := true) -> void:
 	_loadout = loadout
 	_credit = credit
 	_credit_level = credit_level
 	_bonus_track = bonus_track
 	_tutorial = tutorial
 	# InventoryNew.battleActivateButtons hides Run when bldg == 1.
+	# Street battles are the only runable fights. Factories, mints, offices,
+	# courses, and the tutorial flunky are not.
 	_building = building
+	_runnable = runnable and not tutorial
 	# Each street round calls this again. Building twice stacks a new menu
 	# card over the gag buttons, so the inventory looks empty.
 	if not _built:
@@ -167,12 +178,14 @@ func choose() -> Vector2i:
 ## The round left gag selection. Keep the pick waiting, but take the panel down
 ## so it is not sitting on the movie.
 func tuck() -> void:
+	_close_run()
 	visible = false
 	mouse_filter = MOUSE_FILTER_IGNORE
 
 
 ## The round ended while the inventory was still up. -3 is not a gag and not a pass.
 func cancel() -> void:
+	_close_run()
 	if not _waiting:
 		return
 	_waiting = false
@@ -329,7 +342,8 @@ func _layout() -> void:
 	_seat_info(FRAME)
 	_paint_total()
 	var button := _size(0.1804 * 1.05 * FRAME, 0.1137 * 1.05 * FRAME)
-	_run.visible = not _building
+	_run.visible = _runnable and not _building
+	_layout_run()
 	_place(_run, 0.73 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_sos, 0.96 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_doodle, 0.5 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
@@ -449,8 +463,110 @@ func _pass_turn() -> void:
 
 
 func _run_away() -> void:
-	if not _waiting:
+	if not _waiting or not _runnable or _building:
 		return
+	if _run_dialog != null:
+		return
+	_open_run()
+
+
+## TownBattle.enterRun. TwoChoice asks before the toon leaves the street.
+func _open_run() -> void:
+	var dialog := Control.new()
+	dialog.name = "RunConfirm"
+	dialog.mouse_filter = MOUSE_FILTER_STOP
+	dialog.z_index = 80
+	dialog.set_anchors_preset(PRESET_FULL_RECT)
+	_run_dialog = dialog
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.mouse_filter = MOUSE_FILTER_STOP
+	dim.set_anchors_preset(PRESET_FULL_RECT)
+	dialog.add_child(dim)
+	var frame := TextureRect.new()
+	frame.texture = _DIALOG
+	frame.modulate = Color(1, 1, 0.75)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = MOUSE_FILTER_IGNORE
+	dialog.add_child(frame)
+	var message := Label.new()
+	message.text = "Run all the way back to the playground?"
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	message.mouse_filter = MOUSE_FILTER_IGNORE
+	dialog.add_child(message)
+	dialog.add_child(_run_choice(_OK_UP, _OK_DOWN, _OK_HOVER, "OK", _accept_run))
+	dialog.add_child(_run_choice(_CANCEL_UP, _CANCEL_DOWN, _CANCEL_HOVER, "Cancel", _close_run))
+	add_child(dialog)
+	move_child(dialog, get_child_count() - 1)
+	_layout_run()
+
+
+func _run_choice(up: Texture2D, down: Texture2D, hover: Texture2D, caption: String, action: Callable) -> Control:
+	var box := Control.new()
+	box.mouse_filter = MOUSE_FILTER_IGNORE
+	var button := TextureButton.new()
+	button.texture_normal = up
+	button.texture_pressed = down
+	button.texture_hover = hover
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.pressed.connect(action)
+	box.add_child(button)
+	var label := Label.new()
+	label.text = caption
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	box.add_child(label)
+	return box
+
+
+func _layout_run() -> void:
+	if _run_dialog == null or not is_instance_valid(_run_dialog):
+		return
+	var view := get_viewport_rect().size
+	if view.y < 2.0:
+		return
+	_run_dialog.position = Vector2.ZERO
+	_run_dialog.size = view
+	var dim := _run_dialog.get_child(0) as Control
+	dim.position = Vector2.ZERO
+	dim.size = view
+	ToonGui.place(_run_dialog.get_child(1), view, -0.0281, -0.0426, 1.4792, 1.3047)
+	var message := _run_dialog.get_child(2) as Label
+	var px := maxi(int(round(0.055 * view.y * 0.5)), 1)
+	ToonGui.style_label(message, Color(0.08, 0.08, 0.08), px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(message, view, 0.0, 0.08, 1.2, 0.22)
+	_place_run_choice(_run_dialog.get_child(3), view, -0.2)
+	_place_run_choice(_run_dialog.get_child(4), view, 0.2)
+
+
+func _place_run_choice(box: Node, view: Vector2, x: float) -> void:
+	var host := box as Control
+	host.position = Vector2.ZERO
+	host.size = view
+	var button := box.get_child(0) as Control
+	var caption := box.get_child(1) as Label
+	ToonGui.place(button, view, x, -0.4, 0.1125, 0.1125)
+	var px := maxi(int(round(0.06 * view.y * 0.5)), 1)
+	ToonGui.style_label(caption, Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(caption, view, x, -0.5, 0.4, 0.1)
+
+
+func _close_run() -> void:
+	var dialog := _run_dialog
+	_run_dialog = null
+	ToonGui.dismiss_after_click(dialog)
+
+
+func _accept_run() -> void:
+	if not _waiting:
+		_close_run()
+		return
+	_close_run()
 	_waiting = false
 	_hide_sos()
 	picked.emit(-2, -1)
