@@ -222,10 +222,10 @@ func inject_suit(district: int, slug: String, cog: Dictionary, slot: int) -> voi
 func ensure(district: int, slug: String) -> void:
 	if not ToonNet.is_authority():
 		return
-	if slug == "sellbot_factory":
+	if slug == "sellbot_factory" or slug.begins_with("sellbot_factory:"):
 		var board := get_node_or_null("FactoryBoard")
 		if board != null and board.has_method("ensure"):
-			board.call("ensure", district)
+			board.call("ensure", district, slug)
 		return
 	if slug == "cashbot_mint":
 		return
@@ -1326,10 +1326,10 @@ func _publish_street(key: String) -> void:
 ## The street the player is standing on keeps its suits on StreetSuits.
 ## Every other street in the district is the parked record.
 func cog_rows(district: int, slug: String) -> Array:
-	if slug == "sellbot_factory":
+	if slug == "sellbot_factory" or slug.begins_with("sellbot_factory:"):
 		var board := get_node_or_null("FactoryBoard")
 		if board != null and board.has_method("rows"):
-			return board.call("rows", district)
+			return board.call("rows", district, slug)
 		return []
 	if slug == "cashbot_mint":
 		var mint_board := get_node_or_null("MintBoard")
@@ -1380,10 +1380,10 @@ func park_cog(district: int, slug: String, cog_id: int, point: Array) -> void:
 
 
 func dismiss_cog(district: int, slug: String, cog_id: int) -> void:
-	if slug == "sellbot_factory":
+	if slug == "sellbot_factory" or slug.begins_with("sellbot_factory:"):
 		var board := get_node_or_null("FactoryBoard")
 		if board != null and board.has_method("dismiss"):
-			board.call("dismiss", district, cog_id)
+			board.call("dismiss", district, slug, cog_id)
 		return
 	if slug == "cashbot_mint":
 		var mint_board := get_node_or_null("MintBoard")

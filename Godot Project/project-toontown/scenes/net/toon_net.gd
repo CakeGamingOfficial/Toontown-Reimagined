@@ -1231,17 +1231,42 @@ func _ask_course(district: int, cog_id: int, where: Vector3, yaw: float, toon_na
 		_request_course.rpc_id(1, district, cog_id, where.x, where.y, where.z, yaw, toon_name, hp, max_hp)
 
 
-func _ask_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+func _ask_factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
 	if _role == "client":
-		_request_factory_switch.rpc_id(1, kind, ent_id, on)
+		_request_factory_switch.rpc_id(1, trip, kind, ent_id, on)
 		return
-	_factory_switch.rpc(kind, ent_id, on)
+	_keep_factory_switch(peer_id(), trip, kind, ent_id, on)
+	_factory_switch.rpc(trip, kind, ent_id, on)
 
 
-func _apply_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+func _keep_factory_switch(peer: int, trip: int, kind: int, ent_id: int, on: bool) -> void:
+	var board := get_node_or_null("/root/StreetTraffic/FactoryBoard")
+	if board == null or not board.has_method("act"):
+		return
+	board.call("act", peer, "switch", {"trip": trip, "kind": kind, "id": ent_id, "on": on})
+
+
+func _apply_factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
+	var elevator := load("res://scenes/cog_hq/factory_elevator.gd") as GDScript
+	var here := 0
+	if elevator != null:
+		here = int(elevator.trip_id)
+	if trip > 0 and here > 0 and trip != here:
+		return
 	var doors := get_tree().root.find_child("FactoryDoors", true, false)
 	if doors != null and doors.has_method("apply_switch"):
 		doors.call("apply_switch", kind, ent_id, on)
+
+
+func _factory_act(sender: int, action: String, payload: Dictionary) -> void:
+	var board := get_node_or_null("/root/StreetTraffic/FactoryBoard")
+	if board == null or not board.has_method("act"):
+		return
+	var district := int(payload.get("district", 1))
+	if _peers.has(sender):
+		district = int(_peers[sender])
+	payload["district"] = district
+	board.call("act", sender, action, payload)
 
 
 func _open_factory(district: int, cog_id: int, where: Vector3, yaw: float, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
@@ -2421,11 +2446,22 @@ static func ask_course(district: int, cog_id: int, where: Vector3, yaw: float, t
 	net._ask_course(district, cog_id, where, yaw, toon_name, hp, max_hp)
 
 
-static func ask_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+static func ask_factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
 	var net := live()
 	if net == null or not networked():
 		return
-	net._ask_factory_switch(kind, ent_id, on)
+	net._ask_factory_switch(trip, kind, ent_id, on)
+
+
+static func factory_act(action: String, payload: Dictionary) -> void:
+	var net := live()
+	if net == null:
+		return
+	if is_authority():
+		net._factory_act(peer_id(), action, payload)
+		return
+	if net._role == "client":
+		net._request_factory_act.rpc_id(1, action, payload)
 
 
 static func ask_board(district: int, slug: String, block: int, toon_name: String, hp: int, max_hp: int) -> void:
@@ -2506,6 +2542,9 @@ func _on_peer_gone(id: int) -> void:
 	_drop_toon(id)
 	MiniGolf.drop_peer(id)
 	_clear_trolley_peer(id)
+	var factory := get_node_or_null("/root/StreetTraffic/FactoryBoard")
+	if factory != null and factory.has_method("drop"):
+		factory.call("drop", id)
 
 
 func _peer_label(id: int) -> String:
@@ -3302,15 +3341,24 @@ func _request_course(district: int, cog_id: int, x: float, y: float, z: float, y
 
 
 @rpc("any_peer", "reliable")
-func _request_factory_switch(kind: int, ent_id: int, on: bool) -> void:
+func _request_factory_act(action: String, payload: Dictionary) -> void:
 	if not is_authority():
 		return
-	_factory_switch.rpc(kind, ent_id, on)
+	_factory_act(multiplayer.get_remote_sender_id(), action, payload)
+
+
+@rpc("any_peer", "reliable")
+func _request_factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	_keep_factory_switch(sender, trip, kind, ent_id, on)
+	_factory_switch.rpc(trip, kind, ent_id, on)
 
 
 @rpc("authority", "reliable")
-func _factory_switch(kind: int, ent_id: int, on: bool) -> void:
-	_apply_factory_switch(kind, ent_id, on)
+func _factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
+	_apply_factory_switch(trip, kind, ent_id, on)
 
 
 @rpc("any_peer", "reliable")

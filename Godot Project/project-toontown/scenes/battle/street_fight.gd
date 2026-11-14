@@ -328,7 +328,7 @@ func _touch_cog(cog: Node, hp: Vector2i) -> void:
 		return
 	var cog_id := int(cog.get_meta("do_id", 0))
 	var toon_name := str(toon.call("battle_name"))
-	if _street_slug() == "sellbot_factory" and cog is Node3D:
+	if _factory_street() and cog is Node3D:
 		var body := cog as Node3D
 		var here := _point()
 		ToonNet.ask_factory(_street_district(), cog_id, body.global_position, _yaw(here, body.global_position), toon_name, hp.x, hp.y)
@@ -373,7 +373,7 @@ func _try_join(fight: Dictionary, mine: bool) -> void:
 		return
 	var hp: Vector2i = toon.call("battle_hp")
 	_ask_wait = 1.2
-	if _street_slug() == "sellbot_factory":
+	if _factory_street():
 		ToonNet.ask_factory(_street_district(), _first_cog(fight), origin, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
 		return
 	if _street_slug() == "cashbot_mint":
@@ -2286,7 +2286,7 @@ func _vec(value: Variant) -> Vector3:
 ## Street curbs rise 0.5. Suit points sit on the road. Feet on the sidewalk
 ## are that step higher, and a fight does not start from there.
 func _on_sidewalk(here: Vector3, street_y: float) -> bool:
-	if _street_slug() == "sellbot_factory" or _street_slug() == "cashbot_mint":
+	if _factory_street() or _street_slug() == "cashbot_mint":
 		return false
 	return here.y > street_y + 0.35
 
@@ -2322,6 +2322,11 @@ func _street_slug() -> String:
 	if suits == null:
 		return ""
 	return str(suits.get("street_slug"))
+
+
+func _factory_street() -> bool:
+	var slug := _street_slug()
+	return slug == "sellbot_factory" or slug.begins_with("sellbot_factory:")
 
 
 func _toon() -> Node:

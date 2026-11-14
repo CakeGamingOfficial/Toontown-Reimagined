@@ -1,8 +1,8 @@
 extends Node
 
-## SellbotLegFactoryCogs. The district rolls one roster and every player in
-## that factory draws it. Walking into a cog starts the street battle for
-## that cog's battle cell.
+## SellbotLegFactoryCogs. Each elevator group has its own roster. Walking into
+## a cog, or into that cog's battle blocker, starts the street battle for the
+## cog's battle cell.
 
 const _LIST := "res://assets/cog_hq/sellbot_factory_cogs.json"
 const _CATALOG := "res://assets/cogs/catalog.json"
@@ -14,6 +14,22 @@ const _ALERT := 15.0
 const _ALERT_Y := 8.0
 const _STRAY := 10.0
 const _TOUCH := 3.5
+const _ELEVATOR := preload("res://scenes/cog_hq/factory_elevator.gd")
+## SellbotLegFactorySpec battleBlocker cell and radius. The sphere is intangible.
+const _BLOCKERS := {
+	10031: [1, 10.0],
+	10035: [4, 10.0],
+	10038: [5, 10.0],
+	20048: [0, 15.0],
+	20063: [8, 1.0],
+	20064: [8, 1.0],
+	20065: [8, 1.0],
+	20066: [8, 1.0],
+	20086: [6, 12.0],
+	20112: [10, 5.0],
+	20113: [9, 5.0],
+	20114: [8, 3.0],
+}
 
 
 class Walker:
@@ -47,6 +63,10 @@ var _cogs: Array[Walker] = []
 var district_id := -1
 var street_slug := "sellbot_factory"
 var visuals := false
+var _blockers: Array[Dictionary] = []
+var _blocker_wait := 0.0
+var _suits_asked := false
+var _claim_wait := 0.0
 
 
 static func place(host: Node) -> void:
@@ -72,11 +92,17 @@ func _ready() -> void:
 	var data := _read_json(_LIST)
 	_paths = data.get("paths", {})
 	_collect(get_parent(), _nodes)
+	_arm_blockers()
 	_suits = load("res://scenes/cogs/street_cog.gd")
-	ToonNet.request_suits(district_id, street_slug)
+	_bind_trip()
 
 
 func _process(delta: float) -> void:
+	if not _suits_asked:
+		_wait_trip(delta)
+		return
+	if _blocker_wait > 0.0:
+		_blocker_wait -= delta
 	if _board != null:
 		_board.set("camera", get_viewport().get_camera_3d())
 		_board.call("place")
@@ -84,6 +110,7 @@ func _process(delta: float) -> void:
 	var toon := _toon()
 	for cog in _cogs:
 		_step(cog, delta, toon)
+	_touch_blockers(toon)
 
 
 func _apply_net() -> void:
@@ -138,6 +165,7 @@ func _spawn(row: Dictionary) -> Walker:
 	actor.name = str(suit.get("name", "Cog"))
 	add_child(actor)
 	actor.set_meta("do_id", int(row.get("do_id", 0)))
+	actor.set_meta("cell", int(suit.get("cell", 0)))
 	actor.call("present", suit, _timing)
 	var spot: Array = suit.get("pos", [0.0, 0.0, 0.0])
 	var cog := Walker.new()
@@ -392,6 +420,85 @@ func _blocked(actor: Node3D, point: Vector3) -> bool:
 	var blocked := not world.direct_space_state.intersect_ray(query).is_empty()
 	actor.set_meta("occ", blocked)
 	return blocked
+
+
+func _bind_trip() -> void:
+	var owned := int(_ELEVATOR.trip_id)
+	if owned <= 0:
+		return
+	street_slug = "sellbot_factory:%d" % owned
+	if _suits_asked:
+		return
+	_suits_asked = true
+	ToonNet.request_suits(district_id, street_slug)
+
+
+func _wait_trip(delta: float) -> void:
+	var assigned := ToonNet.latest("factory-self:%d" % ToonNet.peer_id())
+	var got := int(assigned.get("trip", 0))
+	if got > 0:
+		_ELEVATOR.trip_id = got
+		_ELEVATOR.entrance = int(assigned.get("entrance", _ELEVATOR.entrance))
+		_bind_trip()
+		return
+	_claim_wait -= delta
+	if _claim_wait > 0.0:
+		return
+	_claim_wait = 1.0
+	var payload := {
+		"entrance": int(_ELEVATOR.entrance),
+		"district": district_id,
+	}
+	var toon := _toon()
+	if toon != null:
+		var hp: Vector2i = toon.call("battle_hp")
+		payload["name"] = str(toon.call("battle_name"))
+		payload["hp"] = hp.x
+		payload["max"] = hp.y
+	ToonNet.factory_act("claim", payload)
+
+
+func _arm_blockers() -> void:
+	for key in _BLOCKERS:
+		var spec: Array = _BLOCKERS[key]
+		var node := _nodes.get("battleBlocker-%d" % int(key)) as Node3D
+		if node == null:
+			continue
+		_blockers.append({
+			"node": node,
+			"cell": int(spec[0]),
+			"radius": float(spec[1]),
+		})
+
+
+func _touch_blockers(toon: Node3D) -> void:
+	if toon == null or _blocker_wait > 0.0 or bool(toon.call("battle_busy")):
+		return
+	for item in _blockers:
+		var node: Node3D = item["node"]
+		if node == null or not is_instance_valid(node):
+			continue
+		if node.to_local(toon.global_position).length() > float(item["radius"]):
+			continue
+		var cog := _cell_cog(int(item["cell"]))
+		if cog == null:
+			continue
+		_blocker_wait = 1.2
+		var hp: Vector2i = toon.call("battle_hp")
+		ToonNet.ask_factory(district_id, int(cog.get_meta("do_id", 0)), cog.global_position, 0.0, str(toon.call("battle_name")), hp.x, hp.y)
+		return
+
+
+func _cell_cog(cell: int) -> Node3D:
+	for cog in _cogs:
+		if cog.actor == null or not is_instance_valid(cog.actor):
+			continue
+		if bool(cog.actor.get_meta("in_fight", false)):
+			continue
+		if int(cog.actor.get_meta("cell", -1)) != cell:
+			continue
+		return cog.actor
+	return null
 
 
 func _collect(node: Node, found: Dictionary) -> void:

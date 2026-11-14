@@ -17,6 +17,7 @@ const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _LABEL := preload("res://scenes/cog_hq/barrel_label.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _ELEVATOR := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _WEAR := "res://assets/cog_hq/floor_wear.png"
 const _STICK := 0.2
@@ -43,6 +44,12 @@ var _views: Array[Dictionary] = []
 var _grid: Node3D
 var _goon_scene: PackedScene
 var _motion: Dictionary = {}
+var _remote: Dictionary = {}
+var _pushing: Dictionary = {}
+var _crate_sent: Dictionary = {}
+var _planes: Dictionary = {}
+var _goon_wait := 0.0
+var _beam: Shader
 
 
 static func remember(level: int) -> void:
@@ -89,6 +96,7 @@ func _physics_process(delta: float) -> void:
 	if _leaving:
 		return
 	_time += delta
+	_shared()
 	var body := _body()
 	var busy := _busy()
 	_move_stompers(body, busy)
@@ -223,7 +231,11 @@ func _read(found: Dictionary) -> void:
 		var root := _node(found, "crate-%s" % spec.get("id", 0))
 		if root == null:
 			continue
-		_crates.append({"root": root, "home": root.global_position})
+		_crates.append({
+			"id": int(spec.get("id", 0)),
+			"root": root,
+			"home": root.global_position,
+		})
 	_goon_scene = load(_GOON) as PackedScene
 	var routes: Dictionary = (_motion.get("factory", {}) as Dictionary).get("goons", {})
 	for item in data.get("goons", []):
@@ -274,6 +286,7 @@ func _read(found: Dictionary) -> void:
 	_take_mixers(found)
 	_lay_floors(found)
 	_take_views(found)
+	_arm_clips()
 
 
 ## DistributedStomperAI.reactToSwitch. MotionSwitched stays raised until its button.
@@ -596,6 +609,7 @@ func _push_crates(body: CharacterBody3D, delta: float) -> void:
 		var root: Node3D = item["root"]
 		if root == null:
 			continue
+		var ent := int(item.get("id", 0))
 		var home: Vector3 = item["home"]
 		var away := body.global_position - root.global_position
 		away.y = 0.0
@@ -609,6 +623,17 @@ func _push_crates(body: CharacterBody3D, delta: float) -> void:
 		if moved.length() > 8.0:
 			continue
 		root.global_position = next
+		_pushing[ent] = _time
+		if _time - float(_crate_sent.get(ent, -10.0)) < 0.15:
+			continue
+		_crate_sent[ent] = _time
+		ToonNet.factory_act("crate", {
+			"id": ent,
+			"x": next.x,
+			"y": next.y,
+			"z": next.z,
+			"district": ToonNet.district_id(),
+		})
 
 
 func _grab_barrels(body: CharacterBody3D) -> void:
@@ -649,9 +674,13 @@ func _grab_barrels(body: CharacterBody3D) -> void:
 			continue
 		_taken[key] = true
 		root.visible = false
+		ToonNet.factory_act("barrel", {"id": key, "district": ToonNet.district_id()})
 
 
 func _move_goons(body: Node3D, delta: float) -> void:
+	if not _driving():
+		_show_remote_goons(body)
+		return
 	for item in _goons:
 		var root: Node3D = item["root"]
 		if root == null or not is_instance_valid(root):
@@ -677,6 +706,9 @@ func _move_goons(body: Node3D, delta: float) -> void:
 				if bool(item["alert"]):
 					seen = dist <= reach * 1.35
 				item["alert"] = seen
+				if seen and _clipped(item, body.global_position):
+					seen = false
+					item["alert"] = false
 				if seen:
 					face = look
 					if dist <= 3.0:
@@ -697,17 +729,219 @@ func _move_goons(body: Node3D, delta: float) -> void:
 		var base: Vector3 = item["forward"]
 		var angle := base.signed_angle_to(face, Vector3.UP)
 		root.global_transform = Transform3D(Basis(Vector3.UP, angle) * origin, root.global_position)
+	_report_goons(delta)
 
 
 func _crush_goons(where: Vector3) -> void:
+	if not _driving():
+		return
 	var kept: Array[Dictionary] = []
 	for item in _goons:
 		var root: Node3D = item["root"]
 		if root != null and root.global_position.distance_to(where) <= 3.5:
+			ToonNet.factory_act("goon", {"id": int(item.get("id", 0)), "district": ToonNet.district_id()})
 			root.queue_free()
 			continue
 		kept.append(item)
 	_goons = kept
+
+
+func _shared() -> void:
+	var trip := int(_ELEVATOR.trip_id)
+	if trip <= 0:
+		return
+	var snap := ToonNet.latest("factory:%d" % trip)
+	for id in snap.get("barrels", []):
+		_taken[int(id)] = true
+	for item in _barrels:
+		if not bool(_taken.get(int(item.get("id", 0)), false)):
+			continue
+		var barrel: Node3D = item.get("root")
+		if barrel != null:
+			barrel.visible = false
+	_apply_crates(snap)
+	var dead := {}
+	for id in snap.get("dead", []):
+		dead[int(id)] = true
+	var kept: Array[Dictionary] = []
+	for item in _goons:
+		if bool(dead.get(int(item.get("id", 0)), false)):
+			var gone: Node3D = item.get("root")
+			if gone != null and is_instance_valid(gone):
+				gone.queue_free()
+			continue
+		kept.append(item)
+	_goons = kept
+	_remote.clear()
+	for row in snap.get("goons", []):
+		if row is Dictionary:
+			_remote[int((row as Dictionary).get("id", 0))] = row
+
+
+func _apply_crates(snap: Dictionary) -> void:
+	var crates: Dictionary = snap.get("crates", {})
+	for item in _crates:
+		var ent := int(item.get("id", 0))
+		if _time - float(_pushing.get(ent, -10.0)) < 0.35:
+			continue
+		var row: Variant = crates.get(str(ent), [])
+		if not (row is Array) or (row as Array).size() < 3:
+			continue
+		var spot: Array = row
+		var root: Node3D = item.get("root")
+		if root == null:
+			continue
+		root.global_position = Vector3(float(spot[0]), float(spot[1]), float(spot[2]))
+
+
+func _show_remote_goons(body: Node3D) -> void:
+	for item in _goons:
+		var root: Node3D = item.get("root")
+		if root == null or not is_instance_valid(root):
+			continue
+		var row: Dictionary = _remote.get(int(item.get("id", 0)), {})
+		if not row.is_empty():
+			root.global_position = Vector3(float(row.get("x", 0.0)), float(row.get("y", 0.0)), float(row.get("z", 0.0)))
+			root.rotation = Vector3(float(row.get("rx", 0.0)), float(row.get("ry", 0.0)), float(row.get("rz", 0.0)))
+		_zap(item, root, body)
+
+
+func _report_goons(delta: float) -> void:
+	_goon_wait -= delta
+	if _goon_wait > 0.0 or int(_ELEVATOR.trip_id) <= 0:
+		return
+	_goon_wait = 0.25
+	var rows: Array = []
+	for item in _goons:
+		var root: Node3D = item.get("root")
+		if root == null or not is_instance_valid(root):
+			continue
+		var at := root.global_position
+		var rot := root.rotation
+		rows.append({
+			"id": int(item.get("id", 0)),
+			"x": at.x,
+			"y": at.y,
+			"z": at.z,
+			"rx": rot.x,
+			"ry": rot.y,
+			"rz": rot.z,
+		})
+	ToonNet.factory_act("goons", {"rows": rows, "district": ToonNet.district_id()})
+
+
+func _driving() -> bool:
+	var trip := int(_ELEVATOR.trip_id)
+	if trip <= 0:
+		return true
+	var peers: Array = ToonNet.latest("factory:%d" % trip).get("peers", [])
+	if peers.is_empty():
+		return true
+	var low := ToonNet.peer_id()
+	for id in peers:
+		var who := int(id)
+		if who > 0 and who < low:
+			low = who
+	return ToonNet.peer_id() == low
+
+
+func _arm_clips() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	_gather_planes(host)
+	for item in _goons:
+		var root: Node3D = item.get("root")
+		if root == null:
+			continue
+		var found: Array = _planes.get(_zone_of(root), [])
+		item["planes"] = found
+		_arm_radar(item, found)
+
+
+func _gather_planes(node: Node) -> void:
+	var node_name := str(node.name)
+	if node_name.begins_with("goonClipPlane-") and node is Node3D:
+		var body := node as Node3D
+		var normal := body.global_transform.basis.x
+		if normal.length_squared() > 0.0001:
+			normal = normal.normalized()
+		var origin := body.global_position
+		var plane := Vector4(normal.x, normal.y, normal.z, normal.dot(origin))
+		var zone := _zone_of(body)
+		if not _planes.has(zone):
+			_planes[zone] = []
+		(_planes[zone] as Array).append(plane)
+	for child in node.get_children():
+		_gather_planes(child)
+
+
+func _zone_of(node: Node) -> int:
+	var here := node
+	while here != null:
+		var node_name := str(here.name)
+		var prefix := ""
+		if node_name.begins_with("ZONE"):
+			prefix = "ZONE"
+		elif node_name.begins_with("zone"):
+			prefix = "zone"
+		if prefix != "":
+			var digits := ""
+			var index := prefix.length()
+			while index < node_name.length():
+				var letter := node_name.substr(index, 1)
+				if letter < "0" or letter > "9":
+					break
+				digits += letter
+				index += 1
+			if not digits.is_empty():
+				return digits.to_int()
+		here = here.get_parent()
+	return -1
+
+
+func _arm_radar(item: Dictionary, planes: Array) -> void:
+	var root: Node3D = item.get("root")
+	if root == null:
+		return
+	var reach := maxf(float(item.get("reach", 15.0)), 1.0)
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = tan(deg_to_rad(float(item.get("fov", 70.0)) * 0.5)) * reach
+	mesh.bottom_radius = 0.2
+	mesh.height = reach
+	var shown := MeshInstance3D.new()
+	shown.name = "Radar"
+	shown.mesh = mesh
+	shown.position = Vector3(0.0, reach * 0.5, 0.6)
+	shown.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := ShaderMaterial.new()
+	mat.shader = _beam_shader()
+	mat.set_shader_parameter("planes", mini(planes.size(), 2))
+	if not planes.is_empty():
+		mat.set_shader_parameter("plane_a", planes[0])
+	if planes.size() > 1:
+		mat.set_shader_parameter("plane_b", planes[1])
+	shown.material_override = mat
+	root.add_child(shown)
+	item["radar"] = shown
+
+
+func _beam_shader() -> Shader:
+	if _beam != null:
+		return _beam
+	_beam = Shader.new()
+	_beam.code = "shader_type spatial;\nrender_mode unshaded, blend_mix, depth_draw_never, cull_disabled;\nuniform vec4 plane_a = vec4(0.0);\nuniform vec4 plane_b = vec4(0.0);\nuniform int planes = 0;\nvoid fragment() {\n\tvec3 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;\n\tif (planes > 0 && dot(plane_a.xyz, world) > plane_a.w) {\n\t\tdiscard;\n\t}\n\tif (planes > 1 && dot(plane_b.xyz, world) > plane_b.w) {\n\t\tdiscard;\n\t}\n\tALBEDO = vec3(1.0);\n\tALPHA = 0.2;\n}\n"
+	return _beam
+
+
+func _clipped(item: Dictionary, point: Vector3) -> bool:
+	for plane in item.get("planes", []):
+		if not (plane is Vector4):
+			continue
+		var cut: Vector4 = plane
+		if Vector3(cut.x, cut.y, cut.z).dot(point) > cut.w + 0.15:
+			return true
+	return false
 
 
 func _hurt(amount: int, key: String) -> void:
@@ -784,6 +1018,9 @@ func _stunned(item: Dictionary, root: Node3D, body: Node3D, delta: float) -> boo
 	item["stun"] = maxf(float(item.get("stun", 0.0)) - delta, 0.0)
 	if body != null and _head_hit(root, body, float(item.get("scale", 1.0))):
 		item["stun"] = 4.0
+	var radar := item.get("radar") as Node3D
+	if radar != null:
+		radar.visible = float(item["stun"]) <= 0.0
 	return float(item["stun"]) > 0.0
 
 
@@ -811,6 +1048,8 @@ func _zap(item: Dictionary, root: Node3D, body: Node3D) -> void:
 	if forward.length_squared() < 0.001:
 		return
 	if forward.normalized().dot(toward.normalized()) < cos(deg_to_rad(float(item["fov"]) * 0.5)):
+		return
+	if _clipped(item, body.global_position):
 		return
 	_hurt(int(item["strength"]), "goon-%s" % item["id"])
 

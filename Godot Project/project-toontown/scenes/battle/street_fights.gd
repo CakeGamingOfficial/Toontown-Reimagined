@@ -328,6 +328,10 @@ func toon_hp(fight_id: int, peer: int) -> int:
 	return -1
 
 
+func _factory_slug(slug: String) -> bool:
+	return slug == "sellbot_factory" or slug.begins_with("sellbot_factory:")
+
+
 ## DistributedBattleBaseAI.isRunable. Street WaitForInput is the only runable state.
 func can_run(fight: Dictionary) -> bool:
 	if fight.is_empty() or int(fight.get("building", 0)) != 0:
@@ -335,7 +339,7 @@ func can_run(fight: Dictionary) -> bool:
 	if String(fight.get("state", "")) != "input":
 		return false
 	var slug := String(fight.get("slug", ""))
-	if slug == "sellbot_factory" or slug == "cashbot_mint" or slug == "lawbot_office" or slug == "bossbot_course":
+	if slug == "sellbot_factory" or slug.begins_with("sellbot_factory:") or slug == "cashbot_mint" or slug == "lawbot_office" or slug == "bossbot_course":
 		return false
 	if slug.begins_with("boss_"):
 		return false
@@ -640,7 +644,7 @@ func _credit_mult(fight: Dictionary) -> float:
 	var building := int(fight.get("building", 0)) != 0
 	var mult := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
 	# ToontownBattleGlobals.getFactoryCreditMultiplier. Factory gag credit is doubled.
-	if String(fight.get("slug", "")) == "sellbot_factory":
+	if _factory_slug(String(fight.get("slug", ""))):
 		mult *= 2.0
 	# ToontownBattleGlobals.getMintCreditMultiplier.
 	var minted := int(fight.get("mint", 0))
@@ -1077,14 +1081,17 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		if track == 6 and bool(suit.get("lured", false)):
 			beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
 			continue
+		var woke := bool(suit.get("lured", false)) and (track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT)
 		_hurt_cog(suit, dealt)
-		if track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT:
+		if woke:
 			_clear_lure(suit)
 		var revived := _revive_suit(suit)
 		var line := "%s used a %s on the %s for %d damage." % [who, gag, cog_name, dealt]
 		if not revived and int(suit.get("hp", 0)) <= 0:
 			line += " The %s is defeated." % cog_name
 		var beat := _beat(line, track, level, toon, suit, true, dealt)
+		if woke:
+			beat["lured"] = true
 		if revived:
 			beat["cog_hp"] = 0
 			beat["revived"] = true
@@ -1118,7 +1125,8 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 	var line := "The %s hit the %s for %d damage." % [String(laid.get("gag", "trap")), cog_name, damage]
 	if not revived and int(suit.get("hp", 0)) <= 0:
 		line += " The %s is defeated." % cog_name
-	var beat := _beat(line, 1, 0, toon, suit, true, damage)
+	var beat := _beat(line, 1, int(laid.get("level", 0)), toon, suit, true, damage)
+	beat["attack"] = "spring"
 	if revived:
 		beat["cog_hp"] = 0
 		beat["revived"] = true
@@ -1484,7 +1492,7 @@ func _finish_movie(fight: Dictionary) -> void:
 	fight["hurt"] = 0.0 if total_max <= 0 else 100.0 - float(total_hp) / float(total_max) * 100.0
 	var kept: Array = []
 	var traffic := get_parent()
-	var factory := String(fight.get("slug", "")) == "sellbot_factory"
+	var factory := _factory_slug(String(fight.get("slug", "")))
 	var mint := String(fight.get("slug", "")) == "cashbot_mint"
 	var boss_down := bool(fight.get("boss_down", false))
 	for item in cogs:

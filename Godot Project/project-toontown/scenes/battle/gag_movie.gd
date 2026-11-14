@@ -209,19 +209,32 @@ static func seconds(kind: String, track: int, level: int, died: bool, attack := 
 			return 6.2
 		if level == 5:
 			return 7.2
+		# MovieSquirt geyser. The spout holds, then the hole closes after the cog lands.
+		if level >= 6:
+			return 6.0
 		return 5.2
 	if track == 6:
 		return 6.6
 	if track == 1:
+		# The lure's follow-up beat is the trap going off, not another toss.
+		if attack == "spring":
+			if level == 3 or level == 4:
+				return 5.8
+			if level == 5:
+				return 4.4
+			if level == 6:
+				return 4.6
+			return 4.2
 		return 5.2 if level <= 2 or level == 5 else 4.6
 	if track == 2:
 		if level == 1 or level == 3:
 			return 7.2
 		if level == 5:
 			return 6.0
+		# MovieLure presentation runs 7.1s. The dollar cast runs through the reach.
 		if level == 6:
-			return 4.8
-		return 5.6
+			return 7.1
+		return 7.0
 	if track == 3:
 		return 8.0 if level >= 6 else 5.0
 	if track == 0:
@@ -1278,6 +1291,8 @@ func _attack_one(lead: Dictionary, beats: Array, actor: ToonActor, marks: Array,
 		await _squirt(actor, _prop_name(track, level), level, marks, still, contact)
 	elif kind == "gag" and actor != null and track == 6:
 		await _drop(actor, _prop_name(track, level), level, marks, still, contact)
+	elif kind == "gag" and actor != null and track == 1 and String(lead.get("attack", "")) == "spring":
+		await _spring_show(level, marks, still, contact)
 	elif kind == "gag" and actor != null and track == 1:
 		await _trap(actor, _prop_name(track, level), level, marks, still, contact)
 	elif kind == "gag" and actor != null and track == 2:
@@ -1822,6 +1837,7 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 					if card.visible:
 						_face_camera(card)
 		_react_marks(marks, elapsed, 3.0, "pie-small", 2.45)
+		_wake_lured(marks, elapsed, 3.0)
 		if level == 6:
 			if hit:
 				_once("throw", elapsed, 1.0, "AA_throw_wedding_cake.ogg", stamp)
@@ -1874,6 +1890,7 @@ func _flower(actor: ToonActor, marks: Array, still: Callable, contact: Callable)
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, 2.7, "squirt-small", 2.5)
+		_wake_lured(marks, elapsed, 2.7)
 		_once("squirt", elapsed, 2.1, "AA_squirt_flowersquirt.ogg" if hit else "AA_squirt_flowersquirt_miss.ogg", stamp)
 		if elapsed >= 2.7 and _latch(gate, "hit"):
 			contact.call()
@@ -1926,6 +1943,7 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, contact_at, "squirt-small", dodge_at)
+		_wake_lured(marks, elapsed, contact_at)
 		_once("squirt", elapsed, float(when.get("sound", spray_at)), _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level], stamp)
 		if elapsed >= contact_at and _latch(gate, "hit"):
 			contact.call()
@@ -1937,19 +1955,24 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 	var stamp := actor.get_instance_id()
 	_make_owner = stamp
 	var aim := _first_cog(marks)
-	var prop := _make(prop_name)
-	prop.visible = false
-	if aim != null:
-		prop.global_position = aim.global_position + Vector3(0.0, _HEIGHT + 6.0, 0.0)
 	var hit := _any_hit(marks)
 	var gate := {}
 	var cloud := level == 5
-	if cloud:
+	var prop: Node3D = null
+	var spouts: Array = []
+	if level >= 5:
 		var button := _make("button")
 		_hand(button, actor, "def_joint_left_hold")
 		button.scale = Vector3.ONE
+	if cloud:
+		prop = _make(prop_name)
+		prop.visible = false
+		if aim != null:
+			prop.global_position = aim.global_position + Vector3(0.0, _HEIGHT + 6.0, 0.0)
 		prop.global_basis = _Z_UP
 		_cloud_rain(prop)
+	else:
+		spouts = _geyser_rows(marks)
 	await _run(seconds("gag", 5, level, false), still, func(elapsed: float) -> void:
 		_make_owner = stamp
 		actor.pose_action("pushbutton", elapsed)
@@ -1970,20 +1993,144 @@ func _sky_squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, 
 			else:
 				prop.scale = Vector3.ONE * lerpf(3.0, 0.05, clampf((elapsed - hold_until) / 0.5, 0.0, 1.0))
 			_cloud_rain_step(prop, elapsed, hit, hold_until)
-		elif elapsed >= 1.0:
-			prop.visible = true
-			var column := clampf((elapsed - 1.0) / 0.5, 0.0, 1.0)
-			prop.scale = Vector3(column, column * 2.2, column)
-			if aim != null:
-				prop.global_position = aim.global_position + Vector3(0.0, 0.2, 0.0)
-		_react_marks(marks, elapsed, 2.9, "soak" if level >= 6 else "squirt-small", 1.8)
+			# MovieSquirt storm cloud soaks. The smaller squirts use squirt-small.
+			_react_marks(marks, elapsed, 2.9, "soak", 1.8)
+			_wake_lured(marks, elapsed, 2.9)
+		else:
+			_step_geysers(spouts, elapsed)
 		_once("sky", elapsed, 2.3 if cloud else 1.8, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level], stamp)
 		if cloud:
 			_once("sky2", elapsed, 4.6, _SQUIRT_HIT[level] if hit else _SQUIRT_MISS[level], stamp)
 		if elapsed >= 2.9 and _latch(gate, "hit"):
 			contact.call()
 	)
+	_plant_geysers(spouts)
 	actor.end_action("pushbutton")
+
+
+## MovieSquirt.__doGeyser. The hole stays on the ground. Splash frames cycle at
+## 12 fps while the spout scales up under the cog and throws it 14 units up.
+func _geyser_rows(marks: Array) -> Array:
+	var rows: Array = []
+	for mark in marks:
+		if not (mark is Dictionary):
+			continue
+		var row: Dictionary = mark
+		var cog: Node3D = row.get("cog") as Node3D
+		if cog == null:
+			continue
+		var mound := _make("geyser")
+		var water := _make("geyser")
+		_hide_named(mound, ["spout", "Splash_1", "Splash_2", "Splash_3", "Splash_4"])
+		_hide_named(water, ["hole", "shadow"])
+		mound.visible = false
+		water.visible = false
+		rows.append({
+			"mound": mound,
+			"water": water,
+			"cog": cog,
+			"hit": bool(row.get("hit", false)),
+			"delay": float(int(cog.get_meta("do_id", 0)) % 5) * 0.12,
+			"base": cog.global_position,
+			"body": str(cog.get("body")),
+		})
+	return rows
+
+
+func _step_geysers(rows: Array, elapsed: float) -> void:
+	for item in rows:
+		var row: Dictionary = item
+		var cog: Node3D = row.get("cog") as Node3D
+		var mound: Node3D = row.get("mound") as Node3D
+		var water: Node3D = row.get("water") as Node3D
+		if cog == null or not is_instance_valid(cog):
+			continue
+		var base: Vector3 = row.get("base", cog.global_position)
+		var delay := float(row.get("delay", 0.0))
+		var local := elapsed - delay - 2.5
+		var struck := bool(row.get("hit", false))
+		var hold := 0.75 if struck else 0.25
+		var water_scale := -1.0
+		var mound_scale := -1.0
+		if local >= 0.0:
+			mound_scale = 1.0
+			if local < 1.0:
+				water_scale = lerpf(0.01, 1.8, local)
+			elif local < 1.0 + hold:
+				water_scale = 1.8
+			elif local < 1.5 + hold:
+				water_scale = lerpf(1.8, 0.01, (local - 1.0 - hold) / 0.5)
+			else:
+				var shrink := local - (1.5 + hold)
+				if shrink < 0.5:
+					mound_scale = lerpf(1.0, 0.01, shrink / 0.5)
+				else:
+					mound_scale = -1.0
+		if mound != null:
+			mound.visible = mound_scale > 0.0
+			mound.global_position = base
+			if mound_scale > 0.0:
+				mound.scale = Vector3.ONE * mound_scale
+		if water != null:
+			water.visible = water_scale > 0.0
+			water.global_position = base
+			if water_scale > 0.0:
+				water.scale = Vector3.ONE * water_scale
+				_cycle_splash(water, elapsed)
+		if not struck:
+			if elapsed >= 1.8 + delay:
+				_react_one(cog, "sidestep-left", elapsed - (1.8 + delay))
+			continue
+		var rise := elapsed - delay - 2.9
+		var lift := 0.0
+		if rise >= 0.0 and rise < 1.1:
+			lift = lerpf(0.0, 14.0, rise / 1.1)
+		elif rise >= 1.1 and rise < 1.7:
+			lift = lerpf(14.0, 0.0, (rise - 1.1) / 0.6)
+		cog.global_position = base + Vector3.UP * lift
+		if rise >= 0.0:
+			_react_one(cog, "slip-backward", _geyser_flail(str(row.get("body", "c")), rise))
+
+
+func _geyser_flail(suit_body: String, rise: float) -> float:
+	# slip-backward at half speed up to the flail frame, hold it, then finish.
+	var flail := 16.0 if suit_body == "a" else 15.0
+	var slow := (flail - 1.0) / 12.0
+	if rise < slow:
+		return rise * 0.5
+	if rise < slow + 0.5:
+		return flail / 24.0
+	return flail / 24.0 + (rise - slow - 0.5)
+
+
+func _cycle_splash(water: Node3D, elapsed: float) -> void:
+	var frame := posmod(int(elapsed * 12.0), 4) + 1
+	for index in 4:
+		var splash := water.find_child("Splash_%d" % (index + 1), true, false) as Node3D
+		if splash != null:
+			splash.visible = index + 1 == frame
+
+
+func _plant_geysers(rows: Array) -> void:
+	for item in rows:
+		var row: Dictionary = item
+		var cog: Node3D = row.get("cog") as Node3D
+		if cog == null or not is_instance_valid(cog):
+			continue
+		if cog.has_meta("lure_home"):
+			cog.global_position = cog.get_meta("lure_home")
+			cog.remove_meta("lure_home")
+			cog.remove_meta("lure_ahead")
+		else:
+			cog.global_position = row.get("base", cog.global_position)
+		cog.visible = true
+
+
+func _hide_named(node: Node, names: PackedStringArray) -> void:
+	if node is Node3D and names.has(str(node.name)):
+		(node as Node3D).visible = false
+	for child in node.get_children():
+		_hide_named(child, names)
 
 
 # MovieSquirt storm cloud. liquidate.ptf is parented to the cloud, so the
@@ -2288,7 +2435,7 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 					prop.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
 		else:
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.6, 0.0, 1.0))
-		_react_marks(marks, elapsed, lure_at, "hypnotized", lure_at)
+		_step_lure(marks, level, elapsed)
 		var lure_sound := "TL_fishing_pole.ogg"
 		var lure_delay := 0.5
 		if level == 1:
@@ -2305,18 +2452,181 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 			_once("lurebox", elapsed, 2.5, "AA_drop_trigger_box.ogg", stamp)
 		_once("lure", elapsed, lure_delay, lure_sound, stamp)
 		if elapsed >= lure_at and _latch(gate, "hit"):
-			for mark in marks:
-				var row: Dictionary = mark
-				if not bool(row.get("hit", false)):
-					continue
-				if _spring(int(row.get("id", 0)), elapsed):
-					_react_one(row.get("cog"), "rake-react", 0.0)
 			contact.call()
-		_pose_sprung(elapsed)
 	)
 	if screen_button != null:
 		screen_button.visible = false
+	for mark in marks:
+		if mark is Dictionary:
+			var parked := _node3d((mark as Dictionary).get("cog"))
+			if parked != null:
+				parked.remove_meta("lure_new")
 	actor.end_action(clip)
+
+
+## MovieLure. Dollar and big-dollar cogs reach. Magnets shake through landing.
+## Hypno and the presentation play hypnotized, and a hit steps 2.6 toward the toon.
+func _step_lure(marks: Array, level: int, elapsed: float) -> void:
+	var react := "reach"
+	var react_at := 3.5
+	var move_at := 3.5
+	var move_for := 1.4
+	var miss_at := 3.5
+	if level == 1 or level == 3:
+		react = "landing"
+		react_at = 2.6
+		move_at = 3.95
+		move_for = 0.8
+		miss_at = 3.7
+	elif level == 5:
+		react = "hypnotized"
+		react_at = 1.6
+		move_at = 3.3
+		move_for = 0.7
+		miss_at = 2.3
+	elif level == 6:
+		react = "hypnotized"
+		react_at = 3.8
+		move_at = 5.5
+		move_for = 0.7
+		miss_at = 2.3
+	for mark in marks:
+		if not (mark is Dictionary):
+			continue
+		var row: Dictionary = mark
+		var cog := _node3d(row.get("cog"))
+		if cog == null:
+			continue
+		if not bool(row.get("hit", false)):
+			if elapsed >= miss_at:
+				_react_one(cog, "sidestep-left", elapsed - miss_at)
+			continue
+		if elapsed >= react_at:
+			_react_one(cog, react, elapsed - react_at)
+		if elapsed < move_at:
+			continue
+		if not cog.has_meta("lure_home"):
+			cog.set_meta("lure_home", cog.global_position)
+			cog.set_meta("lure_ahead", _forward(cog))
+			cog.set_meta("lure_new", true)
+		# The step belongs to this lure. A cog left up by an earlier lure stays put.
+		if not bool(cog.get_meta("lure_new", false)):
+			continue
+		var home: Vector3 = cog.get_meta("lure_home")
+		var ahead: Vector3 = cog.get_meta("lure_ahead")
+		var walked := clampf((elapsed - move_at) / move_for, 0.0, 1.0)
+		cog.global_position = home + ahead * 2.6 * walked
+
+
+## The trap was planted earlier. This beat is MovieLure.__createSuitDamageTrack.
+func _spring_show(level: int, marks: Array, still: Callable, contact: Callable) -> void:
+	var length := seconds("gag", 1, level, false, "spring")
+	var pay_at := 0.5
+	if level == 3 or level == 4:
+		pay_at = 3.5
+	elif level == 5:
+		pay_at = 2.3
+	elif level == 6:
+		pay_at = 3.2
+	var gate := {}
+	await _run(length, still, func(elapsed: float) -> void:
+		if _latch(gate, "go"):
+			for mark in marks:
+				if not (mark is Dictionary):
+					continue
+				var row: Dictionary = mark
+				_spring(int(row.get("id", 0)), 0.0)
+		if elapsed >= pay_at and _latch(gate, "hit"):
+			contact.call()
+		_pose_sprung(elapsed)
+		_step_sprung(elapsed)
+	)
+	for mark in marks:
+		if not (mark is Dictionary):
+			continue
+		var row: Dictionary = mark
+		var cog := _node3d(row.get("cog"))
+		_stand_home(cog)
+
+
+func _step_sprung(elapsed: float) -> void:
+	for item in _sprung:
+		var record: Dictionary = item
+		var cog := _node3d(record.get("cog"))
+		if cog == null:
+			continue
+		var age := elapsed - float(record.get("born", 0.0))
+		var trap_level := int(record.get("level", 0))
+		if not record.has("feet"):
+			record["feet"] = cog.global_position
+		var feet: Vector3 = record["feet"]
+		if trap_level == 1:
+			_react_one(cog, "rake-react", age)
+		elif trap_level == 6:
+			if age >= 0.9:
+				_react_one(cog, "flatten", age - 0.9)
+		elif trap_level == 3 or trap_level == 4:
+			_sink_cog(cog, feet, age, trap_level)
+		elif trap_level == 0 or trap_level == 2:
+			_react_one(cog, "slip-backward", age)
+		else:
+			_react_one(cog, "flail", minf(age, 0.7))
+
+
+func _sink_cog(cog: Node3D, feet: Vector3, age: float, trap_level: int) -> void:
+	var drop := 0.0
+	var shown := true
+	if trap_level == 3:
+		if age >= 0.9 and age < 1.8:
+			drop = lerpf(0.0, 3.1, (age - 0.9) / 0.9)
+		elif age >= 1.8 and age < 2.2:
+			drop = lerpf(3.1, 9.1, (age - 1.8) / 0.4)
+		elif age >= 2.2 and age < 3.3:
+			shown = false
+		elif age >= 3.3 and age < 3.6:
+			drop = lerpf(-15.0, 0.0, (age - 3.3) / 0.3)
+	elif age >= 2.2 and age < 2.6:
+		drop = lerpf(0.0, 9.1, (age - 2.2) / 0.4)
+	elif age >= 2.6 and age < 4.2:
+		shown = false
+	elif age >= 4.2 and age < 4.5:
+		drop = lerpf(-15.0, 0.0, (age - 4.2) / 0.3)
+	cog.visible = shown
+	if shown:
+		cog.global_position = feet - Vector3.UP * drop
+
+
+func _wake_lured(marks: Array, elapsed: float, at: float) -> void:
+	for mark in marks:
+		if not (mark is Dictionary):
+			continue
+		var row: Dictionary = mark
+		if not bool(row.get("lured", false)) or not bool(row.get("hit", false)):
+			continue
+		var cog := _node3d(row.get("cog"))
+		if cog == null or not cog.has_meta("lure_home"):
+			continue
+		var back := clampf((elapsed - at - 0.2) / 0.6, 0.0, 1.0)
+		if back <= 0.0:
+			continue
+		if not row.has("wake_from"):
+			row["wake_from"] = cog.global_position
+		var start: Vector3 = row["wake_from"]
+		var home: Vector3 = cog.get_meta("lure_home")
+		cog.global_position = start.lerp(home, back)
+		if back >= 1.0:
+			_stand_home(cog)
+
+
+func _stand_home(cog: Node3D) -> void:
+	if cog == null or not is_instance_valid(cog):
+		return
+	cog.visible = true
+	if cog.has_meta("lure_home"):
+		cog.global_position = cog.get_meta("lure_home")
+		cog.remove_meta("lure_home")
+		cog.remove_meta("lure_ahead")
+		cog.remove_meta("lure_new")
 
 
 func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
@@ -2367,6 +2677,7 @@ func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still
 			if ahead.length_squared() > 0.01:
 				prop.global_position = stage + ahead.normalized() * 1.6 * walked
 		_react_marks(marks, elapsed, react_at, "squirt-small")
+		_wake_lured(marks, elapsed, react_at)
 		var note_at := 2.45
 		var appear_at := 1.15
 		if level == 1 or level == 3 or level == 4 or level == 5:

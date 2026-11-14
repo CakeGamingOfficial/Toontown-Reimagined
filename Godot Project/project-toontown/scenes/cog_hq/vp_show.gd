@@ -35,6 +35,13 @@ var _finish_as := ""
 var _doobers: Array[Node3D] = []
 var _roll: Array[Vector3] = []
 var _roll_at := 0
+var _roll_faced := -1
+var _roll_yaw := 0.0
+var _roll_turning := false
+var _roll_turn_from := 0.0
+var _roll_turn_to := 0.0
+var _roll_turn_left := 0.0
+var _roll_turn_span := 0.0
 var _door_u := 1.0
 var _door_goal := 1.0
 var _ramp_home: Dictionary = {}
@@ -384,11 +391,28 @@ func _step_roll(delta: float) -> bool:
 		return false
 	var here := _roll[_roll_at]
 	var there := _roll[_roll_at + 1]
+	# rollBossToPoint turns in place, then rolls. The first leg is already facing.
+	if _roll_faced != _roll_at:
+		_start_roll_turn(here, there)
+		_roll_faced = _roll_at
+	if _roll_turning:
+		_roll_turn_left = maxf(_roll_turn_left - delta, 0.0)
+		var turned := 1.0 if _roll_turn_span <= 0.001 else 1.0 - _roll_turn_left / _roll_turn_span
+		_apply_roll_yaw(lerpf(_roll_turn_from, _roll_turn_to, turned), here)
+		var left_rate := 3.5 if _roll_turn_to >= _roll_turn_from else -3.5
+		_left_tread += left_rate * delta
+		_right_tread -= left_rate * delta
+		_keep_treads()
+		if _roll_turn_left <= 0.0:
+			_roll_turning = false
+		return true
 	var step := _ROLL_SPEED * delta
 	var next := _move_toward(here, there, step)
 	_roll[_roll_at] = next
-	var look := Vector3(0, 78, 18) if _movie == "victory" else there
-	_place_vp(next, look, true)
+	_apply_roll_yaw(_roll_yaw, next)
+	_left_tread += 3.5 * delta
+	_right_tread += 3.5 * delta
+	_keep_treads()
 	if next.distance_to(there) <= 0.05:
 		_roll_at += 1
 	return true
@@ -1200,6 +1224,41 @@ func _load_rates() -> void:
 				_rates[str(key)] = float(row.get("fps", 24.0))
 
 
+## BossCogTurnSpeed is 20 degrees a second. fitDestAngle2Src keeps the short way.
+func _start_roll_turn(at: Vector3, look: Vector3) -> void:
+	var target := _yaw_toward(at, look)
+	var delta_h := wrapf(target - _roll_yaw, -PI, PI)
+	_roll_turn_from = _roll_yaw
+	_roll_turn_to = _roll_yaw + delta_h
+	_roll_turn_span = absf(rad_to_deg(delta_h)) / 20.0
+	_roll_turn_left = _roll_turn_span
+	_roll_turning = _roll_turn_span > 0.05
+	if not _roll_turning:
+		_apply_roll_yaw(_roll_turn_to, at)
+
+
+func _yaw_toward(at: Vector3, look: Vector3) -> float:
+	if _vp == null:
+		return _roll_yaw
+	var kept := _vp.global_transform
+	_vp.position = at
+	var focus := _world(look)
+	if _vp.global_position.distance_squared_to(focus) > 0.25:
+		_vp.look_at(focus, Vector3.UP)
+	var yaw := _vp.global_rotation.y
+	_vp.global_transform = kept
+	return yaw
+
+
+func _apply_roll_yaw(yaw: float, at: Vector3) -> void:
+	if _vp == null:
+		return
+	_roll_yaw = yaw
+	_vp.position = at
+	_vp.global_rotation.y = yaw
+	_stick_floor()
+
+
 func _scroll_treads(moved: Vector3, yaw: float) -> void:
 	if _vp == null:
 		return
@@ -1766,7 +1825,12 @@ func _begin_roll() -> void:
 	_t = 0.0
 	_finish_as = "roll"
 	_roll = _roll_path()
+	_roll_at = 0
+	_roll_turning = false
+	# The first rollBossToPoint is passed fromHpr None, so that leg is already aimed.
 	_place_vp(_roll[0], _roll[1])
+	_roll_yaw = _vp.global_rotation.y if _vp != null else 0.0
+	_roll_faced = 0
 	_spawn_barrels()
 	_set_collisions(false)
 	_collide_back = 0.5

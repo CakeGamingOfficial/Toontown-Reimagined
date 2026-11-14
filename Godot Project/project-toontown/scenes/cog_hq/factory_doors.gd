@@ -13,6 +13,7 @@ const _ARMS := preload("res://assets/cog_hq/audio/CHQ_FACT_arms_retracting.ogg")
 const _SLIDE := preload("res://assets/cog_hq/audio/CHQ_FACT_door_open_sliding.ogg")
 const _FINAL := preload("res://assets/cog_hq/audio/CHQ_FACT_door_open_final.ogg")
 const _GREEN := Color(0.0, 1.0, 0.0, 1.0)
+const _ELEVATOR := preload("res://scenes/cog_hq/factory_elevator.gd")
 const _ROMAN: PackedStringArray = ["One", "Two", "Three"]
 ## Locks that start closed. The others are already unlocked.
 const _START_LOCKED := {
@@ -28,6 +29,7 @@ const _START_LOCKED := {
 var _buttons: Dictionary = {}
 var _doors: Dictionary = {}
 var _down: Dictionary = {}
+var _switch_sig := ""
 
 
 static func place(host: Node) -> void:
@@ -39,6 +41,22 @@ static func place(host: Node) -> void:
 	var node := script.new() as Node
 	node.name = "FactoryDoors"
 	host.add_child(node)
+
+
+func _pull_switches() -> void:
+	var trip := int(_ELEVATOR.trip_id)
+	if trip <= 0:
+		return
+	var rows: Array = ToonNet.latest("factory:%d" % trip).get("switches", [])
+	var sig := JSON.stringify(rows)
+	if sig == _switch_sig:
+		return
+	_switch_sig = sig
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		apply_switch(int(row.get("kind", 0)), int(row.get("id", 0)), bool(row.get("on", false)))
 
 
 func apply_switch(kind: int, ent_id: int, on: bool) -> void:
@@ -56,6 +74,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_pull_switches()
 	_poll_player()
 	for ent_id in _buttons:
 		var button: CogButton = _buttons[ent_id]
@@ -202,7 +221,7 @@ func _set_button(ent_id: int, on: bool, tell: bool) -> void:
 	_sfx(button.root, stream)
 	_drive_locks()
 	if tell:
-		ToonNet.ask_factory_switch(0, ent_id, on)
+		ToonNet.ask_factory_switch(int(_ELEVATOR.trip_id), 0, ent_id, on)
 
 
 func _pose_button(button: CogButton, down: bool) -> void:
@@ -349,7 +368,7 @@ func _try_open(ent_id: int, tell: bool) -> void:
 		return
 	_begin_open(door)
 	if tell:
-		ToonNet.ask_factory_switch(1, ent_id, true)
+		ToonNet.ask_factory_switch(int(_ELEVATOR.trip_id), 1, ent_id, true)
 
 
 func _locks_open(door: Door) -> bool:

@@ -28,9 +28,15 @@ const _SLIDE := 3.5
 const _SCALE := 1.05
 const _HOP_W := 0.1804 * 20.0 * 0.15
 const _HOP_H := 0.1137 * 11.0 * 0.15
-## ElevatorPoints[0] and JumpOutOffsets[0]. Local Y points into the car.
-const _SEAT := Vector3(-1.5, 5.0, 0.1)
-const _JUMP := Vector3(-1.5, -5.0, 0.1)
+## ElevatorPoints. Local Y points into the car. Four toons share the car.
+const _SEATS: Array[Vector3] = [
+	Vector3(-1.5, 5.0, 0.1), Vector3(1.5, 5.0, 0.1),
+	Vector3(-2.5, 3.0, 0.1), Vector3(2.5, 3.0, 0.1),
+]
+const _OFF: Array[Vector3] = [
+	Vector3(-1.5, -5.0, 0.1), Vector3(1.5, -5.0, 0.1),
+	Vector3(-2.5, -7.0, 0.1), Vector3(2.5, -7.0, 0.1),
+]
 ## setEntranceId. Panda (x, y, z, heading).
 const _FRONT := Vector3(62.74, -85.31, 0.0)
 const _FRONT_H := 2.0
@@ -39,12 +45,16 @@ const _SIDE_H := 269.0
 
 static var trip := ""
 static var entrance := 0
+static var trip_id := 0
+static var seat := 0
 
 var _cars: Array[Node3D] = []
 var _car: Node3D
 var _phase := ""
 var _age := 0.0
 var _left := 0.0
+var _seat := 0
+var _ask_wait := 0.0
 var _from := Vector3.ZERO
 var _hop: TextureButton
 var _clock: Label3D
@@ -83,7 +93,7 @@ static func arrival(host: Node, which: int, into_factory: bool) -> Dictionary:
 		var out := -car.global_transform.basis.y
 		out.y = 0.0
 		return {
-			"point": car.global_transform * _JUMP,
+			"point": car.global_transform * _spot(seat),
 			"heading": _heading(out),
 		}
 	var car := _find(host, "FactoryFront" if which == 0 else "FactorySide")
@@ -92,9 +102,17 @@ static func arrival(host: Node, which: int, into_factory: bool) -> Dictionary:
 	var out := -car.global_transform.basis.y
 	out.y = 0.0
 	return {
-		"point": car.global_transform * _JUMP,
+		"point": car.global_transform * _spot(seat),
 		"heading": _heading(out),
 	}
+
+
+static func _spot(which: int) -> Vector3:
+	return _OFF[clampi(which, 0, _OFF.size() - 1)]
+
+
+static func _seat_at(which: int) -> Vector3:
+	return _SEATS[clampi(which, 0, _SEATS.size() - 1)]
 
 
 func _ready() -> void:
@@ -111,23 +129,28 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_place_hop()
+	_ask_wait = maxf(_ask_wait - delta, 0.0)
+	if _phase == "left":
+		return
+	if _pulled_out():
+		return
 	if _phase == "":
+		var joined := _accepted()
+		if not joined.is_empty():
+			_begin_board(joined["car"] as Node3D, int(joined["seat"]))
+			return
 		_offer()
 		return
 	_age += delta
 	if _phase == "board":
 		_step_board()
 	elif _phase == "wait":
-		_left = maxf(_left - delta, 0.0)
-		_show_clock(true)
-		_stand()
-		if _left <= 0.0:
-			_begin_close()
+		_sync_wait()
 	elif _phase == "close":
 		_slide(clampf(_age / _CLOSE_TIME, 0.0, 1.0))
 		_stand()
 		if _age >= _CLOSE_TIME:
-			_depart()
+			_hold_depart()
 	elif _phase == "hop":
 		_show_clock(false)
 		_step_hop()
@@ -173,7 +196,7 @@ func _car_on(parent: Node3D, car_name: String, pos: Vector3, basis: Basis, outsi
 
 func _offer() -> void:
 	var toon := _toon()
-	if toon == null or bool(toon.call("battle_busy")):
+	if toon == null or bool(toon.call("battle_busy")) or _ask_wait > 0.0:
 		return
 	var here: Vector3 = toon.call("battle_point")
 	for car in _cars:
@@ -182,9 +205,12 @@ func _offer() -> void:
 		_arm(car, here)
 		if not bool(car.get_meta("ready")):
 			continue
+		if not bool(car.get_meta("outside")) and int(car.get_meta("entrance")) != entrance:
+			continue
 		if not _in_door(car, here):
 			continue
-		_begin_board(car)
+		_ask_wait = 0.4
+		_request_board(car)
 		return
 
 
@@ -206,11 +232,12 @@ func _in_door(car: Node3D, here: Vector3) -> bool:
 	return absf(local.x) < 3.2 and local.y > -2.0 and local.y < 2.0
 
 
-func _begin_board(car: Node3D) -> void:
+func _begin_board(car: Node3D, seat_index: int) -> void:
 	var toon := _toon()
 	if toon == null:
 		return
 	_car = car
+	_seat = seat_index
 	_phase = "board"
 	_age = 0.0
 	_cue = ""
@@ -225,19 +252,25 @@ func _step_board() -> void:
 	if toon == null or _car == null:
 		_release()
 		return
-	var seat: Vector3 = _car.global_transform * _SEAT
-	var toward := _heading(seat - _from)
+	var snap := _snap(_car)
+	if str(snap.get("state", "")) == "closing":
+		_begin_close()
+		return
+	if str(snap.get("state", "")) == "depart":
+		_depart()
+		return
+	var seat_at: Vector3 = _car.global_transform * _seat_at(_seat)
+	var toward := _heading(seat_at - _from)
 	var face := toward
 	if _age >= _BOARD * _BOARD_RUN:
 		face = _heading(-_car.global_transform.basis.y)
 	var blend := clampf(_age / _BOARD, 0.0, 1.0)
-	toon.call("visit_friend", _from.lerp(seat, blend), face if _age >= _BOARD * _BOARD_RUN else toward)
+	toon.call("visit_friend", _from.lerp(seat_at, blend), face if _age >= _BOARD * _BOARD_RUN else toward)
 	_animate(16.0 if _age < _BOARD * _BOARD_RUN else 0.0)
 	_aim()
 	if _age >= _BOARD:
 		_phase = "wait"
 		_age = 0.0
-		_left = _COUNTDOWN
 		_animate(0.0)
 		if _hop != null:
 			_hop.visible = true
@@ -253,41 +286,49 @@ func _begin_close() -> void:
 	_play_music()
 
 
-## DistributedFactory.enterForemanReward sends the toon out after the win.
+## DistributedFactory.enterForemanReward sends the whole group out after the win.
 func win_leave() -> void:
-	if _phase != "" and _phase != "offer":
-		return
-	var fallback: Node3D = null
-	for car in _cars:
-		if car == null or bool(car.get_meta("outside")):
-			continue
-		if fallback == null:
-			fallback = car
-		if int(car.get_meta("entrance")) != entrance:
-			continue
-		_car = car
-		_depart()
-		return
-	if fallback == null:
-		return
-	_car = fallback
-	_depart()
+	var toon := _toon()
+	var payload := {
+		"trip": trip_id,
+		"district": ToonNet.district_id(),
+	}
+	if toon != null:
+		var hp: Vector2i = toon.call("battle_hp")
+		payload["name"] = str(toon.call("battle_name"))
+		payload["hp"] = hp.x
+		payload["max"] = hp.y
+	ToonNet.factory_act("leave", payload)
 
 
 func _depart() -> void:
-	if _car == null:
-		_release()
+	if _phase == "left" or _car == null:
 		return
+	var snap := _snap(_car)
+	var mine := _listed(snap)
 	var outside := bool(_car.get_meta("outside"))
 	# Walking out does not finish the factory. The foreman battle does.
 	trip = "in" if outside else "out"
 	entrance = int(_car.get_meta("entrance"))
+	if outside:
+		trip_id = int(snap.get("trip", 0))
+	else:
+		trip_id = 0
+	if not mine.is_empty():
+		seat = int(mine.get("seat", 0))
+	_phase = "left"
 	ToonLoading.change_to(_INTERIOR if outside else _EXTERIOR)
 
 
 func _hop_off() -> void:
-	if _phase != "wait":
+	if _phase != "wait" or _car == null:
 		return
+	var action := "hop" if bool(_car.get_meta("outside")) else "exit_hop"
+	ToonNet.factory_act(action, {
+		"district": ToonNet.district_id(),
+		"entrance": int(_car.get_meta("entrance")),
+		"trip": trip_id,
+	})
 	_phase = "hop"
 	_age = 0.0
 	_from = _toon().call("battle_point") if _toon() != null else Vector3.ZERO
@@ -302,7 +343,7 @@ func _step_hop() -> void:
 	if toon == null or _car == null:
 		_release()
 		return
-	var dest: Vector3 = _car.global_transform * _JUMP
+	var dest: Vector3 = _car.global_transform * _spot(_seat)
 	var face := _heading(-_car.global_transform.basis.y)
 	var blend := clampf(_age / _EXIT, 0.0, 1.0)
 	toon.call("visit_friend", _from.lerp(dest, blend), face)
@@ -320,9 +361,109 @@ func _stand() -> void:
 	if toon == null:
 		return
 	var face := _heading(-_car.global_transform.basis.y)
-	toon.call("visit_friend", _car.global_transform * _SEAT, face)
+	toon.call("visit_friend", _car.global_transform * _seat_at(_seat), face)
 	_animate(0.0)
 	_aim()
+
+
+func _sync_wait() -> void:
+	if _car == null:
+		_release()
+		return
+	var snap := _snap(_car)
+	_left = float(snap.get("left", 0.0))
+	var state := str(snap.get("state", "open"))
+	if state == "closing":
+		_begin_close()
+		return
+	if state == "depart":
+		_depart()
+		return
+	if _listed(snap).is_empty():
+		_release()
+		return
+	_show_clock(true)
+	_stand()
+	if _hop != null:
+		_hop.visible = true
+
+
+func _hold_depart() -> void:
+	_stand()
+	if _car == null:
+		return
+	if str(_snap(_car).get("state", "")) == "depart":
+		_depart()
+
+
+func _pulled_out() -> bool:
+	for car in _cars:
+		if car == null:
+			continue
+		if not bool(car.get_meta("outside")) and int(car.get_meta("entrance")) != entrance:
+			continue
+		var snap := _snap(car)
+		if str(snap.get("state", "")) != "depart":
+			continue
+		if _listed(snap).is_empty():
+			continue
+		_car = car
+		_depart()
+		return true
+	return false
+
+
+func _accepted() -> Dictionary:
+	for car in _cars:
+		if car == null:
+			continue
+		if not bool(car.get_meta("outside")) and int(car.get_meta("entrance")) != entrance:
+			continue
+		var snap := _snap(car)
+		var state := str(snap.get("state", ""))
+		if state != "open" and state != "boarding":
+			continue
+		var mine := _listed(snap)
+		if mine.is_empty():
+			continue
+		return {"car": car, "seat": int(mine.get("seat", 0))}
+	return {}
+
+
+func _request_board(car: Node3D) -> void:
+	var toon := _toon()
+	if toon == null:
+		return
+	var hp: Vector2i = toon.call("battle_hp")
+	var action := "board" if bool(car.get_meta("outside")) else "exit_board"
+	ToonNet.factory_act(action, {
+		"district": ToonNet.district_id(),
+		"entrance": int(car.get_meta("entrance")),
+		"trip": trip_id,
+		"name": str(toon.call("battle_name")),
+		"hp": hp.x,
+		"max": hp.y,
+	})
+
+
+func _snap(car: Node3D) -> Dictionary:
+	if car == null:
+		return {}
+	return ToonNet.latest(_channel(car))
+
+
+func _channel(car: Node3D) -> String:
+	if bool(car.get_meta("outside")):
+		return "factory-car:%d:%d" % [ToonNet.district_id(), int(car.get_meta("entrance"))]
+	return "factory-out:%d" % trip_id
+
+
+func _listed(snap: Dictionary) -> Dictionary:
+	var me := ToonNet.peer_id()
+	for item in snap.get("toons", []):
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == me:
+			return item
+	return {}
 
 
 func _release() -> void:
