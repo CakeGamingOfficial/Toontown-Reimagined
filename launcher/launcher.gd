@@ -46,6 +46,7 @@ var _meter_at := 0
 var _meter_percent := 0
 var _needs_import := false
 var _asked_exclusion := false
+var _history_next := false
 var _launch_project := ""
 
 var _menu: Control
@@ -176,6 +177,7 @@ func _finish_sync(outcome: Dictionary) -> void:
 	var note := String(outcome.get("note", ""))
 	if note != "":
 		_status.text = note
+	_history_next = bool(outcome.get("history_next", false))
 	_continue_after_sync()
 
 
@@ -277,6 +279,9 @@ func _launch_game() -> void:
 		_set_buttons_disabled(false)
 		_status.text = "The game did not start."
 		return
+	if _history_next and _repo != "":
+		_config["history_after"] = _history_key(_repo)
+		_save_config()
 	get_tree().quit()
 
 
@@ -321,6 +326,13 @@ func _sync_thread() -> void:
 
 func _sync() -> Dictionary:
 	_allow_game_folder()
+	if _repo != "" and _has_project(_repo) and not _has_commits() and not _history_is_due():
+		return {
+			"ok": true,
+			"repo": _repo,
+			"history_next": true,
+			"note": "Starting this downloaded folder. The next Play downloads update history, about 1.6 GB.",
+		}
 	var git_ready := _ensure_git()
 	if not bool(git_ready.get("ok", false)):
 		return git_ready
@@ -607,7 +619,10 @@ func _show_local_rev() -> void:
 		_status.text = "The game is not installed yet. Play downloads Git for Windows if it is needed, then the game from %s." % _BRANCH
 		return
 	if not _has_git(_repo):
-		_status.text = "This downloaded folder has the game. The next Play downloads update history once, about 1.6 GB."
+		if _history_is_due():
+			_status.text = "The next Play downloads update history once, about 1.6 GB, then checks for updates."
+		else:
+			_status.text = "This downloaded folder has the game. Play installs it and starts. The following Play downloads update history, about 1.6 GB."
 		return
 	var branch := _git(["rev-parse", "--abbrev-ref", "HEAD"])
 	if int(branch.get("code", -1)) < 0:
@@ -699,6 +714,14 @@ func _has_commits() -> bool:
 	if not _has_git(_repo):
 		return false
 	return int(_git(["rev-parse", "--verify", "HEAD"]).get("code", 1)) == 0
+
+
+func _history_key(folder: String) -> String:
+	return folder.replace("\\", "/").trim_suffix("/").to_lower()
+
+
+func _history_is_due() -> bool:
+	return String(_config.get("history_after", "")) == _history_key(_repo)
 
 
 ## Records the downloaded folder as multiplayer-test without rewriting its files.
