@@ -173,6 +173,9 @@ func open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name: 
 		if not spot.is_empty():
 			origin = spot["at"] as Vector3
 			placed = true
+			var zone := String(spot.get("zone", ""))
+			fight["zone"] = zone
+			fight["bonus"] = preload("res://scenes/streets/street_props.gd").bonus_for(slug, zone)
 	if not placed:
 		var forward := _battle_forward(yaw)
 		origin = cog_pos - forward * 5.0
@@ -610,7 +613,12 @@ func _resolve(fight: Dictionary) -> void:
 		var runner := _toon(fight, int(choice.get("id", 0)))
 		if runner.is_empty():
 			continue
-		beats.append({"text": "%s ran away." % String(runner.get("name", "A toon")), "kind": "run", "id": int(runner.get("id", 0))})
+		beats.append({
+			"text": "%s ran away." % String(runner.get("name", "A toon")),
+			"kind": "run",
+			"toon": int(runner.get("id", 0)),
+			"id": int(runner.get("id", 0)),
+		})
 		runners.append(runner)
 	for leaving in runners:
 		roster.erase(leaving)
@@ -770,7 +778,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			living.append(body)
 	if living.is_empty():
 		return
-	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)), bool(choice.get("organic", false)))
+	var damage := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)), _buffed(fight, choice))
 	if _kills_instantly(toon):
 		damage = 9999
 	var group := ToonLoadout.affects_group(track, level)
@@ -815,6 +823,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		if revived:
 			beat["cog_hp"] = 0
 			beat["revived"] = true
+		_tag_surge(fight, beat, track)
 		beats.append(beat)
 		_note_combo(fight, track, int(toon.get("id", 0)), int(suit.get("id", 0)), dealt, beats.size() - 1)
 		landed = true
@@ -857,7 +866,7 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String, who: String, beats: Array) -> void:
 	var track := int(choice.get("track", 0))
 	var level := int(choice.get("level", 0))
-	var amount := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)), bool(choice.get("organic", false)))
+	var amount := ToonLoadout.gag_damage(track, level, int(choice.get("exp", 0)), _buffed(fight, choice))
 	var targets: Array = []
 	if ToonLoadout.affects_group(track, level):
 		targets = fight["toons"]
@@ -890,10 +899,32 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		var healed := _beat("%s used a %s and healed %d laff." % [who, gag, gained], track, level, toon, {}, true, gained, "")
 		healed["toon_hp"] = int(patient.get("hp", 0))
 		healed["toon_id"] = int(patient.get("id", 0))
+		_tag_surge(fight, healed, track)
 		beats.append(healed)
 		landed = true
 	if landed:
 		_grant(fight, int(toon.get("id", 0)), track, level)
+
+
+## Organic and the street prop each add getDamageBonus. They do not stack.
+func _buffed(fight: Dictionary, choice: Dictionary) -> bool:
+	var track := int(choice.get("track", -1))
+	return bool(choice.get("organic", false)) or int(fight.get("bonus", -1)) == track
+
+
+## InteractivePropTrackBonusTerms. The number turns blue for a damaging bonus.
+func _tag_surge(fight: Dictionary, beat: Dictionary, track: int) -> void:
+	if int(fight.get("bonus", -1)) != track:
+		return
+	var word := ""
+	if track == 0:
+		word = "Super Toon-Up!"
+	elif track == 4:
+		word = "Super Throw!"
+	elif track == 5:
+		word = "Super Squirt!"
+	if word != "":
+		beat["surge"] = word
 
 
 ## BattleCalculatorAI.__calcToonAtkHit. One roll covers every target of the gag.
@@ -914,7 +945,7 @@ func _toon_hit(fight: Dictionary, choice: Dictionary, living: Array) -> Dictiona
 		if bool(suit.get("lured", false)):
 			num_lured += 1
 	var prop := ToonLoadout.gag_accuracy(track, level)
-	if track == 2 and bool(choice.get("organic", false)):
+	if track == 2 and _buffed(fight, choice):
 		prop = ToonLoadout.lure_organic_accuracy(level)
 	var attack_acc := prop + _shared_exp(fight, choice, track) + defense
 	var noted := _hit_list(fight)
@@ -1356,7 +1387,12 @@ func _join_reserves(fight: Dictionary, kept: Array) -> bool:
 	_place(fight)
 	fight["joining"] = ids
 	fight["state"] = "reserves"
-	fight["left"] = 3.0
+	# SuitTimings.fromSky, then one second between each suit. Waiter and diner
+	# reserves fly in. A building floor still walks out under the old banner.
+	var span := 3.0
+	if String(fight.get("slug", "")).begins_with("boss_ceo"):
+		span = 6.5 + float(maxi(ids.size() - 1, 0))
+	fight["left"] = span
 	fight["beats"] = []
 	fight["choices"] = []
 	fight["seq"] = int(fight.get("seq", 0)) + 1
@@ -1642,6 +1678,7 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 		"revives": int(cog.get("revives", 0)),
 		"body": String(cog.get("body", "c")),
 		"height": float(cog.get("height", 4.0)),
+		"scale": float(cog.get("scale", 1.0)),
 		"from": cog.get("pos", [0.0, 0.0, 0.0]),
 		"slot": cog.get("pos", [0.0, 0.0, 0.0]),
 	}

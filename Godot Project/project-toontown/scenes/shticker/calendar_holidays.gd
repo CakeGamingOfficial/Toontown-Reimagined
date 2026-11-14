@@ -1303,6 +1303,10 @@ static func _adopt_net() -> void:
 			_running[holiday_id] = true
 
 
+static func running(holiday_id: int) -> bool:
+	return _on().has(holiday_id)
+
+
 static func _on() -> Dictionary:
 	_adopt_net()
 	return _running

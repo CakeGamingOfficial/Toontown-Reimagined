@@ -76,6 +76,9 @@ var _waiting := false
 var _built := false
 var _tutorial := false
 var _building := false
+## The street prop's track. InventoryNew paints those buttons orange and flashes them.
+var _bonus_track := -1
+const _PROP_BONUS := Color(1.0, 0.6, 0.0, 1.0)
 var _menu: TextureRect
 var _prompt: TextureRect
 var _prompt_text: Label
@@ -103,10 +106,11 @@ var _credit_level := -1
 var _no_credit := false
 
 
-func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0, credit_level := -1) -> void:
+func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0, credit_level := -1, bonus_track := -1) -> void:
 	_loadout = loadout
 	_credit = credit
 	_credit_level = credit_level
+	_bonus_track = bonus_track
 	_tutorial = tutorial
 	# InventoryNew.battleActivateButtons hides Run when bldg == 1.
 	_building = building
@@ -121,6 +125,22 @@ func setup(loadout: ToonLoadout, tutorial := false, building := false, credit :=
 		if view != null and not view.size_changed.is_connected(_layout):
 			view.size_changed.connect(_layout)
 	_layout()
+
+
+func _process(_delta: float) -> void:
+	if not visible or _bonus_track < 0:
+		return
+	# InventoryNew flashes the prop-bonus buttons between dim and full.
+	var wave := 0.15 + 0.85 * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.005))
+	var tint := Color(_PROP_BONUS.r * wave, _PROP_BONUS.g * wave, _PROP_BONUS.b * wave, 1.0)
+	for track in ToonLoadout.TRACK_COUNT:
+		if track != _bonus_track:
+			continue
+		for level in ToonLoadout.LEVEL_COUNT:
+			var index := track * ToonLoadout.LEVEL_COUNT + level
+			if index >= _slots.size() or _slots[index].disabled or not _slots[index].visible:
+				continue
+			_slots[index].modulate = tint
 
 
 func choose() -> Vector2i:
@@ -349,13 +369,19 @@ func _paint_slot(track: int, level: int) -> void:
 		return
 	var owned := _loadout.count_of(track, level)
 	_counts[index].text = str(owned)
-	# InventoryNew.ShadowBuffedColor. An organic gag's count has a white shadow.
-	var outline := Color.WHITE if _loadout.is_organic(track, level) else Color(0.05, 0.12, 0.28)
+	# InventoryNew.ShadowBuffedColor. An organic gag or the prop's track has a white shadow.
+	var buffed := _loadout.is_organic(track, level) or track == _bonus_track
+	var outline := Color.WHITE if buffed else Color(0.05, 0.12, 0.28)
 	_counts[index].add_theme_color_override("font_outline_color", outline)
 	var blocked := owned <= 0
 	var slot := _slots[index]
 	slot.disabled = blocked
-	slot.modulate = _UNPRESSABLE if blocked else _PRESSABLE
+	if blocked:
+		slot.modulate = _UNPRESSABLE
+	elif track == _bonus_track:
+		slot.modulate = _PROP_BONUS
+	else:
+		slot.modulate = _PRESSABLE
 	_icons[index].modulate = Color(0.55, 0.55, 0.55) if blocked else Color.WHITE
 
 
@@ -388,9 +414,10 @@ func _show_detail(track: int, level: int) -> void:
 	_detail_credit.visible = true
 	var exp := _loadout.experience_of(track)
 	var grown := _loadout.is_organic(track, level)
+	var buffed := grown or track == _bonus_track
 	var kind := "Toon-up" if track == ToonLoadout.TOON_UP else "Damage"
 	var base := ToonLoadout.gag_damage(track, level, exp)
-	var extra := ToonLoadout.damage_bonus(base) if grown else 0
+	var extra := ToonLoadout.damage_bonus(base) if buffed else 0
 	var bonus := " (+%d)" % extra if extra > 0 else ""
 	_detail_name.text = _loadout.gag_name(track, level)
 	_detail_amount.text = "%d / %d" % [_loadout.count_of(track, level), _loadout.carry_limit(track, level)]

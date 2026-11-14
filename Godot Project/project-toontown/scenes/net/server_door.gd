@@ -64,6 +64,10 @@ func _show_menu() -> void:
 	_waiting = false
 	_title.text = "WELCOME"
 	_body.text = "Play on this computer, host a district other computers can join, or connect to a server that is already running."
+	var problem := ToonNet.launch_error()
+	if problem != "":
+		_body.text = problem
+		ToonNet.clear_launch_error()
 	_clear_widgets()
 	_keep(_pill("Single Player", _play_alone))
 	_keep(_pill("Host a Server", _ask_host))

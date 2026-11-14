@@ -51,6 +51,10 @@ func _ready() -> void:
 	_refresh_shield()
 	if not multiplayer.server_disconnected.is_connected(_server_closed):
 		multiplayer.server_disconnected.connect(_server_closed)
+	if not multiplayer.connection_failed.is_connected(_launch_failed):
+		multiplayer.connection_failed.connect(_launch_failed)
+	if not multiplayer.connected_to_server.is_connected(_launch_arrived):
+		multiplayer.connected_to_server.connect(_launch_arrived)
 	# The head shader compiles on the first draw. Welcome buttons stay hidden
 	# until that draw is done, so Single Player, Host, Connect, and Quit are
 	# not the frame that stalls.
@@ -100,7 +104,10 @@ func _server_closed() -> void:
 
 
 func _offer_server() -> void:
-	if ToonNet.networked() or get_node_or_null("ServerDoor") != null:
+	if ToonNet.launch_waiting():
+		_show_launch_wait()
+		return
+	if ToonNet.door_skipped() or ToonNet.networked() or get_node_or_null("ServerDoor") != null:
 		return
 	var door := (load("res://scenes/net/server_door.gd") as GDScript).new() as Control
 	door.name = "ServerDoor"
@@ -111,6 +118,41 @@ func _offer_server() -> void:
 	door.offset_bottom = 0.0
 	add_child(door)
 	_refresh_shield()
+
+
+func _show_launch_wait() -> void:
+	if get_node_or_null("LaunchWait") != null:
+		return
+	var wait := ColorRect.new()
+	wait.name = "LaunchWait"
+	wait.color = Color(0.05, 0.08, 0.16, 0.45)
+	wait.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wait.mouse_filter = Control.MOUSE_FILTER_STOP
+	wait.z_index = 80
+	add_child(wait)
+	var label := Label.new()
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.text = "Joining %s..." % ToonNet.launch_target()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wait.add_child(label)
+	ToonGui.style_label(label, Color(1.0, 0.95, 0.7), 42, Color(0.05, 0.1, 0.2), 8)
+	_refresh_shield()
+
+
+func _launch_arrived() -> void:
+	var wait := get_node_or_null("LaunchWait")
+	if wait != null:
+		wait.queue_free()
+	_refresh_shield()
+
+
+func _launch_failed() -> void:
+	var wait := get_node_or_null("LaunchWait")
+	if wait != null:
+		wait.queue_free()
+	_offer_server()
 
 
 func _play_theme() -> void:
@@ -488,7 +530,7 @@ func _process(_delta: float) -> void:
 func _refresh_shield() -> void:
 	if _shield == null or not is_instance_valid(_shield):
 		return
-	var covered := _guard_left > 0 or _confirm != null or get_node_or_null("ServerDoor") != null or get_node_or_null("OptionsPanel") != null
+	var covered := _guard_left > 0 or _confirm != null or get_node_or_null("ServerDoor") != null or get_node_or_null("OptionsPanel") != null or get_node_or_null("LaunchWait") != null
 	_shield.mouse_filter = Control.MOUSE_FILTER_STOP if covered else Control.MOUSE_FILTER_IGNORE
 
 

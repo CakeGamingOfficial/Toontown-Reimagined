@@ -316,6 +316,7 @@ func _press_chat() -> void:
 
 
 func _open_menu() -> void:
+	_apply_holiday_menus()
 	_close_menu()
 	_blocker.visible = not _pinned
 	var shown := _items.duplicate()
@@ -1877,6 +1878,123 @@ func _apply_ceo_menu() -> void:
 		lines.append({"text": text, "say": text})
 	var at := mini(2, _items.size())
 	_items.insert(at, {"title": "C.E.O.", "items": lines})
+
+
+const _HOLIDAY_TITLES: Array[String] = [
+	"HALLOWEEN", "WINTER", "APRIL TOONS'", "VICTORY PARTIES", "STORM SELLBOT", "JELLYBEAN WEEK", "GREEN",
+]
+
+
+func _apply_holiday_menus() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and _HOLIDAY_TITLES.has(String((group as Dictionary).get("title", ""))):
+			_items.remove_at(index)
+	var on := _HOLIDAYS._on()
+	var menus: Array = []
+	if on.has(26) or on.has(13):
+		menus.append({"title": "HALLOWEEN", "items": _lines(["Boo!", "Happy Halloween!", "Spooky!"])})
+	if on.has(4) or on.has(57):
+		var winter: Array = []
+		if on.has(57):
+			winter.append({"title": "CAROLING", "items": [
+				_said("Deck the halls... ", "Deck the halls with seltzer spray! Happy Winter Holiday!"),
+				_said("Load some pies...", "Load some pies into your sleigh! Happy Winter Holiday!"),
+				_said("Joyful toons...", "Joyful toons bring Cogs dismay! Happy Winter Holiday!"),
+				_said("Snowman heads...", "Snowman heads are hot today! Happy Winter Holiday!"),
+				_said("Toontown's merry...", "Toontown's merry, come what may! Happy Winter Holiday!"),
+				_said("Lure good cheer...", "Lure good cheer the Toontown way! Happy Winter Holiday!"),
+			]})
+		winter.append_array(_lines(["Happy holidays!", "Season's greetings!", "Have a Wonderful Winter!"]))
+		menus.append({"title": "WINTER", "items": winter})
+	if on.has(29):
+		menus.append({"title": "APRIL TOONS'", "items": [
+			{"title": "GREETINGS", "items": _lines(["Happy April Toons' Week!", "The Silly Meter is back in Toon Hall!"])},
+			{"title": "PLAYGROUNDS", "items": _lines([
+				"Mickey is in Daisy Gardens.", "Daisy is in Toontown Central.", "Minnie is in The Brrrgh.",
+				"Pluto is in Melodyland.", "Donald is sleepwalking at the Speedway.", "Goofy is in Dreamland.",
+			])},
+			{"title": "CHARACTERS", "items": _lines([
+				"Mickey is acting like Daisy!", "Daisy is acting like Mickey!", "Minnie is acting like Pluto!",
+				"Pluto is acting like Minnie!", "Pluto is talking!", "Goofy is acting like Donald!",
+				"Donald is dreaming he is Goofy!",
+			])},
+			{"title": "ESTATES", "items": _lines([
+				"Watch how far I can jump.", "Wow, you jumped really far!", "Hey, Doodles can talk!", "Did your Doodle just talk?",
+			])},
+			_said("Things sure are silly around here!", "Things sure are silly around here!"),
+			_said("How sillier could things get?", "How sillier could things get?"),
+		]})
+	if on.has(95):
+		menus.append({"title": "VICTORY PARTIES", "items": [
+			{"title": "PARTY", "items": _lines([
+				"Welcome to my Victory Party!", "This is a great Victory Party!", "We showed those Cogs who's boss!",
+				"Good job helping end the Cog invasions!", "I bet this is driving the Cogs crazy!",
+			])},
+			{"title": "ITEMS", "items": _lines([
+				"Let's play Cog-O-War!", "My team won at Cog-O-War!",
+				"It's nice to have fire hydrants, trash cans, and mailboxes here!",
+				"I like the balloon of the Doodle biting the Cog!",
+				"I like the balloon of the Cog covered in ice cream!",
+				"I like the wavy Cog that flaps his arms!", "I jumped on a Cog's face!",
+			])},
+		]})
+	if on.has(96):
+		menus.append({"title": "STORM SELLBOT", "items": [
+			_said("Operation: Storm Sellbot is here!", "Operation: Storm Sellbot is here!"),
+			_said("Sellbot Towers had its power drained by Doodles!", "Sellbot Towers had its power drained by Doodles!"),
+			_said("The VP had his power drained by Doodles!", "The VP had his power drained by Doodles!"),
+			_said("Everyone can fight the VP right now!", "Everyone can fight the VP right now!"),
+			_said("You don't need a Sellbot Disguise to fight the VP!", "You don't need a Sellbot Disguise to fight the VP!"),
+			_said("You get a Rental Suit when you go into Sellbot Towers.", "You get a Rental Suit when you go into Sellbot Towers."),
+			_said("Do you like my Rental Suit? Sorry about the safety pins!", "Do you like my Rental Suit? Sorry about the safety pins!"),
+			{"title": "GROUPING", "items": _lines([
+				"It's best to have eight Toons to fight the VP.", "Will you help me fight the VP?",
+				"Do you want to fight the VP with me?", "Would you like to join my Sellbot VP group?",
+				"I am looking for a Toon with a Rental Suit to fight the VP.",
+				"I have a Rental Suit, and am looking to fight the VP.",
+				"Just walk through the doors to get your Rental Suit.", "Save your gags for the Cogs inside!",
+			])},
+			{"title": "SELLBOT TOWERS/VP", "items": _lines([
+				"We have to defeat these Cogs first!", "Bump the barrels to gag up.", "Bump the barrel to get a Toon-up.",
+				"Now we have to fight some Skelecogs!", "Jump up and touch the Toon's cage for pies!",
+				"Now we fight the VP!", "Aim your pies by pressing the Delete button.",
+				"Two Toons should throw pies through the VP's open doors!",
+				"I'll stun the VP from the front.", "I'll stun the VP from the back.", "Jump when the VP jumps!",
+			])},
+		]})
+	if on.has(49) or on.has(97) or on.has(98) or on.has(99):
+		menus.append({"title": "JELLYBEAN WEEK", "items": [
+			{"title": "GET JELLYBEANS", "items": _lines([
+				"I got double jellybeans on the Trolley!", "I got double jellybeans from fishing!",
+				"I got double jellybeans at a party!", "Jellybeans jellybeans jellybeans!",
+				"I'm really keen to earn a bean!", "Don't be smelly, get beans of jelly!",
+			])},
+			{"title": "SPEND JELLYBEANS", "items": _lines([
+				"I'm gonna adopt a Doodle with all these jellybeans!",
+				"What am I gonna spend all these jellybeans on?", "I'm gonna throw a huge party!",
+				"I'm gonna decorate my whole Estate!", "I'm gonna buy a whole new wardrobe!",
+			])},
+		]})
+	if on.has(105):
+		menus.append({"title": "GREEN", "items": _lines([
+			"It's easy to be green!", "Visit Green Bean Jeans and you can be green too!",
+			"It's on Oak Street in Daisy Gardens.",
+		])})
+	var at := mini(2, _items.size())
+	for index in range(menus.size() - 1, -1, -1):
+		_items.insert(at, menus[index])
+
+
+func _lines(texts: Array) -> Array:
+	var rows: Array = []
+	for text in texts:
+		rows.append(_said(String(text), String(text)))
+	return rows
+
+
+func _said(text: String, spoken: String) -> Dictionary:
+	return {"text": text, "say": spoken}
 
 
 func _has_emote(lines: Array, emote: int) -> bool:

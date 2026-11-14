@@ -53,6 +53,8 @@ func _ready() -> void:
 	if preload("res://scenes/interiors/shop_door.gd").street_zone(scene_file_path) != 0:
 		preload("res://scenes/interiors/shop_door.gd").prepare(self)
 	preload("res://scenes/playgrounds/playground_collision.gd").finish(self, false)
+	if scene_file_path.ends_with("daisy_gardens.tscn"):
+		preload("res://scenes/playgrounds/playground_butterflies.gd").place(self)
 	if estate_slot >= 0:
 		preload("res://scenes/estate/garden_plots.gd").place(self, estate_slot)
 	if scene_file_path.ends_with("party_grounds.tscn"):
@@ -151,6 +153,25 @@ func show_fireworks(show_name: String, at: int = -1, delay: float = 0.0) -> void
 
 func _watch_fireworks() -> void:
 	_FIREWORK_SHOW.follow(self)
+	_watch_holiday_show()
+
+
+func _watch_holiday_show() -> void:
+	var file := scene_file_path.get_file()
+	if file != "toontown_central.tscn" and file != "donalds_dock.tscn" and file != "daisy_gardens.tscn" and file != "minnies_melodyland.tscn" and file != "the_burrrgh.tscn" and file != "donalds_dreamland.tscn" and file != "goofy_speedway.tscn" and file != "acorn_acres.tscn":
+		return
+	var holidays := preload("res://scenes/shticker/calendar_holidays.gd")
+	var show := ""
+	if bool(holidays.call("running", 2)):
+		show = "newyear"
+	elif bool(holidays.call("running", 1)):
+		show = "summer"
+	if show == "":
+		return
+	if String(get_meta("holiday_show", "")) == show or get_node_or_null("FireworkShow") != null:
+		return
+	set_meta("holiday_show", show)
+	_FIREWORK_SHOW.present(self, show)
 
 
 func _notification(what: int) -> void:

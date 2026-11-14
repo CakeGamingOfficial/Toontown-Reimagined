@@ -9,6 +9,9 @@ class_name ToonNet
 ## A headless launch, or --server after --, is a dedicated district. It listens
 ## on UDP and does not take a player slot. Windows clients use Connect.
 ##
+## The playtest launcher passes --solo, --host, or --join. Those skip the
+## welcome door. The editor passes none of them, so the door still appears.
+##
 ## districts.json is the list of AI processes this server stands in for.
 ## Welcome Valley is district 0, inside whichever shard you entered it from.
 ## Quiet is 399 toons or fewer, Ideal is 599, and a fuller district is closed.
@@ -47,6 +50,10 @@ const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 var _next_id := 1
 var _port := _PORT
 var _dedicated := false
+## solo, host, or join when the playtest launcher started this process.
+var _launch := ""
+var _launch_error := ""
+var _launch_joined := false
 var _status := ""
 ## RequestMinigame, keyed by the peer who typed ~mg. 0 is the offline player.
 var _trolley_for: Dictionary = {}
@@ -103,6 +110,7 @@ func _ready() -> void:
 		_become_dedicated()
 	else:
 		_warm_lan()
+		_apply_launch_args()
 	if is_authority():
 		_HOLIDAYS.tick_county(0.0)
 
@@ -146,6 +154,38 @@ static func is_authority() -> bool:
 static func networked() -> bool:
 	var net := live()
 	return net != null and net._role != "offline"
+
+
+## The launcher already chose single player, host, or join.
+static func door_skipped() -> bool:
+	var net := live()
+	return net != null and net._launch != ""
+
+
+## Join has been requested and the server has not answered yet.
+static func launch_waiting() -> bool:
+	var net := live()
+	return net != null and net._launch == "join" and not net._launch_joined
+
+
+static func launch_target() -> String:
+	var net := live()
+	if net == null:
+		return ""
+	return "%s:%d" % [net._last_address, net._last_port]
+
+
+static func launch_error() -> String:
+	var net := live()
+	if net == null:
+		return ""
+	return net._launch_error
+
+
+static func clear_launch_error() -> void:
+	var net := live()
+	if net != null:
+		net._launch_error = ""
 
 
 ## Round trip to the district, in milliseconds. -1 offline, -2 when this
@@ -594,6 +634,72 @@ func _apply_server_args() -> void:
 			_stop_file = String(args[index + 1])
 		elif arg.begins_with("--stop-file="):
 			_stop_file = arg.trim_prefix("--stop-file=")
+
+
+## --solo, --host [port], and --join address [port] from the playtest launcher.
+func _apply_launch_args() -> void:
+	var mode := ""
+	var address := ""
+	var text := ""
+	var port := _port
+	var args := OS.get_cmdline_user_args()
+	var index := 0
+	while index < args.size():
+		var arg := String(args[index])
+		if arg == "--solo":
+			mode = "solo"
+		elif arg == "--host":
+			mode = "host"
+			if index + 1 < args.size() and String(args[index + 1]).is_valid_int():
+				port = int(args[index + 1])
+				index += 1
+		elif arg.begins_with("--host="):
+			mode = "host"
+			text = arg.trim_prefix("--host=")
+			if text.is_valid_int():
+				port = int(text)
+		elif arg == "--join":
+			mode = "join"
+			if index + 1 < args.size():
+				address = String(args[index + 1])
+				index += 1
+			if index + 1 < args.size() and String(args[index + 1]).is_valid_int():
+				port = int(args[index + 1])
+				index += 1
+		elif arg.begins_with("--join="):
+			mode = "join"
+			text = arg.trim_prefix("--join=")
+			var colon := text.rfind(":")
+			if colon > 0 and text.substr(colon + 1).is_valid_int():
+				address = text.substr(0, colon)
+				port = int(text.substr(colon + 1))
+			else:
+				address = text
+		index += 1
+	if mode == "":
+		return
+	if port < 1 or port > 65535:
+		_launch_error = "Type a port from 1 to 65535."
+		return
+	if mode == "solo":
+		_launch = "solo"
+		return
+	if mode == "host":
+		var hosted := _host_game(port)
+		if not hosted.begins_with("Hosting") and not hosted.begins_with("Already hosting"):
+			_launch_error = hosted
+			return
+		_launch = "host"
+		return
+	address = address.strip_edges()
+	if address == "":
+		_launch_error = "Type the host computer's address."
+		return
+	var joined := _join_server(address, port)
+	if not joined.begins_with("Joining"):
+		_launch_error = joined
+		return
+	_launch = "join"
 
 
 func _become_dedicated() -> void:
@@ -2407,6 +2513,7 @@ func _print_move(peer: int, previous: int, id: int) -> void:
 
 func _on_connected() -> void:
 	_lost = false
+	_launch_joined = true
 	_role = "client"
 	_forget_clock()
 	if not _rejoining:
@@ -2421,6 +2528,11 @@ func _on_connected() -> void:
 func _on_failed() -> void:
 	_role = "offline"
 	multiplayer.multiplayer_peer = null
+	if _launch == "join":
+		_launch = ""
+		_launch_joined = false
+		if _launch_error == "":
+			_launch_error = "Could not reach that server. Check the address, the UDP port, and that the host is still running."
 	if not _rejoining:
 		return
 	_rejoining = false

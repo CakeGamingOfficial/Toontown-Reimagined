@@ -664,20 +664,22 @@ func _path_ring(parent: Node3D, center: Vector3, radius: float, mat: Material) -
 ## two sidewalks are a clear pair, the spot is the point halfway between them.
 func battle_spot(near: Vector3) -> Dictionary:
 	var cell := _nearest_cell(near)
-	if cell == Vector3.INF:
+	if cell == null:
 		return {}
+	var zone := String(cell.name).trim_prefix("BattleCell_")
+	var at := cell.global_position
 	if not json_path.contains("cog_hq"):
-		var middle := _between_sidewalks(cell)
+		var middle := _between_sidewalks(at)
 		if middle != Vector3.INF:
-			return {"at": middle}
-	return {"at": cell}
+			return {"at": middle, "zone": zone}
+	return {"at": at, "zone": zone}
 
 
-func _nearest_cell(near: Vector3) -> Vector3:
+func _nearest_cell(near: Vector3) -> Node3D:
 	var holder := get_node_or_null("BattleCells")
 	if holder == null:
-		return Vector3.INF
-	var best := Vector3.INF
+		return null
+	var best: Node3D = null
 	var best_d := INF
 	for child in holder.get_children():
 		if not (child is Node3D):
@@ -686,7 +688,7 @@ func _nearest_cell(near: Vector3) -> Vector3:
 		var flat := Vector2(at.x - near.x, at.z - near.z).length_squared()
 		if flat < best_d:
 			best_d = flat
-			best = at
+			best = child as Node3D
 	return best
 
 

@@ -46,6 +46,42 @@ static func max_pounds(rod: int) -> int:
 	return MAX_POUNDS[clampi(rod, 0, 4)]
 
 
+## One fish of each genus the pond can produce. The bingo card starts from this list.
+static func genera(zone: int) -> Array:
+	_ensure()
+	var seen := {}
+	var rows: Array = []
+	var pond: Dictionary = _ponds.get(zone, {})
+	for rod_key in pond.keys():
+		var rods: Dictionary = pond[rod_key]
+		for rarity_key in rods.keys():
+			var fish: Array = rods[rarity_key]
+			for item in fish:
+				var row: Array = item
+				var genus := int(row[0])
+				if seen.has(genus):
+					continue
+				seen[genus] = true
+				rows.append([genus, int(row[1])])
+	return rows
+
+
+## FishGlobals.getRandomFishVitals, using the card's generator instead of the global one.
+static func seeded_fish(zone: int, rod: int, rng: RandomNumberGenerator) -> Array:
+	_ensure()
+	var which := clampi(rod, 0, 4)
+	var pond: Dictionary = _ponds.get(zone, {})
+	var rods: Dictionary = pond.get(which, {})
+	for _try in 8:
+		var rarity := maxi(int(ceili(10.0 * (1.0 - pow(rng.randf(), _EXP[which])))), 1)
+		var fish: Array = rods.get(rarity, [])
+		if fish.is_empty():
+			continue
+		var pick: Array = fish[rng.randi() % fish.size()]
+		return [int(pick[0]), int(pick[1])]
+	return []
+
+
 static func roll(zone: int, rod: int) -> Dictionary:
 	var empty := {"code": 0, "genus": 0, "species": 0, "weight": 0, "beans": 0}
 	var which := clampi(rod, 0, 4)

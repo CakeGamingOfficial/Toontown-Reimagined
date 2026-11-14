@@ -83,6 +83,7 @@ static func attach(host: Node3D) -> void:
 	node.set("json_path", path)
 	node.set("street_slug", base)
 	host.add_child(node)
+	preload("res://scenes/streets/street_props.gd").attach(host)
 
 
 static func target_count(block_count: int, bmin: int, bmax: int) -> int:

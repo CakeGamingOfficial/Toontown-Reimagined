@@ -54,6 +54,7 @@ var _cj_won := false
 var _ceo_won := false
 var _cj_hit_seq := 0
 var _ceo_seq := 0
+var _ceo_do_id := 0
 var _serve_seq := 0
 var _serve_clock: TextureRect
 var _serve_count: Label
@@ -1092,6 +1093,7 @@ func _show_ceo_reward() -> void:
 		return
 	if _rounds != null:
 		_rounds.call("play_music", "epilogue")
+		_rounds.call("stand_gil_epilogue")
 	_body.text = "\n".join(_cj_reward_lines)
 	_button("Return to the lobby", _leave)
 
@@ -1461,6 +1463,7 @@ func world_state() -> Dictionary:
 		"diners": _diner_rows.duplicate(true),
 		"speed": _ceo_speed_now(),
 		"flat": int(_ceo_table().get("flat", 3)),
+		"do_id": ceo_do_id(),
 	}
 
 
@@ -1897,8 +1900,26 @@ func _ceo_damage(dealt: int) -> void:
 	_check_boss()
 
 
+func ceo_do_id() -> int:
+	if _kind != "ceo":
+		return 0
+	if _ceo_do_id > 0:
+		return _ceo_do_id
+	var shared := int(ToonNet.latest("ceo-field").get("do_id", 0))
+	if shared > 0:
+		_ceo_do_id = shared
+		return _ceo_do_id
+	if ToonNet.ceo_driving():
+		_ceo_do_id = maxi(ToonNet.next_id(), 1)
+		return _ceo_do_id
+	return 0
+
+
 func _follow_banquet() -> void:
 	var field := ToonNet.latest("ceo-field")
+	var shared := int(field.get("do_id", 0))
+	if shared > 0:
+		_ceo_do_id = shared
 	var rows: Array = field.get("diners", [])
 	if rows.is_empty():
 		return
@@ -2659,7 +2680,12 @@ func _panda_world(panda: Vector3) -> Vector3:
 	var geom := host.get_node_or_null("Geometry") as Node3D if host != null else null
 	if geom == null:
 		return panda
-	return geom.global_transform * panda
+	# The banquet root turns panda (x, y, z) into Godot (x, z, -y). The waiter
+	# fight is boss (0, 355, 0) plus (20, -400, 0), which is on that floor.
+	var converted := geom.get_node_or_null("BossbotCeo") as Node3D
+	if converted != null:
+		return converted.to_global(panda)
+	return geom.to_global(panda)
 
 
 func _open_battle(active: Variant, reserves: Variant, round_number: int) -> bool:
@@ -2967,6 +2993,7 @@ func _make_cog(dept: String, level: int, forced_type: int, skeleton: bool, reviv
 		"dept": dept,
 		"body": String(found.get("body", "c")),
 		"height": float(found.get("height", 4.0)),
+		"scale": float(found.get("scale", 1.0)),
 		"level": level,
 		"hp": hp,
 		"max": hp,

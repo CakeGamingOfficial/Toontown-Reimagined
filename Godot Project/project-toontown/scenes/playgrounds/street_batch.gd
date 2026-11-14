@@ -270,6 +270,10 @@ static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job,
 	if node != zone and node is Node3D and _animated_facade(String(node.name)):
 		_solid_facade(node as Node3D)
 		return
+	# Hydrants, mailboxes, and trash cans play their own reels. Folding them
+	# into the block mesh would leave the bind pose behind.
+	if node != zone and String(node.name).to_lower().begins_with("interactive_prop_"):
+		return
 	# A flat is one block of the shop. Takeover hides that node and shows the
 	# suit wall that was measured while these meshes still existed.
 	if node != zone and node is Node3D and _flat_root(node):

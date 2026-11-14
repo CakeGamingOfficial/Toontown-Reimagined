@@ -10,6 +10,7 @@ const _TANK := preload("res://scenes/fishing/fish_tank.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _ROLL := preload("res://scenes/fishing/fish_roll.gd")
+const _BINGO := preload("res://scenes/fishing/fish_bingo.gd")
 const _FISH_PHOTO := preload("res://scenes/fishing/fish_photo.gd")
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
 const _BOARDS := preload("res://assets/gui/fishing/boards.png")
@@ -112,6 +113,7 @@ var _ripple_time := -1.0
 var _line: MeshInstance3D
 var _line_mesh: CylinderMesh
 var _layer: CanvasLayer
+var _bingo: Node
 var _cast_button: TextureButton
 var _cast_caption: Label
 var _exit_button: TextureButton
@@ -163,6 +165,8 @@ func _begin() -> void:
 		return
 	_started = true
 	_rod = _TANK.rod()
+	if _bingo != null:
+		_bingo.call("open", _zone)
 	_surface = _surface_y()
 	_long_dur = _actor.action_length("castlong") / 4.0
 	_state = "approach"
@@ -406,12 +410,14 @@ func _catch() -> void:
 	var code := int(caught["code"])
 	var text := _MISSED
 	var kept_fish := false
+	var genus := -1
+	var species := 99
 	if code == 2:
 		var tasks := ToonTasks.live()
 		if tasks != null:
 			tasks.note_fish(_zone)
-		var genus := int(caught["genus"])
-		var species := int(caught["species"])
+		genus = int(caught["genus"])
+		species = int(caught["species"])
 		var weight := int(caught["weight"])
 		var kind := _TANK.catch_code(genus, species, weight)
 		if _TANK.add_fish(genus, species, weight):
@@ -442,6 +448,8 @@ func _catch() -> void:
 		_boot_name.visible = true
 		_boot_art.visible = true
 	_bucket.text = "%d/%d" % [_TANK.count(), _TANK.max_count()]
+	if _bingo != null and (code == 2 or code == 4):
+		_bingo.call("note_catch", genus, species)
 	if not kept_fish:
 		_reward_label.text = text
 	_reward.visible = true
@@ -479,6 +487,13 @@ func _close_modal() -> void:
 		return
 	_state = "wait"
 	_play("pole-neutral", true)
+
+
+func _bingo_paid(amount: int) -> void:
+	_BEANS.add_beans(amount)
+	if _jar != null:
+		_jar.text = str(_BEANS.pouch())
+		_refresh_jar()
 
 
 func _close_reward() -> void:
@@ -920,6 +935,12 @@ func _build() -> void:
 	_boot_name = _fish_label("BootName")
 	var close := _image_button(_reward, "Close", _CLOSE_UP, _CLOSE_DOWN, _CLOSE_HOVER)
 	close.pressed.connect(_close_reward)
+	_bingo = _BINGO.new()
+	_bingo.name = "FishBingo"
+	_layer.add_child(_bingo)
+	_bingo.connect("marked", _close_reward)
+	_bingo.connect("paid", _bingo_paid)
+	_bingo.call("open", _zone)
 	var view := get_viewport()
 	if not view.size_changed.is_connected(_layout):
 		view.size_changed.connect(_layout)

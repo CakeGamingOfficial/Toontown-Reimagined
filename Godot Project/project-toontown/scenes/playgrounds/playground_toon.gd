@@ -553,6 +553,12 @@ func _ready() -> void:
 	if arriving or logging_in:
 		if from_portal:
 			await _portal_in()
+		elif _scene_path().ends_with("bossbot_ceo.tscn"):
+			# The introduction is already playing. The hole would leave them
+			# hidden while the camera looks at the elevator.
+			_fade_in()
+			if _player != null:
+				_player.visible = true
 		else:
 			_fade_in()
 			await _pop_up()
@@ -4272,6 +4278,13 @@ func _spawn(underground: bool) -> void:
 ## DistributedCogHQDoorAI.requestExit sets the cog index when the lobby door
 ## opens. A finished Sellbot suit is the one they earned. The toon head rides
 ## the suit, and the card becomes SuitBaseNameWithLevel.
+func wear_bossbot_suit() -> void:
+	# putToonInCogSuit. The intro hides the toon and shows the Bossbot suit.
+	if _cog_suit != null:
+		return
+	_wear_cog_suit(_bossbot_suit())
+
+
 func wear_waiter() -> void:
 	# makeWaiter paints the Bossbot suit the toon has earned. A rental is a Flunky.
 	if _cog_suit != null:
@@ -5099,10 +5112,20 @@ func _release_camera_mouse(force := false) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+func _shown_camera() -> Camera3D:
+	# The introduction watches through its own camera. Name cards have to
+	# unproject with that view, or they drift off the heads as it moves.
+	var shown := get_viewport().get_camera_3d()
+	if shown != null:
+		return shown
+	return _camera
+
+
 func _place_nametag() -> void:
-	if _nametags == null or _camera == null:
+	var shown := _shown_camera()
+	if _nametags == null or shown == null:
 		return
-	_nametags.camera = _camera
+	_nametags.camera = shown
 	_nametags.place()
 	if _margins != null:
 		var people: Array = _nametags.cards()
@@ -5115,7 +5138,7 @@ func _place_nametag() -> void:
 					var extra: Variant = board.call("cards")
 					if extra is Array:
 						people.append_array(extra)
-		_margins.call("place", _camera, host, people)
+		_margins.call("place", shown, host, people)
 
 
 ## The local toon, plus any clerk already standing in this area.
@@ -5144,7 +5167,8 @@ func _add_world_tags(style: ToonStyle) -> void:
 func _place_line(delta: float) -> void:
 	_place_nametag()
 	_place_clerk_line(delta)
-	if _line == null or _camera == null or _player == null:
+	var shown := _shown_camera()
+	if _line == null or shown == null or _player == null:
 		return
 	_line_left = maxf(_line_left - delta, 0.0)
 	if _line_left <= 0.0 or not _player.visible or (_book != null and _book.is_open()):
@@ -5154,12 +5178,12 @@ func _place_line(delta: float) -> void:
 	var head := _find(_player, "def_head")
 	if head:
 		point = head.global_position + Vector3(0.0, 0.7, 0.0)
-	if _camera.is_position_behind(point):
+	if shown.is_position_behind(point):
 		_line.visible = false
 		return
 	_line.visible = true
 	_line.reset_size()
-	var screen := _camera.unproject_position(point)
+	var screen := shown.unproject_position(point)
 	_line.position = screen - Vector2(_line.size.x * 0.5, _line.size.y + 8.0)
 	var view := _camera.get_viewport().get_visible_rect()
 	var margin := 8.0

@@ -7,6 +7,7 @@ extends Node
 
 const _PROPS := "res://assets/battle/props/"
 const _SFX := "res://assets/audio/battle/"
+const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
 const _HEIGHT := 4.88
 # Panda Z-up into Godot Y-up. Storm-cloud bolts are cards in local X/Z, so this stands them up.
 const _Z_UP := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
@@ -140,6 +141,17 @@ var _aim_close_on := "battle"
 var _aim_flip := 1.0
 var _aim_actor: ToonActor
 var _aim_cog: Node3D
+var _lineup: Callable
+var _gear_mat: Material
+var _gear_size := Vector2(0.16, 0.16)
+var _gears: Array[Dictionary] = []
+var _boom_mats: Array[Material] = []
+var _boom_size := Vector2.ONE
+var _booms: Array[MeshInstance3D] = []
+
+
+func set_lineup(toons: Callable) -> void:
+	_lineup = toons
 
 
 func _ready() -> void:
@@ -154,7 +166,10 @@ func _ready() -> void:
 ## The server holds the movie for this long. Playback uses the same numbers,
 ## so a client cannot finish after the round has already moved on.
 static func seconds(kind: String, track: int, level: int, died: bool, attack := "") -> float:
-	if kind == "run" or kind == "lured":
+	if kind == "run":
+		# BattleBase.TOON_RUN_T. The hole closes, then the toon is gone.
+		return 3.3
+	if kind == "lured":
 		return 1.3
 	if kind == "cog":
 		var length := maxf(_cog_length(attack, "a"), maxf(_cog_length(attack, "b"), _cog_length(attack, "c")))
@@ -686,6 +701,10 @@ func _attack_one(lead: Dictionary, beats: Array, actor: ToonActor, marks: Array,
 		await _sound(actor, _prop_name(track, level), level, marks, still, contact)
 	elif kind == "gag" and actor != null and track == 0:
 		await _heal(actor, _prop_name(track, level), level, beats, actor_of, still, contact)
+	elif kind == "run":
+		await _run_out(actor, still)
+		if still.call():
+			contact.call()
 	else:
 		await _wait(1.2, still)
 		if still.call():
@@ -1739,8 +1758,29 @@ func _cog_death(marks: Array, still: Callable) -> void:
 			dying = true
 	if not dying:
 		return
+	_prepare_death()
+	var points: Array[Vector3] = []
+	for mark in marks:
+		var row: Dictionary = mark
+		if int(row.get("hp", 1)) > 0:
+			continue
+		var cog: Variant = row.get("cog")
+		if not (_live(cog) and cog is Node3D):
+			continue
+		var body := cog as Node3D
+		var tall := 4.88
+		if body.get("height") != null:
+			tall = float(body.get("height"))
+		points.append(body.global_position + Vector3(0.0, tall - 0.2, 0.0))
+	var toons := _lineup_actors()
+	var duck_len := 0.0
+	if not toons.is_empty() and toons[0] is ToonActor:
+		duck_len = (toons[0] as ToonActor).action_length("duck")
+	var waits: Array[float] = []
+	waits.resize(points.size())
 	var gate := {}
 	await _run(LOSE_SECONDS, still, func(elapsed: float) -> void:
+		var delta := get_process_delta_time()
 		for mark in marks:
 			var row: Dictionary = mark
 			if int(row.get("hp", 1)) > 0:
@@ -1748,15 +1788,207 @@ func _cog_death(marks: Array, still: Callable) -> void:
 			var cog: Variant = row.get("cog")
 			if _live(cog) and cog is Node and (cog as Node).has_method("play_lose"):
 				(cog as Node).call("play_lose", elapsed)
-		# MovieUtil deathSoundTrack. Cog_Death is the spin, then the crash.
 		if elapsed >= 0.8 and _latch(gate, "spin"):
 			_sfx("Cog_Death.ogg")
 		if elapsed >= 5.0 and _latch(gate, "crash"):
 			_sfx("ENC_cogfall_apart.ogg")
+		for index in points.size():
+			_burst_gears(index, points[index], elapsed, delta, waits, gate)
+		_duck_line(toons, elapsed, duck_len)
+		_tick_gears(delta)
 	)
+	for actor in toons:
+		if actor is ToonActor and is_instance_valid(actor):
+			(actor as ToonActor).end_action("duck")
+	_hide_booms()
+	_clear_gears()
 
 
-## removeReviveSuit. The lose actor comes off and the same cog stands up as a Skelecog.
+func _lineup_actors() -> Array:
+	if not _lineup.is_valid():
+		return []
+	var found: Variant = _lineup.call()
+	return found if found is Array else []
+
+
+func _burst_gears(index: int, origin: Vector3, elapsed: float, delta: float, waits: Array[float], gate: Dictionary) -> void:
+	if elapsed >= 2.1 and elapsed < 6.4:
+		waits[index] = float(waits[index]) - delta
+		if float(waits[index]) <= 0.0:
+			waits[index] = 0.4
+			_spawn_gear(origin, 3.2282, 9.0, 9.0, 0.112, minf(1.5, 6.4 - elapsed))
+			_spawn_gear(origin, 3.2282, 9.0, 9.0, 0.112, minf(1.5, 6.4 - elapsed))
+	if elapsed >= 0.7 and _latch(gate, "single:%d" % index):
+		_spawn_gear(origin, 3.2282, 9.0, 9.0, 0.16, 5.7)
+	if elapsed >= 5.2 and _latch(gate, "ten:%d" % index):
+		for _copy in 10:
+			_spawn_gear(origin, 3.2282, 9.0, 9.0, 0.16, 1.2)
+	if elapsed >= 5.4 and _latch(gate, "big:%d" % index):
+		for _copy in 30:
+			_spawn_gear(origin, 1.6282, 15.0, 18.0, 0.16, 1.0)
+	if elapsed >= 5.4 and elapsed < 6.0:
+		_show_boom(index, origin, elapsed - 5.4)
+	elif index < _booms.size() and _booms[index] != null:
+		_booms[index].visible = false
+
+
+func _duck_line(toons: Array, elapsed: float, duck_len: float) -> void:
+	if duck_len <= 0.0 or elapsed < 1.0:
+		return
+	var local := elapsed - 1.0
+	var at := local
+	if local <= duck_len:
+		at = local
+	elif 1.8 < duck_len and local - duck_len <= duck_len - 1.8:
+		at = 1.8 + (local - duck_len)
+	else:
+		return
+	for actor in toons:
+		if actor is ToonActor and is_instance_valid(actor):
+			(actor as ToonActor).pose_action("duck", at)
+
+
+func _prepare_death() -> void:
+	if _gear_mat != null:
+		return
+	_gear_mat = _card_material(_PROPS + "gear.glb", true)
+	var packed := load(_PROPS + "explosion.glb") as PackedScene
+	if packed == null:
+		return
+	var root := packed.instantiate()
+	for index in 10:
+		var found := root.find_child("boom%d" % index, true, false) as MeshInstance3D
+		if found == null or found.mesh == null:
+			continue
+		if _boom_mats.is_empty():
+			_boom_size = _card_size(found.mesh)
+		var material := _sprite_material(found.get_active_material(0))
+		if material != null:
+			_boom_mats.append(material)
+	root.free()
+
+
+func _card_material(path: String, remember_size: bool) -> Material:
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return null
+	var root := packed.instantiate()
+	var meshes := root.find_children("*", "MeshInstance3D", true, false)
+	var material: Material = null
+	if not meshes.is_empty():
+		var mesh_node := meshes[0] as MeshInstance3D
+		if mesh_node.mesh != null and remember_size:
+			_gear_size = _card_size(mesh_node.mesh)
+		material = _sprite_material(mesh_node.get_active_material(0))
+	root.free()
+	return material
+
+
+func _sprite_material(source: Material) -> Material:
+	if source == null:
+		return null
+	var material := source.duplicate() as BaseMaterial3D
+	if material == null:
+		return source
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+
+func _card_size(mesh: Mesh) -> Vector2:
+	var size := mesh.get_aabb().size
+	var wide := maxf(size.x, maxf(size.y, size.z))
+	var thin := minf(size.x, minf(size.y, size.z))
+	var mid := size.x + size.y + size.z - wide - thin
+	return Vector2(maxf(wide, 0.05), maxf(mid, 0.05))
+
+
+func _spawn_gear(origin: Vector3, radius: float, amplitude: float, lift: float, scale: float, life: float) -> void:
+	if _gear_mat == null:
+		return
+	var gear := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = _gear_size
+	gear.mesh = quad
+	gear.material_override = _gear_mat
+	var span := maxf(_gear_size.x, _gear_size.y)
+	var fitted := scale
+	if span > 0.01:
+		fitted = minf(scale, 0.55 / span)
+	gear.scale = Vector3.ONE * fitted
+	add_child(gear)
+	var offset := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))
+	if offset.length_squared() > 1.0:
+		offset = offset.normalized()
+	elif offset.length_squared() < 0.0001:
+		offset = Vector3.UP
+	gear.global_position = origin + Vector3(0.0, -2.0, 0.0) + offset * radius
+	_gears.append({
+		"node": gear,
+		"velocity": offset.normalized() * amplitude,
+		"accel": Vector3(0.0, lift, 0.0),
+		"life": life,
+	})
+
+
+func _tick_gears(delta: float) -> void:
+	var kept: Array[Dictionary] = []
+	for item in _gears:
+		var record: Dictionary = item
+		var node := record["node"] as MeshInstance3D
+		if not is_instance_valid(node):
+			continue
+		var velocity: Vector3 = record["velocity"]
+		var accel: Vector3 = record["accel"]
+		velocity += accel * delta
+		node.global_position += velocity * delta
+		record["velocity"] = velocity
+		var life := float(record["life"]) - delta
+		record["life"] = life
+		if life > 0.0:
+			kept.append(record)
+		else:
+			node.queue_free()
+	_gears = kept
+
+
+func _clear_gears() -> void:
+	for item in _gears:
+		var record: Dictionary = item
+		var node := record["node"] as MeshInstance3D
+		if is_instance_valid(node):
+			node.queue_free()
+	_gears.clear()
+
+
+func _show_boom(index: int, at: Vector3, into: float) -> void:
+	if _boom_mats.is_empty():
+		return
+	while _booms.size() <= index:
+		_booms.append(null)
+	var boom := _booms[index]
+	if boom == null or not is_instance_valid(boom):
+		boom = MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = _boom_size
+		boom.mesh = quad
+		add_child(boom)
+		_booms[index] = boom
+	boom.visible = true
+	boom.global_position = at
+	var span := maxf(_boom_size.x, _boom_size.y)
+	var world := clampf(0.4 * span, 5.0, 8.0)
+	boom.scale = Vector3.ONE * (world / maxf(span, 0.01))
+	boom.material_override = _boom_mats[mini(int(into * 24.0), _boom_mats.size() - 1)]
+
+
+func _hide_booms() -> void:
+	for boom in _booms:
+		if boom != null and is_instance_valid(boom):
+			boom.visible = false
+
+
 func _finish_revives(marks: Array) -> void:
 	for mark in marks:
 		var row: Dictionary = mark
@@ -2066,6 +2298,62 @@ func _run(length: float, still: Callable, step: Callable) -> void:
 		elapsed += get_process_delta_time()
 	if still.call():
 		step.call(length)
+
+
+func _run_out(actor: ToonActor, still: Callable) -> void:
+	if actor == null:
+		await _wait(3.3, still)
+		return
+	var portal := _PORTAL.new() as Node3D
+	portal.name = "TeleportPortal"
+	portal.call("setup")
+	var hand := actor.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		actor.add_child(portal)
+	else:
+		hand.add_child(portal)
+	portal.transform = Transform3D.IDENTITY
+	portal.call("pose_at", 0.0)
+	actor.set_look_enabled(false)
+	var shadow := actor.find_child("drop_shadow", true, false) as Node3D
+	if shadow != null:
+		shadow.visible = false
+	var sounded := false
+	var dropped := false
+	var elapsed := 0.0
+	while elapsed < 3.3 and still.call():
+		actor.set_hole_clip(true, actor.global_position.y)
+		actor.pose_action("teleport", elapsed)
+		portal.call("pose_at", elapsed)
+		if elapsed >= 0.5 and not sounded:
+			sounded = true
+			_run_sound()
+		if elapsed >= 1.708 and not dropped:
+			dropped = true
+			portal.reparent(actor, false)
+			portal.transform = Transform3D.IDENTITY
+		await get_tree().process_frame
+		elapsed += get_process_delta_time()
+	if is_instance_valid(portal):
+		portal.queue_free()
+	if not is_instance_valid(actor):
+		return
+	actor.set_hole_clip(false, 0.0)
+	if not still.call():
+		return
+	actor.visible = false
+	actor.set_meta("ran_home", true)
+
+
+func _run_sound() -> void:
+	var stream := load("res://assets/audio/sfx/AV_teleport.ogg") as AudioStream
+	if stream == null:
+		return
+	var player := ToonAudio.effect_player()
+	player.stream = stream
+	add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
 
 
 func _wait(length: float, still: Callable) -> void:

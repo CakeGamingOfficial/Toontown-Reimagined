@@ -52,6 +52,8 @@ var _station_table := -1
 var _station_arm := false
 var _crushing := false
 var _crush_table := -1
+var _crush_rider := false
+var _attack_now := false
 var _crush_to := Vector3.ZERO
 var _flat_for := 3.0
 var _over_one := false
@@ -59,6 +61,9 @@ var _over_two := false
 var _ceo_shots: Array[Dictionary] = []
 var _ceo_clip := ""
 var _ceo_time := 0.0
+var _hardball_left := -1.0
+var _hardball_play := -1.0
+var _hardball: AudioStreamPlayer
 var _ceo_loop := false
 var _ceo_next := ""
 var _ceo_raised := false
@@ -77,7 +82,29 @@ var _face_to := 0.0
 var _face_now := 0.0
 var _face_age := 0.0
 var _face_span := 0.0
+var _face_return := -1.0
+var _ceo_left_u := 0.0
+var _ceo_right_u := 0.0
+var _ceo_left_mat: StandardMaterial3D
+var _ceo_right_mat: StandardMaterial3D
+var _spin_from := 0.0
+var _spin_add := 0.0
+var _spin_age := 0.0
+var _spin_span := 0.0
+var _fore_phase := 0
+var _fore_left := 0.0
+var _fore_heading := 0.0
+var _fore_safe := 0.0
+var _zap_left := 0.0
+var _zap_clip := ""
+var _slide_from := Vector3.ZERO
+var _slide_to := Vector3.ZERO
+var _slide_left := 0.0
 var _putter: Node3D
+var _swing_age := -1.0
+var _swing_power := 0.0
+var _swing_sent := false
+var _tee_grow := -1.0
 var _water: Array[Dictionary] = []
 var _board_from := Vector3.ZERO
 var _board_age := 0.0
@@ -132,6 +159,7 @@ var _refl_base := 0.0
 var _jury_loop: AudioStreamPlayer
 var _cannon_pads: Array[Node3D] = []
 var _act_t := 0.0
+var _ceo_beat := 0
 var _pages: PackedStringArray = PackedStringArray()
 var _page := 0
 var _page_next := ""
@@ -198,6 +226,8 @@ var _power_root: Control
 var _power_fill: ColorRect
 var _suit_at := -1.0
 var _strip_at := -1.0
+var _eyes_back := -1.0
+var _threat_dusted := false
 var _slip_left := 0.0
 var _flat_return := -1
 var _epilogue_on := false
@@ -518,6 +548,7 @@ func start_evidence(boss: Node) -> void:
 
 func start_ceo_intro(boss: Node) -> void:
 	_begin(boss)
+	_lock_toon()
 	_place_gil(Vector3(0.0, -64.0, 0.0))
 	_ceo_say(PackedStringArray([
 		"You toons will need different disguises.",
@@ -553,9 +584,11 @@ func start_banquet(boss: Node) -> void:
 func start_ceo_threat(boss: Node) -> void:
 	_boss = boss
 	_belt_sound(false)
+	_threat_dusted = false
 	_ceo_say(PackedStringArray([
 		"What's happening here?!",
 		"These waiters are toons!",
+		"",
 		"Get them!!!",
 	]), "threat")
 
@@ -605,6 +638,7 @@ func _process(delta: float) -> void:
 		_tick_cj_intro(delta)
 		return
 	if _mode == "ceo_talk":
+		_tag_gil()
 		_tick_ceo_talk(delta)
 		return
 	if _mode == "ceo_victory":
@@ -1100,7 +1134,10 @@ func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 	if _mode != "cfo":
 		return
 	var status := "dizzy" if dizzy else ("helmet" if helmet else "open")
-	_boss.call("paint_world", "Crane %s. He is %s." % ("in use" if _crane >= 0 else "empty", status))
+	var crane_word := "empty"
+	if _crane >= 0:
+		crane_word = "in use"
+	_boss.call("paint_world", "Crane %s. He is %s." % [crane_word, status])
 
 
 func _tick_cannon(delta: float, body: CharacterBody3D) -> void:
@@ -1308,13 +1345,13 @@ func _spawn_lawyer(pick: Array, seat: Vector3, heading: float, index: int) -> No
 		"body": str(pick[2]),
 		"height": float(pick[3]),
 		"level": 1,
-	}, _suit_timing())
+	}, _read_suit_timing())
 	cog.position = seat
 	cog.basis = _panda_hpr(heading, 0.0, 0.0)
 	return cog
 
 
-func _suit_timing() -> Dictionary:
+func _read_suit_timing() -> Dictionary:
 	if _suit_timing_ready:
 		return _suit_timing
 	_suit_timing_ready = true
@@ -1572,17 +1609,13 @@ func _tick_ceo_attack(delta: float, body: CharacterBody3D, slowed: float) -> voi
 		_attack_left -= delta
 		if _attack_left <= 0.0 and _near(body, _attack_at, 4.0):
 			_boss.call("note_golf", _attack_kind == "area")
-	elif not _crushing and _clock > 4.0 and fposmod(_clock, gap) < delta:
+	elif _fore_phase == 0 and not _crushing and _clock > 4.0 and (_attack_now or fposmod(_clock, gap) < delta):
+		_attack_now = false
 		var table := _mounted_table()
 		if table >= 0 and not _table_is_flat(table) and randi() % 4 == 0:
 			_start_crush(table)
 		elif randi() % 5 == 0:
-			_attack_kind = "area"
-			_attack_at = _boss_pos
-			_attack_left = 1.0
-			_tell("Fore!")
-			_swing_club(body.global_position)
-			_remember_fore(body.global_position)
+			_start_fore(body)
 		elif table >= 0:
 			_throw_gears(body.global_position, "gear")
 		else:
@@ -1610,7 +1643,7 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 		_station_arm = false
 	if not _golf:
 		_mount_station(body)
-	elif _KEYS.use_held() and not _station_arm and _cool <= 0.0 and not _KEYS.held("jump"):
+	elif _swing_age < 0.0 and _KEYS.use_held() and not _station_arm and _cool <= 0.0 and not _KEYS.held("jump"):
 		_golf = false
 		_spray = 0.0
 		_station_arm = true
@@ -1629,15 +1662,18 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 			_spray = 0.0
 	elif _station == "tee":
 		_tick_board(delta, body)
-		if _board_age >= _board_span:
+		if _board_age >= _board_span and _swing_age < 0.0:
 			_aim_station(delta, 20.0)
-		if _KEYS.held("jump"):
+		if _swing_age >= 0.0:
+			pass
+		elif _KEYS.held("jump"):
 			_spray += delta
-		elif _spray > 0.0 and _cool <= 0.0:
-			_fire_ball(_ball_power(_spray))
+		elif _spray > 0.0 and _cool <= 0.0 and _board_age >= _board_span:
+			_begin_swing(_ball_power(_spray))
 			_spray = 0.0
 	var state: Dictionary = _boss.call("world_state")
 	var slowed := float(state.get("speed", 0.0))
+	_tint_ceo_treads(slowed)
 	var driving := ToonNet.ceo_driving()
 	if driving:
 		_tick_ceo_attack(delta, body, slowed)
@@ -1647,6 +1683,8 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 		_apply_flats()
 		_apply_attacks()
 		_tick_ceo_shots(delta, body)
+	_tick_fore(delta)
+	_tick_zap(delta, body)
 	_advance_ceo_pose(delta)
 	_tick_face(delta)
 	_tick_water(delta)
@@ -1689,6 +1727,13 @@ func _begin(boss: Node) -> void:
 	_station_arm = false
 	_crushing = false
 	_crush_table = -1
+	_crush_rider = false
+	_attack_now = false
+	_face_return = -1.0
+	_ceo_left_u = 0.0
+	_ceo_right_u = 0.0
+	_ceo_left_mat = null
+	_ceo_right_mat = null
 	_over_one = false
 	_over_two = false
 	_ceo_shots.clear()
@@ -1711,6 +1756,8 @@ func _begin(boss: Node) -> void:
 	_flat_return = -1
 	_epilogue_on = false
 	_strip_at = -1.0
+	_eyes_back = -1.0
+	_threat_dusted = false
 	_golf = false
 	_attack_left = 0.0
 	var body := _body()
@@ -1726,8 +1773,15 @@ func _begin(boss: Node) -> void:
 	var geom := host.get_node_or_null("Geometry") as Node3D if host != null else null
 	_root = Node3D.new()
 	_root.name = "BossRound"
+	# The banquet file turns panda (x, y, z) into Godot (x, z, -y) on its inner
+	# root. Parenting the round there keeps the intro camera on the floor.
+	var room := geom
 	if geom != null:
-		geom.add_child(_root)
+		var converted := geom.get_node_or_null("BossbotCeo") as Node3D
+		if converted != null:
+			room = converted
+	if room != null:
+		room.add_child(_root)
 	elif host != null:
 		host.add_child(_root)
 
@@ -3471,6 +3525,8 @@ func _body() -> CharacterBody3D:
 
 
 func _camera() -> Camera3D:
+	if _boss == null:
+		return null
 	var host := _boss.get_parent()
 	if host == null:
 		return null
@@ -4412,7 +4468,7 @@ func _draw_rope(points: Array) -> void:
 			paint.albedo_color = Color(0.55, 0.57, 0.62)
 		paint.uv1_scale = Vector3(0.15, 0.13, 1.0)
 		paint.uv1_offset = Vector3(0.83, 0.01, 0.0)
-		paint.texture_repeat = BaseMaterial3D.TEXTURE_REPEAT_ENABLED
+		paint.texture_repeat = true
 		paint.roughness = 0.45
 		paint.metallic = 0.35
 		rope.material_override = paint
@@ -4789,7 +4845,7 @@ func _spawn_train() -> void:
 		"res://assets/cog_hq/trains/box_car.glb",
 	]
 	for index in 15:
-		var path := paths[0]
+		var path: String = paths[0]
 		if index > 0:
 			path = paths[1] if index % 2 == 1 else paths[2]
 		_train_car(host, path, "FleeCar%d" % index)
@@ -5078,6 +5134,49 @@ func _overlay_shade(node: Node, shade: float) -> void:
 
 func play_cj_sfx(path: String) -> void:
 	_sfx(path)
+
+
+func _play_hardball() -> void:
+	var path := "res://assets/audio/battle/SA_hardball.ogg"
+	if not FileAccess.file_exists(path):
+		return
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	add_child(player)
+	if _hardball != null and is_instance_valid(_hardball):
+		_hardball.stop()
+		_hardball.queue_free()
+	_hardball = player
+	_hardball_play = 0.45
+	player.play()
+
+
+func _ceo_ball() -> Node3D:
+	var mesh := _model_or_box("res://assets/battle/props/golf-ball.glb", Vector3.ZERO, "CeoBall%d" % _ceo_shots.size(), Color(0.75, 0.75, 0.75, 0.5), Vector3(2.5, 2.5, 2.5))
+	mesh.scale = Vector3.ONE * 5.0
+	_fade_ball(mesh)
+	return mesh
+
+
+func _fade_ball(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var mat := mesh.get_surface_override_material(0) as StandardMaterial3D
+		if mat == null:
+			var active := mesh.get_active_material(0)
+			if active is StandardMaterial3D:
+				mat = (active as StandardMaterial3D).duplicate() as StandardMaterial3D
+			else:
+				mat = StandardMaterial3D.new()
+			mesh.set_surface_override_material(0, mat)
+		if mat != null:
+			mat.albedo_color = Color(0.75, 0.75, 0.75, 0.5)
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for child in node.get_children():
+		_fade_ball(child)
 
 
 func _sfx(path: String) -> void:
@@ -5547,6 +5646,7 @@ func _ceo_say(lines: PackedStringArray, next: String) -> void:
 	_pages = lines
 	_page = 0
 	_act_t = 0.0
+	_ceo_beat = 0
 	_page_next = next
 	_mode = "ceo_talk"
 	if not lines.is_empty():
@@ -5554,6 +5654,8 @@ func _ceo_say(lines: PackedStringArray, next: String) -> void:
 
 
 func _tick_ceo_talk(delta: float) -> void:
+	if _page_next == "seltzer" and _root != null and _root.get_node_or_null("GilSuit") == null:
+		_show_gil_suit()
 	_tick_door(delta)
 	_tick_puffs(delta)
 	if _suit_at >= 0.0 and _clock >= _suit_at:
@@ -5563,6 +5665,9 @@ func _tick_ceo_talk(delta: float) -> void:
 		_strip_at = -1.0
 		_clear_waiter()
 		_slip_left = 1.2
+		_sad_eyes()
+	if _eyes_back >= 0.0 and _clock >= _eyes_back:
+		_normal_eyes()
 	if _slip_left > 0.0:
 		_slip_left = maxf(_slip_left - delta, 0.0)
 		var body := _body()
@@ -5572,67 +5677,15 @@ func _tick_ceo_talk(delta: float) -> void:
 	if _gil_job == "walk_in":
 		_tick_walk_in(delta)
 		return
-	if _gil_job == "intro_leave" or _gil_job == "banquet_leave":
-		_aim_ceo_talk()
-		_tick_gil_walk(delta)
-		return
-	if _page_next == "cogs" or _page_next == "banquet" or _page_next == "threat" or _page_next == "seltzer":
-		_aim_ceo_talk()
-		if _page_next == "seltzer" and _page >= 3:
-			_scale_club(lerpf(0.01, 1.0, clampf(_act_t / 3.0, 0.0, 1.0)))
 	_act_t += delta
-	if _act_t < 3.2 and not _fresh_press():
-		return
-	_act_t = 0.0
-	_cool = 0.35
-	_page += 1
-	if _page < _pages.size():
-		_tell(_pages[_page])
-		if _page_next == "cogs" and _page == 1:
-			_puff_dust()
-			_strip_at = _clock + 0.3
-		elif _page_next == "banquet" and _page == 1:
-			_swing_door(90.0, 2.0)
-			_place_ceo_at(20.0)
-			_puff_dust()
-			_suit_at = _clock + 0.3
-		elif _page_next == "banquet" and _page == 3:
-			_swing_door(0.0, 2.0)
-			_place_ceo_at(355.0)
-		elif _page_next == "threat" and _page == 2:
-			_puff_dust()
-			_strip_at = _clock + 0.3
-		elif _page_next == "seltzer" and _page == 2:
-			_hide_gil_suit()
-			_banquet_door(0.0)
-		return
-	var next := _page_next
-	_page_next = ""
-	_pages = PackedStringArray()
-	if next == "cogs":
-		_gil_job = "intro_leave"
-		_gil_age = 0.0
-		return
-	elif next == "banquet":
-		_gil_job = "banquet_leave"
-		_gil_age = 0.0
-		_swing_door(120.0, 2.0)
-		return
-	elif next == "threat":
-		_mode = ""
-		_release_camera()
-		_clear_waiter()
-		if _boss != null:
-			_boss.call("finish_ceo_threat")
-	elif next == "seltzer":
-		_release_camera()
-		_hide_gil_suit()
-		_scale_club(1.0)
-		_mode = "seltzer"
-		_golf = false
-		_station = ""
-		_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v2.ogg", "ceo2")
-		_tell("Press E at a table bottle or a golf ball. Left and right aim. Hold the jump key, then release. E steps off. Snacks ride the belts.")
+	if _page_next == "cogs":
+		_tick_intro_movie(delta)
+	elif _page_next == "banquet":
+		_tick_banquet_movie(delta)
+	elif _page_next == "threat":
+		_tick_threat_movie()
+	elif _page_next == "seltzer":
+		_tick_seltzer_movie()
 
 
 func _place_banquet(boss: Node) -> void:
@@ -5830,37 +5883,93 @@ func _puff_dust(on: Node3D = null, spread: float = 1.0) -> void:
 	var body := on if on != null else _body()
 	if body == null:
 		return
-	for index in 6:
-		var puff := MeshInstance3D.new()
-		var ball := SphereMesh.new()
-		ball.radius = 0.18
-		ball.height = 0.36
-		puff.mesh = ball
+	var cloud := _dust_cloud()
+	if cloud == null:
+		return
+	var victory := body.name == "CEO"
+	var parent := _geometry()
+	if parent == null:
+		parent = body.get_parent() as Node3D
+	if parent == null:
+		cloud.queue_free()
+		return
+	parent.add_child(cloud)
+	if victory:
+		cloud.global_position = body.to_global(Vector3(0.0, -10.0, 3.0))
+		cloud.scale = Vector3.ONE * 4.0
+		_sfx("res://assets/effects/fireworks/firework_distance_02.ogg")
+	else:
+		cloud.global_position = body.to_global(Vector3(0.0, 3.0, -2.0))
+		cloud.scale = Vector3.ONE * 0.5
+	_puffs.append({
+		"mesh": cloud,
+		"age": 0.0,
+		"fps": 12.0 if victory else 24.0,
+		"billboard": not victory,
+	})
+
+
+func _dust_cloud() -> Node3D:
+	var path := "res://assets/effects/dust_cloud.glb"
+	if not ResourceLoader.exists(path):
+		return null
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return null
+	var cloud := packed.instantiate() as Node3D
+	if cloud == null:
+		return null
+	cloud.name = "DustCloud"
+	_dust_materials(cloud)
+	var frames := cloud.find_child("frames", true, false) as Node3D
+	if frames != null:
+		for index in frames.get_child_count():
+			var frame := frames.get_child(index) as Node3D
+			if frame != null:
+				frame.visible = index == 0
+	return cloud
+
+
+func _dust_materials(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var active := mesh.get_active_material(0) as StandardMaterial3D
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.72, 0.66, 0.55, 0.8)
+		if active != null:
+			mat = active.duplicate() as StandardMaterial3D
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		puff.material_override = mat
-		body.add_child(puff)
-		var spin := float(index) / 6.0 * TAU
-		puff.position = Vector3(cos(spin) * 0.6 * spread, 1.4 * spread + float(index) * 0.15, sin(spin) * 0.6 * spread)
-		_puffs.append({"mesh": puff, "age": 0.0, "spread": spread})
+		mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh.material_override = mat
+	for child in node.get_children():
+		_dust_materials(child)
 
 
 func _tick_puffs(delta: float) -> void:
 	var kept: Array[Dictionary] = []
+	var camera := get_viewport().get_camera_3d()
 	for puff in _puffs:
 		var age := float(puff.get("age", 0.0)) + delta
 		puff["age"] = age
-		var mesh := puff.get("mesh") as MeshInstance3D
-		if mesh != null and age < 1.0:
-			var spread := float(puff.get("spread", 1.0))
-			mesh.scale = Vector3.ONE * lerpf(0.4, 2.2, age) * spread
-			var mat := mesh.material_override as StandardMaterial3D
-			if mat != null:
-				mat.albedo_color.a = lerpf(0.8, 0.0, age)
-			kept.append(puff)
-		elif mesh != null:
-			mesh.queue_free()
+		var cloud := puff.get("mesh") as Node3D
+		if cloud == null or not is_instance_valid(cloud):
+			continue
+		var frames := cloud.find_child("frames", true, false) as Node3D
+		var count := frames.get_child_count() if frames != null else 0
+		var index := int(age * float(puff.get("fps", 24.0)))
+		if count == 0 or index >= count:
+			cloud.queue_free()
+			continue
+		for frame_index in count:
+			var frame := frames.get_child(frame_index) as Node3D
+			if frame != null:
+				frame.visible = frame_index == index
+		if bool(puff.get("billboard", false)) and camera != null:
+			var flat := camera.global_position
+			flat.y = cloud.global_position.y
+			if cloud.global_position.distance_squared_to(flat) > 0.04:
+				cloud.look_at(flat, Vector3.UP)
+		kept.append(puff)
 	_puffs = kept
 
 
@@ -6096,14 +6205,58 @@ func _hold_meal(diner: Dictionary, cog: Node3D, holding: bool) -> void:
 			can.position = Vector3(0.1, -0.25, -0.31)
 
 
+func _ensure_food_belts() -> void:
+	if _root == null or _root.get_node_or_null("FoodBelt1") != null:
+		return
+	# DistributedFoodBelt.setPos(conveyer_belt_start). Panda positions from BanquetInterior_1.
+	var spots := [
+		Vector3(-111.369, 61.7974, 3.86091),
+		Vector3(112.622, 61.7974, 3.86091),
+	]
+	for index in 2:
+		_model_or_box(
+			"res://assets/cog_hq/food_belt%d.glb" % (index + 1),
+			spots[index],
+			"FoodBelt%d" % (index + 1),
+			Color(0.45, 0.42, 0.38),
+			Vector3(6.0, 1.0, 60.0)
+		)
+
+
+func _scroll_tide(node: Node, amount: float) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			for surface in mesh.mesh.get_surface_count():
+				var mat := mesh.get_surface_override_material(surface) as StandardMaterial3D
+				if mat == null:
+					var active := mesh.get_active_material(surface)
+					if active is StandardMaterial3D:
+						mat = (active as StandardMaterial3D).duplicate() as StandardMaterial3D
+						mat.texture_repeat = true
+						mesh.set_surface_override_material(surface, mat)
+				if mat != null:
+					# uvj_WakeWhiteTide1's animated channel is Y, and that becomes the texture V.
+					mat.uv1_offset.y = amount
+	for child in node.get_children():
+		_scroll_tide(child, amount)
+
+
 func _tick_belt(delta: float, body: CharacterBody3D, snacks: bool) -> void:
 	_belt_sound(true)
-	var rate := 5.35 * (1.0 / 5.0 if snacks else 1.0)
-	_belt_u += delta * rate
-	for belt_name in ["conveyor_belt_1", "conveyor_belt_2"]:
-		var belt := _find(belt_name)
-		if belt != null:
-			_scroll_surface(belt, _belt_u)
+	_ensure_food_belts()
+	# BeltActorPlayRate 5.35 (snacks: 5.35 * ToonupBeltSpeed / BeltSpeed). The tide joint
+	# travels Y 0→1 across 200 frames at 24 fps, so one UV cycle is 200 / (24 * play rate).
+	var play := 5.35 * (1.0 / 5.0 if snacks else 1.0)
+	_belt_u += delta * play * 24.0 / 200.0
+	if _root != null:
+		for index in 2:
+			var belt := _root.get_node_or_null("FoodBelt%d" % (index + 1))
+			if belt == null:
+				continue
+			var tide := belt.find_child("mesh_tide1", true, false)
+			if tide != null:
+				_scroll_tide(tide, _belt_u)
 	var speed := 1.0 if snacks else 5.0
 	for slot in _food.size():
 		var item: Dictionary = _food[slot]
@@ -6218,7 +6371,7 @@ func _aim_toon_front() -> void:
 		else:
 			forward = Vector3(0.0, 0.0, -1.0)
 	var from := body.global_position + forward * 19.0 + Vector3.UP * 6.0
-	_aim_world(from, body.global_position + Vector3.UP * 3.0)
+	_aim_world(from, body.global_position - forward * 1.5 + Vector3.UP * (6.0 - tan(deg_to_rad(5.0)) * 19.0))
 
 
 func _tick_chest(delta: float) -> void:
@@ -6257,26 +6410,71 @@ func _ensure_chest() -> void:
 	light.name = "HealthLight"
 	joint.add_child(light)
 	light.rotate_object_local(Vector3.RIGHT, deg_to_rad(-20.0))
-	light.scale = Vector3(2.0, 2.0, 2.0)
+	var disc := _chest_card("res://assets/cogs/bosses/minnie_circle.glb", "Disc")
+	if disc == null:
+		disc = MeshInstance3D.new()
+		disc.name = "Disc"
+		disc.mesh = StreetCog._disc_mesh()
+		disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		light.scale = Vector3(2.0, 2.0, 2.0)
+	else:
+		light.scale = Vector3(6.0, 6.0, 6.0)
 	_chest_scale = light.scale
-	var disc := MeshInstance3D.new()
-	disc.name = "Disc"
-	disc.mesh = StreetCog._disc_mesh()
-	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_chest_mat = _chest_material(Color(0, 1, 0), false)
+	_take_card_texture(disc, _chest_mat)
 	disc.material_override = _chest_mat
 	light.add_child(disc)
-	var glow := MeshInstance3D.new()
-	glow.name = "Glow"
-	glow.mesh = StreetCog._disc_mesh()
-	glow.scale = Vector3(1.55, 1.55, 1.55)
-	glow.position = Vector3(0.0, 0.04, 0.0)
-	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var glow := _chest_card("res://assets/cogs/bosses/boss_glow.glb", "Glow")
+	if glow == null:
+		glow = MeshInstance3D.new()
+		glow.name = "Glow"
+		glow.mesh = StreetCog._disc_mesh()
+		glow.scale = Vector3(1.55, 1.55, 1.55)
+		glow.position = Vector3(0.0, 0.04, 0.0)
+		glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	else:
+		glow.scale = Vector3(0.28, 0.28, 0.28)
+		glow.position = Vector3(-0.005, 0.01, 0.015)
 	_chest_glow = _chest_material(Color(0.25, 1, 0.25, 0.5), true)
+	_take_card_texture(glow, _chest_glow)
 	glow.material_override = _chest_glow
 	light.add_child(glow)
 	_chest = light
 	_chest_condition = -1
+
+
+func _chest_card(path: String, node_name: String) -> MeshInstance3D:
+	if not ResourceLoader.exists(path):
+		return null
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return null
+	var root := packed.instantiate()
+	var card: MeshInstance3D = null
+	if root is MeshInstance3D:
+		card = root as MeshInstance3D
+	else:
+		card = root.find_child("*", true, false) as MeshInstance3D
+		if card == null:
+			for child in root.find_children("*", "MeshInstance3D", true, false):
+				card = child as MeshInstance3D
+				break
+		if card != null and card.get_parent() != null:
+			card.get_parent().remove_child(card)
+		root.queue_free()
+	if card == null:
+		return null
+	card.name = node_name
+	card.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return card
+
+
+func _take_card_texture(card: MeshInstance3D, mat: StandardMaterial3D) -> void:
+	var active := card.get_active_material(0) as StandardMaterial3D
+	if active == null or active.albedo_texture == null:
+		return
+	mat.albedo_texture = active.albedo_texture
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
 
 func _chest_material(color: Color, glow: bool) -> StandardMaterial3D:
@@ -6358,6 +6556,76 @@ func _scale_club(amount: float) -> void:
 	club.scale = Vector3.ONE * amount
 
 
+func _py2_suit(do_id: int) -> int:
+	# Python 2 random.seed(doId); random.randint(0, 7). SuitDNA.getRandomSuitByDept('c').
+	var mt: Array[int] = []
+	mt.resize(624)
+	var number := absi(do_id)
+	var key: Array[int] = []
+	if number == 0:
+		key.append(0)
+	else:
+		while number > 0:
+			key.append(number & 0xffffffff)
+			number >>= 32
+	mt[0] = 19650218
+	for step in range(1, 624):
+		var prev := mt[step - 1]
+		mt[step] = (1812433253 * (prev ^ (prev >> 30)) + step) & 0xffffffff
+	var index := 1
+	var key_at := 0
+	var left := key.size()
+	if left < 624:
+		left = 624
+	while left > 0:
+		var seed_prev := mt[index - 1]
+		mt[index] = ((mt[index] ^ ((seed_prev ^ (seed_prev >> 30)) * 1664525)) + key[key_at] + key_at) & 0xffffffff
+		index += 1
+		key_at += 1
+		if index >= 624:
+			mt[0] = mt[623]
+			index = 1
+		if key_at >= key.size():
+			key_at = 0
+		left -= 1
+	left = 623
+	while left > 0:
+		var mix_prev := mt[index - 1]
+		mt[index] = ((mt[index] ^ ((mix_prev ^ (mix_prev >> 30)) * 1566083941)) - index) & 0xffffffff
+		index += 1
+		if index >= 624:
+			mt[0] = mt[623]
+			index = 1
+		left -= 1
+	mt[0] = 0x80000000
+	var upper := 0x80000000
+	var lower := 0x7fffffff
+	var matrix := 0x9908b0df
+	for step in 227:
+		var mixed := (mt[step] & upper) | (mt[step + 1] & lower)
+		var twist := mt[step + 397] ^ (mixed >> 1)
+		if (mixed & 1) != 0:
+			twist ^= matrix
+		mt[step] = twist & 0xffffffff
+	for step in range(227, 623):
+		var mixed_b := (mt[step] & upper) | (mt[step + 1] & lower)
+		var twist_b := mt[step - 227] ^ (mixed_b >> 1)
+		if (mixed_b & 1) != 0:
+			twist_b ^= matrix
+		mt[step] = twist_b & 0xffffffff
+	var mixed_last := (mt[623] & upper) | (mt[0] & lower)
+	var last := mt[396] ^ (mixed_last >> 1)
+	if (mixed_last & 1) != 0:
+		last ^= matrix
+	mt[623] = last & 0xffffffff
+	var word := mt[0]
+	word ^= word >> 11
+	word ^= (word << 7) & 0x9d2c5680
+	word ^= (word << 15) & 0xefc60000
+	word ^= word >> 18
+	return (word & 0xffffffff) >> 29
+
+
 func _show_gil_suit() -> void:
 	if _root == null:
 		return
@@ -6366,6 +6634,11 @@ func _show_gil_suit() -> void:
 		_gil.basis = _panda_hpr(0.0, 0.0, 0.0)
 		_gil.visible = false
 	if _root.get_node_or_null("GilSuit") != null:
+		return
+	var do_id := 0
+	if _boss != null and _boss.has_method("ceo_do_id"):
+		do_id = int(_boss.call("ceo_do_id"))
+	if do_id <= 0:
 		return
 	var bosses: Array = [
 		{"code": "f", "name": "Flunky", "body": "c", "height": 4.88},
@@ -6377,7 +6650,7 @@ func _show_gil_suit() -> void:
 		{"code": "cr", "name": "Corporate Raider", "body": "c", "height": 8.23},
 		{"code": "tbc", "name": "The Big Cheese", "body": "a", "height": 9.34},
 	]
-	var picked: Dictionary = bosses[randi() % bosses.size()]
+	var picked: Dictionary = bosses[_py2_suit(do_id)]
 	var suit := StreetCog.new()
 	suit.name = "GilSuit"
 	_root.add_child(suit)
@@ -6399,20 +6672,15 @@ func _show_gil_suit() -> void:
 	ahead.y = suit.global_position.y
 	if suit.global_position.distance_squared_to(ahead) > 0.04:
 		suit.look_at(ahead, Vector3.UP)
-	var tag := Label3D.new()
-	tag.name = "GilSuitTag"
-	tag.text = "Good ol' Gil Giggles"
-	tag.position = Vector3(0.0, -5.0, 5.4)
-	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tag.font_size = 48
-	tag.pixel_size = 0.01
-	_root.add_child(tag)
+	suit.force_update_transform()
+	_tag_npc(suit, "Good ol' Gil Giggles")
 
 
 func _hide_gil_suit() -> void:
 	if _root != null:
-		var suit := _root.get_node_or_null("GilSuit")
+		var suit := _root.get_node_or_null("GilSuit") as Node3D
 		if suit != null:
+			_release_npc(suit)
 			suit.queue_free()
 		var tag := _root.get_node_or_null("GilSuitTag")
 		if tag != null:
@@ -6420,51 +6688,229 @@ func _hide_gil_suit() -> void:
 	_hide_gil()
 
 
-func _aim_ceo_talk() -> void:
-	var intro := _page_next == "cogs" or _gil_job == "intro_leave"
+func _ceo_line(index: int) -> void:
+	if index < 0 or index >= _pages.size() or _pages[index].is_empty():
+		return
+	_tell(_pages[index])
+
+
+func _tick_intro_movie(delta: float) -> void:
+	_aim_intro_movie()
+	# placeToonInElevator. BigElevatorPoints[0], facing out of the car.
+	if _ceo_beat < 2:
+		_stand_in_elevator()
+	if _ceo_beat < 1 and _act_t >= 3.0:
+		_ceo_beat = 1
+		_ceo_line(1)
+	if _ceo_beat < 2 and _act_t >= 6.0:
+		_ceo_beat = 2
+		_tell("")
+		_puff_dust()
+		_strip_at = _clock + 0.3
+	if _ceo_beat < 3 and _act_t >= 9.0:
+		_ceo_beat = 3
+		_ceo_line(2)
+	if _ceo_beat < 4 and _act_t >= 12.0:
+		_ceo_beat = 4
+		_gil_job = "intro_leave"
+		_gil_age = 0.0
+	if _gil_job == "intro_leave":
+		_tick_gil_walk(delta)
+	if _ceo_beat < 5 and _act_t >= 18.5:
+		_ceo_beat = 5
+		_tell("")
+		_finish_gil_walk()
+
+
+func _tick_banquet_movie(delta: float) -> void:
+	_aim_banquet_movie()
+	if _ceo_beat < 1 and _act_t >= 3.0:
+		_ceo_beat = 1
+		_tell("")
+		_puff_dust()
+		_suit_at = _clock + 0.3
+	if _ceo_beat < 2 and _act_t >= 4.0:
+		_ceo_beat = 2
+		_place_ceo_at(20.0)
+		_swing_door(90.0, 2.0)
+	if _ceo_beat < 3 and _act_t >= 6.0:
+		_ceo_beat = 3
+		_ceo_line(1)
+	if _ceo_beat < 4 and _act_t >= 9.0:
+		_ceo_beat = 4
+		_ceo_line(2)
+	if _ceo_beat < 5 and _act_t >= 12.0:
+		_ceo_beat = 5
+		_swing_door(0.0, 2.0)
+	if _ceo_beat < 6 and _act_t >= 14.0:
+		_ceo_beat = 6
+		_place_ceo_at(355.0)
+		_ceo_line(3)
+	if _ceo_beat < 7 and _act_t >= 17.0:
+		_ceo_beat = 7
+		_ceo_line(4)
+	if _ceo_beat < 8 and _act_t >= 18.0:
+		_ceo_beat = 8
+		_swing_door(120.0, 2.0)
+	if _ceo_beat < 9 and _act_t >= 20.0:
+		_ceo_beat = 9
+		_gil_job = "banquet_leave"
+		_gil_age = 0.0
+	if _gil_job == "banquet_leave":
+		_tick_gil_walk(delta)
+	if _ceo_beat < 10 and _act_t >= 23.5:
+		_ceo_beat = 10
+		_finish_gil_walk()
+
+
+func _tick_threat_movie() -> void:
+	_aim_threat_movie()
+	if _ceo_beat < 1 and _act_t >= 3.0:
+		_ceo_beat = 1
+		_ceo_line(1)
+	if _ceo_beat < 2 and _act_t >= 7.0:
+		_ceo_beat = 2
+		if not _threat_dusted:
+			_threat_dusted = true
+			_puff_dust()
+			_strip_at = _clock + 0.3
+	if _ceo_beat < 3 and _act_t >= 10.0:
+		_ceo_beat = 3
+		_ceo_line(3)
+	if _ceo_beat < 4 and _act_t >= 13.0:
+		_ceo_beat = 4
+		_tell("")
+		_normal_eyes()
+		_mode = ""
+		_page_next = ""
+		_release_camera()
+		_clear_waiter()
+		if _boss != null:
+			_boss.call("finish_ceo_threat")
+
+
+func _tick_seltzer_movie() -> void:
+	_aim_seltzer_movie()
+	if _act_t >= 11.0:
+		_scale_club(lerpf(0.01, 1.0, clampf((_act_t - 11.0) / 3.0, 0.0, 1.0)))
+	if _ceo_beat < 1 and _act_t >= 4.0:
+		_ceo_beat = 1
+		_ceo_line(1)
+	if _ceo_beat < 2 and _act_t >= 8.0:
+		_ceo_beat = 2
+		_hide_gil_suit()
+		_banquet_door(0.0)
+		_ceo_line(2)
+	if _ceo_beat < 3 and _act_t >= 11.0:
+		_ceo_beat = 3
+		_ceo_line(3)
+	if _ceo_beat < 4 and _act_t >= 14.0:
+		_ceo_beat = 4
+		_release_camera()
+		_hide_gil_suit()
+		_scale_club(1.0)
+		_page_next = ""
+		_mode = "seltzer"
+		_golf = false
+		_station = ""
+		_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v2.ogg", "ceo2")
+		_tell("Press E at a table bottle or a golf ball. Left and right aim. Hold the jump key, then release. E steps off. Snacks ride the belts.")
+
+
+func _aim_intro_movie() -> void:
 	var elev := Vector3(0.0, -100.544, 7.18258)
 	var close := Vector3(0.0, -80.544, 5.18258)
-	var gil := Vector3(0.0, -64.0, 4.0)
-	if intro:
-		if _page <= 0 and _gil_job == "":
-			var along := clampf(_act_t / 3.0, 0.0, 1.0)
-			_aim_at(elev.lerp(close, along), gil)
-			return
-		if _page == 1 and _gil_job == "":
-			_aim_at(Vector3(0.0, -69.0, 4.0), Vector3(0.0, -90.0, 3.0))
-			return
-		var swing := 1.0 if _gil_job == "intro_leave" or _page > 2 else clampf(_act_t / 2.0, 0.0, 1.0)
-		var heading := lerpf(0.0, -15.0, swing)
-		var ahead := Vector3(-sin(deg_to_rad(heading)), cos(deg_to_rad(heading)), 0.0)
-		_aim_at(close, close + ahead * 24.0 + Vector3(0.0, 0.0, -1.2))
-		return
-	if _page_next == "threat":
-		var boss_y := 355.0
-		if _page == 2 and _act_t < 2.5:
-			_aim_toon_front()
-			return
-		_aim_at(Vector3(0.0, boss_y - 45.0, 5.0), Vector3(0.0, boss_y, 14.0))
-		return
-	if _page_next == "seltzer":
-		if _page <= 1:
-			_aim_at(Vector3(0.0, 8.0, 5.0), Vector3(0.0, -5.0, 3.0))
-			return
-		_aim_at(Vector3(0.0, 310.0, 5.0), Vector3(0.0, 355.0, 14.0))
-		return
+	if _act_t < 3.0:
+		var along := clampf(_act_t / 3.0, 0.0, 1.0)
+		_aim_movie(elev.lerp(close, along), 0.0, lerpf(0.0, 5.0, along))
+	elif _act_t < 6.0:
+		_aim_movie(close, 0.0, 5.0)
+	elif _act_t < 9.0:
+		_aim_movie(Vector3(0.0, -69.0, 4.0), 180.0, 0.0)
+	elif _act_t < 10.0:
+		_aim_movie(close, 0.0, 5.0)
+	elif _act_t < 12.0:
+		var swing := clampf((_act_t - 10.0) / 2.0, 0.0, 1.0)
+		_aim_movie(close, lerpf(0.0, -15.0, swing), 5.0)
+	else:
+		_aim_movie(close, -15.0, 5.0)
+
+
+func _aim_banquet_movie() -> void:
 	var gil_cam := Vector3(0.0, -42.0, 6.0)
-	var gil_look := Vector3(0.0, -20.0, 4.0)
 	var boss_cam := Vector3(0.0, -20.0, 18.0)
-	var boss_look := Vector3(0.0, 20.0, 8.0)
 	var side_cam := Vector3(5.0, -45.0, 12.0)
-	if _page <= 0 and _gil_job == "":
-		_aim_at(gil_cam, gil_look)
+	if _act_t < 4.0:
+		_aim_movie(gil_cam, 0.0, 0.0)
+	elif _act_t < 6.0:
+		var open := clampf((_act_t - 4.0) / 2.0, 0.0, 1.0)
+		_aim_movie(gil_cam.lerp(boss_cam, open), 0.0, 0.0)
+	elif _act_t < 12.0:
+		_aim_movie(boss_cam, 0.0, 0.0)
+	elif _act_t < 14.0:
+		var aside := clampf((_act_t - 12.0) / 2.0, 0.0, 1.0)
+		_aim_movie(boss_cam.lerp(side_cam, aside), lerpf(0.0, 10.0, aside), lerpf(0.0, -8.0, aside))
+	else:
+		_aim_movie(side_cam, 10.0, -8.0)
+
+
+func _aim_threat_movie() -> void:
+	if _act_t >= 6.0 and _act_t < 10.0:
+		_aim_toon_front()
 		return
-	if (_page == 1 or _page == 2) and _gil_job == "":
-		var open := 1.0 if _page >= 2 else clampf(_act_t / 2.0, 0.0, 1.0)
-		_aim_at(gil_cam.lerp(boss_cam, open), gil_look.lerp(boss_look, open))
+	_aim_movie(Vector3(0.0, _ceo_panda_y() - 45.0, 5.0), 0.0, 14.0)
+
+
+func _aim_seltzer_movie() -> void:
+	if _act_t < 8.0:
+		_aim_movie(Vector3(0.0, 8.0, 5.44), -180.0, 0.0)
 		return
-	var aside := 1.0 if _gil_job != "" or _page > 3 else clampf(_act_t / 2.0, 0.0, 1.0)
-	_aim_at(boss_cam.lerp(side_cam, aside), boss_look.lerp(gil_look, aside))
+	_aim_movie(Vector3(0.0, _ceo_panda_y() - 45.0, 5.0), 0.0, 14.0)
+
+
+func _aim_walk_in(body: CharacterBody3D) -> void:
+	var actor := _toon_actor(body)
+	var height := 3.0
+	if actor != null and actor.has_method("clamped_height"):
+		height = maxf(float(actor.call("clamped_height")), 3.0)
+	var forward := Vector3(0.0, 0.0, -1.0)
+	if actor != null:
+		forward = actor.global_transform.basis.y
+		forward.y = 0.0
+		if forward.length_squared() > 0.01:
+			forward = forward.normalized()
+		else:
+			forward = Vector3(0.0, 0.0, -1.0)
+	var from := body.global_position - forward * (9.0 * height * 0.333333) + Vector3.UP * height
+	_aim_world(from, body.global_position + forward * 1.5 + Vector3.UP * height)
+
+
+func _sad_eyes() -> void:
+	var actor := _toon_actor()
+	if actor != null:
+		actor.set_expression("sad")
+	_eyes_back = _clock + 0.7
+
+
+func _normal_eyes() -> void:
+	if _eyes_back < 0.0:
+		return
+	_eyes_back = -1.0
+	var actor := _toon_actor()
+	if actor != null:
+		actor.set_expression("normal")
+
+
+func _fight_ids() -> Array[int]:
+	var ids: Array[int] = [ToonNet.peer_id()]
+	var host: Node = _boss.get_parent() if _boss != null else null
+	if host != null:
+		for node in host.find_children("*", "ToonActor", true, false):
+			var peer := int(node.get_meta("peer", 0))
+			if peer > 0 and not ids.has(peer):
+				ids.append(peer)
+	ids.sort()
+	return ids
 
 
 func _tick_walk_in(delta: float) -> void:
@@ -6472,27 +6918,38 @@ func _tick_walk_in(delta: float) -> void:
 	if body == null or _root == null:
 		_finish_walk_in()
 		return
+	_aim_walk_in(body)
 	if not _walk_ready:
 		_walk_from = _root.to_local(body.global_position)
 		_walk_floor = body.global_position.y
 		_walk_ready = true
 	_gil_age += delta
+	var ids := _fight_ids()
+	var slot := ids.find(ToonNet.peer_id())
+	if slot < 0:
+		slot = 0
+	var span := float(maxi(ids.size() - 1, 0)) + 7.0
+	if _gil_age >= span:
+		_finish_walk_in()
+		return
+	var age := _gil_age - float(slot)
+	if age < 0.0:
+		return
 	var mid := Vector3(0.0, 0.0, 0.0)
-	var dest := Vector3(-14.0, 25.0, 0.0)
+	var dest := Vector3(-14.0 + float(slot) * 4.0, 25.0, 0.0)
 	var panda := dest
 	var face := dest
 	var moving := true
-	if _gil_age < 3.0:
-		panda = _walk_from.lerp(mid, clampf(_gil_age / 3.0, 0.0, 1.0))
+	if age < 3.0:
+		panda = _walk_from.lerp(mid, clampf(age / 3.0, 0.0, 1.0))
 		face = mid
-	elif _gil_age < 6.0:
-		panda = mid.lerp(dest, clampf((_gil_age - 3.0) / 3.0, 0.0, 1.0))
+	elif age < 6.0:
+		panda = mid.lerp(dest, clampf((age - 3.0) / 3.0, 0.0, 1.0))
 		face = dest
-	elif _gil_age < 7.0:
+	elif age < 7.0:
 		moving = false
 	else:
-		_finish_walk_in()
-		return
+		moving = false
 	var world := _root.to_global(Vector3(panda.x, panda.y, 0.0))
 	world.y = _walk_floor
 	body.velocity = Vector3.ZERO
@@ -6522,28 +6979,29 @@ func _tick_gil_walk(delta: float) -> void:
 	if _gil_job == "intro_leave":
 		var turn := clampf(_gil_age / 1.0, 0.0, 1.0)
 		_gil.basis = _panda_hpr(lerpf(180.0, 270.0, turn), 0.0, 0.0)
-		if _gil_age > 1.0:
+		if _gil_age >= 3.5:
+			_gil.position = Vector3(40.0, -64.0, 0.0)
+			_gil.set_locomotion(0.0, false, false, delta)
+		elif _gil_age > 1.0:
 			var walk := clampf((_gil_age - 1.0) / 2.5, 0.0, 1.0)
 			_gil.position = Vector3(lerpf(0.0, 40.0, walk), -64.0, 0.0)
 			_gil.play_walk(delta)
-		if _gil_age >= 3.5:
-			_finish_gil_walk()
 		return
 	var turn_out := clampf(_gil_age / 1.0, 0.0, 1.0)
 	_gil.basis = _panda_hpr(lerpf(180.0, 90.0, turn_out), 0.0, 0.0)
-	if _gil_age > 1.0:
+	if _gil_age >= 3.5:
+		_gil.position = Vector3(-40.0, -20.0, 0.0)
+		_gil.set_locomotion(0.0, false, false, delta)
+	elif _gil_age > 1.0:
 		var walk_out := clampf((_gil_age - 1.0) / 2.5, 0.0, 1.0)
 		_gil.position = Vector3(lerpf(0.0, -40.0, walk_out), -20.0, 0.0)
 		_gil.play_walk(delta)
-	if _gil_age >= 3.5:
-		_finish_gil_walk()
 
 
 func _finish_gil_walk() -> void:
 	var job := _gil_job
 	_gil_job = ""
 	_hide_gil()
-	_banquet_door(0.0)
 	if job == "intro_leave":
 		_mode = ""
 		_release_camera()
@@ -6562,6 +7020,7 @@ func _finish_gil_walk() -> void:
 
 func _finish_walk_in() -> void:
 	_gil_job = ""
+	_banquet_door(0.0)
 	var body := _body()
 	var actor := _toon_actor(body) if body != null else null
 	if actor != null:
@@ -6599,30 +7058,85 @@ func _face_ceo(target: Vector3, span: float) -> void:
 	var ceo := _root.get_node_or_null("CEO") as Node3D
 	if ceo == null:
 		return
-	var flat := _root.to_local(target) - ceo.position
+	var flat := ceo.to_local(target)
 	if Vector2(flat.x, flat.y).length() < 0.2:
 		return
+	_face_return = -1.0
 	_face_from = _face_now
 	_face_to = rad_to_deg(atan2(-flat.x, flat.y))
 	_face_age = 0.0
 	_face_span = maxf(span, 0.05)
 
 
+func _arm_face_return(delay: float) -> void:
+	_face_return = _clock + delay
+
+
 func _tick_face(delta: float) -> void:
-	if _face_span <= 0.0 or _root == null or _crushing:
+	if _spin_span > 0.0:
+		_tick_spin(delta)
+		return
+	if _face_span <= 0.0:
+		if _face_return >= 0.0 and _clock >= _face_return and not _crushing and _fore_phase == 0:
+			_face_from = _face_now
+			_face_to = 0.0
+			_face_age = 0.0
+			_face_span = 0.2
+			_face_return = -1.0
+		else:
+			return
+	if _root == null or _crushing:
 		return
 	var ceo := _root.get_node_or_null("CEO") as Node3D
 	if ceo == null:
 		return
-	if not ceo.has_meta("rest_basis"):
-		ceo.set_meta("rest_basis", ceo.basis)
 	_face_age += delta
 	var along := clampf(_face_age / _face_span, 0.0, 1.0)
 	_face_now = rad_to_deg(lerp_angle(deg_to_rad(_face_from), deg_to_rad(_face_to), along))
-	var rest := ceo.get_meta("rest_basis") as Basis
-	ceo.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(_face_now)) * rest
+	_apply_heading()
 	if along >= 1.0:
 		_face_span = 0.0
+
+
+func _tick_spin(delta: float) -> void:
+	_spin_age += delta
+	var along := clampf(_spin_age / maxf(_spin_span, 0.05), 0.0, 1.0)
+	_face_now = _spin_from + _spin_add * along
+	_apply_heading()
+	if along >= 1.0:
+		_spin_span = 0.0
+
+
+func _ceo_torso(ceo: Node3D) -> Node3D:
+	var torso := ceo.find_child("bossbotBoss-torso-zero.egg", true, false) as Node3D
+	if torso != null:
+		return torso
+	return ceo.find_child("bossCog-torso", true, false) as Node3D
+
+
+func _apply_heading() -> void:
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	# BossCog attaches the torso to joint_pelvis and turns that part. The treads stay.
+	var torso := _ceo_torso(ceo)
+	var part: Node3D = ceo
+	if torso != null:
+		part = torso
+	if not part.has_meta("rest_basis"):
+		part.set_meta("rest_basis", part.basis)
+	var rest := part.get_meta("rest_basis") as Basis
+	part.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(_face_now)) * rest
+
+
+func _spin_ceo(extra: float, span: float) -> void:
+	_spin_from = _face_now
+	_spin_add = extra
+	_spin_age = 0.0
+	_spin_span = maxf(span, 0.05)
+	_face_span = 0.0
 
 
 func _tint_club() -> void:
@@ -6631,14 +7145,18 @@ func _tint_club() -> void:
 	var ceo := _root.get_node_or_null("CEO") as Node3D
 	if ceo == null:
 		return
-	var club := ceo.find_child("golfclub", true, false)
-	if club == null:
-		return
-	var pulse := 0.5 + 0.5 * sin(_clock * 16.0)
-	var tint := Color.WHITE.lerp(Color(0.1, 1.0, 0.1), pulse)
-	if _over_two:
-		tint = Color.WHITE.lerp(Color(1.0, 0.1, 0.1), pulse)
-	_tint_meshes(club, tint)
+	# colorScaleInterval(0.1, green or red) then colorScaleInterval(0.3, white), looped.
+	var cycle := fposmod(_clock, 0.4)
+	var hot := Color(1.0, 0.0, 0.0, 1.0) if _over_two else Color(0.0, 1.0, 0.0, 1.0)
+	var tint := Color.WHITE
+	if cycle < 0.1:
+		tint = Color.WHITE.lerp(hot, cycle / 0.1)
+	else:
+		tint = hot.lerp(Color.WHITE, (cycle - 0.1) / 0.3)
+	for part_name in ["golfclub", "club_handle", "club_head"]:
+		var part := ceo.find_child(part_name, true, false)
+		if part != null:
+			_tint_meshes(part, tint)
 
 
 func _tint_meshes(node: Node, color: Color) -> void:
@@ -6663,10 +7181,9 @@ func holds_camera() -> bool:
 
 func aim(camera: Camera3D) -> void:
 	if _epilogue_on and _gil != null and is_instance_valid(_gil) and _gil.get_parent() != null:
-		var parent := _gil.get_parent() as Node3D
-		var want := parent.to_global(_gil.position + Vector3(-9.0, -12.0, 6.0))
+		var want := _gil.to_global(Vector3(-9.0, 12.0, 6.0))
 		camera.global_position = camera.global_position.lerp(want, 0.12)
-		var face := parent.to_global(_gil.position + Vector3(0.0, 0.0, 3.0))
+		var face := _gil.to_global(Vector3(0.0, 0.0, 3.0))
 		if camera.global_position.distance_squared_to(face) > 0.04:
 			camera.look_at(face, Vector3.UP)
 		return
@@ -6711,8 +7228,14 @@ func _tick_board(delta: float, body: CharacterBody3D) -> void:
 	body.global_position = spot
 	if _station == "tee":
 		_show_putter(body)
-		if actor != null:
-			actor.set_locomotion(0.0, false, false, delta)
+		if _swing_age >= 0.0:
+			_tick_swing(delta, node, actor)
+		else:
+			_aim_putter(node)
+			if actor != null:
+				actor.pose_synced_loop("loop-putt")
+				if actor.action_length("loop-putt") <= 0.0:
+					actor.set_locomotion(0.0, false, false, delta)
 	else:
 		_hide_putter()
 		if actor != null:
@@ -6749,12 +7272,84 @@ func _show_putter(body: Node3D) -> void:
 	_putter = packed.instantiate() as Node3D
 	if _putter == null:
 		return
-	body.add_child(_putter)
-	_putter.position = Vector3(0.35, 1.05, 0.2)
-	_putter.rotation_degrees = Vector3(70.0, 0.0, 90.0)
+	var actor := _toon_actor(body)
+	var hand: Node3D = null
+	if actor != null:
+		hand = actor.find_child("def_joint_left_hold", true, false) as Node3D
+	var host: Node3D = body
+	if hand != null:
+		host = hand
+	host.add_child(_putter)
+	if hand != null:
+		# attachClub sets the putter on the left hand, offset -0.25 on the hand's X.
+		_putter.position = Vector3(-0.25, 0.0, 0.0)
+	else:
+		_putter.position = Vector3(0.35, 1.05, 0.2)
+		_putter.rotation_degrees = Vector3(70.0, 0.0, 90.0)
+
+
+func _aim_putter(tee: Node3D) -> void:
+	if _putter == null or not is_instance_valid(_putter) or tee == null:
+		return
+	var spot := tee.global_position
+	if _putter.global_position.distance_squared_to(spot) > 0.04:
+		_putter.look_at(spot, Vector3.UP)
+	# adjustClub stretches the shaft so the head reaches the ball. 2.058 is the putter length.
+	var reach := _putter.global_position.distance_to(spot)
+	_putter.scale = Vector3(1.0, 1.0, maxf(reach, 0.2) / 2.058)
+
+
+func _begin_swing(power: float) -> void:
+	var actor := _toon_actor()
+	if actor == null or actor.action_length("swing-putt") <= 0.0:
+		_fire_ball(power)
+		return
+	_swing_age = 0.0
+	_swing_power = power
+	_swing_sent = false
+	_tee_grow = -1.0
+	if _putter != null and is_instance_valid(_putter):
+		_putter.scale = Vector3.ONE
+
+
+func _tick_swing(delta: float, tee: Node3D, actor: ToonActor) -> void:
+	_swing_age += delta
+	if actor != null:
+		actor.pose_action("swing-putt", _swing_age)
+	# BALL_CONTACT_FRAME is 9. The resting ball hides when the club meets it.
+	if not _swing_sent and _swing_age >= 9.0 / 24.0:
+		_swing_sent = true
+		_fire_ball(_swing_power)
+		if tee != null:
+			tee.visible = false
+	if _swing_age < 1.0:
+		return
+	if _tee_grow < 0.0:
+		_tee_grow = 0.0
+		if tee != null:
+			tee.visible = true
+			tee.scale = Vector3.ONE * 0.1
+	_tee_grow += delta
+	if tee != null:
+		tee.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf(_tee_grow, 0.0, 1.0))
+	if _tee_grow < 1.0:
+		return
+	if tee != null:
+		tee.scale = Vector3.ONE
+		tee.visible = true
+	_swing_age = -1.0
+	_tee_grow = -1.0
 
 
 func _hide_putter() -> void:
+	if _swing_age >= 0.0 or _tee_grow >= 0.0:
+		var tee := _station_node()
+		if tee != null:
+			tee.visible = true
+			tee.scale = Vector3.ONE
+	_swing_age = -1.0
+	_tee_grow = -1.0
+	_swing_sent = false
 	if _putter != null and is_instance_valid(_putter):
 		_putter.queue_free()
 	_putter = null
@@ -6797,6 +7392,32 @@ func _tick_water(delta: float) -> void:
 	_water = kept
 
 
+func _stand_in_elevator() -> void:
+	var body := _body()
+	var elev := _find("elevator_origin")
+	if body == null or elev == null:
+		return
+	var spot := elev.to_global(Vector3(-2.5, 9.0, 0.1))
+	body.velocity = Vector3.ZERO
+	body.global_position = spot
+	var ahead := elev.to_global(Vector3(-2.5, 8.0, 0.1))
+	var flat := ahead - spot
+	flat.y = 0.0
+	var host := _boss.get_parent() if _boss != null else null
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if flat.length_squared() > 0.01 and toon != null and toon.has_method("aim_fishing"):
+		toon.call("aim_fishing", rad_to_deg(atan2(flat.x, -flat.z)))
+	var actor := _toon_actor(body)
+	if actor != null:
+		if actor.get_parent() != body:
+			actor.reparent(body)
+			actor.position = Vector3.ZERO
+		actor.visible = true
+	_lock_toon()
+	if toon != null and toon.has_method("wear_bossbot_suit"):
+		toon.call("wear_bossbot_suit")
+
+
 func _place_gil(at: Vector3) -> void:
 	var parent: Node3D = _root if _root != null else _geometry()
 	if parent == null:
@@ -6810,27 +7431,49 @@ func _place_gil(at: Vector3) -> void:
 		style.last_name = "Giggles"
 		style.gender = "m"
 		style.head = "sls"
-		style.torso = "ss"
-		style.legs = "m"
+		style.torso = "ms"
+		style.legs = "l"
 		style.top_tex = 0
 		style.top_color = 3
 		style.bot_tex = 1
-		style.bot_color = 16
-		style.arm_color = 19
+		style.bot_color = 11
+		style.arm_color = 15
 		style.glove_color = 0
-		style.leg_color = 19
-		style.head_color = 19
+		style.leg_color = 15
+		style.head_color = 15
 		_gil.show_style(style)
-		var tag := Label3D.new()
-		tag.text = "Good ol' Gil Giggles"
-		tag.position = Vector3(0.0, 4.2, 0.0)
-		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		tag.font_size = 48
-		tag.pixel_size = 0.01
-		_gil.add_child(tag)
 	_gil.visible = true
 	_gil.position = at
 	_gil.basis = _panda_hpr(180.0, 0.0, 0.0)
+	_tag_gil()
+
+
+func _tag_gil() -> void:
+	if _gil == null or not is_instance_valid(_gil) or _gil.has_meta("named"):
+		return
+	_gil.force_update_transform()
+	if _tag_npc(_gil, "Good ol' Gil Giggles"):
+		_gil.set_meta("named", true)
+
+
+func _tag_npc(actor: Node3D, text: String) -> bool:
+	if actor == null or _boss == null:
+		return false
+	var host := _boss.get_parent()
+	var tags := host.find_child("Nametags", true, false) if host != null else null
+	if tags == null or not tags.has_method("add"):
+		return false
+	tags.call("add", actor, text, "npc")
+	return true
+
+
+func _release_npc(actor: Node3D) -> void:
+	if actor == null or _boss == null:
+		return
+	var host := _boss.get_parent()
+	var tags := host.find_child("Nametags", true, false) if host != null else null
+	if tags != null and tags.has_method("release"):
+		tags.call("release", actor)
 
 
 func _hide_gil() -> void:
@@ -6858,6 +7501,158 @@ func _belt_point(index: int) -> Vector3:
 	return _boss_pos
 
 
+func _start_fore(body: CharacterBody3D) -> void:
+	_attack_kind = "area"
+	_begin_fore_show()
+	var first := _ceo_shots.size()
+	for target in _fore_targets(body):
+		_queue_fore_balls(target)
+	_remember_volley("fore", first)
+
+
+func _begin_fore_show() -> void:
+	_tell("Fore!")
+	_sfx("res://assets/audio/sfx/Skel_COG_VO_grunt.ogg")
+	_face_return = -1.0
+	_face_span = 0.0
+	_fore_heading = _face_now
+	_fore_phase = 1
+	_fore_left = 2.0
+	_spin_ceo(360.0, 2.0)
+	if _ceo_raised:
+		_ceo_clip = ""
+		_play_ceo("Ff_neutral", true)
+	else:
+		_ceo_raised = true
+		_play_ceo("Fb_down2Up", false, "Ff_neutral")
+
+
+func _tick_fore(delta: float) -> void:
+	if _fore_phase == 0:
+		return
+	_fore_left -= delta
+	if _fore_left > 0.0:
+		return
+	if _fore_phase == 1:
+		_fore_phase = 2
+		_fore_left = 2.0
+		_spin_ceo(1440.0, 2.0)
+		_play_ceo("golf_swing", false, "Ff_neutral")
+		return
+	_fore_phase = 0
+	_spin_span = 0.0
+	_face_now = 0.0
+	_apply_heading()
+
+
+func _fore_targets(body: CharacterBody3D) -> Array[Vector3]:
+	var spots: Array[Vector3] = []
+	if body != null:
+		spots.append(body.global_position + Vector3.UP * 3.0)
+	var host: Node = _boss.get_parent() if _boss != null else null
+	if host != null:
+		for node in host.find_children("*", "ToonActor", true, false):
+			if int(node.get_meta("peer", 0)) <= 0:
+				continue
+			var actor := node as Node3D
+			if actor != null and actor.visible:
+				spots.append(actor.global_position + Vector3.UP * 3.0)
+	if spots.is_empty():
+		spots.append(_boss_pos + Vector3.UP * 3.0)
+	return spots
+
+
+func _shot_axes(target: Vector3) -> Dictionary:
+	var origin := _boss_pos + Vector3.UP * 10.0
+	var flat := target - origin
+	flat.y = 0.0
+	var forward := Vector3(0.0, 0.0, -1.0)
+	if flat.length_squared() > 0.01:
+		forward = flat.normalized()
+	var right := Vector3.UP.cross(forward)
+	if right.length_squared() < 0.01:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
+	return {"origin": origin, "forward": forward, "right": right}
+
+
+func _queue_fore_balls(target: Vector3) -> void:
+	var axes := _shot_axes(target)
+	var origin: Vector3 = axes["origin"]
+	var forward: Vector3 = axes["forward"]
+	var right: Vector3 = axes["right"]
+	var launch := origin + right * 10.5 + forward * 8.5 - Vector3.UP * 5.0
+	var distance := launch.distance_to(target)
+	for index in 5:
+		var lateral := randf_range(-5.0, 5.0)
+		var lift := randf_range(-3.0, 3.0)
+		var extra := randf_range(5.0, 15.0)
+		if index == 2:
+			lateral = 0.0
+			lift = 0.0
+			extra = 10.0
+		var dest := origin + right * lateral + forward * (distance + extra) + Vector3.UP * lift
+		var mesh := _ceo_ball()
+		mesh.visible = false
+		_ceo_shots.append({
+			"from": launch,
+			"to": dest,
+			"age": 0.0,
+			"wait": 2.0 + 26.0 / 24.0 + float(index) * 0.15,
+			"mesh": mesh,
+			"kind": "fore",
+			"hurt": false,
+			"spin": randf_range(-720.0, -90.0),
+			"pitch": true,
+		})
+
+
+func _tick_zap(delta: float, body: CharacterBody3D) -> void:
+	if _zap_left > 0.0 and body != null:
+		_zap_left = maxf(_zap_left - delta, 0.0)
+		var actor := _toon_actor(body)
+		if actor != null:
+			actor.pose_action(_zap_clip, 1.0 - _zap_left)
+	if _slide_left <= 0.0 or body == null:
+		return
+	_slide_left = maxf(_slide_left - delta, 0.0)
+	var along := clampf(1.0 - _slide_left / 0.5, 0.0, 1.0)
+	var spot := _slide_from.lerp(_slide_to, along)
+	spot.y = body.global_position.y
+	body.global_position = spot
+	body.velocity = Vector3.ZERO
+
+
+func _zap_fore() -> void:
+	if _clock < _fore_safe:
+		return
+	_fore_safe = _clock + 1.0
+	_boss.call("note_golf", true)
+	var body := _body()
+	var roaming := not _golf
+	_zap_clip = "slip-backward" if roaming else "slip-forward"
+	_zap_left = 1.0
+	if not roaming or body == null:
+		return
+	var to_ceo := _boss_pos - body.global_position
+	to_ceo.y = 0.0
+	if to_ceo.length_squared() > 0.04:
+		var heading := rad_to_deg(atan2(to_ceo.x, -to_ceo.z))
+		var toon := _playground_toon()
+		if toon != null and toon.has_method("aim_fishing"):
+			toon.call("aim_fishing", heading)
+	var back := -body.global_transform.basis.y
+	back.y = 0.0
+	if back.length_squared() < 0.01:
+		back = Vector3(0.0, 0.0, 1.0)
+	else:
+		back = back.normalized()
+	_slide_from = body.global_position
+	_slide_to = body.global_position + back * 5.0
+	_slide_left = 0.5
+
+
 func _swing_club(target: Vector3) -> void:
 	_wind_up("golf_swing", target)
 
@@ -6880,7 +7675,7 @@ func _play_ceo(clip: String, looping: bool, then_clip: String = "") -> void:
 	_ceo_loop = looping
 	_ceo_next = then_clip if not looping else ""
 	if clip == "golf_swing":
-		_sfx("res://assets/audio/battle/SA_hardball.ogg")
+		_hardball_left = 0.85
 
 
 func _ceo_span(clip: String) -> float:
@@ -6910,6 +7705,19 @@ func _load_ceo_rates() -> void:
 
 
 func _advance_ceo_pose(delta: float) -> void:
+	if _hardball_left >= 0.0:
+		_hardball_left -= delta
+		if _hardball_left <= 0.0:
+			_hardball_left = -1.0
+			_play_hardball()
+	if _hardball_play >= 0.0:
+		_hardball_play -= delta
+		if _hardball_play <= 0.0:
+			_hardball_play = -1.0
+			if _hardball != null and is_instance_valid(_hardball):
+				_hardball.stop()
+				_hardball.queue_free()
+				_hardball = null
 	if _root == null or _ceo_clip == "":
 		return
 	var ceo := _root.get_node_or_null("CEO") as Node3D
@@ -6948,46 +7756,67 @@ func _advance_ceo_pose(delta: float) -> void:
 
 func _throw_gears(target: Vector3, kind: String) -> void:
 	var first := _ceo_shots.size()
-	var start := _boss_pos + Vector3.UP * 4.0
+	var axes := _shot_axes(target)
+	var origin: Vector3 = axes["origin"]
+	var forward: Vector3 = axes["forward"]
+	var right: Vector3 = axes["right"]
+	var distance := _boss_pos.distance_to(target)
 	var windup := _wind_up("Fb_UpThrow", target)
 	_sfx("res://assets/cogs/bosses/audio/CHQ_VP_frisbee_gears.ogg")
 	for index in 4:
-		var spread := Vector3(randf_range(-2.0, 2.0), 0.0, randf_range(-2.0, 2.0))
+		var lateral := randf_range(-5.0, 5.0)
+		var lift := randf_range(-3.0, 3.0)
 		if index == 2:
-			spread = Vector3.ZERO
+			lateral = 0.0
+			lift = 0.0
 		var mesh := _gear(0.2)
 		mesh.visible = false
 		_ceo_shots.append({
-			"from": start,
-			"to": target + spread,
+			"from": origin + forward * 5.85 + Vector3.UP * 4.0,
+			"to": origin + right * lateral + forward * distance + Vector3.UP * lift,
 			"age": 0.0,
 			"wait": windup + 0.19 + float(index) * 0.15,
 			"mesh": mesh,
 			"kind": kind,
 			"hurt": index != 2,
+			"spin": randf_range(-720.0, 720.0),
+			"pitch": false,
 		})
+	_arm_face_return(windup + 0.19 + 0.45 + 1.0)
 	_remember_volley(kind, first)
 
 
 func _throw_balls(target: Vector3) -> void:
 	var first := _ceo_shots.size()
-	var start := _boss_pos + Vector3.UP * 4.0
+	var axes := _shot_axes(target)
+	var origin: Vector3 = axes["origin"]
+	var forward: Vector3 = axes["forward"]
+	var right: Vector3 = axes["right"]
+	var launch := origin + right * 10.5 + forward * 8.5 - Vector3.UP * 5.0
+	var distance := launch.distance_to(target)
 	var windup := _wind_up("golf_swing", target)
 	for index in 5:
-		var spread := Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-2.0, 2.0))
+		var lateral := randf_range(-5.0, 5.0)
+		var lift := randf_range(-3.0, 3.0)
+		var extra := randf_range(5.0, 15.0)
 		if index == 2:
-			spread = Vector3.ZERO
-		var mesh := _model_or_box("res://assets/battle/props/golf-ball.glb", Vector3.ZERO, "CeoBall%d" % _ceo_shots.size(), Color(0.95, 0.95, 0.95), Vector3(0.4, 0.4, 0.4))
+			lateral = 0.0
+			lift = 0.0
+			extra = 10.0
+		var mesh := _ceo_ball()
 		mesh.visible = false
 		_ceo_shots.append({
-			"from": start,
-			"to": target + spread,
+			"from": launch,
+			"to": origin + right * lateral + forward * (distance + extra) + Vector3.UP * lift,
 			"age": 0.0,
 			"wait": windup + 1.08 + float(index) * 0.15,
 			"mesh": mesh,
 			"kind": "ball",
 			"hurt": index != 2,
+			"spin": randf_range(-720.0, -90.0),
+			"pitch": true,
 		})
+	_arm_face_return(windup + 1.08 + 0.60 + 1.0)
 	_remember_volley("ball", first)
 
 
@@ -7018,6 +7847,8 @@ func _remember_volley(kind: String, first: int) -> void:
 			"wait": float(shot.get("wait", 0.0)),
 			"kind": String(shot.get("kind", kind)),
 			"hurt": bool(shot.get("hurt", false)),
+			"spin": float(shot.get("spin", 0.0)),
+			"pitch": bool(shot.get("pitch", false)),
 		})
 	_attack_seq += 1
 	_attack_log.append({"seq": _attack_seq, "kind": kind, "rows": rows})
@@ -7027,6 +7858,27 @@ func _remember_volley(kind: String, first: int) -> void:
 func _trim_attacks() -> void:
 	while _attack_log.size() > 8:
 		_attack_log.pop_front()
+
+
+func _spawn_shared_shot(row: Dictionary, kind: String) -> void:
+	var shot_kind := String(row.get("kind", kind))
+	var mesh: Node3D
+	if shot_kind == "ball" or shot_kind == "fore":
+		mesh = _ceo_ball()
+	else:
+		mesh = _gear(0.2)
+	mesh.visible = false
+	_ceo_shots.append({
+		"from": Vector3(float(row.get("fx", 0.0)), float(row.get("fy", 0.0)), float(row.get("fz", 0.0))),
+		"to": Vector3(float(row.get("tx", 0.0)), float(row.get("ty", 0.0)), float(row.get("tz", 0.0))),
+		"age": 0.0,
+		"wait": float(row.get("wait", 0.0)),
+		"mesh": mesh,
+		"kind": shot_kind,
+		"hurt": bool(row.get("hurt", false)),
+		"spin": float(row.get("spin", 0.0)),
+		"pitch": bool(row.get("pitch", false)),
+	})
 
 
 func _apply_attacks() -> void:
@@ -7040,12 +7892,11 @@ func _apply_attacks() -> void:
 		_attack_seen = seq
 		var kind := String(item.get("kind", ""))
 		if kind == "fore":
-			var at := Vector3(float(item.get("x", 0.0)), float(item.get("y", 0.0)), float(item.get("z", 0.0)))
 			_attack_kind = "area"
-			_attack_at = at
-			_attack_left = 1.0
-			_tell("Fore!")
-			_swing_club(at)
+			_begin_fore_show()
+			for row in item.get("rows", []):
+				if row is Dictionary:
+					_spawn_shared_shot(row, "fore")
 			continue
 		var rows: Array = item.get("rows", [])
 		var aim := Vector3.ZERO
@@ -7057,27 +7908,12 @@ func _apply_attacks() -> void:
 		else:
 			_wind_up("Fb_UpThrow", aim)
 			_sfx("res://assets/cogs/bosses/audio/CHQ_VP_frisbee_gears.ogg")
+		var latest := 0.0
 		for row in rows:
-			if not (row is Dictionary):
-				continue
-			var shot: Dictionary = row
-			var origin := Vector3(float(shot.get("fx", 0.0)), float(shot.get("fy", 0.0)), float(shot.get("fz", 0.0)))
-			var dest := Vector3(float(shot.get("tx", 0.0)), float(shot.get("ty", 0.0)), float(shot.get("tz", 0.0)))
-			var mesh: Node3D
-			if String(shot.get("kind", kind)) == "ball":
-				mesh = _model_or_box("res://assets/battle/props/golf-ball.glb", Vector3.ZERO, "CeoBall%d" % _ceo_shots.size(), Color(0.95, 0.95, 0.95), Vector3(0.4, 0.4, 0.4))
-			else:
-				mesh = _gear(0.2)
-			mesh.visible = false
-			_ceo_shots.append({
-				"from": origin,
-				"to": dest,
-				"age": 0.0,
-				"wait": float(shot.get("wait", 0.0)),
-				"mesh": mesh,
-				"kind": String(shot.get("kind", kind)),
-				"hurt": bool(shot.get("hurt", false)),
-			})
+			if row is Dictionary:
+				_spawn_shared_shot(row, kind)
+				latest = maxf(latest, float(row.get("wait", 0.0)))
+		_arm_face_return(latest + 1.0)
 
 
 func _tick_ceo_shots(delta: float, body: CharacterBody3D) -> void:
@@ -7095,13 +7931,21 @@ func _tick_ceo_shots(delta: float, body: CharacterBody3D) -> void:
 		if mesh != null:
 			mesh.visible = true
 			mesh.global_position = at
+			_spin_shot(shot, mesh, along)
 		var kind := String(shot.get("kind", ""))
-		if not bool(shot.get("hurt", false)) and _near(body, at, 2.2) and (kind != "ball" or along > 0.6):
+		var reach := 2.2
+		var flying := true
+		if kind == "ball" or kind == "fore":
+			reach = 4.0
+			flying = along > 0.15
+		if not bool(shot.get("hurt", false)) and flying and _near(body, at, reach):
 			shot["hurt"] = true
 			if kind == "overtime":
 				_boss.call("note_overtime")
 			elif kind == "gear":
 				_boss.call("note_gear")
+			elif kind == "fore":
+				_zap_fore()
 			else:
 				_boss.call("note_golf", false)
 		if along < 1.0:
@@ -7158,7 +8002,13 @@ func _start_crush(index: int) -> void:
 		return
 	_crushing = true
 	_crush_table = index
+	_crush_rider = _mounted_table() == index
 	_crush_to = table.global_position
+	_face_now = 0.0
+	_face_span = 0.0
+	_face_return = -1.0
+	_spin_span = 0.0
+	_apply_heading()
 	if _ceo_clip == "" or _ceo_clip == "Ff_neutral":
 		_play_ceo("Ff_neutral", true)
 	_tell("The C.E.O. is heading for a table.")
@@ -7167,6 +8017,13 @@ func _start_crush(index: int) -> void:
 func _tick_crush(delta: float, slowed: float) -> void:
 	if not _crushing or _root == null:
 		return
+	if _crush_rider and _mounted_table() != _crush_table:
+		_crush_rider = false
+		if randf() < 0.5:
+			_crushing = false
+			_crush_table = -1
+			_attack_now = true
+			return
 	var ceo := _root.get_node_or_null("CEO") as Node3D
 	if ceo == null:
 		_crushing = false
@@ -7190,17 +8047,100 @@ func _tick_crush(delta: float, slowed: float) -> void:
 	var turn := deg_to_rad(60.0 - 40.0 * clampf(slowed / 90.0, 0.0, 1.0))
 	var facing := -ceo.global_transform.basis.z
 	facing.y = 0.0
-	var angle := facing.angle_to(direction) if facing.length_squared() > 0.01 else 0.0
+	var yaw := 0.0
+	if facing.length_squared() > 0.01:
+		yaw = facing.signed_angle_to(direction, Vector3.UP)
+	var angle := absf(yaw)
 	if angle > 0.12:
 		var aimed := ceo.global_transform.looking_at(ceo.global_position + direction, Vector3.UP)
 		var blend := clampf((turn * delta) / angle, 0.0, 1.0)
 		ceo.global_basis = ceo.global_basis.slerp(aimed.basis, blend)
+		_scroll_turn_treads(delta, yaw)
 		return
 	ceo.global_position += direction * step
-	var treads := ceo.find_child("treads", true, false)
-	if treads != null:
-		_tread_u += delta * 3.5
-		_scroll_uv(treads)
+	_scroll_roll_treads(delta, slowed)
+
+
+func _spin_shot(shot: Dictionary, mesh: Node3D, along: float) -> void:
+	var spin := float(shot.get("spin", 0.0))
+	if absf(spin) < 0.01:
+		return
+	if not shot.has("rest"):
+		shot["rest"] = mesh.basis
+	var rest: Basis = shot["rest"]
+	var axis := Vector3.UP
+	if bool(shot.get("pitch", false)):
+		var flight: Vector3 = shot["to"] - shot["from"]
+		flight.y = 0.0
+		if flight.length_squared() > 0.01:
+			axis = Vector3.UP.cross(flight.normalized())
+	if axis.length_squared() < 0.01:
+		axis = Vector3.RIGHT
+	mesh.basis = Basis(axis.normalized(), deg_to_rad(spin * along)) * rest
+
+
+func _ceo_tread(node_name: String, left: bool) -> StandardMaterial3D:
+	if _root == null:
+		return null
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return null
+	var mesh := ceo.find_child(node_name, true, false) as MeshInstance3D
+	if mesh == null:
+		return null
+	var kept := _ceo_left_mat if left else _ceo_right_mat
+	if kept == null or not is_instance_valid(kept):
+		var source := mesh.get_surface_override_material(0) as StandardMaterial3D
+		if source == null:
+			var active := mesh.get_active_material(0)
+			if active is StandardMaterial3D:
+				source = active as StandardMaterial3D
+		if source == null:
+			return null
+		kept = source.duplicate() as StandardMaterial3D
+		if left:
+			_ceo_left_mat = kept
+		else:
+			_ceo_right_mat = kept
+	mesh.set_surface_override_material(0, kept)
+	return kept
+
+
+func _bump_tread(node_name: String, left: bool, amount: float) -> void:
+	if left:
+		_ceo_left_u += amount
+	else:
+		_ceo_right_u += amount
+	var mat := _ceo_tread(node_name, left)
+	if mat == null:
+		return
+	mat.uv1_offset.x = _ceo_left_u if left else _ceo_right_u
+
+
+func _scroll_turn_treads(delta: float, yaw: float) -> void:
+	# treadsLeft is the right_tread node. A turn runs the two belts opposite ways.
+	var left_rate := -3.5
+	if yaw < 0.0:
+		left_rate = 3.5
+	_bump_tread("right_tread", false, left_rate * delta)
+	_bump_tread("left_tread", true, -left_rate * delta)
+
+
+func _scroll_roll_treads(delta: float, slowed: float) -> void:
+	var rate := 10.5 - 7.0 * clampf(slowed / 90.0, 0.0, 1.0)
+	_bump_tread("right_tread", false, rate * delta)
+	_bump_tread("left_tread", true, rate * delta)
+
+
+func _tint_ceo_treads(slowed: float) -> void:
+	var fraction := 1.0 - clampf(slowed / 90.0, 0.0, 1.0)
+	var tint := Color(1.0, fraction, fraction, 1.0)
+	var left := _ceo_tread("left_tread", true)
+	var right := _ceo_tread("right_tread", false)
+	if left != null:
+		left.albedo_color = tint
+	if right != null:
+		right.albedo_color = tint
 
 
 func _flatten_table(index: int) -> void:
@@ -7259,7 +8199,7 @@ func _tick_ceo_victory(delta: float) -> void:
 	elif _ceo_win < 3 and _clock >= 5.5:
 		_ceo_win = 3
 		_show_demoted()
-	elif _ceo_win < 4 and _clock >= 7.5:
+	elif _ceo_win < 4 and _clock >= 5.0 + 19.0 / 12.0 + 2.0:
 		_ceo_win = 4
 		_victory_done = true
 		_seat_gil_for_reward()
@@ -7268,13 +8208,16 @@ func _tick_ceo_victory(delta: float) -> void:
 			_boss.call("ceo_victory_done")
 
 
-func _aim_ceo_victory() -> void:
-	var y := 355.0
+func _ceo_panda_y() -> float:
 	if _root != null:
 		var ceo := _root.get_node_or_null("CEO") as Node3D
 		if ceo != null:
-			y = ceo.position.y
-	_aim_at(Vector3(0.0, y - 35.0, 25.0), Vector3(0.0, y, 12.0))
+			return ceo.position.y
+	return 355.0
+
+
+func _aim_ceo_victory() -> void:
+	_aim_movie(Vector3(0.0, _ceo_panda_y() - 35.0, 25.0), 0.0, -20.0)
 
 
 func _show_demoted() -> void:
@@ -7340,6 +8283,7 @@ func pose_ceo_epilogue() -> void:
 		body.global_position = parent.to_global(_gil.position + Vector3(0.0, -7.0, 0.0))
 		if body.global_position.distance_squared_to(_gil.global_position) > 0.04:
 			body.look_at(_gil.global_position, Vector3.UP)
+	_arrange_epilogue()
 	_lock_toon()
 	_epilogue_on = true
 
@@ -7347,6 +8291,73 @@ func pose_ceo_epilogue() -> void:
 func hold_epilogue() -> void:
 	_epilogue_on = true
 	_lock_toon()
+	_arrange_epilogue()
+
+
+func stand_gil_epilogue() -> void:
+	if _gil != null and is_instance_valid(_gil):
+		_gil.release_pose()
+
+
+func _arrange_epilogue() -> void:
+	if _gil == null or not is_instance_valid(_gil):
+		return
+	var people: Array[Node3D] = []
+	var body := _body()
+	if body != null:
+		people.append(body)
+	var host: Node = _boss.get_parent() if _boss != null else null
+	var local_actor := _toon_actor(body)
+	if host != null:
+		for node in host.find_children("*", "ToonActor", true, false):
+			var actor := node as ToonActor
+			if actor == null or actor == _gil or actor == local_actor or not actor.visible:
+				continue
+			if int(actor.get_meta("peer", 0)) <= 0:
+				continue
+			people.append(actor)
+	people.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+		return _epilogue_id(a) < _epilogue_id(b)
+	)
+	var count := people.size()
+	if count == 0:
+		return
+	var center := float(count - 1) * 0.5
+	var book: Node = host.find_child("RemoteToons", true, false) if host != null else null
+	for index in count:
+		var person := people[index]
+		var angle := 90.0 - 15.0 * (float(index) - center)
+		var spot := _gil.to_global(Vector3(cos(deg_to_rad(angle)) * 7.0, sin(deg_to_rad(angle)) * 7.0, 0.0))
+		if person is CharacterBody3D:
+			var mover := person as CharacterBody3D
+			mover.velocity = Vector3.ZERO
+			mover.global_position = spot
+			var look := _gil.global_position
+			look.y = spot.y
+			if mover.global_position.distance_squared_to(look) > 0.04:
+				mover.look_at(look, Vector3.UP)
+			var actor := _toon_actor(mover)
+			if actor != null:
+				actor.release_pose()
+			continue
+		var toward := _gil.global_position - spot
+		toward.y = 0.0
+		var heading := 0.0
+		if toward.length_squared() > 0.0001:
+			heading = rad_to_deg(atan2(-toward.x, -toward.z))
+		var peer := int(person.get_meta("peer", 0))
+		if book != null and book.has_method("pin"):
+			book.call("pin", peer, spot, heading)
+		else:
+			person.global_position = spot
+		if person is ToonActor:
+			(person as ToonActor).release_pose()
+
+
+func _epilogue_id(person: Node) -> int:
+	if person == _body():
+		return ToonNet.peer_id()
+	return int(person.get_meta("peer", 0))
 
 
 func _return_to_bottle(index: int) -> void:
@@ -7977,7 +8988,7 @@ func _make_goon_cone() -> Node3D:
 			_fade_cone(model)
 	if root.get_child_count() == 0:
 		var mesh := MeshInstance3D.new()
-		var cone := ConeMesh.new()
+		var cone := CylinderMesh.new()
 		cone.top_radius = 1.0
 		cone.bottom_radius = 0.02
 		cone.height = 1.0
@@ -8010,9 +9021,9 @@ func _aim_goon_cone(goon: Dictionary, at: Vector3, showing: bool) -> void:
 	var reach := float(goon.get("reach", 12.0))
 	var half := float(goon.get("fov", 75.0)) * 0.5
 	var mesh := cone.get_child(0) as Node3D
-	if mesh is MeshInstance3D and (mesh as MeshInstance3D).mesh is ConeMesh:
+	if mesh is MeshInstance3D and (mesh as MeshInstance3D).mesh is CylinderMesh:
 		var radius := tan(deg_to_rad(half)) * reach
-		var shape := (mesh as MeshInstance3D).mesh as ConeMesh
+		var shape := (mesh as MeshInstance3D).mesh as CylinderMesh
 		shape.height = reach
 		shape.top_radius = radius
 		mesh.position = Vector3(0.0, 0.0, -reach * 0.5)

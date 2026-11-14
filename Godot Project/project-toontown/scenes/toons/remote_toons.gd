@@ -269,7 +269,8 @@ func _apply(channel: String) -> void:
 	# ~run covers more than a normal step between broadcasts. Snapping that
 	# gap plants the toon on each packet, so the walk never reads. Only a
 	# real teleport should jump.
-	if actor.global_position.distance_squared_to(target) > _SNAP * _SNAP:
+	var jumped := actor.global_position.distance_squared_to(target) > _SNAP * _SNAP
+	if jumped:
 		actor.global_position = target
 	puppet["pos"] = target
 	puppet["heading"] = float(state.get("heading", 0.0))
@@ -285,15 +286,17 @@ func _apply(channel: String) -> void:
 	actor.set_meta("gm", int(state.get("gm", 0)))
 	actor.set_meta("hp", int(state.get("hp", 15)))
 	actor.set_meta("max_hp", int(state.get("max_hp", 15)))
-	if bool(actor.get_meta("gone_sad", false)):
-		actor.visible = false
-		var hidden_tag: Control = puppet.get("tag")
-		if hidden_tag != null:
-			hidden_tag.visible = false
-		var sad_pet = puppet.get("pet")
-		if sad_pet is Node3D and is_instance_valid(sad_pet):
-			(sad_pet as Node3D).visible = false
-		return
+	if bool(actor.get_meta("ran_home", false)) and jumped:
+		actor.set_meta("ran_home", false)
+	elif bool(actor.get_meta("gone_sad", false)) or bool(actor.get_meta("ran_home", false)):
+			actor.visible = false
+			var hidden_tag: Control = puppet.get("tag")
+			if hidden_tag != null:
+				hidden_tag.visible = false
+			var sad_pet = puppet.get("pet")
+			if sad_pet is Node3D and is_instance_valid(sad_pet):
+				(sad_pet as Node3D).visible = false
+			return
 	var dressed: Variant = state.get("style", {})
 	if dressed is Dictionary:
 		actor.set_meta("style", dressed)

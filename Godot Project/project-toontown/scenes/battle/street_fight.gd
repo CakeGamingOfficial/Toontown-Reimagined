@@ -113,6 +113,7 @@ func _ready() -> void:
 	_gags = load("res://scenes/battle/gag_movie.gd").new()
 	_gags.name = "GagMovie"
 	add_child(_gags)
+	_gags.call("set_lineup", Callable(self, "_battle_actors"))
 	var view := get_viewport()
 	if view != null and not view.size_changed.is_connected(_layout):
 		view.size_changed.connect(_layout)
@@ -159,7 +160,9 @@ func _process(delta: float) -> void:
 	_stop_win()
 	if battle_state == "faceoff" or battle_state == "reserves":
 		_hide_gag_gui()
-		_banner.text = "More Cogs are coming!" if battle_state == "reserves" else ""
+		_banner.text = ""
+		if battle_state == "reserves" and not String(fight.get("slug", "")).begins_with("boss_ceo"):
+			_banner.text = "More Cogs are coming!"
 		return
 	# TownBattle and the which-toon / which-cog panel exist only while a gag
 	# is being chosen. The movie, the reward, and a joined round leave them down.
@@ -405,7 +408,7 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 	_ask_seq = seq
 	var building := int(fight.get("building", 0)) != 0
 	var credit := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
-	_menu.setup(loadout, false, building, credit, ToonLoadout.credit_level(fight.get("cogs", [])))
+	_menu.setup(loadout, false, building, credit, ToonLoadout.credit_level(fight.get("cogs", [])), int(fight.get("bonus", -1)))
 	_ask(fight, seq, loadout)
 
 
@@ -646,6 +649,10 @@ func _show_movie(fight: Dictionary, token: int) -> void:
 				_apply_beat(row)
 				_credit(fight, row)
 		)
+		if String(lead.get("kind", "")) == "run" and int(lead.get("toon", -1)) == ToonNet.peer_id():
+			if token == _show_gen and is_inside_tree():
+				_run_home()
+			return
 		for missed in group:
 			var missed_row: Dictionary = missed
 			var missed_key := _beat_key(missed_row)
@@ -754,6 +761,11 @@ func _show_number(beat: Dictionary) -> void:
 		text = "-%d" % damage
 	else:
 		return
+	var surge := String(beat.get("surge", ""))
+	if surge != "":
+		text += "\n" + surge
+		if not heal:
+			color = Color(0.0, 0.0, 1.0, 1.0)
 	_float_hp(host, text, color)
 	var combo := int(beat.get("combo", 0))
 	if combo <= 0:
@@ -952,6 +964,19 @@ func _ride_mint() -> void:
 		ride.call("win_leave")
 
 
+func _run_home() -> void:
+	var zone := _battle_hood()
+	var hood := _PLACES.hood_of(zone)
+	var tasks := ToonTasks.for_selected()
+	if tasks == null or not tasks.has_visited(hood):
+		hood = 0 if tasks == null else tasks.return_hood()
+	if hood == 0:
+		hood = _PLACES.TTC
+	_ARRIVAL.teleport_in = true
+	_ARRIVAL.portal_in = true
+	ToonLoading.change_to(_PLACES.scene_for(hood))
+
+
 func _leave_sad() -> void:
 	var tasks := ToonTasks.for_selected()
 	var hood := 0 if tasks == null else tasks.return_hood()
@@ -1148,11 +1173,14 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 		if faceoff:
 			_walk_cog(fight, suit, cog, toon_center)
 		elif state == "reserves" and _is_joining(fight, int(suit.get("id", 0))):
-			var door := _vec(suit.get("from", suit.get("slot", [])))
-			var door_face := float(suit["from_h"]) if suit.has("from_h") else _yaw(door, toon_center)
-			cog.call("hold_fight", true, door, deg_to_rad(door_face))
-			if cog.has_method("march"):
-				cog.call("march", false)
+			if String(fight.get("slug", "")).begins_with("boss_ceo") and cog.has_method("fly_into_battle"):
+				cog.call("fly_into_battle", stand, deg_to_rad(_line_heading(suit, stand, toon_center)), delta, float(_join_index(fight, int(suit.get("id", 0)))))
+			else:
+				var door := _vec(suit.get("from", suit.get("slot", [])))
+				var door_face := float(suit["from_h"]) if suit.has("from_h") else _yaw(door, toon_center)
+				cog.call("hold_fight", true, door, deg_to_rad(door_face))
+				if cog.has_method("march"):
+					cog.call("march", false)
 		else:
 			cog.call("hold_fight", true, stand, deg_to_rad(_line_heading(suit, stand, toon_center)))
 			if state != "movie" and not _movie_playing():
@@ -1367,10 +1395,14 @@ func _join_from(current: Vector3, slot: Vector3, along: float) -> Vector3:
 
 
 func _is_joining(fight: Dictionary, cog_id: int) -> bool:
+	return _join_index(fight, cog_id) >= 0
+
+
+func _join_index(fight: Dictionary, cog_id: int) -> int:
 	var joining: Variant = fight.get("joining", [])
 	if joining is Array:
-		return (joining as Array).has(cog_id)
-	return false
+		return (joining as Array).find(cog_id)
+	return -1
 
 
 func _walk_cog(fight: Dictionary, suit: Dictionary, cog: Node, toon_center: Vector3) -> void:
@@ -1637,6 +1669,17 @@ func _end_victory() -> void:
 		var actor := _actor_for(int((item as Dictionary).get("id", 0)))
 		if actor != null:
 			actor.end_action("victory")
+
+
+func _battle_actors() -> Array:
+	var actors: Array = []
+	for item in _fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var actor := _actor_for(int((item as Dictionary).get("id", 0)))
+		if actor != null:
+			actors.append(actor)
+	return actors
 
 
 func _pose_roster(fight: Dictionary, clip: String, elapsed: float) -> void:

@@ -432,9 +432,64 @@ func _resume(state: Dictionary) -> void:
 	_pose_clip(_walk, frame, (frame + 1) % frames, _walk_time - float(frame))
 
 
+## DistributedBattleWaiters.showSuitsFalling. Drop from the sky onto the mark.
+## The clock lives on the suit. The published round timer does not tick every frame.
+func fly_into_battle(dest: Vector3, yaw: float, delta: float, delay: float) -> void:
+	set_meta("in_fight", true)
+	var age := float(get_meta("fly_clock", 0.0)) + maxf(delta, 0.0)
+	set_meta("fly_clock", age)
+	var local := age - delay
+	if local < 0.0:
+		set_meta("fly_battle", true)
+		visible = false
+		return
+	visible = true
+	if local >= FROM_SKY:
+		set_meta("fly_battle", false)
+		if has_meta("fly_started"):
+			remove_meta("fly_started")
+			_detach_propeller()
+			_set_alpha(1.0)
+			_idle(0.0)
+		global_position = dest
+		rotation.y = yaw
+		return
+	set_meta("fly_battle", true)
+	_ensure_landing()
+	if not has_meta("fly_started"):
+		set_meta("fly_started", true)
+		_attach_propeller()
+		_play_propeller(true)
+	_set_alpha(clampf(local, 0.0, 1.0))
+	rotation.y = yaw
+	if local < _till_land:
+		global_position = dest + Vector3(0.0, SKY_HEIGHT * (1.0 - local / _till_land), 0.0)
+	else:
+		global_position = dest
+	if local < _wait:
+		_pose_clip(_landing, 0, 0, 0.0)
+	else:
+		_pose_elapsed(_landing, local - _wait, _landing_fps, false)
+	_spin_propeller(delta, true)
+
+
+func _ensure_landing() -> void:
+	if int(_landing.get("frames", 0)) > 1:
+		return
+	var folder := body
+	if bool(_source.get("skeleton", false)):
+		folder = "robot_%s" % body
+	_landing = _read_bank("res://assets/cogs/anims/%s/landing.walk" % folder)
+	if int(_landing.get("frames", 0)) > 1:
+		_landing_frames = int(_landing["frames"])
+		_landing_fps = float(_landing.get("fps", DEFAULT_FPS))
+	_prepare_landing()
+
+
 func hold_fight(held: bool, point: Vector3, yaw: float) -> void:
 	set_meta("in_fight", held)
 	if not held:
+		set_meta("fly_battle", false)
 		_fight_key = ""
 		_hide_health()
 		return
@@ -695,6 +750,14 @@ func _start_lose() -> void:
 func finish_revive() -> void:
 	if _source.is_empty():
 		return
+	# Suit.makeSkeleton uses the same generateSuit scale the suited body wore.
+	# A battle row that never carried it would stand the robot up at size 1.
+	var worn := 1.0
+	var standing := get_node_or_null("Suit")
+	if standing != null:
+		worn = _egg_scale(standing)
+	if absf(worn - 1.0) > 0.001:
+		_source["scale"] = worn
 	StreetSuits.dress_skeleton(_source)
 	_source["revives"] = 0
 	_revives = 0
@@ -1039,6 +1102,9 @@ func _process(delta: float) -> void:
 		return
 	if bool(get_meta("in_fight", false)):
 		_tick_health(delta)
+		# beginSupaFlyMove is posing this suit. Idle would plant it on the mark.
+		if bool(get_meta("fly_battle", false)):
+			return
 		if _fight_key == "walk":
 			if is_visible_in_tree():
 				_detail = 2
