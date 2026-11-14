@@ -9,6 +9,15 @@ const _BRANCH := "multiplayer-test"
 const _REMOTE := "https://github.com/CakeGamingOfficial/Toontown-Reimagined.git"
 const _CONFIG := "user://launcher.json"
 const _FALLBACK_GODOT := "C:/Users/fukuy/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64.exe"
+const _PROJECT := "Godot Project/project-toontown/"
+# Pictures, sounds, models, and fonts. project.godot covers importer defaults.
+const _IMPORTED := {
+	".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true,
+	".bmp": true, ".tga": true, ".exr": true, ".hdr": true,
+	".ogg": true, ".wav": true, ".mp3": true,
+	".glb": true, ".gltf": true, ".fbx": true, ".obj": true, ".dae": true,
+	".ttf": true, ".otf": true, ".import": true, ".godot": true,
+}
 
 var _font: Font
 var _logo: Texture2D
@@ -280,6 +289,24 @@ func _show_host_card() -> void:
 	_host_card.visible = true
 
 
+func _update_needs_import(before: String, after: String) -> bool:
+	if before == "" or after == "" or before == after:
+		return false
+	var diff := _git(["diff", "--name-only", "--no-renames", before, after])
+	if int(diff.get("code", 1)) != 0:
+		return true
+	for line in String(diff.get("text", "")).split("\n"):
+		var path := line.strip_edges().replace("\\", "/")
+		if path.begins_with("\"") and path.ends_with("\"") and path.length() >= 2:
+			path = path.substr(1, path.length() - 2)
+		if not path.begins_with(_PROJECT):
+			continue
+		var ext := "." + path.get_extension().to_lower()
+		if ext == "." or bool(_IMPORTED.get(ext, false)):
+			return true
+	return false
+
+
 func _sync_thread() -> void:
 	var outcome := _sync()
 	if _repo != "" and not outcome.has("repo"):
@@ -316,11 +343,14 @@ func _sync() -> Dictionary:
 	if name != _BRANCH:
 		if dirty:
 			return {"ok": false, "error": "This copy is on %s and has local changes, so it was not switched to %s." % [name, _BRANCH]}
+		var before_switch := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
 		var switched := _git(["checkout", _BRANCH])
 		if int(switched.get("code", 1)) != 0:
 			return {"ok": false, "error": _git_error(switched, "Could not switch to %s." % _BRANCH)}
 		dirty = String(_git(["status", "--porcelain"]).get("text", "")).strip_edges() != ""
-		_needs_import = true
+		var after_switch := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
+		if _update_needs_import(before_switch, after_switch):
+			_needs_import = true
 	var local := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
 	var remote := String(_git(["rev-parse", "origin/%s" % _BRANCH]).get("text", "")).strip_edges()
 	if local == "" or remote == "":
@@ -343,8 +373,9 @@ func _sync() -> Dictionary:
 	var pulled := _git_transfer(["pull", "--progress", "--ff-only", "origin", _BRANCH], "the update")
 	if int(pulled.get("code", 1)) != 0:
 		return {"ok": false, "error": _git_error(pulled, "Could not update %s." % _BRANCH)}
-	_needs_import = true
 	var now := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
+	if _update_needs_import(local, now):
+		_needs_import = true
 	return {"ok": true, "note": "Updated to %s (%s)." % [_BRANCH, now.substr(0, 7)]}
 
 
