@@ -1,4 +1,4 @@
-extends Node
+extends Node3D
 
 ## Cog-O-War. Three cogs stand on the arena. Hold Control to wind the throw,
 ## then let go. A body hit is 1 point and a head hit is 3. After 90 seconds

@@ -1,4 +1,4 @@
-extends Node
+extends Node3D
 
 ## Party catch. The stage is 36 by 36 and the round lasts 80 seconds.
 ## Fruit and anvils use the three-phase party schedule. Each fruit is one

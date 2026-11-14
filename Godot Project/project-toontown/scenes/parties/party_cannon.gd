@@ -1,4 +1,4 @@
-extends Node
+extends Node3D
 
 ## Party cannons. Aim with the arrows, fire with Control. Clouds pay
 ## CannonJellyBeanReward (2) each. The party caps that at CannonMaxTotalReward.

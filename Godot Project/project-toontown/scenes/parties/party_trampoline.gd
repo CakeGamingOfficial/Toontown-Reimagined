@@ -1,4 +1,4 @@
-extends Node
+extends Node3D
 
 ## Jellybean trampoline. Control jumps. The boost is strongest at the bottom
 ## of the bounce. Twelve beans sit from 20 to 90. The top one adds 10 more.
