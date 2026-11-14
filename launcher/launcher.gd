@@ -10,6 +10,17 @@ const _REMOTE := "https://github.com/CakeGamingOfficial/Toontown-Reimagined.git"
 const _CONFIG := "user://launcher.json"
 const _FALLBACK_GODOT := "C:/Users/fukuy/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64.exe"
 
+const _FONT: Font = preload("res://assets/ImpressBT.ttf")
+const _LOGO: Texture2D = preload("res://assets/logo.png")
+const _SKY: Texture2D = preload("res://assets/sky.png")
+const _SCROLL: Texture2D = preload("res://assets/scroll.png")
+const _BUTTON_UP: Texture2D = preload("res://assets/button_up.png")
+const _BUTTON_DOWN: Texture2D = preload("res://assets/button_down.png")
+const _BUTTON_HOVER: Texture2D = preload("res://assets/button_hover.png")
+
+const _INK := Color(0.33, 0.2, 0.08)
+const _INK_SOFT := Color(0.48, 0.32, 0.16)
+
 var _config: Dictionary = {}
 var _repo := ""
 var _git_path := ""
@@ -21,6 +32,11 @@ var _lock := Mutex.new()
 var _phase_text := ""
 var _sync_done := false
 var _outcome: Dictionary = {}
+var _meter_key := ""
+var _meter_at := 0
+var _meter_percent := 0
+var _needs_import := false
+var _launch_project := ""
 
 var _menu: Control
 var _host_card: Control
@@ -123,6 +139,15 @@ func _continue_after_sync() -> void:
 
 
 func _finish_sync(outcome: Dictionary) -> void:
+	if bool(outcome.get("imported", false)):
+		if not bool(outcome.get("ok", false)):
+			_busy = false
+			_set_buttons_disabled(false)
+			_status.text = String(outcome.get("error", "The game could not be prepared."))
+			return
+		_needs_import = false
+		_launch_game()
+		return
 	var installed := String(outcome.get("repo", ""))
 	if installed != "":
 		_repo = installed
@@ -159,6 +184,40 @@ func _start_game() -> void:
 		_set_buttons_disabled(false)
 		_status.text = "The game project is not in this repository."
 		return
+	_launch_project = project
+	if _import_needed(project):
+		_set_phase("Preparing the game. The first time takes a while.")
+		_worker = Thread.new()
+		_worker.start(_import_thread)
+		return
+	_launch_game()
+
+
+func _import_needed(project: String) -> bool:
+	if _needs_import:
+		return true
+	return not FileAccess.file_exists(project.path_join(".godot/uid_cache.bin"))
+
+
+func _import_thread() -> void:
+	var exe := _godot_exe()
+	var result := _run_watched(exe, PackedStringArray([
+		"--headless", "--path", _launch_project, "--import", "--quit",
+	]), "the game", false)
+	var ready := FileAccess.file_exists(_launch_project.path_join(".godot/uid_cache.bin"))
+	_lock.lock()
+	_outcome = {
+		"imported": true,
+		"ok": int(result.get("code", 1)) == 0 and ready,
+		"error": _git_error(result, "The game could not be prepared."),
+	}
+	_sync_done = true
+	_lock.unlock()
+
+
+func _launch_game() -> void:
+	var exe := _godot_exe()
+	var project := _launch_project
 	var args := PackedStringArray(["--path", project, "--"])
 	if _mode == "solo":
 		args.append("--solo")
@@ -215,7 +274,7 @@ func _sync() -> Dictionary:
 	var name := String(branch.get("text", "")).strip_edges()
 	var dirty := String(_git(["status", "--porcelain"]).get("text", "")).strip_edges() != ""
 	_set_phase("Checking %s on GitHub..." % _BRANCH)
-	var fetched := _git(["fetch", "origin", _BRANCH])
+	var fetched := _git_transfer(["fetch", "--progress", "origin", _BRANCH], "the update")
 	if int(fetched.get("code", 1)) != 0:
 		return {
 			"ok": false,
@@ -229,6 +288,7 @@ func _sync() -> Dictionary:
 		if int(switched.get("code", 1)) != 0:
 			return {"ok": false, "error": _git_error(switched, "Could not switch to %s." % _BRANCH)}
 		dirty = String(_git(["status", "--porcelain"]).get("text", "")).strip_edges() != ""
+		_needs_import = true
 	var local := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
 	var remote := String(_git(["rev-parse", "origin/%s" % _BRANCH]).get("text", "")).strip_edges()
 	if local == "" or remote == "":
@@ -247,10 +307,11 @@ func _sync() -> Dictionary:
 			"local": true,
 			"note": "%s has new commits, and this copy has local changes, so it was not updated. Click again to play this copy." % _BRANCH,
 		}
-	_set_phase("Downloading updates from %s..." % _BRANCH)
-	var pulled := _git(["pull", "--ff-only", "origin", _BRANCH])
+	_set_phase("Downloading the update...")
+	var pulled := _git_transfer(["pull", "--progress", "--ff-only", "origin", _BRANCH], "the update")
 	if int(pulled.get("code", 1)) != 0:
 		return {"ok": false, "error": _git_error(pulled, "Could not update %s." % _BRANCH)}
+	_needs_import = true
 	var now := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
 	return {"ok": true, "note": "Updated to %s (%s)." % [_BRANCH, now.substr(0, 7)]}
 
@@ -274,6 +335,195 @@ func _git_error(result: Dictionary, fallback: String) -> String:
 	if text == "":
 		return fallback
 	return text
+
+
+func _git_transfer(args: PackedStringArray, what: String) -> Dictionary:
+	var exe := _git_exe()
+	if exe == "":
+		return {"code": -1, "text": ""}
+	var full := PackedStringArray(["-C", _repo])
+	full.append_array(args)
+	return _run_watched(exe, full, what)
+
+
+## Git writes percentages to stderr with a carriage return, and only when
+## --progress is set, because a pipe is not a console. The download scripts
+## print a whole sentence of their own.
+func _run_watched(exe: String, args: PackedStringArray, what: String, keep_plain: bool = true) -> Dictionary:
+	_meter_key = ""
+	_meter_at = 0
+	_meter_percent = 0
+	var info: Dictionary = OS.execute_with_pipe(exe, args)
+	var pid := int(info.get("pid", -1))
+	if pid <= 0:
+		return {"code": -1, "text": ""}
+	var stdio := info.get("stdio") as FileAccess
+	var stderr_pipe := info.get("stderr") as FileAccess
+	var pending := ""
+	var errors: Array[String] = []
+	while true:
+		var chunk := _read_pipe(stdio) + _read_pipe(stderr_pipe)
+		if chunk != "":
+			pending += chunk
+			pending = _consume_progress(pending, what, errors, keep_plain)
+			continue
+		if not OS.is_process_running(pid):
+			break
+		OS.delay_msec(100)
+	if pending.strip_edges() != "":
+		if not _apply_progress_line(pending, what) and (keep_plain or _problem_line(pending)):
+			errors.append(pending.strip_edges())
+	if stdio != null:
+		stdio.close()
+	if stderr_pipe != null:
+		stderr_pipe.close()
+	return {"code": OS.get_process_exit_code(pid), "text": "\n".join(PackedStringArray(errors))}
+
+
+func _read_pipe(pipe: FileAccess) -> String:
+	if pipe == null:
+		return ""
+	var available := mini(int(pipe.get_length()), 65536)
+	if available <= 0:
+		return ""
+	return pipe.get_buffer(available).get_string_from_utf8()
+
+
+func _consume_progress(buffer: String, what: String, errors: Array[String], keep_plain: bool) -> String:
+	var start := 0
+	var index := 0
+	while index < buffer.length():
+		var ch := buffer.unicode_at(index)
+		if ch != 10 and ch != 13:
+			index += 1
+			continue
+		if index > start:
+			var line := buffer.substr(start, index - start)
+			if not _apply_progress_line(line, what) and (keep_plain or _problem_line(line)):
+				errors.append(line.strip_edges())
+		start = index + 1
+		index += 1
+	return buffer.substr(start)
+
+
+func _problem_line(line: String) -> bool:
+	var lower := line.to_lower()
+	return lower.contains("error") or lower.contains("fatal") or lower.contains("failed")
+
+
+func _apply_progress_line(line: String, what: String) -> bool:
+	var cleaned := line.strip_edges()
+	if cleaned == "":
+		return false
+	if cleaned.begins_with("["):
+		var import_mark := _percent_mark(cleaned)
+		if import_mark < 0:
+			return false
+		var import_percent := _percent_value(cleaned, import_mark)
+		if import_percent < 0:
+			return false
+		var import_eta := _eta_phrase("Preparing the game", import_percent)
+		if import_eta == "":
+			_set_phase("Preparing the game... %d%%" % import_percent)
+		else:
+			_set_phase("Preparing the game... %d%%, %s" % [import_percent, import_eta])
+		return true
+	if cleaned.begins_with("Downloading ") or cleaned.begins_with("Unpacking ") or cleaned.begins_with("Installing ") or cleaned.begins_with("Preparing "):
+		_set_phase(cleaned)
+		return true
+	var mark := _percent_mark(cleaned)
+	if mark < 0:
+		return false
+	var percent := _percent_value(cleaned, mark)
+	if percent < 0:
+		return false
+	var label := _friendly_phase(_percent_label(cleaned, mark), what)
+	var phrase := _eta_phrase(label, percent)
+	if phrase == "":
+		_set_phase("%s... %d%%" % [label, percent])
+	else:
+		_set_phase("%s... %d%%, %s" % [label, percent, phrase])
+	return true
+
+
+func _percent_mark(line: String) -> int:
+	var at := line.find("%")
+	while at >= 0:
+		if _percent_value(line, at) >= 0:
+			return at
+		at = line.find("%", at + 1)
+	return -1
+
+
+func _percent_value(line: String, mark: int) -> int:
+	var index := mark - 1
+	while index >= 0 and line.unicode_at(index) == 32:
+		index -= 1
+	var end := index
+	while index >= 0 and line.unicode_at(index) >= 48 and line.unicode_at(index) <= 57:
+		index -= 1
+	if end < 0 or line.unicode_at(end) < 48 or line.unicode_at(end) > 57:
+		return -1
+	return int(line.substr(index + 1, end - index))
+
+
+func _percent_label(line: String, mark: int) -> String:
+	var index := mark - 1
+	while index >= 0 and line.unicode_at(index) == 32:
+		index -= 1
+	while index >= 0 and line.unicode_at(index) >= 48 and line.unicode_at(index) <= 57:
+		index -= 1
+	return line.substr(0, index + 1).strip_edges().trim_suffix(":")
+
+
+func _friendly_phase(raw: String, what: String) -> String:
+	var lower := raw.to_lower()
+	if lower.contains("receiving"):
+		return "Downloading %s" % what
+	if lower.contains("resolving"):
+		return "Unpacking %s" % what
+	if lower.contains("updating files"):
+		return "Installing %s" % what
+	if lower.contains("counting") or lower.contains("enumerating") or lower.contains("compressing"):
+		return "Preparing %s" % what
+	if raw == "":
+		return "Downloading %s" % what
+	return raw
+
+
+func _eta_phrase(label: String, percent: int) -> String:
+	if percent <= 0 or percent >= 100:
+		_meter_key = label
+		_meter_percent = percent
+		_meter_at = Time.get_ticks_msec()
+		return ""
+	if label != _meter_key or percent < _meter_percent:
+		_meter_key = label
+		_meter_percent = percent
+		_meter_at = Time.get_ticks_msec()
+		return ""
+	_meter_percent = percent
+	var elapsed := float(Time.get_ticks_msec() - _meter_at) / 1000.0
+	if elapsed < 1.0:
+		return ""
+	var seconds := int(round(elapsed * float(100 - percent) / float(percent)))
+	return _format_left(seconds)
+
+
+func _format_left(seconds: int) -> String:
+	if seconds <= 1:
+		return "about a second left"
+	if seconds < 60:
+		return "about %d seconds left" % seconds
+	var minutes := int(round(float(seconds) / 60.0))
+	if minutes <= 1:
+		return "about a minute left"
+	if minutes < 60:
+		return "about %d minutes left" % minutes
+	var hours := int(round(float(minutes) / 60.0))
+	if hours <= 1:
+		return "about an hour left"
+	return "about %d hours left" % hours
 
 
 func _set_phase(text: String) -> void:
@@ -337,12 +587,11 @@ func _ensure_git() -> Dictionary:
 		return {"ok": true}
 	_set_phase("Downloading Git for Windows...")
 	var script := _launcher_dir().path_join("download_git.ps1")
-	var output: Array = []
-	OS.execute("powershell.exe", PackedStringArray([
+	var downloaded := _run_watched("powershell.exe", PackedStringArray([
 		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-	]), output, true)
+	]), "Git for Windows")
 	if _git_exe() == "":
-		return {"ok": false, "error": _joined(output, "Git for Windows did not install.")}
+		return {"ok": false, "error": _git_error(downloaded, "Git for Windows did not install.")}
 	return {"ok": true}
 
 
@@ -373,27 +622,17 @@ func _ensure_repo() -> Dictionary:
 			_repo = dest
 			return {"ok": true, "repo": dest}
 		return {"ok": false, "error": "A folder named game is already next to the launcher, and it is not the game. Move that folder aside and try again."}
-	_set_phase("Downloading the game from %s. This is a few gigabytes." % _BRANCH)
-	var output: Array = []
-	var code := OS.execute(exe, PackedStringArray([
-		"clone", "--branch", _BRANCH, "--single-branch", _REMOTE, dest,
-	]), output, true)
-	if code != 0:
-		return {"ok": false, "error": _joined(output, "The game download did not finish.")}
+	_set_phase("Downloading the game... This is a few gigabytes.")
+	var cloned := _run_watched(exe, PackedStringArray([
+		"clone", "--progress", "--branch", _BRANCH, "--single-branch", _REMOTE, dest,
+	]), "the game")
+	if int(cloned.get("code", 1)) != 0:
+		return {"ok": false, "error": _git_error(cloned, "The game download did not finish.")}
 	if not _is_game_repo(dest):
 		return {"ok": false, "error": "The download finished, but the game project was not in it."}
 	_repo = dest
+	_needs_import = true
 	return {"ok": true, "repo": dest}
-
-
-func _joined(output: Array, fallback: String) -> String:
-	var text := ""
-	for line in output:
-		text += String(line)
-	text = text.strip_edges()
-	if text == "":
-		return fallback
-	return text
 
 
 func _godot_exe() -> String:
@@ -501,41 +740,48 @@ func _set_buttons_disabled(disabled: bool) -> void:
 
 
 func _build() -> void:
-	var sky := ColorRect.new()
-	sky.color = Color(0.45, 0.72, 0.95)
+	var sky := TextureRect.new()
+	sky.texture = _SKY
+	sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sky.stretch_mode = TextureRect.STRETCH_SCALE
 	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
 	sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sky)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(560, 560)
-	panel.add_theme_stylebox_override("panel", _panel_box())
-	center.add_child(panel)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_top", 22)
-	margin.add_theme_constant_override("margin_bottom", 22)
-	panel.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
-	margin.add_child(column)
-	var title := Label.new()
-	title.text = "TOONTOWN"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_paint(title, 36, Color(0.12, 0.22, 0.62))
-	column.add_child(title)
+	column.custom_minimum_size = Vector2(560, 0)
+	column.add_theme_constant_override("separation", 0)
+	center.add_child(column)
+	var logo := TextureRect.new()
+	logo.texture = _logo_texture()
+	logo.custom_minimum_size = Vector2(520, 230)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(logo)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _scroll_box())
+	column.add_child(panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 4)
+	margin.add_theme_constant_override("margin_right", 4)
+	margin.add_theme_constant_override("margin_top", 0)
+	margin.add_theme_constant_override("margin_bottom", 0)
+	panel.add_child(margin)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 8)
+	margin.add_child(stack)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status.custom_minimum_size = Vector2(0, 72)
-	_paint(_status, 16, Color(0.08, 0.12, 0.2))
-	column.add_child(_status)
+	_status.custom_minimum_size = Vector2(0, 64)
+	_paint(_status, 18, _INK)
+	stack.add_child(_status)
 	_menu = VBoxContainer.new()
-	_menu.add_theme_constant_override("separation", 10)
-	column.add_child(_menu)
+	_menu.add_theme_constant_override("separation", 8)
+	stack.add_child(_menu)
 	_address_edit = _field("192.168.1.20")
 	_address_edit.text = String(_config.get("address", ""))
 	_menu.add_child(_labeled("Address", _address_edit))
@@ -547,28 +793,37 @@ func _build() -> void:
 	_menu.add_child(_button("Join", _play.bind("join")))
 	_menu.add_child(_button("Quit", func() -> void: get_tree().quit()))
 	_host_card = VBoxContainer.new()
-	_host_card.add_theme_constant_override("separation", 10)
+	_host_card.add_theme_constant_override("separation", 8)
 	_host_card.visible = false
-	column.add_child(_host_card)
+	stack.add_child(_host_card)
 	_host_body = Label.new()
 	_host_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_host_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_host_body.custom_minimum_size = Vector2(0, 220)
-	_paint(_host_body, 16, Color(0.08, 0.12, 0.2))
+	_host_body.custom_minimum_size = Vector2(0, 180)
+	_paint(_host_body, 18, _INK)
 	_host_card.add_child(_host_body)
 	_host_card.add_child(_button("Play", _confirm_host))
 	_host_card.add_child(_button("Back", _back_from_host))
 	var godot_row := HBoxContainer.new()
 	godot_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_child(godot_row)
+	godot_row.add_theme_constant_override("separation", 12)
+	stack.add_child(godot_row)
 	_godot_label = Label.new()
 	_godot_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint(_godot_label, 14, Color(0.15, 0.25, 0.4))
+	_paint(_godot_label, 15, _INK_SOFT)
 	godot_row.add_child(_godot_label)
 	var locate := _button("Locate Godot", _locate_godot)
-	locate.custom_minimum_size = Vector2(180, 36)
+	locate.custom_minimum_size = Vector2(210, 40)
+	locate.add_theme_font_size_override("font_size", 16)
 	godot_row.add_child(locate)
 	_refresh_godot_label()
+
+
+func _logo_texture() -> Texture2D:
+	var atlas := AtlasTexture.new()
+	atlas.atlas = _LOGO
+	atlas.region = Rect2(28, 86, 978, 782)
+	return atlas
 
 
 func _labeled(caption: String, field: Control) -> Control:
@@ -576,7 +831,7 @@ func _labeled(caption: String, field: Control) -> Control:
 	row.add_theme_constant_override("separation", 2)
 	var label := Label.new()
 	label.text = caption
-	_paint(label, 14, Color(0.12, 0.22, 0.62))
+	_paint(label, 16, _INK)
 	row.add_child(label)
 	row.add_child(field)
 	return row
@@ -585,58 +840,84 @@ func _labeled(caption: String, field: Control) -> Control:
 func _field(placeholder: String) -> LineEdit:
 	var edit := LineEdit.new()
 	edit.placeholder_text = placeholder
-	edit.custom_minimum_size = Vector2(0, 40)
+	edit.custom_minimum_size = Vector2(0, 38)
+	edit.add_theme_font_override("font", _FONT)
 	edit.add_theme_font_size_override("font_size", 18)
+	edit.add_theme_color_override("font_color", _INK)
+	edit.add_theme_color_override("font_placeholder_color", _INK_SOFT)
+	edit.add_theme_color_override("caret_color", _INK)
+	var box := _field_box(Color(0.55, 0.32, 0.08))
+	var focus := _field_box(Color(0.85, 0.45, 0.08))
+	edit.add_theme_stylebox_override("normal", box)
+	edit.add_theme_stylebox_override("focus", focus)
+	edit.add_theme_stylebox_override("read_only", box)
+	return edit
+
+
+func _field_box(border: Color) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(1, 1, 1, 0.96)
-	box.border_color = Color(0.2, 0.35, 0.7)
+	box.bg_color = Color(1.0, 0.97, 0.88)
+	box.border_color = border
 	box.set_border_width_all(3)
-	box.set_corner_radius_all(10)
+	box.set_corner_radius_all(8)
 	box.content_margin_left = 10
 	box.content_margin_right = 10
-	edit.add_theme_stylebox_override("normal", box)
-	edit.add_theme_stylebox_override("focus", box)
-	return edit
+	return box
 
 
 func _button(caption: String, action: Callable) -> Button:
 	var button := Button.new()
 	button.text = caption
-	button.custom_minimum_size = Vector2(0, 48)
+	button.custom_minimum_size = Vector2(0, 46)
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_override("font", _FONT)
 	button.add_theme_font_size_override("font_size", 22)
-	button.add_theme_color_override("font_color", Color(1.0, 0.9, 0.1))
-	button.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.45))
-	button.add_theme_color_override("font_disabled_color", Color(0.85, 0.85, 0.7, 0.7))
-	var normal := _button_box(Color(0.16, 0.42, 0.78))
-	var hover := _button_box(Color(0.22, 0.5, 0.88))
-	var pressed := _button_box(Color(0.1, 0.3, 0.62))
+	button.add_theme_color_override("font_color", Color(0.16, 0.1, 0.02))
+	button.add_theme_color_override("font_hover_color", Color(0.05, 0.12, 0.28))
+	button.add_theme_color_override("font_pressed_color", Color(0.16, 0.1, 0.02))
+	button.add_theme_color_override("font_disabled_color", Color(0.28, 0.24, 0.16, 0.65))
+	var normal := _pill(_BUTTON_UP)
+	var hover := _pill(_BUTTON_HOVER)
+	var pressed := _pill(_BUTTON_DOWN)
+	var disabled := _pill(_BUTTON_UP, Color(0.72, 0.72, 0.72))
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("disabled", normal)
+	button.add_theme_stylebox_override("hover_pressed", pressed)
+	button.add_theme_stylebox_override("disabled", disabled)
 	button.pressed.connect(action)
 	_buttons.append(button)
 	return button
 
 
-func _panel_box() -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.93, 0.96, 1.0)
-	box.border_color = Color(0.1, 0.25, 0.55)
-	box.set_border_width_all(6)
-	box.set_corner_radius_all(18)
+func _scroll_box() -> StyleBoxTexture:
+	var box := StyleBoxTexture.new()
+	box.texture = _SCROLL
+	box.texture_margin_left = 32
+	box.texture_margin_right = 32
+	box.texture_margin_top = 46
+	box.texture_margin_bottom = 52
+	# Content margins replace the texture margins, so they have to include
+	# the rolled edges or the words sit on the curl.
+	box.content_margin_left = 48
+	box.content_margin_right = 48
+	box.content_margin_top = 58
+	box.content_margin_bottom = 64
 	return box
 
 
-func _button_box(color: Color) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(12)
-	box.content_margin_top = 6
-	box.content_margin_bottom = 6
+func _pill(texture: Texture2D, tint: Color = Color.WHITE) -> StyleBoxTexture:
+	var box := StyleBoxTexture.new()
+	box.texture = texture
+	box.texture_margin_left = 18
+	box.texture_margin_right = 18
+	box.texture_margin_top = 10
+	box.texture_margin_bottom = 10
+	box.modulate_color = tint
 	return box
 
 
 func _paint(label: Label, size: int, color: Color) -> void:
+	label.add_theme_font_override("font", _FONT)
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
