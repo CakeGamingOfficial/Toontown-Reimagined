@@ -324,6 +324,10 @@ func _sync() -> Dictionary:
 	var git_ready := _ensure_git()
 	if not bool(git_ready.get("ok", false)):
 		return git_ready
+	if _repo != "" and _has_project(_repo) and not _has_commits():
+		var attached := _attach_history()
+		if not bool(attached.get("ok", false)):
+			return attached
 	var ready := _ensure_repo()
 	if not bool(ready.get("ok", false)):
 		return ready
@@ -602,6 +606,9 @@ func _show_local_rev() -> void:
 	if _repo == "":
 		_status.text = "The game is not installed yet. Play downloads Git for Windows if it is needed, then the game from %s." % _BRANCH
 		return
+	if not _has_git(_repo):
+		_status.text = "This downloaded folder has the game. The next Play downloads update history once, about 1.6 GB."
+		return
 	var branch := _git(["rev-parse", "--abbrev-ref", "HEAD"])
 	if int(branch.get("code", -1)) < 0:
 		_status.text = "Play downloads Git for Windows, then checks %s." % _BRANCH
@@ -619,19 +626,32 @@ func _show_local_rev() -> void:
 
 
 func _find_repo() -> String:
-	var here := _launcher_dir()
-	for _step in 6:
-		if _is_game_repo(here):
-			return here
-		var parent := here.get_base_dir()
-		if parent == here:
-			break
-		here = parent
+	var found := _walk_for_game(true)
+	if found != "":
+		return found
 	var saved := String(_config.get("repo", ""))
 	if _is_game_repo(saved):
 		return saved
 	if _is_game_repo(_install_dir()):
 		return _install_dir()
+	found = _walk_for_game(false)
+	if found != "":
+		return found
+	if _has_project(saved):
+		return saved
+	return ""
+
+
+func _walk_for_game(require_git: bool) -> String:
+	var here := _launcher_dir()
+	for _step in 6:
+		var matched := _is_game_repo(here) if require_git else _has_project(here)
+		if matched:
+			return here
+		var parent := here.get_base_dir()
+		if parent == here:
+			break
+		here = parent
 	return ""
 
 
@@ -669,13 +689,61 @@ func _folder_is_excluded(script: String, folder: String) -> bool:
 	return code == 0
 
 
-func _is_game_repo(folder: String) -> bool:
+func _has_project(folder: String) -> bool:
+	if folder == "":
+		return false
+	return FileAccess.file_exists(folder.path_join("Godot Project/project-toontown/project.godot"))
+
+
+func _has_commits() -> bool:
+	if not _has_git(_repo):
+		return false
+	return int(_git(["rev-parse", "--verify", "HEAD"]).get("code", 1)) == 0
+
+
+## Records the downloaded folder as multiplayer-test without rewriting its files.
+func _attach_history() -> Dictionary:
+	_set_phase("Preparing this folder for updates...")
+	if not _has_git(_repo):
+		var init := _git(["init", "-b", _BRANCH])
+		if int(init.get("code", 1)) != 0:
+			var plain := _git(["init"])
+			if int(plain.get("code", 1)) != 0:
+				return {"ok": false, "error": _git_error(plain, "Could not prepare this folder for updates.")}
+			var link := _git(["symbolic-ref", "HEAD", "refs/heads/" + _BRANCH])
+			if int(link.get("code", 1)) != 0:
+				return {"ok": false, "error": _git_error(link, "Could not prepare this folder for updates.")}
+	var origin := _git(["remote", "get-url", "origin"])
+	if int(origin.get("code", 1)) != 0:
+		var added := _git(["remote", "add", "origin", _REMOTE])
+		if int(added.get("code", 1)) != 0:
+			return {"ok": false, "error": _git_error(added, "Could not prepare this folder for updates.")}
+	elif String(origin.get("text", "")).strip_edges() != _REMOTE:
+		var changed := _git(["remote", "set-url", "origin", _REMOTE])
+		if int(changed.get("code", 1)) != 0:
+			return {"ok": false, "error": _git_error(changed, "Could not prepare this folder for updates.")}
+	_set_phase("Downloading update history. This is about 1.6 GB, once.")
+	var fetched := _git_transfer(["fetch", "--progress", "origin", _BRANCH], "the update history")
+	if int(fetched.get("code", 1)) != 0:
+		return {"ok": false, "error": _git_error(fetched, "Could not download update history.")}
+	var indexed := _git(["read-tree", "FETCH_HEAD"])
+	if int(indexed.get("code", 1)) != 0:
+		return {"ok": false, "error": _git_error(indexed, "Could not record this folder for updates.")}
+	var head := _git(["update-ref", "HEAD", "FETCH_HEAD"])
+	if int(head.get("code", 1)) != 0:
+		return {"ok": false, "error": _git_error(head, "Could not record this folder for updates.")}
+	return {"ok": true}
+
+
+func _has_git(folder: String) -> bool:
 	if folder == "":
 		return false
 	var git_dir := folder.path_join(".git")
-	if not FileAccess.file_exists(git_dir) and not DirAccess.dir_exists_absolute(git_dir):
-		return false
-	return FileAccess.file_exists(folder.path_join("Godot Project/project-toontown/project.godot"))
+	return FileAccess.file_exists(git_dir) or DirAccess.dir_exists_absolute(git_dir)
+
+
+func _is_game_repo(folder: String) -> bool:
+	return _has_project(folder) and _has_git(folder)
 
 
 func _ensure_git() -> Dictionary:
