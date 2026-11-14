@@ -37,16 +37,57 @@ var _drop_row: Dictionary = {}
 var _cannon := false
 var _power := 0.0
 var _power_dir := 1.0
-var _chairs: Array[Vector3] = []
 var _chair_slide := 0.0
 var _lawyers: Array[Dictionary] = []
+var _gavels: Array[Dictionary] = []
 var _gavel := 7.0
 var _gavel_zone := Vector3.ZERO
 var _gavel_live := 0.0
 var _food: Array[Dictionary] = []
+var _diners: Array[Dictionary] = []
+var _diner_banks: Dictionary = {}
+var _balls: Array[Dictionary] = []
+var _station_index := -1
+var _station_table := -1
+var _station_arm := false
+var _crushing := false
+var _crush_table := -1
+var _crush_to := Vector3.ZERO
+var _flat_for := 3.0
+var _over_one := false
+var _over_two := false
+var _ceo_shots: Array[Dictionary] = []
+var _ceo_clip := ""
+var _ceo_time := 0.0
+var _ceo_loop := false
+var _ceo_next := ""
+var _ceo_raised := false
+var _ceo_banks: Dictionary = {}
+var _ceo_rates: Dictionary = {}
+var _ceo_frames: Dictionary = {}
+var _gil: ToonActor
+var _gil_job := ""
+var _gil_age := 0.0
+var _door_from := 0.0
+var _door_to := 0.0
+var _door_age := 0.0
+var _door_span := 0.0
+var _face_from := 0.0
+var _face_to := 0.0
+var _face_now := 0.0
+var _face_age := 0.0
+var _face_span := 0.0
+var _putter: Node3D
+var _water: Array[Dictionary] = []
+var _board_from := Vector3.ZERO
+var _board_age := 0.0
+var _board_span := 0.0
 var _carry := false
 var _golf := false
 var _spray := 0.0
+var _station := ""
+var _tee_h := 0.0
+var _belts: Array[Vector3] = []
 var _attack_left := 0.0
 var _attack_at := Vector3.ZERO
 var _attack_kind := ""
@@ -63,6 +104,62 @@ var _door_closed := {}
 var _gears: Array[Dictionary] = []
 var _jury: Node3D
 var _jury_start := Vector3.ZERO
+var _jury_baked := Vector3.ZERO
+var _reflect: Node3D
+var _reflect_start := Vector3.ZERO
+var _reflect_baked := Vector3.ZERO
+var _barrel_p := 10.0
+var _flying := false
+var _fly_from := Vector3.ZERO
+var _fly_vel := Vector3.ZERO
+var _fly_time := 0.0
+var _cannon_pad: Node3D
+var _chairs: Array[Dictionary] = []
+var _suit_timing: Dictionary = {}
+var _suit_timing_ready := false
+var _cj: Node3D
+var _witness: ToonActor
+var _intro_at := 0
+var _intro_wait := 0.0
+var _defeat_left := 0.0
+var _ctrl_down := false
+var _delete_down := false
+var _podium: Node3D
+var _podium_base := 0.0
+var _podium_low := false
+var _refl_podium: Node3D
+var _refl_base := 0.0
+var _jury_loop: AudioStreamPlayer
+var _cannon_pads: Array[Node3D] = []
+var _act_t := 0.0
+var _pages: PackedStringArray = PackedStringArray()
+var _page := 0
+var _page_next := ""
+var _line_at := -1
+var _scale_model: Node3D
+var _court_door: Node3D
+var _court_door_z := 0.0
+var _cj_from := Vector3.ZERO
+var _cj_to := Vector3.ZERO
+var _roll_span := 5.0
+var _tread_u := 0.0
+var _head_talk := 0.0
+var _head_back := false
+var _hint := ""
+var _hint_left := 30.0
+var _threw := false
+var _restocked := false
+var _judge_wave := 0
+var _area_at := -100.0
+var _area_seq := 0
+var _seen_area := 0
+var _cj_send := 0.0
+var _claims: Array = []
+var _cannon_move: AudioStreamPlayer
+var _toss_t := 0.0
+var _tint_root: Node3D
+var _tint_left := 0.0
+var _tint_mat: StandardMaterial3D
 var _belt_at := Vector3.ZERO
 var _goon_left := 0.0
 var _magnet_prev := Vector3.ZERO
@@ -96,6 +193,31 @@ var _stars: Node3D
 var _flash_left := 0.0
 var _flash_paint: StandardMaterial3D
 var _music: AudioStreamPlayer
+var _belt_loop: AudioStreamPlayer
+var _power_root: Control
+var _power_fill: ColorRect
+var _suit_at := -1.0
+var _strip_at := -1.0
+var _slip_left := 0.0
+var _flat_return := -1
+var _epilogue_on := false
+var _ceo_field_send := 0.0
+var _ceo_win := 0
+var _walk_from := Vector3.ZERO
+var _walk_floor := 0.0
+var _walk_ready := false
+var _belt_u := 0.0
+var _attack_log: Array = []
+var _attack_seq := 0
+var _attack_seen := 0
+var _chest: Node3D
+var _chest_mat: StandardMaterial3D
+var _chest_glow: StandardMaterial3D
+var _chest_scale := Vector3.ONE
+var _chest_condition := -1
+var _chest_blink := 0.0
+var _chest_red := true
+var _puffs: Array[Dictionary] = []
 var _music_key := ""
 var _goon_banks: Dictionary = {}
 var _goon_rates: Dictionary = {}
@@ -156,12 +278,17 @@ var _cable_shadow: MeshInstance3D
 
 
 func shutdown() -> void:
+	_clear_waiter()
+	_restore_jury()
 	_mode = ""
 	_gears.clear()
 	_clear_gear_bits()
 	_clear_lever()
 	_stop_birds()
 	_stop_crane_audio()
+	_belt_sound(false)
+	if _power_root != null:
+		_power_root.visible = false
 	_restore_fov()
 	_drop_mata_suit()
 	_release_camera()
@@ -334,64 +461,122 @@ func start_cannons(boss: Node) -> void:
 	_begin(boss)
 	_mode = "cannon"
 	_crane_h = 0.0
-	_jury = _find("JuryBox")
-	if _jury != null:
-		_jury_start = _jury.position
-	var cannons := [Vector3(-40.0, -12.0, 0.0), Vector3(-40.0, 0.0, 0.0), Vector3(-40.0, 12.0, 0.0), Vector3(-40.0, 24.0, 0.0)]
-	for index in cannons.size():
-		_model_or_box("res://assets/parties/cannon.glb", cannons[index], "Cannon%d" % index, Color(0.45, 0.3, 0.15), Vector3(1.6, 1.2, 2.2))
-	_tell("Battle Two is the cannon round. Press E at a cannon. The jury box moves for 70 seconds. The bar charges, A and D aim, click fires you into it. You have 12 shots. Land in the box to seat a Toon.")
+	_barrel_p = 10.0
+	_flying = false
+	_retract_jury()
+	_place_chairs()
+	_place_battle_cannons()
+	_place_cj(Vector3(-2.798, -60.0, 0.0), 0.0)
+	if _witness != null:
+		_witness.visible = false
+	_mode = "cj_pass"
+	_act_t = 0.0
+	_line_at = -1
+	_head_talk = 5.0
+	_lock_toon()
+	play_music("between")
+	_tell("Bah, so you passed the bar exam.")
 
 
 func start_evidence(boss: Node) -> void:
 	_begin(boss)
 	_mode = "evidence"
-	var podium := _find("Podium")
-	var scale := _panda_box(-3.0, 0.0, 0.0, Color(0.75, 0.7, 0.35), Vector3(2.2, 0.4, 5.0), "Scale")
-	if podium != null:
-		scale.global_position = podium.global_position + Vector3(0.0, 1.0, 0.0)
-	var defense := _panda_box(-3.0, -2.0, 1.0, Color(0.2, 0.55, 0.85), Vector3(1.8, 0.4, 1.8), "Defense")
-	defense.global_position = scale.global_position + Vector3(0.0, 0.4, -2.0)
-	var stand := _panda_box(8.0, 10.0, 0.0, Color(0.9, 0.85, 0.4), Vector3(1.6, 1.2, 1.6), "Evidence")
-	_boss_pos = scale.global_position
-	var count := int(boss.call("lawyer_count"))
-	for index in count:
-		var node := _panda_box(12.0, -20.0 + float(index) * 4.0, 0.0, Color(0.55, 0.2, 0.2), Vector3(0.9, 1.8, 0.9), "Lawyer%d" % index)
-		_lawyers.append({"at": node.global_position, "stun": 0.0, "node": node})
-	_tell("Battle Three is the scale. Click to throw evidence onto the blue defense pan. The yellow witness stand refills you. Hit a lawyer to stun him. A gavel stomp is 20 and a graze is 2. All lawyers stunned for 60 seconds doubles your weight and heals 10. The scale needs 2700.")
+	# LawbotBossInjusticePosHpr and LawbotBossInjusticeScale. Pans sit on the beam.
+	_scale_model = _model_or_box("res://assets/cog_hq/lawbot_scale.glb", Vector3(-3.0, 12.0, 0.0), "Scale", Color(0.75, 0.7, 0.35), Vector3(2.2, 0.4, 5.0))
+	var scale := _scale_model
+	scale.basis = _panda_hpr(90.0, 0.0, 0.0)
+	scale.scale = Vector3(1.75, 1.75, 1.5)
+	var defense := Node3D.new()
+	defense.name = "Defense"
+	var pan := scale.find_child("defensePan", true, false) as Node3D
+	if pan != null:
+		pan.add_child(defense)
+	else:
+		scale.add_child(defense)
+		defense.position = Vector3(0.0, -4.692, 12.693)
+	var geom := _geometry()
+	_boss_pos = geom.to_global(Vector3(-3.0, 12.0, 0.0)) if geom != null else Vector3(-3.0, 12.0, 0.0)
+	_place_lawyers(int(boss.call("lawyer_count")))
+	_place_gavels(int(boss.call("gavel_count")))
+	var prosecute := Node3D.new()
+	prosecute.name = "Prosecution"
+	var other := scale.find_child("prosecutionPan", true, false) as Node3D
+	if other != null:
+		other.add_child(prosecute)
+	else:
+		scale.add_child(prosecute)
+		prosecute.position = Vector3(0.0, 4.791, 12.716)
+	_show_battle_props(false)
+	_show_witness(true)
+	_mode = "cj_session"
+	_act_t = 0.0
+	_line_at = -1
+	_lock_toon()
+	play_music("between")
+	_tell("Court is now in session")
+
+
+func start_ceo_intro(boss: Node) -> void:
+	_begin(boss)
+	_place_gil(Vector3(0.0, -64.0, 0.0))
+	_ceo_say(PackedStringArray([
+		"You toons will need different disguises.",
+		"First take off your cog suits...",
+		"and then fight these waiters.",
+	]), "cogs")
+	play_music("between")
+
+
+func skip_ceo_intro() -> void:
+	_mode = ""
+	_gil_job = ""
+	_release_camera()
+	if _boss != null:
+		_boss.call("finish_ceo_intro")
 
 
 func start_banquet(boss: Node) -> void:
 	_begin(boss)
-	_mode = "banquet"
-	var locators := _find_all("TableLocator_")
-	var state: Dictionary = boss.call("world_state")
-	var plates: Array = state.get("plates", [])
-	if locators.is_empty():
-		_belt_at = _panda_box(0.0, 200.0, 0.0, Color(0.7, 0.45, 0.2), Vector3(8.0, 0.4, 1.4), "Belt").global_position
-	else:
-		_belt_at = locators[0].global_position
-		_panda_box(0.0, 180.0, 1.0, Color(0.7, 0.45, 0.2), Vector3(10.0, 0.35, 1.2), "Belt")
-	for index in plates.size():
-		var seat := _panda_box(0.0, 0.0, 0.0, Color(0.3, 0.3, 0.35), Vector3(1.0, 1.2, 1.0), "Seat%d" % index)
-		if locators.is_empty():
-			seat.position = Vector3(float(index) * 2.0, 220.0, 0.0)
-		else:
-			var table := locators[index % locators.size()]
-			var around := float(index / locators.size())
-			seat.global_position = table.global_position + Vector3(cos(around) * 2.2, 0.6, sin(around) * 2.2)
-	_tell("Battle Two is the 300 second banquet. The food belt is in the banquet hall. Walk into it for a plate and serve the glowing chair. BossbotNumFoodToExplode is 3. A wrong or late plate costs 8 laff. E ends serving.")
+	_place_banquet(boss)
+	_place_gil(Vector3(0.0, -20.0, 0.0))
+	_banquet_door(0.0)
+	_ceo_say(PackedStringArray([
+		"Good Job! Now put on the waiters' clothes.",
+		"What's taking so long? ",
+		"Get cracking and serve my banquet!",
+		"Hehe, serve the food I place on these conveyor belts.",
+		"If you serve a cog three times in a row it will explode.",
+	]), "banquet")
+	play_music("between")
+
+
+func start_ceo_threat(boss: Node) -> void:
+	_boss = boss
+	_belt_sound(false)
+	_ceo_say(PackedStringArray([
+		"What's happening here?!",
+		"These waiters are toons!",
+		"Get them!!!",
+	]), "threat")
 
 
 func start_seltzer(boss: Node) -> void:
-	_begin(boss)
-	_mode = "seltzer"
-	# BossbotBossBattleOnePosHpr, where he stands over the banquet.
-	var boss_node := _panda_box(0.0, 355.0, 0.0, Color(0.15, 0.2, 0.45), Vector3(2.6, 5.4, 2.2), "CEO")
-	_boss_pos = boss_node.global_position
-	var bottle := _panda_box(6.0, 340.0, 0.0, Color(0.4, 0.7, 0.9), Vector3(1.2, 0.8, 1.2), "Seltzer")
-	_belt_at = bottle.global_position
-	_tell("Battle Four. Press E at the seltzer bottle. Hold the jump key to charge 1, 2, or 3 and release. The server doubles it to 2, 4, or 6. His club and area swing each do 15. Step off the red marker.")
+	_boss = boss
+	if _root == null:
+		_begin(boss)
+	_clock = 0.0
+	_golf = false
+	_carry = false
+	_place_seltzer()
+	_banquet_door(90.0)
+	_show_gil_suit()
+	_ceo_say(PackedStringArray([
+		"Good Job! Now squirt the C.E.O. with the water on the tables...",
+		"or use golf balls to slow him down.",
+		"Hrrmmpph. When I need a job done right...",
+		"I'll do it myself.",
+	]), "seltzer")
+	_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v2.ogg", "ceo2")
 
 
 func _process(delta: float) -> void:
@@ -415,6 +600,22 @@ func _process(delta: float) -> void:
 		return
 	if _mode == "cfo_victory":
 		_tick_cfo_victory()
+		return
+	if _mode == "cj_intro":
+		_tick_cj_intro(delta)
+		return
+	if _mode == "ceo_talk":
+		_tick_ceo_talk(delta)
+		return
+	if _mode == "ceo_victory":
+		_tick_ceo_victory(delta)
+		return
+	if _mode == "cj_defeat":
+		_tick_cj_defeat(delta)
+		return
+	if _mode == "cj_pass" or _mode == "cj_roll" or _mode == "cj_rise" or _mode == "cj_pages" or _mode == "cj_appear" or _mode == "cj_session" or _mode == "cj_victory" or _mode == "cj_epilogue":
+		_tick_cj_act(delta)
+		_pressed = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 		return
 	var body := _body()
 	if body == null:
@@ -903,148 +1104,562 @@ func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 
 
 func _tick_cannon(delta: float, body: CharacterBody3D) -> void:
+	if not _cj_driving() and ToonNet.networked():
+		var snap := ToonNet.latest("cj-field")
+		if snap.has("clock"):
+			_clock = float(snap.get("clock", _clock))
+		_apply_cj_field()
+	_publish_cj(delta)
+	var along := clampf(_clock / 70.0, 0.0, 1.0)
+	var slide := Vector3(30.0, 0.0, 12.645) * along
 	if _jury != null:
-		var along := clampf(_clock / 70.0, 0.0, 1.0)
-		# LawbotBossJuryBoxRelativeEndPos, in the room's panda axes.
-		_jury.position = _jury_start + Vector3(30.0, 0.0, 12.645) * along
+		_jury.position = _jury_start + slide
+	if _reflect != null:
+		_reflect.position = _reflect_start + slide
+	_tick_chairs(delta)
+	_pose_witness()
+	if _clock >= 70.0:
+		_flying = false
+		if _cannon and _cannon_pad != null and body != null:
+			body.global_position = _cannon_pad.to_global(Vector3(3.0, 0.0, 0.0))
+			body.velocity = Vector3.ZERO
+		if _cj_driving():
+			_end_cannons()
+		return
+	if _flying:
+		_tick_flight(delta, body)
+		return
 	var cannons := _named("Cannon")
 	if not _cannon:
 		if _KEYS.use_held() and _cool <= 0.0:
 			for pad in cannons:
 				if _near(body, pad.global_position, 3.0):
 					_cannon = true
-					_power = 0.0
-					_power_dir = 1.0
+					_cannon_pad = pad
+					_crane_h = 0.0
+					_barrel_p = 10.0
 					_cool = 0.3
 					_lock_toon()
+					_aim_cannon()
 					break
 		var left := maxf(70.0 - _clock, 0.0)
-		_boss.call("paint_world", "Jury box %d seconds left." % int(left))
-		if _clock >= 70.0:
-			_boss.call("finish_cannons")
+		_boss.call("paint_world", "Jury box %d seconds left. Toon jurors %d." % [int(left), _toon_jurors()])
+		if _clock >= 70.0 and _cj_driving():
+			_end_cannons()
 		return
-	_power += _power_dir * delta * 0.85
-	if _power >= 1.0:
-		_power_dir = -1.0
-	elif _power <= 0.0:
-		_power_dir = 1.0
-	if _KEYS.held("left"):
-		_crane_h -= delta * 6.0
-	if _KEYS.held("right"):
-		_crane_h += delta * 6.0
-	if _fresh_press():
-		_fire_cannon()
-	_boss.call("paint_world", "Cannon power %d%%. Aim with A and D." % int(_power * 100.0))
+	if Input.is_physical_key_pressed(KEY_LEFT):
+		_crane_h += delta * 15.0
+	if Input.is_physical_key_pressed(KEY_RIGHT):
+		_crane_h -= delta * 15.0
+	if Input.is_physical_key_pressed(KEY_UP):
+		_barrel_p += delta * 15.0
+	if Input.is_physical_key_pressed(KEY_DOWN):
+		_barrel_p -= delta * 15.0
+	_crane_h = clampf(_crane_h, -55.0, 50.0)
+	_barrel_p = clampf(_barrel_p, 10.0, 85.0)
+	_aim_cannon()
+	var aiming := Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_DOWN)
+	_cannon_adjust(aiming)
+	var firing := Input.is_key_pressed(KEY_CTRL)
+	if firing and not _ctrl_down:
+		_launch_flight(body)
+	_ctrl_down = firing
+	if _KEYS.use_held() and _cool <= 0.0:
+		_cannon = false
+		_cool = 0.3
+		_free_toon()
+	var state: Dictionary = _boss.call("world_state")
+	var balls := 12 - int(state.get("shots", 0))
+	_boss.call("paint_world", "Arrows aim. Control fires. E leaves. Shots %d. Jury %d seconds." % [balls, int(maxf(70.0 - _clock, 0.0))])
+	if _clock >= 70.0 and _cj_driving():
+		_end_cannons()
 
 
 func _tick_evidence(delta: float, body: CharacterBody3D) -> void:
-	var stand := _root.get_node_or_null("Evidence") as Node3D
-	if stand != null and _near(body, stand.global_position, 2.4):
+	_take_remote_stuns()
+	_publish_cj(delta)
+	_show_remote_shots()
+	if not _cj_driving() and ToonNet.networked():
+		_apply_cj_field()
+	_tick_evidence_hints(delta)
+	_tick_cj_judge(delta, body)
+	var stand := _find("witnessStandSeatCenter")
+	if stand == null:
+		stand = _find("WitnessStand")
+	if stand != null and _near(body, stand.global_position, 4.0):
+		var before: Dictionary = _boss.call("world_state")
+		var had := int(before.get("ammo", 0))
 		_boss.call("restock_evidence")
-	if _fresh_press():
-		_launch(body, 22.0, Color(0.9, 0.85, 0.3), "evidence")
+		var after: Dictionary = _boss.call("world_state")
+		if int(after.get("ammo", 0)) > had:
+			_sfx("res://assets/cog_hq/audio/LB_receive_evidence.ogg")
+			_restocked = true
+			_hint = ""
+			if not _threw:
+				_hint_left = 30.0
+	var deleting := Input.is_physical_key_pressed(KEY_DELETE)
+	if deleting and not _delete_down and _cool <= 0.0:
+		if bool(_boss.call("throw_evidence")):
+			_threw = true
+			_hint = ""
+			_launch(body, 22.0, Color(0.45, 0.28, 0.12), "evidence")
+		else:
+			_hint = "You need to get more evidence!"
+			_hint_left = 20.0
+	_delete_down = deleting
+	_pose_witness()
+	_tick_tint(delta)
 	_fly(_shots, delta)
 	_boss.call("tick_lawyers", delta)
-	var defense := _root.get_node_or_null("Defense") as Node3D
+	var defense := _root.find_child("Defense", true, false) as Node3D
 	for shot in _shots:
 		if bool(shot["done"]) or defense == null:
 			continue
-		if _near_point(shot["at"], defense.global_position, 1.8):
+		if _near_point(shot["at"], defense.global_position, 2.4):
 			shot["done"] = true
 			_boss.call("note_evidence")
+			_sfx("res://assets/cog_hq/audio/LB_evidence_hit.ogg")
+			var pan := defense.get_parent() as Node3D
+			_tint(pan if pan != null else defense, Color(0.15, 0.25, 1.0, 0.55))
+		elif _hit_evidence_toon(shot):
+			shot["done"] = true
+		elif _near_prosecution(shot["at"]):
+			shot["done"] = true
+			_tint(_cj, Color(0.2, 1.0, 0.35, 0.55))
 		else:
 			for index in _lawyers.size():
-				if _near_point(shot["at"], _lawyers[index]["at"], 1.3):
+				var lawyer := _lawyers[index]["node"] as Node3D
+				if lawyer != null and _near_point(shot["at"], lawyer.global_position, 1.6):
 					shot["done"] = true
 					_lawyers[index]["stun"] = 5.0
 					_boss.call("stun_lawyer", index)
 	var stunned := 0
 	for index in _lawyers.size():
-		_lawyers[index]["stun"] = maxf(float(_lawyers[index]["stun"]) - delta, 0.0)
+		if _cj_driving():
+			_lawyers[index]["stun"] = maxf(float(_lawyers[index]["stun"]) - delta, 0.0)
 		if float(_lawyers[index]["stun"]) > 0.0:
 			stunned += 1
-		var node := _root.get_node_or_null("Lawyer%d" % index) as Node3D
-		if node != null:
-			node.global_position = _lawyers[index]["at"]
 	if stunned == _lawyers.size() and not _lawyers.is_empty():
 		_boss.call("note_all_stunned", delta)
-	_gavel -= delta
-	if _gavel <= 0.0:
-		_gavel = 8.0
-		_gavel_zone = body.global_position + _right * randf_range(-2.0, 2.0)
-		_gavel_live = 0.7
-		_replace_marker("Gavel", _gavel_zone, Color(0.7, 0.1, 0.1), Vector3(2.2, 0.2, 2.2))
-	if _gavel_live > 0.0:
-		_gavel_live -= delta
-		if _gavel_live <= 0.0:
-			var stomp := _near(body, _gavel_zone, 1.5)
-			if stomp or _near(body, _gavel_zone, 2.6):
+	if _cj_driving():
+		_tick_lawyer_throws(delta, body)
+	else:
+		_touch_lawyer_books(body)
+	if _mode != "evidence":
+		return
+	_swing_gavels(0.0 if not _cj_driving() and ToonNet.networked() else delta, body)
+	var state: Dictionary = _boss.call("world_state")
+	_tilt_scale(float(state.get("hp", 1350)))
+	var ammo_line := "Evidence %d. Throw at the defense pan." % int(state.get("ammo", 0))
+	if _hint != "":
+		ammo_line += "\n" + _hint
+	_boss.call("paint_world", ammo_line)
+	_pose_cj_head(delta)
+
+
+func _place_lawyers(count: int) -> void:
+	# LawbotBossLawyerPosHprs. The first eight face the scale. The last two stand at the pans.
+	var seats: Array[Vector3] = [
+		Vector3(-57.0, -24.0, 0.0), Vector3(-57.0, -12.0, 0.0), Vector3(-57.0, 0.0, 0.0),
+		Vector3(-57.0, 12.0, 0.0), Vector3(-57.0, 24.0, 0.0), Vector3(-57.0, 36.0, 0.0),
+		Vector3(-57.0, 48.0, 0.0), Vector3(-57.0, 60.0, 0.0),
+		Vector3(-3.0, -37.3, 0.0), Vector3(-3.0, 53.0, 0.0),
+	]
+	var headings: Array[float] = [-90.0, -90.0, -90.0, -90.0, -90.0, -90.0, -90.0, -90.0, 0.0, -180.0]
+	var roster: Array = [
+		["b", "Bloodsucker", "b", 6.17],
+		["dt", "Double Talker", "a", 5.63],
+		["ac", "Ambulance Chaser", "b", 6.39],
+		["bs", "Back Stabber", "a", 6.71],
+		["sd", "Spin Doctor", "b", 7.9],
+		["le", "Legal Eagle", "a", 8.27],
+		["bw", "Big Wig", "a", 8.69],
+	]
+	var used := mini(count, seats.size())
+	for index in used:
+		var pick: Array = roster[randi() % roster.size()]
+		var seat: Vector3 = seats[index]
+		var node := _spawn_lawyer(pick, seat, headings[index], index)
+		var book := _lawyer_book(seat, index)
+		_lawyers.append({
+			"stun": 0.0,
+			"node": node,
+			"seat": seat,
+			"book": book,
+			"phase": "idle",
+			"kind": "",
+			"t": 0.0,
+			"cut": false,
+			"hit": false,
+			"from": seat,
+			"to": seat,
+		})
+
+
+func _spawn_lawyer(pick: Array, seat: Vector3, heading: float, index: int) -> Node3D:
+	var script := load("res://scenes/cogs/street_cog.gd") as GDScript
+	var cog := script.new() as Node3D
+	cog.name = "Lawyer%d" % index
+	_root.add_child(cog)
+	cog.call("present", {
+		"code": str(pick[0]),
+		"name": str(pick[1]),
+		"dept": "l",
+		"body": str(pick[2]),
+		"height": float(pick[3]),
+		"level": 1,
+	}, _suit_timing())
+	cog.position = seat
+	cog.basis = _panda_hpr(heading, 0.0, 0.0)
+	return cog
+
+
+func _suit_timing() -> Dictionary:
+	if _suit_timing_ready:
+		return _suit_timing
+	_suit_timing_ready = true
+	var text := FileAccess.get_file_as_string("res://assets/cogs/catalog.json")
+	var parsed = JSON.parse_string(text)
+	if parsed is Dictionary:
+		_suit_timing = (parsed as Dictionary).get("timing", {})
+	return _suit_timing
+
+
+func _tick_lawyer_throws(delta: float, body: CharacterBody3D) -> void:
+	var wave := int(_clock / 6.0)
+	var previous := int((_clock - delta) / 6.0)
+	var launch := wave != previous and wave > 0
+	var geom := _geometry()
+	for index in _lawyers.size():
+		var lawyer: Dictionary = _lawyers[index]
+		var node := lawyer["node"] as Node3D
+		var book := lawyer["book"] as Node3D
+		var stun := float(lawyer["stun"])
+		var phase := String(lawyer["phase"])
+		if stun > 0.0 and phase == "wind":
+			lawyer["phase"] = "idle"
+			lawyer["cut"] = true
+			if book != null:
+				book.visible = false
+			if node != null:
+				node.set_process(true)
+			continue
+		if phase == "idle":
+			if launch and stun <= 0.0:
+				_begin_lawyer_throw(index, body)
+			continue
+		lawyer["t"] = float(lawyer["t"]) + delta
+		var elapsed := float(lawyer["t"])
+		if node != null and node.has_method("play_attack"):
+			node.set_process(false)
+			node.call("play_attack", "throw-paper", elapsed)
+		if phase == "wind":
+			if book != null and node != null:
+				book.visible = elapsed >= 1.0
+				book.global_position = node.global_position + Vector3(0.0, 3.2, 0.0)
+			if elapsed < 3.15:
+				continue
+			if bool(lawyer["cut"]) or stun > 0.0:
+				lawyer["phase"] = "idle"
+				if book != null:
+					book.visible = false
+				if node != null:
+					node.set_process(true)
+				continue
+			lawyer["phase"] = "fly"
+			lawyer["t"] = 0.0
+			_aim_lawyer_book(index, body, geom)
+			continue
+		var span := 3.0 if String(lawyer["kind"]) == "attack" else 2.5
+		var from_at: Vector3 = lawyer["from"]
+		var to_at: Vector3 = lawyer["to"]
+		if book != null:
+			book.position = from_at.lerp(to_at, clampf(elapsed / span, 0.0, 1.0))
+			book.visible = true
+			if String(lawyer["kind"]) == "attack" and not bool(lawyer["hit"]) and body != null:
+				if book.global_position.distance_to(body.global_position + Vector3(0.0, 1.2, 0.0)) < 1.6:
+					lawyer["hit"] = true
+					_boss.call("note_lawyer_hit")
+					if _mode != "evidence":
+						return
+		if elapsed < span:
+			continue
+		if String(lawyer["kind"]) == "prosecute" and not bool(lawyer["cut"]):
+			_boss.call("heal_scale", 2)
+			if _mode != "evidence":
+				return
+		lawyer["phase"] = "idle"
+		lawyer["cut"] = false
+		if book != null:
+			book.visible = false
+		if node != null:
+			node.set_process(true)
+
+
+func _begin_lawyer_throw(index: int, body: CharacterBody3D) -> void:
+	var lawyer: Dictionary = _lawyers[index]
+	var attack := body != null and randi_range(1, 100) <= 50
+	lawyer["kind"] = "attack" if attack else "prosecute"
+	lawyer["phase"] = "wind"
+	lawyer["t"] = 0.0
+	lawyer["cut"] = false
+	lawyer["hit"] = false
+	var node := lawyer["node"] as Node3D
+	if node != null:
+		node.set_process(false)
+
+
+func _aim_lawyer_book(index: int, body: CharacterBody3D, geom: Node3D) -> void:
+	var lawyer: Dictionary = _lawyers[index]
+	var seat: Vector3 = lawyer["seat"]
+	var from_at := seat + Vector3(0.0, 0.0, 3.2)
+	var book := lawyer["book"] as Node3D
+	if book != null and geom != null:
+		from_at = geom.to_local(book.global_position)
+	var dest := from_at
+	if String(lawyer["kind"]) == "attack" and body != null and geom != null:
+		var toon := geom.to_local(body.global_position)
+		var flat := Vector3(toon.x - seat.x, toon.y - seat.y, 0.0)
+		if flat.length() > 0.1:
+			flat = flat.normalized() * 200.0
+		dest = Vector3(seat.x + flat.x, seat.y + flat.y, seat.z + 1.3)
+	else:
+		var pan := _root.find_child("prosecutionPan", true, false) as Node3D
+		if pan != null and geom != null:
+			dest = geom.to_local(pan.global_position)
+		else:
+			dest = Vector3(-11.4, 12.0, 19.0)
+	lawyer["from"] = from_at
+	lawyer["to"] = dest
+
+
+func _place_gavels(count: int) -> void:
+	# LawbotBossGavelPosHprs, LawbotBossGavelTimes, LawbotBossGavelHeadings.
+	var seats: Array[Vector3] = [
+		Vector3(35.0, 78.328, 0.0), Vector3(68.5, 78.328, 0.0), Vector3(47.0, -33.0, 0.0),
+		Vector3(-50.0, -39.0, 0.0), Vector3(-9.0, -37.0, 0.0), Vector3(-9.0, 49.0, 0.0),
+		Vector3(32.0, 0.0, 0.0), Vector3(33.0, 56.0, 0.0),
+	]
+	var headings: Array[float] = [-135.0, 135.0, 45.0, -45.0, 0.0, -180.0, 45.0, 135.0]
+	var times: Array = [
+		[0.2, 0.9, 0.6], [0.25, 1.0, 0.5], [1.0, 6.0, 0.5], [0.3, 3.0, 1.0],
+		[0.26, 0.9, 0.45], [0.24, 1.1, 0.65], [0.27, 1.2, 0.45], [0.25, 0.95, 0.5],
+	]
+	var sweeps: Array = [
+		[0.0, -15.0, 4.0, -115.0, 5.0, 45.0],
+		[0.0, -45.0, -4.0, -35.0, -45.0, -16.0, 32.0],
+		[0.0, -8.0, 19.0, -7.0, 5.0, 23.0],
+		[0.0, -4.0, 8.0, -16.0, 32.0, -45.0, 7.0, 7.0, -30.0, 19.0, -13.0, 25.0],
+		[0.0, -45.0, -90.0, 45.0, 90.0],
+		[0.0, -45.0, -90.0, 45.0, 90.0],
+		[0.0, -45.0, 45.0],
+		[0.0, -45.0, 45.0],
+	]
+	var used := mini(count, seats.size())
+	for index in used:
+		var node := _model_or_box("res://assets/cog_hq/lawbot_gavel.glb", seats[index], "Gavel%d" % index, Color(0.7, 0.1, 0.1), Vector3(1.2, 4.0, 1.2))
+		node.scale = Vector3(3.0, 3.0, 3.0)
+		_gavels.append({
+			"node": node,
+			"heading": headings[index],
+			"down": float(times[index][0]),
+			"up": float(times[index][1]),
+			"stay": float(times[index][2]),
+			"sweep": sweeps[index],
+			"step": 0,
+			"phase": "down",
+			"t": 0.0,
+			"struck": false,
+		})
+
+
+func _tilt_scale(damage: float) -> void:
+	# makeScaleReflectDamage. Winning tilt is 40 at 2700. Zero is level at 1350.
+	var scale := _root.get_node_or_null("Scale") as Node3D
+	if scale == null:
+		return
+	var beam := scale.find_child("scaleBeam", true, false) as Node3D
+	if beam == null:
+		return
+	var tilt := (damage - 1350.0) / 1350.0 * 40.0
+	beam.rotation.x = deg_to_rad(tilt)
+	var defense_pan := scale.find_child("defensePan", true, false) as Node3D
+	var prosecution_pan := scale.find_child("prosecutionPan", true, false) as Node3D
+	if defense_pan != null:
+		defense_pan.rotation.x = deg_to_rad(-tilt)
+	if prosecution_pan != null:
+		prosecution_pan.rotation.x = deg_to_rad(-tilt)
+
+
+func _swing_gavels(delta: float, body: CharacterBody3D) -> void:
+	for gavel in _gavels:
+		var node := gavel["node"] as Node3D
+		var sweep: Array = gavel["sweep"]
+		if node == null or sweep.is_empty():
+			continue
+		var step := int(gavel["step"]) % sweep.size()
+		var nxt := (step + 1) % sweep.size()
+		var base := float(gavel["heading"])
+		var here := base + float(sweep[step])
+		var there := base + float(sweep[nxt])
+		var phase := String(gavel["phase"])
+		var span := float(gavel[phase])
+		gavel["t"] = float(gavel["t"]) + delta
+		var along := clampf(float(gavel["t"]) / maxf(span, 0.05), 0.0, 1.0)
+		var pitch := -80.0
+		var heading := here
+		if phase == "down":
+			pitch = lerpf(0.0, -80.0, along)
+		elif phase == "up":
+			pitch = lerpf(-80.0, 0.0, along)
+			heading = lerpf(here, there, along)
+		node.basis = _panda_hpr(heading, pitch, 0.0).scaled(Vector3(3.0, 3.0, 3.0))
+		if phase == "stay" and not bool(gavel["struck"]):
+			var chest := body.global_position + Vector3(0.0, 1.2, 0.0)
+			var head := _exact_child(node, "top1")
+			var grip := _exact_child(node, "handle")
+			var stomp := head != null and head.global_position.distance_to(chest) < 4.5
+			var graze := grip != null and grip.global_position.distance_to(chest) < 3.2
+			if stomp or graze:
+				gavel["struck"] = true
 				_boss.call("note_gavel", stomp)
-	_boss.call("paint_world", "Throw at the blue pan.")
+		if not _cj_driving() and ToonNet.networked():
+			continue
+		if float(gavel["t"]) < span:
+			continue
+		gavel["t"] = 0.0
+		gavel["struck"] = false
+		if phase == "down":
+			gavel["phase"] = "stay"
+			_sfx("res://assets/cog_hq/audio/LB_gavel.ogg")
+		elif phase == "stay":
+			gavel["phase"] = "up"
+		else:
+			gavel["phase"] = "down"
+			gavel["step"] = nxt
 
 
 func _tick_banquet(delta: float, body: CharacterBody3D) -> void:
 	_boss.call("tick_banquet", delta)
 	if String(_boss.call("current_phase")) != "banquet":
 		return
+	_tick_belt(delta, body, false)
+	_follow_plate(body)
+	_publish_ceo_field(delta)
 	var state: Dictionary = _boss.call("world_state")
-	var plates: Array = state.get("plates", [])
-	var stuffed: Array = state.get("stuffed", [])
-	var hungry := int(state.get("hungry", -1))
-	if _near(body, _belt_at, 3.2):
-		_carry = true
-	for index in plates.size():
-		var node := _root.get_node_or_null("Seat%d" % index) as Node3D
-		if node == null:
+	var rows: Array = state.get("diners", [])
+	for slot in _diners.size():
+		var diner: Dictionary = _diners[slot]
+		var index := int(diner.get("index", -1))
+		if index < 0 or index >= rows.size() or not (rows[index] is Dictionary):
 			continue
-		var fed := index < stuffed.size() and bool(stuffed[index])
-		node.scale = Vector3(1.3, 1.3, 1.3) if index == hungry and not fed else Vector3.ONE
-		if _carry and index == hungry and _near(body, node.global_position, 1.8):
+		var row: Dictionary = rows[index]
+		var status := String(row.get("status", ""))
+		var node := diner.get("node") as Node3D
+		_pose_diner(diner, row, delta)
+		_diners[slot] = diner
+		var glow := status == "hungry" or status == "angry"
+		if _carry and glow and node != null and _near(body, node.global_position, 2.2):
 			_carry = false
 			_boss.call("serve_seat", index)
-		elif _carry and _near(body, node.global_position, 1.8) and index != hungry and not fed:
-			_carry = false
-			_boss.call("serve_seat", index)
-	if _KEYS.use_held() and _cool <= 0.0:
-		_cool = 0.4
-		_boss.call("finish_serving")
-		return
 	var carrying := "carrying a plate" if _carry else "empty handed"
-	_boss.call("paint_world", "Banquet %s. Hungry seat %s." % [carrying, str(hungry + 1) if hungry >= 0 else "none"])
+	_boss.call("paint_world", "Banquet %s. Grab a can, then serve a hungry cog." % carrying)
+
+
+func _tick_ceo_attack(delta: float, body: CharacterBody3D, slowed: float) -> void:
+	var gap := 6.0 * (1.0 + slowed / 90.0)
+	if _attack_left > 0.0:
+		_attack_left -= delta
+		if _attack_left <= 0.0 and _near(body, _attack_at, 4.0):
+			_boss.call("note_golf", _attack_kind == "area")
+	elif not _crushing and _clock > 4.0 and fposmod(_clock, gap) < delta:
+		var table := _mounted_table()
+		if table >= 0 and not _table_is_flat(table) and randi() % 4 == 0:
+			_start_crush(table)
+		elif randi() % 5 == 0:
+			_attack_kind = "area"
+			_attack_at = _boss_pos
+			_attack_left = 1.0
+			_tell("Fore!")
+			_swing_club(body.global_position)
+			_remember_fore(body.global_position)
+		elif table >= 0:
+			_throw_gears(body.global_position, "gear")
+		else:
+			var pick := _upright_table()
+			if pick >= 0 and randi() % 4 == 0:
+				_start_crush(pick)
+			else:
+				_throw_balls(body.global_position)
+	if _clock >= 1200.0 and not _over_one:
+		_over_one = true
+		_tell("It's time to reorganize.")
+		_throw_gears(_belt_point(0), "overtime")
+	if _clock >= 1800.0 and not _over_two:
+		_over_two = true
+		_tell("Now let's downsize.")
+		_throw_gears(_belt_point(1), "overtime")
+	_tick_ceo_shots(delta, body)
 
 
 func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
-	var spot := _root.get_node_or_null("Seltzer") as Node3D
+	_tick_chest(delta)
+	_tick_belt(delta, body, true)
+	_tick_balls(delta)
+	if not _KEYS.use_held():
+		_station_arm = false
 	if not _golf:
-		if spot != null and _KEYS.use_held() and _near(body, spot.global_position, 2.4) and _cool <= 0.0:
-			_golf = true
-			_spray = 0.0
-			_cool = 0.3
-			_lock_toon()
-	else:
+		_mount_station(body)
+	elif _KEYS.use_held() and not _station_arm and _cool <= 0.0 and not _KEYS.held("jump"):
+		_golf = false
+		_spray = 0.0
+		_station_arm = true
+		_cool = 0.3
+		_hide_putter()
+		_release_board(body)
+		_free_toon()
+	elif _station == "bottle":
+		_tick_board(delta, body)
+		if _board_age >= _board_span:
+			_aim_station(delta, 30.0)
 		if _KEYS.held("jump"):
-			_spray = minf(_spray + delta * 1.4, 3.0)
+			_spray += delta
 		elif _spray > 0.0:
-			var unit := 1
-			if _spray >= 2.2:
-				unit = 3
-			elif _spray >= 1.1:
-				unit = 2
-			_boss.call("note_seltzer", unit)
+			_fire_bottle(_water_power(_spray))
 			_spray = 0.0
-			_golf = false
-			_cool = 0.3
-			_free_toon()
-	if _attack_left > 0.0:
-		_attack_left -= delta
-		if _attack_left <= 0.0 and _near(body, _attack_at, 3.4):
-			_boss.call("note_golf", _attack_kind == "area")
-	elif _clock > 4.0 and fposmod(_clock, 6.5) < delta:
-		_attack_kind = "area" if randi() % 2 == 0 else "club"
-		_attack_at = body.global_position
-		_attack_left = 1.0
-		_replace_marker("Swing", _attack_at, Color(0.75, 0.2, 0.2), Vector3(3.2, 0.15, 3.2))
-	_boss.call("paint_world", "Seltzer charge %d." % int(minf(_spray, 3.0)))
+	elif _station == "tee":
+		_tick_board(delta, body)
+		if _board_age >= _board_span:
+			_aim_station(delta, 20.0)
+		if _KEYS.held("jump"):
+			_spray += delta
+		elif _spray > 0.0 and _cool <= 0.0:
+			_fire_ball(_ball_power(_spray))
+			_spray = 0.0
+	var state: Dictionary = _boss.call("world_state")
+	var slowed := float(state.get("speed", 0.0))
+	var driving := ToonNet.ceo_driving()
+	if driving:
+		_tick_ceo_attack(delta, body, slowed)
+		_tick_crush(delta, slowed)
+		_tick_unflatten()
+	else:
+		_apply_flats()
+		_apply_attacks()
+		_tick_ceo_shots(delta, body)
+	_advance_ceo_pose(delta)
+	_tick_face(delta)
+	_tick_water(delta)
+	_tint_club()
+	_show_power(_golf and _KEYS.held("jump"))
+	_publish_ceo_field(delta)
+	_publish_seat()
+	var charge := "Slow %d." % int(slowed)
+	if _golf and _station == "bottle":
+		charge = "Bottle %d." % int(round(_water_power(_spray) * 100.0))
+	elif _golf and _station == "tee":
+		charge = "Golf %d. Slow %d." % [int(round(_ball_power(_spray))), int(slowed)]
+	_boss.call("paint_world", charge)
 
 
 func _begin(boss: Node) -> void:
@@ -1059,10 +1674,43 @@ func _begin(boss: Node) -> void:
 	_treasures.clear()
 	_chairs.clear()
 	_lawyers.clear()
+	_gavels.clear()
+	_flying = false
+	_cannon_pad = null
 	_crane = -1
 	_held = -1
 	_cannon = false
 	_carry = false
+	_food.clear()
+	_diners.clear()
+	_balls.clear()
+	_station_index = -1
+	_station_table = -1
+	_station_arm = false
+	_crushing = false
+	_crush_table = -1
+	_over_one = false
+	_over_two = false
+	_ceo_shots.clear()
+	_ceo_clip = ""
+	_ceo_time = 0.0
+	_ceo_next = ""
+	_ceo_raised = false
+	_ceo_banks.clear()
+	_ceo_rates.clear()
+	_ceo_frames.clear()
+	_gil_job = ""
+	_door_span = 0.0
+	_face_span = 0.0
+	_hide_putter()
+	for spray in _water:
+		var mesh := spray.get("mesh") as Node
+		if mesh != null:
+			mesh.queue_free()
+	_water.clear()
+	_flat_return = -1
+	_epilogue_on = false
+	_strip_at = -1.0
 	_golf = false
 	_attack_left = 0.0
 	var body := _body()
@@ -1089,7 +1737,9 @@ func _launch(body: CharacterBody3D, speed: float, color: Color, kind: String) ->
 		return
 	var camera := _camera()
 	var aim := -camera.global_basis.z if camera != null else _forward
-	var shot := {"at": body.global_position + Vector3(0, 1.4, 0), "vel": aim.normalized() * speed + Vector3(0, 4.0, 0), "done": false, "kind": kind, "mesh": _box(body.global_position + Vector3(0, 1.4, 0), color, Vector3(0.35, 0.35, 0.35), "Shot%d" % (_pies.size() + _shots.size()))}
+	var book := Vector3(0.55, 0.12, 0.4) if kind == "evidence" else Vector3(0.35, 0.35, 0.35)
+	var mesh := _evidence_prop(body.global_position + Vector3(0, 1.4, 0)) if kind == "evidence" else _box(body.global_position + Vector3(0, 1.4, 0), color, book, "Shot%d" % (_pies.size() + _shots.size()))
+	var shot := {"at": body.global_position + Vector3(0, 1.4, 0), "vel": aim.normalized() * speed + Vector3(0, 4.0, 0), "done": false, "kind": kind, "mesh": mesh}
 	if kind == "pie":
 		_pies.append(shot)
 	else:
@@ -1515,24 +2165,1287 @@ func _land_safe(at: Vector3, impact: float, already: bool) -> void:
 			return
 
 
-func _fire_cannon() -> void:
-	var body := _body()
-	var aim := _crane_h
-	var land := _origin
-	if _jury != null:
-		land = _jury.global_position + _right * aim + _forward * (_power - 0.5) * 8.0
-	elif body != null:
-		land = body.global_position + _forward * (18.0 + _power * 28.0) + _right * aim
-	var seated := _jury != null and Vector2(land.x, land.z).distance_to(Vector2(_jury.global_position.x, _jury.global_position.z)) < 8.0
-	if body != null:
-		body.global_position = land + Vector3(0.0, 1.0, 0.0)
-	_boss.call("note_chair", seated)
+func _place_battle_cannons() -> void:
+	_cannon_pads.clear()
+	# One cannon per toon, spaced from LawbotBossCannonPosA to CannonPosB.
+	var start := Vector3(-80.0, -51.48, 0.0)
+	var finish := Vector3(-80.0, 70.73, 0.0)
+	var count := _court_toons()
+	for index in count:
+		var at := start + (finish - start) * (float(index + 1) / float(count + 1))
+		var pad := _model_or_box("res://assets/minigames/toon_cannon.glb", at, "Cannon%d" % index, Color(0.45, 0.3, 0.15), Vector3(1.6, 1.2, 2.2))
+		pad.basis = _panda_hpr(-90.0, 0.0, 0.0)
+		pad.scale = Vector3(0.1, 0.1, 0.1)
+		pad.visible = false
+		_cannon_pads.append(pad)
+		_cannon_pad = pad
+
+
+func _court_toons() -> int:
+	var count := 1
+	var host := _boss.get_parent() if _boss != null else null
+	if host == null:
+		return 1
+	for node in host.find_children("", "ToonActor", true, false):
+		if node.has_meta("peer"):
+			count += 1
+	return mini(count, 8)
+
+
+func _aim_cannon() -> void:
+	if _cannon_pad == null:
+		return
+	_cannon_pad.basis = _panda_hpr(-90.0 + _crane_h, 0.0, 0.0)
+	var barrel := _exact_child(_cannon_pad, "cannon")
+	if barrel != null:
+		barrel.rotation = Vector3(deg_to_rad(_barrel_p), 0.0, 0.0)
+
+
+func _exact_child(node: Node, want: String) -> Node3D:
+	if node == null:
+		return null
+	for child in node.get_children():
+		if String(child.name) == want and child is Node3D:
+			return child as Node3D
+		var deeper := _exact_child(child, want)
+		if deeper != null:
+			return deeper
+	return null
+
+
+func _launch_flight(body: CharacterBody3D) -> void:
+	if body == null or not bool(_boss.call("note_shot")):
+		return
+	var geom := _geometry()
+	if geom == null:
+		return
+	var barrel := _exact_child(_cannon_pad, "cannon")
+	var muzzle := body.global_position + Vector3(0.0, 2.0, 0.0)
+	if barrel != null:
+		muzzle = barrel.to_global(Vector3(0.0, 6.0, 0.0))
+	_fly_from = geom.to_local(muzzle)
+	var heading := deg_to_rad(-90.0 + _crane_h)
+	var angle := deg_to_rad(_barrel_p)
+	var horiz := 80.0 * cos(angle)
+	_fly_vel = Vector3(horiz * -sin(heading), horiz * cos(heading), 80.0 * sin(angle))
+	_fly_time = 0.0
+	_flying = true
+	_sfx("res://assets/audio/sfx/MG_cannon_fire_alt.ogg")
+
+
+func _tick_flight(delta: float, body: CharacterBody3D) -> void:
+	if body == null:
+		_flying = false
+		return
+	var geom := _geometry()
+	if geom == null:
+		return
+	_fly_time += delta
+	var pos := _fly_from + _fly_vel * _fly_time + Vector3(0.0, 0.0, -16.0 * _fly_time * _fly_time)
+	body.global_position = geom.to_global(pos)
+	body.velocity = Vector3.ZERO
+	_ride_camera(body, geom.to_global(pos + _fly_vel))
+	for index in _chairs.size():
+		var seat := _chairs[index]["node"] as Node3D
+		if seat != null and seat.global_position.distance_to(body.global_position) < 3.5:
+			_land_cannon(body, index)
+			return
+	if _fly_time > 0.15 and pos.z <= 0.3:
+		_land_cannon(body, -1)
+
+
+func _land_cannon(body: CharacterBody3D, chair_index: int) -> void:
+	_flying = false
 	_cannon = false
 	_cool = 0.4
+	if chair_index >= 0:
+		_seat_toon(chair_index)
+	if _cannon_pad != null:
+		body.global_position = _cannon_pad.to_global(Vector3(3.0, 0.0, 0.0))
+	body.velocity = Vector3.ZERO
 	_free_toon()
+	_sfx("res://assets/audio/sfx/MG_cannon_hit_dirt.ogg")
+	if _clock >= 70.0 and _cj_driving():
+		_end_cannons()
+
+
+func _end_cannons() -> void:
+	_flying = false
+	_cannon = false
+	_free_toon()
+	if _jury_loop != null and is_instance_valid(_jury_loop):
+		_jury_loop.stop()
+	_boss.call("set_jurors", _toon_jurors())
+	_boss.call("finish_cannons")
+
+
+func _place_chairs() -> void:
+	_claims.clear()
+	if _jury == null:
+		return
+	var front_a := Vector3(59.3, -18.2, 14.05)
+	var front_b := Vector3(59.3, 48.0, 14.05)
+	var back_a := Vector3(75.1, -18.2, 28.2)
+	var back_b := Vector3(75.1, 48.0, 28.2)
+	for index in 12:
+		var row := front_a.lerp(front_b, float(index) / 5.0) if index < 6 else back_a.lerp(back_b, float(index - 6) / 5.0)
+		var chair := Node3D.new()
+		chair.name = "CjChair%d" % index
+		_jury.add_child(chair)
+		chair.position = row - _jury_baked
+		chair.basis = _panda_hpr(-90.0, 0.0, 0.0)
+		var cushion := _box(Vector3.ZERO, Color(0.85, 0.75, 0.35), Vector3(0.7, 0.08, 0.7), "Cushion")
+		chair.add_child(cushion)
+		cushion.position = Vector3(0.0, 0.0, 0.9)
+		var seat_model := _model_or_box("res://assets/cog_hq/jury_chair.glb", Vector3.ZERO, "ChairModel", Color(0.45, 0.32, 0.18), Vector3(1.2, 0.8, 1.2))
+		chair.add_child(seat_model)
+		seat_model.position = Vector3.ZERO
+		seat_model.scale = Vector3(0.5, 0.5, 0.5)
+		var cog := _juror_cog()
+		chair.add_child(cog)
+		cog.visible = false
+		var prop := _propeller()
+		cog.add_child(prop)
+		prop.position = Vector3(0.0, 1.6, 0.0)
+		prop.visible = false
+		_chairs.append({
+			"node": chair,
+			"cog": cog,
+			"prop": prop,
+			"state": "empty",
+			"due": randf_range(1.0, 20.0),
+			"fly": 0.0,
+		})
+
+
+func _juror_cog() -> Node3D:
+	var packed := load("res://assets/cogs/suits/bf.glb") as PackedScene
+	if packed != null:
+		var cog := packed.instantiate() as Node3D
+		cog.name = "JurorCog"
+		return cog
+	return _box(Vector3.ZERO, Color(0.45, 0.15, 0.15), Vector3(0.8, 1.6, 0.8), "JurorCog")
+
+
+func _tick_chairs(delta: float) -> void:
+	_take_remote_seats()
+	for chair in _chairs:
+		var state := String(chair["state"])
+		var cog := chair["cog"] as Node3D
+		if _cj_driving() and (state == "empty" or state == "toon") and _clock >= float(chair["due"]):
+			chair["state"] = "fly"
+			chair["fly"] = 0.0
+			state = "fly"
+		if state == "toon":
+			var juror := chair.get("juror") as ToonActor
+			if juror != null:
+				juror.visible = true
+				juror.pose_synced_loop("sit")
+		if state == "fly":
+			if cog != null:
+				cog.visible = true
+			if not bool(chair.get("spun", false)):
+				chair["spun"] = true
+				_sfx("res://assets/cog_hq/audio/ENC_propeller_in.ogg")
+			var prop := chair.get("prop") as Node3D
+			if prop != null:
+				prop.visible = true
+				prop.rotate_y(delta * 24.0)
+			if _cj_driving():
+				chair["fly"] = float(chair["fly"]) + delta
+			var frac := clampf(float(chair["fly"]) / 10.0, 0.0, 1.0)
+			var seat := chair["node"] as Node3D
+			var height := 16.0
+			if seat != null and _jury != null:
+				height = maxf(30.0 - (_jury.position.z + seat.position.z), 2.0)
+			if cog != null:
+				cog.position = Vector3(0.0, -75.0, height).lerp(Vector3(0.0, -1.25, 0.95), frac)
+			if frac >= 1.0 and _cj_driving():
+				chair["state"] = "cog"
+				state = "cog"
+				if cog != null:
+					cog.position = Vector3(0.0, -1.25, 0.95)
+				var prop_done := chair.get("prop") as Node3D
+				if prop_done != null:
+					prop_done.visible = false
+				var seated := chair.get("juror") as Node3D
+				if seated != null:
+					seated.visible = false
+		if state == "cog":
+			if cog != null:
+				cog.visible = true
+				cog.position = Vector3(0.0, -1.25, 0.95)
+			var parked := chair.get("prop") as Node3D
+			if parked != null:
+				parked.visible = false
+			if bool(chair.get("spun", false)):
+				chair["spun"] = false
+				_sfx("res://assets/cog_hq/audio/LB_cog_jury.ogg")
+				_sfx("res://assets/cog_hq/audio/ENC_propeller_out.ogg")
+		var cushion := (chair["node"] as Node3D).get_node_or_null("Cushion") as MeshInstance3D
+		if cushion != null and cushion.material_override is StandardMaterial3D:
+			var paint := cushion.material_override as StandardMaterial3D
+			var shown := String(chair["state"])
+			if shown == "toon":
+				paint.albedo_color = Color(0.25, 0.35, 0.9)
+			elif shown == "cog":
+				paint.albedo_color = Color(0.45, 0.45, 0.45)
+			else:
+				paint.albedo_color = Color(0.85, 0.75, 0.35)
+	_boss.call("set_jurors", _toon_jurors())
+
+
+func _seat_toon(index: int, announce := true) -> void:
+	if index < 0 or index >= _chairs.size():
+		return
+	var state := String(_chairs[index]["state"])
+	if not announce and state != "empty":
+		return
+	if state == "cog":
+		_boss.call("set_round_text", "That chair already has a cog.")
+		return
+	if state == "fly":
+		_boss.call("set_round_text", "You reached the chair, but a cog is already flying in.")
+		return
+	_chairs[index]["state"] = "toon"
+	_chairs[index]["due"] = _clock + randf_range(9.0, 19.0)
+	if not _claims.has(index):
+		_claims.append(index)
+	_seat_juror(index)
+	_sfx("res://assets/cog_hq/audio/LB_toon_jury.ogg")
+	_boss.call("set_jurors", _toon_jurors())
+	if announce:
+		_boss.call("set_round_text", "You seated a Toon. A cog will come for that chair.")
+
+
+func _toon_jurors() -> int:
+	var count := 0
+	for chair in _chairs:
+		if String(chair["state"]) == "toon":
+			count += 1
+	return count
+
+
+func _restore_jury() -> void:
+	for chair in _chairs:
+		var seat := chair["node"] as Node
+		if seat != null and is_instance_valid(seat):
+			seat.queue_free()
+	_chairs.clear()
+	if _jury != null and is_instance_valid(_jury):
+		_jury.position = _jury_baked
+	if _reflect != null and is_instance_valid(_reflect):
+		_reflect.position = _reflect_baked
+	_jury = null
+	_reflect = null
+
+
+func start_cj_intro(boss: Node) -> void:
+	_begin(boss)
+	_mode = "cj_intro"
+	_intro_at = 0
+	_intro_wait = 0.0
+	_place_cj(Vector3(-2.798, -60.0, 0.0), 0.0)
+	_head_talk = 3.4
+	_place_witness()
+	settle_cj_court()
+	_boss.call("set_round_text", "Hmmm what's on the docket today?")
+
+
+func skip_cj_intro() -> void:
+	_mode = ""
+	if _boss != null:
+		_boss.call("finish_cj_intro")
+
+
+func _tick_cj_intro(delta: float) -> void:
+	var lines: PackedStringArray = PackedStringArray([
+		"Hmmm what's on the docket today?",
+		"Aha, we have a Toon on trial!",
+		"The prosecution's case is strong.",
+		"And here are the public defenders.",
+		"Wait a minute... You're Toons!",
+	])
+	_intro_wait += delta
+	_pose_cj_head(delta)
+	if _intro_wait < 3.4:
+		return
+	_intro_wait = 0.0
+	_intro_at += 1
+	_head_talk = 3.4
+	if _intro_at >= lines.size():
+		_mode = ""
+		_boss.call("finish_cj_intro")
+		return
+	_boss.call("set_round_text", lines[_intro_at])
+
+
+func start_cj_defeat(boss: Node) -> void:
+	_boss = boss
+	_mode = "cj_defeat"
+	_defeat_left = 4.0
+	_head_back = true
+	_head_talk = 4.0
+	_boss.call("set_round_text", "I find in favor of the plaintiff")
+
+
+func _tick_cj_defeat(delta: float) -> void:
+	_defeat_left -= delta
+	_pose_cj_head(delta)
+	if _defeat_left <= 0.0 and _boss != null:
+		_mode = ""
+		_boss.call("finish_cj_defeat")
+
+
+func _tick_cj_act(delta: float) -> void:
+	_act_t += delta
+	_pose_cj_head(delta)
+	if _mode == "cj_pass":
+		if _act_t >= 5.0:
+			_start_cj_roll()
+		return
+	if _mode == "cj_roll":
+		var along := clampf(_act_t / maxf(_roll_span, 0.1), 0.0, 1.0)
+		if _cj != null:
+			_cj.position = _cj_from.lerp(_cj_to, along)
+		_scroll_treads(delta)
+		if along >= 1.0:
+			_mode = "cj_rise"
+			_act_t = 0.0
+		return
+	if _mode == "cj_rise":
+		var lift := clampf(_act_t / 5.0, 0.0, 1.0)
+		if _podium != null:
+			_podium.position.z = lerpf(_podium_base - 19.145, _podium_base, lift)
+		if _refl_podium != null:
+			_refl_podium.position.z = lerpf(_refl_base, _refl_base + 19.145, lift)
+		if lift >= 1.0:
+			_start_cannon_pages()
+		return
+	if _mode == "cj_session":
+		_aim_session_camera()
+		if _act_t >= 3.0:
+			_start_evidence_pages()
+		return
+	if _mode == "cj_pages":
+		_aim_witness_camera()
+		_tick_pages()
+		return
+	if _mode == "cj_appear":
+		_toss_cannons(delta)
+		return
+	if _mode == "cj_victory":
+		_tick_cj_victory(delta)
+		return
+	if _mode == "cj_epilogue":
+		_aim_witness_camera()
+		_tick_pages()
+
+
+func _start_cj_roll() -> void:
+	_mode = "cj_roll"
+	_act_t = 0.0
+	_head_talk = 4.0
+	_cj_from = Vector3(-2.798, -60.0, 0.0)
+	_cj_to = Vector3(-2.798, 89.0, 19.145)
+	_roll_span = maxf(_cj_from.distance_to(_cj_to) / 7.5, 0.1)
+	_sfx("res://assets/cog_hq/audio/CHQ_VP_ramp_slide.ogg")
+	_tell("Jury selection will now commence.")
+
+
+func _start_cannon_pages() -> void:
+	_show_witness(true)
+	_pages = PackedStringArray([
+		"Oh no! They're putting only Cogs on the jury!",
+		"Quick, use the cannons and shoot some Toon jurors into the jury chairs.",
+		"We need 8 to get a balanced scale.",
+	])
+	_page = 0
+	_page_next = "appear"
+	_mode = "cj_pages"
+	_act_t = 0.0
+	play_music("battle3")
+	_tell(_pages[0])
+
+
+func _start_evidence_pages() -> void:
 	var state: Dictionary = _boss.call("world_state")
-	if int(state.get("shots", 0)) >= 12:
-		_boss.call("finish_cannons")
+	var jurors := int(state.get("jurors", 0))
+	var first := "Cool! There are %d Toons in the jury!" % jurors
+	if jurors <= 0:
+		first = "Oh oh, no Toon jurors. This will be a tough trial."
+	elif jurors == 1:
+		first = "Cool! There is 1 Toon in the jury!"
+	elif jurors >= 12:
+		first = "Awesome! All the jurors are Toons!"
+	_pages = PackedStringArray([
+		first,
+		"Hurry, touch the witness stand to get evidence.",
+		"Press the Delete key to throw the evidence at the lawyers, or at the defense pan.",
+	])
+	var bonus := String(_boss.call("cj_bonus_line"))
+	if bonus != "":
+		_pages.append(bonus)
+	_page = 0
+	_page_next = "evidence"
+	_mode = "cj_pages"
+	_act_t = 0.0
+	_show_witness(true)
+	_tell(_pages[0])
+
+
+func _tick_pages() -> void:
+	if _pages.is_empty():
+		_finish_pages()
+		return
+	if not _fresh_press() and _act_t < 4.5:
+		return
+	_cool = 0.35
+	_page += 1
+	_act_t = 0.0
+	if _page >= _pages.size():
+		_finish_pages()
+		return
+	_tell(_pages[_page])
+
+
+func _finish_pages() -> void:
+	var next := _page_next
+	_page_next = ""
+	_pages = PackedStringArray()
+	if next == "appear":
+		_mode = "cj_appear"
+		_act_t = 0.0
+		_toss_t = 0.0
+		_begin_cannon_toss()
+	elif next == "evidence":
+		_open_evidence_round()
+	elif next == "reward":
+		_mode = ""
+		_free_toon()
+		if _boss != null:
+			_boss.call("finish_cj_victory")
+
+
+func _open_cannon_round() -> void:
+	var mine: Node3D = _cannon_pads[0] if not _cannon_pads.is_empty() else _cannon_pad
+	for pad in _cannon_pads:
+		if pad != null and is_instance_valid(pad):
+			if _root != null and pad.get_parent() != _root:
+				pad.reparent(_root)
+			if pad.has_meta("dest"):
+				pad.global_position = pad.get_meta("dest")
+			pad.basis = _panda_hpr(-90.0, 0.0, 0.0)
+			pad.visible = true
+			pad.scale = Vector3.ONE
+	if mine != null:
+		_cannon_pad = mine
+	_mode = "cannon"
+	_clock = 0.0
+	_free_toon()
+	var body := _body()
+	if body != null and _cannon_pad != null:
+		body.global_position = _cannon_pad.to_global(Vector3(0.0, 8.0, 0.0))
+		body.velocity = Vector3.ZERO
+	play_music("jury")
+	_loop_jury()
+
+
+func _open_evidence_round() -> void:
+	_show_battle_props(true)
+	_mode = "evidence"
+	_clock = 0.0
+	_hint = ""
+	_hint_left = 30.0
+	_threw = false
+	_restocked = false
+	_judge_wave = 0
+	_area_at = -100.0
+	_free_toon()
+	play_music("battle3")
+	_tell("Hurry, touch the witness stand to get evidence. Press the Delete key to throw the evidence at the lawyers, or at the defense pan.")
+
+
+func start_cj_victory(boss: Node) -> void:
+	_boss = boss
+	_mode = "cj_victory"
+	_act_t = 0.0
+	_line_at = -1
+	_lock_toon()
+	_court_door = _find("CR3_Door")
+	if _court_door != null:
+		_court_door_z = _court_door.position.z
+	_cj_from = Vector3(-2.798, 89.0, 19.145)
+	_cj_to = Vector3(-2.798, 119.0, 19.145)
+	_place_cj(_cj_from, 0.0)
+	play_music("battle3")
+
+
+func _tick_cj_victory(delta: float) -> void:
+	var cam := _camera()
+	var geom := _geometry()
+	if cam != null and geom != null:
+		var look := geom.to_global(Vector3(-2.8, 89.0, 22.0))
+		cam.global_position = geom.to_global(Vector3(-3.0, 45.0, 25.0))
+		if cam.global_position.distance_squared_to(look) > 0.04:
+			cam.look_at(look, Vector3.UP)
+	var spoken := -1
+	if _act_t >= 9.6:
+		spoken = 2
+	elif _act_t >= 5.5:
+		spoken = 1
+	elif _act_t >= 1.0:
+		spoken = 0
+	if spoken != _line_at and spoken >= 0:
+		_line_at = spoken
+		_head_talk = 4.0
+		var lines := PackedStringArray([
+			"Impossible! The defense won?",
+			"No. I declare a mistrial! A new one will be scheduled.",
+			"Hrrmpphh. I'll be in my chambers.",
+		])
+		_tell(lines[spoken])
+	if _cj != null and _act_t >= 9.6:
+		var roll := clampf((_act_t - 9.6) / 4.0, 0.0, 1.0)
+		_cj.position = _cj_from.lerp(_cj_to, roll)
+		_scroll_treads(delta)
+	if _court_door != null:
+		var opened := _act_t - 9.6
+		if opened >= 0.0 and opened <= 2.0:
+			_court_door.position.z = _court_door_z + 25.0 * (opened / 2.0)
+		elif opened >= 3.5 and opened <= 4.5:
+			_court_door.position.z = _court_door_z + 25.0 * (1.0 - (opened - 3.5))
+		elif opened > 4.5:
+			_court_door.position.z = _court_door_z
+	if _act_t >= 14.2:
+		_begin_cj_epilogue()
+
+
+func _begin_cj_epilogue() -> void:
+	if _court_door != null:
+		_court_door.position.z = _court_door_z
+	pose_cj_epilogue()
+	_pages = PackedStringArray([
+		"You did it!  Thank you for a spectacular defense!",
+		"Here, take these papers the Chief Justice left behind.",
+		"With it you'll be able to summon Cogs from your Cog Gallery page.",
+	])
+	_page = 0
+	_page_next = "reward"
+	if _boss != null and _boss.has_method("cj_epilogue_lines"):
+		var extra: PackedStringArray = _boss.call("cj_epilogue_lines")
+		for line in extra:
+			_pages.append(String(line))
+	_mode = "cj_epilogue"
+	_act_t = 0.0
+	play_music("epilogue")
+	_tell(_pages[0])
+
+
+func settle_cj_court() -> void:
+	_retract_jury()
+	_lower_podium()
+	_place_cj(Vector3(-2.798, -60.0, 0.0), 0.0)
+	if _witness != null and is_instance_valid(_witness):
+		_witness.visible = false
+
+
+func _retract_jury() -> void:
+	_jury = _find("JuryBox")
+	_reflect = _find("JuryBox_Geo_Reflect")
+	if _jury != null:
+		_jury_baked = _jury.position
+		_jury.position = _jury_baked - Vector3(30.0, 0.0, 12.645)
+		_jury_start = _jury.position
+	if _reflect != null:
+		_reflect_baked = _reflect.position
+		var shifted := _reflect_baked - Vector3(30.0, 0.0, 12.645)
+		shifted.z += 12.645
+		_reflect.position = shifted
+		_reflect_start = _reflect.position
+
+
+func _lower_podium() -> void:
+	if _podium_low:
+		return
+	_podium = _find("Podium")
+	if _podium == null:
+		return
+	_podium_base = _podium.position.z
+	_podium.position.z = _podium_base - 19.145
+	_refl_podium = _find("Podium_Geo1_Refl")
+	if _refl_podium != null:
+		_refl_base = _refl_podium.position.z
+	_podium_low = true
+
+
+func _show_battle_props(shown: bool) -> void:
+	if _scale_model != null and is_instance_valid(_scale_model):
+		_scale_model.visible = shown
+	for gavel in _gavels:
+		var gavel_node := gavel["node"] as Node3D
+		if gavel_node != null:
+			gavel_node.visible = shown
+	for lawyer in _lawyers:
+		var lawyer_node := lawyer["node"] as Node3D
+		if lawyer_node != null:
+			lawyer_node.visible = shown
+
+
+func _aim_witness_camera() -> void:
+	if _witness == null or not _witness.visible:
+		return
+	var cam := _camera()
+	if cam == null:
+		return
+	var look := _witness.to_global(Vector3(0.0, 0.0, 2.0))
+	cam.global_position = _witness.to_global(Vector3(0.0, 8.0, 2.0))
+	if cam.global_position.distance_squared_to(look) > 0.04:
+		cam.look_at(look, Vector3.UP)
+
+
+func _aim_session_camera() -> void:
+	var cam := _camera()
+	var geom := _geometry()
+	if cam == null or geom == null:
+		return
+	var look := geom.to_global(Vector3(-2.8, 89.0, 19.0))
+	cam.global_position = geom.to_global(Vector3(-15.0, 15.0, 20.0))
+	if cam.global_position.distance_squared_to(look) > 0.04:
+		cam.look_at(look, Vector3.UP)
+
+
+func _near_prosecution(at: Vector3) -> bool:
+	if _root == null:
+		return false
+	var pan := _root.find_child("Prosecution", true, false) as Node3D
+	return pan != null and _near_point(at, pan.global_position, 2.4)
+
+
+func _tint(root: Node3D, color: Color) -> void:
+	if root == null:
+		return
+	if _tint_root != null and is_instance_valid(_tint_root) and _tint_root != root:
+		_apply_overlay(_tint_root, null)
+	_tint_root = root
+	_tint_left = 0.4
+	if _tint_mat == null:
+		_tint_mat = StandardMaterial3D.new()
+		_tint_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_tint_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_tint_mat.albedo_color = color
+	_apply_overlay(root, _tint_mat)
+
+
+func _tick_tint(delta: float) -> void:
+	if _tint_left <= 0.0:
+		return
+	_tint_left -= delta
+	if _tint_left <= 0.0 and _tint_root != null and is_instance_valid(_tint_root):
+		_apply_overlay(_tint_root, null)
+		_tint_root = null
+
+
+func _apply_overlay(root: Node, mat: Material) -> void:
+	if root is GeometryInstance3D:
+		(root as GeometryInstance3D).material_overlay = mat
+	for child in root.get_children():
+		_apply_overlay(child, mat)
+
+
+func _lawyer_book(seat: Vector3, index: int) -> Node3D:
+	var path := "res://assets/cog_hq/lawbook.glb"
+	var book := _model_or_box(path, seat, "EvidenceBook%d" % index, Color(0.45, 0.28, 0.12), Vector3(0.45, 0.2, 0.55))
+	if ResourceLoader.exists(path):
+		book.scale = Vector3(0.45, 0.45, 0.45)
+	book.visible = false
+	return book
+
+
+func _evidence_prop(at: Vector3) -> Node3D:
+	var prop := _model_or_box("res://assets/cog_hq/lawbook.glb", Vector3.ZERO, "Lawbook%d" % _shots.size(), Color(0.45, 0.28, 0.12), Vector3(0.55, 0.12, 0.4))
+	prop.global_position = at
+	prop.scale = Vector3(0.45, 0.45, 0.45)
+	return prop
+
+
+func _cannon_adjust(moving: bool) -> void:
+	if not moving:
+		if _cannon_move != null and is_instance_valid(_cannon_move):
+			_cannon_move.stop()
+		return
+	if _cannon_move == null or not is_instance_valid(_cannon_move):
+		var stream := load("res://assets/audio/sfx/MG_cannon_adjust.ogg") as AudioStream
+		if stream == null:
+			return
+		var copy := stream.duplicate() as AudioStream
+		if copy != null:
+			stream = copy
+		if stream is AudioStreamOggVorbis:
+			(stream as AudioStreamOggVorbis).loop = true
+		_cannon_move = AudioStreamPlayer.new()
+		_cannon_move.stream = stream
+		_cannon_move.volume_db = -8.0
+		add_child(_cannon_move)
+	if not _cannon_move.playing:
+		_cannon_move.play()
+
+
+func _scroll_treads(delta: float) -> void:
+	var treads := _exact_child(_cj, "treads")
+	if treads == null:
+		return
+	_tread_u += delta * 3.5
+	_scroll_uv(treads)
+
+
+func _scroll_uv(node: Node) -> void:
+	_scroll_surface(node, _tread_u)
+
+
+func _scroll_surface(node: Node, amount: float) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var mat := mesh.get_surface_override_material(0) as StandardMaterial3D
+		if mat == null:
+			var active := mesh.get_active_material(0)
+			if active is StandardMaterial3D:
+				mat = (active as StandardMaterial3D).duplicate() as StandardMaterial3D
+				mesh.set_surface_override_material(0, mat)
+		if mat != null:
+			mat.uv1_offset.x = amount
+	for child in node.get_children():
+		_scroll_surface(child, amount)
+
+
+func _pose_cj_head(delta: float) -> void:
+	var head := _exact_child(_cj, "bossCog-head")
+	if head == null:
+		head = _exact_child(_cj, "head")
+	if head == null:
+		return
+	if not head.has_meta("rest"):
+		head.set_meta("rest", head.basis)
+	_head_talk = maxf(_head_talk - delta, 0.0)
+	var pitch := PI if _head_back else 0.0
+	if _head_talk > 0.0:
+		pitch += sin(_head_talk * 14.0) * 0.18
+	var rest: Basis = head.get_meta("rest")
+	head.basis = rest * Basis(Vector3.RIGHT, pitch)
+
+
+func _local_actor() -> ToonActor:
+	if _boss == null:
+		return null
+	var host := _boss.get_parent()
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if toon != null and toon.has_method("battle_actor"):
+		return toon.call("battle_actor") as ToonActor
+	return null
+
+
+func _begin_cannon_toss() -> void:
+	var holders: Array[Node3D] = []
+	var mine := _local_actor()
+	if mine != null:
+		holders.append(mine)
+	for actor in _remote_actors():
+		holders.append(actor)
+	for index in _cannon_pads.size():
+		var pad := _cannon_pads[index]
+		if pad == null:
+			continue
+		pad.visible = true
+		pad.scale = Vector3(0.1, 0.1, 0.1)
+		pad.set_meta("dest", pad.global_position)
+		var holder: Node3D = holders[index] if index < holders.size() else null
+		var hand := _exact_child(holder, "def_joint_right_hold") if holder != null else null
+		if hand == null:
+			pad.set_meta("still", true)
+			continue
+		pad.reparent(hand)
+		pad.position = Vector3(0.2, 0.0, 0.0)
+		if holder is ToonActor:
+			(holder as ToonActor).pose_action("throw", 0.0)
+
+
+func _toss_cannons(delta: float) -> void:
+	_toss_t += delta
+	if _toss_t < 2.1:
+		var mine := _local_actor()
+		if mine != null:
+			mine.pose_action("throw", _toss_t)
+		for actor in _remote_actors():
+			if actor is ToonActor:
+				(actor as ToonActor).pose_action("throw", _toss_t)
+		return
+	if _toss_t < 3.3:
+		var flight := clampf((_toss_t - 2.1) / 1.2, 0.0, 1.0)
+		for pad in _cannon_pads:
+			if pad == null or bool(pad.get_meta("still", false)):
+				continue
+			if pad.get_parent() != _root:
+				pad.set_meta("from", pad.global_position)
+				pad.reparent(_root)
+			var origin: Vector3 = pad.get_meta("from", pad.global_position)
+			var dest: Vector3 = pad.get_meta("dest", origin)
+			pad.global_position = origin.lerp(dest, flight)
+		return
+	var squash := _toss_t - 3.3
+	if squash < 0.8:
+		var sized := Vector3.ONE
+		if squash < 0.2:
+			sized = Vector3(1.1, 1.1, 0.1)
+		elif squash < 0.3:
+			sized = Vector3(0.9, 0.9, 0.1)
+		elif squash < 0.4:
+			sized = Vector3(1.0, 1.0, 0.1)
+		elif squash < 0.6:
+			sized = Vector3(1.0, 1.0, 1.1)
+		elif squash < 0.7:
+			sized = Vector3(1.0, 1.0, 0.9)
+		for pad in _cannon_pads:
+			if pad != null:
+				pad.scale = sized
+		return
+	_open_cannon_round()
+
+
+func _take_remote_stuns() -> void:
+	if not _cj_driving() or not ToonNet.networked():
+		return
+	var mine := ToonNet.peer_id()
+	for channel in ToonNet.channels("cj-shots:"):
+		if channel.trim_prefix("cj-shots:").to_int() == mine:
+			continue
+		var snap := ToonNet.latest(channel)
+		var stuns: Array = snap.get("stuns", [])
+		for claimed in stuns:
+			var lawyer_index := int(claimed)
+			if lawyer_index < 0 or lawyer_index >= _lawyers.size():
+				continue
+			if float(_lawyers[lawyer_index].get("stun", 0.0)) > 0.0:
+				continue
+			_lawyers[lawyer_index]["stun"] = 5.0
+			_boss.call("stun_lawyer", lawyer_index)
+
+
+func _take_remote_seats() -> void:
+	if not _cj_driving() or not ToonNet.networked():
+		return
+	var mine := ToonNet.peer_id()
+	for channel in ToonNet.channels("cj-shots:"):
+		if channel.trim_prefix("cj-shots:").to_int() == mine:
+			continue
+		var snap := ToonNet.latest(channel)
+		var seated: Array = snap.get("seated", [])
+		for claimed in seated:
+			var chair_index := int(claimed)
+			if chair_index < 0 or chair_index >= _chairs.size():
+				continue
+			if String(_chairs[chair_index].get("state", "")) != "empty":
+				continue
+			_seat_toon(chair_index, false)
+
+
+func _touch_lawyer_books(body: CharacterBody3D) -> void:
+	if body == null:
+		return
+	for lawyer in _lawyers:
+		if String(lawyer.get("kind", "")) != "attack" or bool(lawyer.get("hit", false)):
+			continue
+		if String(lawyer.get("phase", "")) != "fly":
+			continue
+		var book := lawyer.get("book") as Node3D
+		if book == null or not book.visible:
+			continue
+		if book.global_position.distance_to(body.global_position + Vector3(0.0, 1.2, 0.0)) < 1.6:
+			lawyer["hit"] = true
+			_boss.call("note_lawyer_hit")
+			if _mode != "evidence":
+				return
+
+
+func _cj_driving() -> bool:
+	if not ToonNet.networked():
+		return true
+	var best := ToonNet.peer_id()
+	var mine := ToonNet.district_id()
+	for channel in ToonNet.channels("toon:"):
+		var row := ToonNet.latest(channel)
+		if int(row.get("district", -1)) != mine:
+			continue
+		if not String(row.get("place", "")).ends_with("lawbot_cj.tscn"):
+			continue
+		var peer := channel.trim_prefix("toon:").to_int()
+		if peer > 0 and peer < best:
+			best = peer
+	return ToonNet.peer_id() == best
+
+
+func _publish_cj(delta: float) -> void:
+	if not ToonNet.networked():
+		return
+	_cj_send = maxf(_cj_send - delta, 0.0)
+	if _cj_send > 0.0:
+		return
+	_cj_send = 0.2
+	if _cj_driving():
+		ToonNet.cj_field(_cj_snapshot())
+	if _mode == "evidence" or _mode == "cannon":
+		ToonNet.cj_shots(_shot_snapshot())
+
+
+func _cj_snapshot() -> Dictionary:
+	var chairs: Array = []
+	for chair in _chairs:
+		chairs.append({
+			"state": String(chair.get("state", "empty")),
+			"fly": float(chair.get("fly", 0.0)),
+			"due": float(chair.get("due", 0.0)),
+		})
+	var lawyers: Array = []
+	for lawyer in _lawyers:
+		var book := lawyer.get("book") as Node3D
+		var at := book.global_position if book != null else Vector3.ZERO
+		lawyers.append({
+			"phase": String(lawyer.get("phase", "idle")),
+			"t": float(lawyer.get("t", 0.0)),
+			"stun": float(lawyer.get("stun", 0.0)),
+			"kind": String(lawyer.get("kind", "")),
+			"x": at.x, "y": at.y, "z": at.z,
+			"show": book != null and book.visible,
+		})
+	var gavels: Array = []
+	for gavel in _gavels:
+		gavels.append({
+			"phase": String(gavel.get("phase", "down")),
+			"t": float(gavel.get("t", 0.0)),
+			"step": int(gavel.get("step", 0)),
+			"struck": bool(gavel.get("struck", false)),
+		})
+	return {
+		"clock": _clock,
+		"area": _area_seq,
+		"chairs": chairs,
+		"lawyers": lawyers,
+		"gavels": gavels,
+	}
+
+
+func _shot_snapshot() -> Dictionary:
+	var rows: Array = []
+	for shot in _shots:
+		if bool(shot.get("done", false)):
+			continue
+		var at: Vector3 = shot["at"]
+		rows.append({"x": at.x, "y": at.y, "z": at.z})
+	var stuns: Array = []
+	for lawyer_index in _lawyers.size():
+		if float(_lawyers[lawyer_index].get("stun", 0.0)) > 0.0:
+			stuns.append(lawyer_index)
+	return {"shots": rows, "seated": _claims, "stuns": stuns}
+
+
+func _apply_cj_field() -> void:
+	var snap := ToonNet.latest("cj-field")
+	if snap.is_empty():
+		return
+	var chairs: Array = snap.get("chairs", [])
+	for index in mini(chairs.size(), _chairs.size()):
+		var chair_row: Dictionary = chairs[index]
+		var remote_state := String(chair_row.get("state", "empty"))
+		if _claims.has(index) and remote_state == "empty":
+			continue
+		_chairs[index]["state"] = remote_state
+		_chairs[index]["fly"] = float(chair_row.get("fly", 0.0))
+		_chairs[index]["due"] = float(chair_row.get("due", 0.0))
+	var lawyers: Array = snap.get("lawyers", [])
+	for index in mini(lawyers.size(), _lawyers.size()):
+		var lawyer_row: Dictionary = lawyers[index]
+		var arrived := String(lawyer_row.get("phase", "idle"))
+		if arrived == "wind" and String(_lawyers[index].get("phase", "")) != "wind":
+			_lawyers[index]["hit"] = false
+		_lawyers[index]["phase"] = arrived
+		_lawyers[index]["t"] = float(lawyer_row.get("t", 0.0))
+		_lawyers[index]["stun"] = float(lawyer_row.get("stun", 0.0))
+		_lawyers[index]["kind"] = String(lawyer_row.get("kind", ""))
+		var book := _lawyers[index].get("book") as Node3D
+		if book != null:
+			book.visible = bool(lawyer_row.get("show", false))
+			book.global_position = Vector3(float(lawyer_row.get("x", 0.0)), float(lawyer_row.get("y", 0.0)), float(lawyer_row.get("z", 0.0)))
+	var gavels: Array = snap.get("gavels", [])
+	for index in mini(gavels.size(), _gavels.size()):
+		var gavel_row: Dictionary = gavels[index]
+		_gavels[index]["phase"] = String(gavel_row.get("phase", "down"))
+		_gavels[index]["t"] = float(gavel_row.get("t", 0.0))
+		var gavel_phase := String(gavel_row.get("phase", "down"))
+		if gavel_phase != "stay":
+			_gavels[index]["struck"] = false
+		_gavels[index]["phase"] = gavel_phase
+		_gavels[index]["step"] = int(gavel_row.get("step", 0))
+	var area := int(snap.get("area", 0))
+	if area > _seen_area:
+		_seen_area = area
+		_sfx("res://assets/cog_hq/audio/CHQ_GOON_tractor_beam_alarmed.ogg")
+		_hint = "You're all in contempt of court!"
+		_hint_left = 4.0
+		_head_talk = 4.0
+		var body := _body()
+		if body != null and body.is_on_floor():
+			_boss.call("note_area_attack")
+
+
+func _show_remote_shots() -> void:
+	if _root == null or not ToonNet.networked():
+		return
+	var mine := ToonNet.peer_id()
+	for channel in ToonNet.channels("cj-shots:"):
+		var peer := channel.trim_prefix("cj-shots:").to_int()
+		if peer == mine:
+			continue
+		var snap := ToonNet.latest(channel)
+		var rows: Array = snap.get("shots", [])
+		for index in rows.size():
+			var row: Dictionary = rows[index]
+			var name := "GhostBook%d_%d" % [peer, index]
+			var book := _root.get_node_or_null(name) as Node3D
+			if book == null:
+				book = _evidence_prop(Vector3.ZERO)
+				book.name = name
+			book.visible = true
+			book.global_position = Vector3(float(row.get("x", 0.0)), float(row.get("y", 0.0)), float(row.get("z", 0.0)))
+		var extra := rows.size()
+		var leftover := _root.get_node_or_null("GhostBook%d_%d" % [peer, extra])
+		while leftover != null:
+			leftover.name = "FreeGhost"
+			leftover.queue_free()
+			extra += 1
+			leftover = _root.get_node_or_null("GhostBook%d_%d" % [peer, extra])
+
+
+func _tick_evidence_hints(delta: float) -> void:
+	if _hint_left > 0.0:
+		_hint_left = maxf(_hint_left - delta, 0.0)
+		if _hint_left > 0.0:
+			return
+		if _hint != "Touch the witness stand to get evidence." and _hint != "Press the Delete key to throw the evidence\n at the lawyers or into the scale!" and _hint != "You need to get more evidence!":
+			_hint = ""
+	if _hint == "You need to get more evidence!":
+		_hint = "Touch the witness stand to get evidence."
+		return
+	if not _restocked and not _threw and _hint == "":
+		_hint = "Touch the witness stand to get evidence."
+	elif _restocked and not _threw and _hint == "":
+		_hint = "Press the Delete key to throw the evidence\n at the lawyers or into the scale!"
+
+
+func _tick_cj_judge(delta: float, body: CharacterBody3D) -> void:
+	if not _cj_driving():
+		return
+	var wave := int(_clock / 6.0)
+	if wave <= 0 or wave == _judge_wave:
+		return
+	_judge_wave = wave
+	if (_area_at < 0.0 or _clock - _area_at > 15.0) and randi_range(1, 100) <= 11:
+		_area_at = _clock
+		_area_seq += 1
+		_hint = "You're all in contempt of court!"
+		_hint_left = 4.0
+		_head_talk = 4.0
+		_sfx("res://assets/cog_hq/audio/CHQ_GOON_tractor_beam_alarmed.ogg")
+		if body != null and body.is_on_floor():
+			_boss.call("note_area_attack")
+		return
+	if randi_range(1, 100) > 25:
+		return
+	var which := randi_range(0, 4)
+	var line := "Order in the court!"
+	if which == 0:
+		line = "%s, I find you in contempt of court!" % _toon_label()
+	elif which == 1:
+		line = "Objection sustained!"
+	elif which == 2:
+		line = "Strike that from the record."
+	elif which == 3:
+		line = "Your appeal has been rejected. I sentence you to sadness!"
+	_hint = line
+	_hint_left = 4.0
+	_head_talk = 4.0
+
+
+func _toon_label() -> String:
+	var style := ToonRoster.selected_style()
+	if style != null:
+		return style.display_name()
+	return "Toon"
+
+
+func _hit_evidence_toon(shot: Dictionary) -> bool:
+	var at: Vector3 = shot["at"]
+	for actor in _remote_actors():
+		if not _near_point(at, actor.global_position + Vector3(0.0, 1.2, 0.0), 1.6):
+			continue
+		_sfx("res://assets/cog_hq/audio/LB_toonup.ogg")
+		_boss.call("note_evidence_toon", int(actor.get_meta("peer")))
+		return true
+	return false
+
+
+func pose_cj_epilogue() -> void:
+	_place_witness()
+	if _witness == null:
+		return
+	var geom := _geometry()
+	if geom != null and _witness.get_parent() != geom:
+		geom.add_child(_witness)
+	_witness.visible = true
+	_witness.position = Vector3(-3.0, 0.0, 0.0)
+	_witness.basis = _panda_hpr(180.0, 0.0, 0.0)
+	_witness.release_pose()
+	if _cj != null:
+		_cj.visible = false
+
+
+func _place_cj(at: Vector3, heading: float) -> void:
+	var geom := _geometry()
+	if geom == null:
+		return
+	if _cj == null or not is_instance_valid(_cj):
+		_cj = _model_or_box("res://assets/cogs/bosses/lawbot_cj.glb", Vector3.ZERO, "CjBoss", Color(0.35, 0.4, 0.55), Vector3(3.0, 8.0, 3.0))
+		geom.add_child(_cj)
+	_cj.visible = true
+	_cj.position = at
+	# The export faces him backward, the same way the other bosses are baked.
+	_cj.basis = _panda_hpr(heading - 180.0, 0.0, 0.0)
+
+
+func _place_witness() -> void:
+	var geom := _geometry()
+	if geom == null:
+		return
+	if _witness != null and is_instance_valid(_witness):
+		return
+	_witness = ToonActor.new()
+	_witness.name = "Witness"
+	geom.add_child(_witness)
+	_witness.show_style(_witness_style())
+	_witness.position = Vector3(54.0, 100.0, 0.0)
+	_witness.basis = _panda_hpr(-90.0, 0.0, 0.0)
+
+
+func _witness_style() -> ToonStyle:
+	# The witness DNA string in DistributedLawbotBoss.__makeWitnessToon.
+	var style := ToonStyle.new()
+	style.first_name = "Bumpy"
+	style.last_name = "Bumblebehr"
+	style.gender = "m"
+	style.head = "bss"
+	style.torso = "ss"
+	style.legs = "m"
+	style.top_tex = 0
+	style.top_color = 3
+	style.bot_tex = 1
+	style.bot_color = 16
+	style.arm_color = 19
+	style.glove_color = 0
+	style.leg_color = 19
+	style.head_color = 19
+	return style
+
+
+func _show_witness(sitting: bool) -> void:
+	_place_witness()
+	if _witness == null:
+		return
+	var edge := _find("witnessStandSeatEdge")
+	if edge != null:
+		if _witness.get_parent() != edge:
+			edge.add_child(_witness)
+		_witness.position = Vector3(0.0, -1.15, -1.5)
+		_witness.basis = _panda_hpr(180.0, 0.0, 0.0)
+	_witness.visible = true
+	if sitting:
+		_witness.pose_action("sit", 0.0)
+
+
+func _pose_witness() -> void:
+	if _witness != null and is_instance_valid(_witness) and _witness.visible:
+		_witness.pose_synced_loop("sit")
+
+
+func _seat_juror(index: int) -> void:
+	var chair := _chairs[index]["node"] as Node3D
+	if chair == null:
+		return
+	var juror := _chairs[index].get("juror") as ToonActor
+	if juror == null:
+		juror = ToonActor.new()
+		juror.name = "ToonJuror"
+		chair.add_child(juror)
+		var style := ToonStyle.new()
+		style.gender = "m"
+		style.head = "dss"
+		style.torso = "ms"
+		style.legs = "m"
+		style.arm_color = 17
+		style.glove_color = 0
+		style.leg_color = 17
+		style.head_color = 17
+		style.top_tex = 3
+		style.top_color = 3
+		style.bot_tex = 7
+		style.bot_color = 2
+		juror.show_style(style)
+		_chairs[index]["juror"] = juror
+	juror.visible = true
+	juror.position = Vector3(0.0, -1.2, 0.2)
+	juror.basis = _panda_hpr(180.0, 0.0, 0.0)
+	juror.pose_action("sit", 0.0)
+
+
+func _propeller() -> Node3D:
+	var packed := load("res://assets/cogs/props/propeller.glb") as PackedScene
+	if packed != null:
+		var prop := packed.instantiate() as Node3D
+		prop.name = "Propeller"
+		return prop
+	return _box(Vector3.ZERO, Color(0.7, 0.7, 0.75), Vector3(0.8, 0.08, 0.8), "Propeller")
+
+
+func _ride_camera(body: CharacterBody3D, ahead: Vector3) -> void:
+	var cam := _camera()
+	if cam == null:
+		return
+	var flat := ahead - body.global_position
+	flat.y = 0.0
+	if flat.length_squared() < 0.01:
+		flat = Vector3(0.0, 0.0, -1.0)
+	flat = flat.normalized()
+	cam.global_position = body.global_position - flat * 12.0 + Vector3(0.0, 8.0, 0.0)
+	if cam.global_position.distance_squared_to(body.global_position) > 0.04:
+		cam.look_at(body.global_position + Vector3(0.0, 2.0, 0.0), Vector3.UP)
+
+
+func _loop_jury() -> void:
+	var path := "res://assets/cog_hq/audio/LB_jury_moves.ogg"
+	if not FileAccess.file_exists(path):
+		return
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return
+	if _jury_loop == null or not is_instance_valid(_jury_loop):
+		_jury_loop = AudioStreamPlayer.new()
+		_jury_loop.name = "JuryMoves"
+		add_child(_jury_loop)
+	var copy := stream.duplicate() as AudioStream
+	if copy != null:
+		stream = copy
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	_jury_loop.stream = stream
+	_jury_loop.volume_db = -6.0
+	_jury_loop.play()
 
 
 func _fresh_press() -> bool:
@@ -3163,6 +5076,10 @@ func _overlay_shade(node: Node, shade: float) -> void:
 		_overlay_shade(child, shade)
 
 
+func play_cj_sfx(path: String) -> void:
+	_sfx(path)
+
+
 func _sfx(path: String) -> void:
 	if not FileAccess.file_exists(path):
 		return
@@ -3626,18 +5543,2120 @@ func _aim_track(shots: Array, t: float) -> void:
 	_aim_movie(from.lerp(to, along), lerpf(heading, float(b[2]), along), lerpf(pitch, float(b[3]), along))
 
 
+func _ceo_say(lines: PackedStringArray, next: String) -> void:
+	_pages = lines
+	_page = 0
+	_act_t = 0.0
+	_page_next = next
+	_mode = "ceo_talk"
+	if not lines.is_empty():
+		_tell(lines[0])
+
+
+func _tick_ceo_talk(delta: float) -> void:
+	_tick_door(delta)
+	_tick_puffs(delta)
+	if _suit_at >= 0.0 and _clock >= _suit_at:
+		_suit_at = -1.0
+		_wear_waiter()
+	if _strip_at >= 0.0 and _clock >= _strip_at:
+		_strip_at = -1.0
+		_clear_waiter()
+		_slip_left = 1.2
+	if _slip_left > 0.0:
+		_slip_left = maxf(_slip_left - delta, 0.0)
+		var body := _body()
+		var actor := _toon_actor(body) if body != null else null
+		if actor != null:
+			actor.pose_action("slip-backward", 1.2 - _slip_left)
+	if _gil_job == "walk_in":
+		_tick_walk_in(delta)
+		return
+	if _gil_job == "intro_leave" or _gil_job == "banquet_leave":
+		_aim_ceo_talk()
+		_tick_gil_walk(delta)
+		return
+	if _page_next == "cogs" or _page_next == "banquet" or _page_next == "threat" or _page_next == "seltzer":
+		_aim_ceo_talk()
+		if _page_next == "seltzer" and _page >= 3:
+			_scale_club(lerpf(0.01, 1.0, clampf(_act_t / 3.0, 0.0, 1.0)))
+	_act_t += delta
+	if _act_t < 3.2 and not _fresh_press():
+		return
+	_act_t = 0.0
+	_cool = 0.35
+	_page += 1
+	if _page < _pages.size():
+		_tell(_pages[_page])
+		if _page_next == "cogs" and _page == 1:
+			_puff_dust()
+			_strip_at = _clock + 0.3
+		elif _page_next == "banquet" and _page == 1:
+			_swing_door(90.0, 2.0)
+			_place_ceo_at(20.0)
+			_puff_dust()
+			_suit_at = _clock + 0.3
+		elif _page_next == "banquet" and _page == 3:
+			_swing_door(0.0, 2.0)
+			_place_ceo_at(355.0)
+		elif _page_next == "threat" and _page == 2:
+			_puff_dust()
+			_strip_at = _clock + 0.3
+		elif _page_next == "seltzer" and _page == 2:
+			_hide_gil_suit()
+			_banquet_door(0.0)
+		return
+	var next := _page_next
+	_page_next = ""
+	_pages = PackedStringArray()
+	if next == "cogs":
+		_gil_job = "intro_leave"
+		_gil_age = 0.0
+		return
+	elif next == "banquet":
+		_gil_job = "banquet_leave"
+		_gil_age = 0.0
+		_swing_door(120.0, 2.0)
+		return
+	elif next == "threat":
+		_mode = ""
+		_release_camera()
+		_clear_waiter()
+		if _boss != null:
+			_boss.call("finish_ceo_threat")
+	elif next == "seltzer":
+		_release_camera()
+		_hide_gil_suit()
+		_scale_club(1.0)
+		_mode = "seltzer"
+		_golf = false
+		_station = ""
+		_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v2.ogg", "ceo2")
+		_tell("Press E at a table bottle or a golf ball. Left and right aim. Hold the jump key, then release. E steps off. Snacks ride the belts.")
+
+
+func _place_banquet(boss: Node) -> void:
+	var state: Dictionary = boss.call("world_state")
+	var rows: Array = state.get("diners", [])
+	var locators := _table_locators()
+	var seats := 4
+	if not rows.is_empty() and not locators.is_empty():
+		seats = maxi(int(ceil(float(rows.size()) / float(mini(locators.size(), rows.size())))), 1)
+	_diners.clear()
+	for index in rows.size():
+		if not (rows[index] is Dictionary):
+			continue
+		var row: Dictionary = rows[index]
+		var table_index := int(row.get("table", index / seats))
+		var seat_index := int(row.get("seat", index % seats))
+		var node := _seat_diner(locators, table_index, seat_index, index, row)
+		_diners.append({
+			"index": index,
+			"seat": seat_index,
+			"node": node,
+			"body": String(row.get("body", "c")),
+			"clip": "",
+			"age": 0.0,
+		})
+	_fill_belt(false)
+
+
+func _place_seltzer() -> void:
+	var origin := Vector3(0.0, 355.0, 0.0)
+	if _root != null:
+		origin = _root.to_global(origin)
+	var boss_node: Node3D = null
+	if _root != null:
+		boss_node = _root.get_node_or_null("CEO") as Node3D
+	if boss_node == null:
+		var boss_path := "res://assets/cogs/bosses/bossbot_ceo_body.glb"
+		boss_node = _model_or_box(boss_path, Vector3(0.0, 355.0, 0.0), "CEO", Color(0.15, 0.2, 0.45), Vector3(2.6, 5.4, 2.2))
+		if not ResourceLoader.exists(boss_path):
+			boss_node.global_position = origin
+	_boss_pos = boss_node.global_position
+	if _boss != null:
+		var state: Dictionary = _boss.call("world_state")
+		_flat_for = float(state.get("flat", 3.0))
+	for diner in _diners:
+		var node := diner.get("node") as Node3D
+		if node != null:
+			node.visible = false
+	for table in _find_all("BanquetTable"):
+		for chair_index in 8:
+			var chair := table.find_child("chair_%d" % (chair_index + 1), true, false) as Node3D
+			if chair != null:
+				chair.visible = false
+		var locator := table.find_child("bottle_locator", true, false) as Node3D
+		var spot := locator.global_position if locator != null else table.global_position
+		var table_index := int(table.get_meta("table_index", _bottle_count()))
+		var bottle := _model_or_box("res://assets/cog_hq/seltzer_bottle.glb", Vector3.ZERO, "Bottle%d" % _bottle_count(), Color(0.55, 0.75, 0.9), Vector3(0.6, 1.2, 0.6))
+		bottle.global_position = spot
+		bottle.set_meta("table", table_index)
+	if _root != null and _root.get_node_or_null("Bottle0") == null:
+		var fallback := _model_or_box("res://assets/cog_hq/seltzer_bottle.glb", Vector3(6.0, 200.0, 0.0), "Bottle0", Color(0.55, 0.75, 0.9), Vector3(0.6, 1.2, 0.6))
+		fallback.position = Vector3(6.0, 200.0, 0.0)
+	var spots: Array[Vector3] = [Vector3(-45.0, 100.0, 0.25), Vector3(-15.0, 100.0, 0.25), Vector3(15.0, 100.0, 0.25), Vector3(45.0, 100.0, 0.25)]
+	for index in spots.size():
+		if _root.get_node_or_null("GolfTee%d" % index) != null:
+			continue
+		var tee := _model_or_box("res://assets/battle/props/golf-ball.glb", spots[index], "GolfTee%d" % index, Color(0.95, 0.95, 0.95), Vector3(0.5, 0.5, 0.5))
+		tee.position = spots[index]
+	_fill_belt(true)
+
+
+func _bottle_count() -> int:
+	var count := 0
+	while _root != null and _root.get_node_or_null("Bottle%d" % count) != null:
+		count += 1
+	return count
+
+
+func _table_locators() -> Array[Node3D]:
+	var found := _find_all("TableLocator_")
+	found.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+		return _locator_index(a.name) < _locator_index(b.name)
+	)
+	return found
+
+
+func _locator_index(node_name: String) -> int:
+	var parts := node_name.split("_")
+	if parts.is_empty():
+		return 0
+	return int(parts[parts.size() - 1])
+
+
+func _seat_diner(locators: Array[Node3D], table_index: int, seat_index: int, index: int, row: Dictionary) -> Node3D:
+	var headings: Array[float] = [90.0, 90.0, 0.0, 0.0, -90.0, -90.0, 180.0, 180.0]
+	var heading := headings[seat_index % headings.size()]
+	if table_index < locators.size():
+		var table := _banquet_table(locators[table_index], table_index)
+		var chair := table.find_child("chair_%d" % (seat_index + 1), true, false) as Node3D
+		if chair != null:
+			var pivot := Node3D.new()
+			pivot.name = "Seat%d" % index
+			chair.add_child(pivot)
+			pivot.basis = Basis(Vector3(0, 0, 1), deg_to_rad(heading))
+			pivot.position = Vector3(0.5, 3.65, -3.75) if String(row.get("body", "c")) == "c" else Vector3(0.5, 2.5, -2.4)
+			return _diner_suit(pivot, index, row)
+	var box := _box(Vector3.ZERO, Color(0.35, 0.32, 0.38), Vector3(0.8, 1.5, 0.8), "Seat%d" % index)
+	box.position = Vector3(float(seat_index) * 3.0 - 6.0, 80.0 + float(table_index) * 4.0, 0.0)
+	return box
+
+
+func _banquet_table(locator: Node3D, index: int) -> Node3D:
+	var existing := locator.get_node_or_null("BanquetTable") as Node3D
+	if existing != null:
+		return existing
+	var table := _model_or_box("res://assets/cog_hq/banquet_table.glb", Vector3.ZERO, "BanquetTable", Color(0.45, 0.32, 0.18), Vector3(4.0, 1.0, 4.0))
+	table.reparent(locator)
+	table.transform = Transform3D.IDENTITY
+	table.name = "BanquetTable"
+	table.set_meta("table_index", index)
+	return table
+
+
+func _diner_suit(pivot: Node3D, index: int, row: Dictionary) -> Node3D:
+	var suit := StreetCog.new()
+	suit.name = "Diner%d" % index
+	_root.add_child(suit)
+	suit.present({
+		"code": String(row.get("code", "f")),
+		"name": String(row.get("cog_name", "Cog")),
+		"dept": "c",
+		"body": String(row.get("body", "c")),
+		"height": float(row.get("height", 4.0)),
+		"level": int(row.get("level", 8)),
+		"hp": 1,
+		"max": 1,
+	}, {})
+	suit.set_process(false)
+	if suit.has_method("_release_nametag"):
+		suit.call("_release_nametag")
+	pivot.force_update_transform()
+	suit.force_update_transform()
+	suit.global_position = pivot.global_position
+	var ahead := pivot.to_global(Vector3(0, 1, 0))
+	if suit.global_position.distance_squared_to(ahead) > 0.04:
+		suit.look_at(ahead, Vector3.UP)
+	return suit
+
+
+func _show_power(charging: bool) -> void:
+	if _power_root == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 30
+		add_child(layer)
+		_power_root = Control.new()
+		_power_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_power_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(_power_root)
+		var frame := ColorRect.new()
+		frame.color = Color(0.45, 0.45, 0.45, 0.55)
+		frame.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		frame.offset_left = -160.0
+		frame.offset_top = -96.0
+		frame.offset_right = 160.0
+		frame.offset_bottom = -68.0
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_power_root.add_child(frame)
+		_power_fill = ColorRect.new()
+		_power_fill.color = Color(0.95, 0.15, 0.15)
+		_power_fill.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		_power_fill.offset_left = -156.0
+		_power_fill.offset_top = -92.0
+		_power_fill.offset_right = -156.0
+		_power_fill.offset_bottom = -72.0
+		_power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_power_root.add_child(_power_fill)
+	if not charging:
+		_power_root.visible = false
+		return
+	var amount := _water_power(_spray) * 100.0
+	if _station == "tee":
+		amount = _ball_power(_spray)
+	amount = clampf(amount, 0.0, 100.0)
+	_power_root.visible = true
+	_power_fill.offset_right = lerpf(-156.0, 156.0, amount / 100.0)
+	if _station == "bottle" and amount >= 97.0:
+		_power_fill.color = Color(0.95, 0.1, 0.1)
+	elif _station == "bottle" and amount >= 75.0:
+		_power_fill.color = Color(0.95, 0.85, 0.15)
+	else:
+		_power_fill.color = Color(0.95, 0.15, 0.15)
+
+
+func _puff_dust(on: Node3D = null, spread: float = 1.0) -> void:
+	var body := on if on != null else _body()
+	if body == null:
+		return
+	for index in 6:
+		var puff := MeshInstance3D.new()
+		var ball := SphereMesh.new()
+		ball.radius = 0.18
+		ball.height = 0.36
+		puff.mesh = ball
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.72, 0.66, 0.55, 0.8)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		puff.material_override = mat
+		body.add_child(puff)
+		var spin := float(index) / 6.0 * TAU
+		puff.position = Vector3(cos(spin) * 0.6 * spread, 1.4 * spread + float(index) * 0.15, sin(spin) * 0.6 * spread)
+		_puffs.append({"mesh": puff, "age": 0.0, "spread": spread})
+
+
+func _tick_puffs(delta: float) -> void:
+	var kept: Array[Dictionary] = []
+	for puff in _puffs:
+		var age := float(puff.get("age", 0.0)) + delta
+		puff["age"] = age
+		var mesh := puff.get("mesh") as MeshInstance3D
+		if mesh != null and age < 1.0:
+			var spread := float(puff.get("spread", 1.0))
+			mesh.scale = Vector3.ONE * lerpf(0.4, 2.2, age) * spread
+			var mat := mesh.material_override as StandardMaterial3D
+			if mat != null:
+				mat.albedo_color.a = lerpf(0.8, 0.0, age)
+			kept.append(puff)
+		elif mesh != null:
+			mesh.queue_free()
+	_puffs = kept
+
+
+func _place_ceo_at(panda_y: float) -> void:
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		var boss_path := "res://assets/cogs/bosses/bossbot_ceo_body.glb"
+		ceo = _model_or_box(boss_path, Vector3(0.0, panda_y, 0.0), "CEO", Color(0.15, 0.2, 0.45), Vector3(2.6, 5.4, 2.2))
+		if not ResourceLoader.exists(boss_path):
+			ceo.global_position = _root.to_global(Vector3(0.0, panda_y, 0.0))
+		return
+	ceo.position = Vector3(0.0, panda_y, 0.0)
+
+
+func _belt_sound(playing: bool) -> void:
+	if not playing:
+		if _belt_loop != null and is_instance_valid(_belt_loop):
+			_belt_loop.stop()
+		return
+	if _belt_loop == null or not is_instance_valid(_belt_loop):
+		var path := "res://assets/cog_hq/audio/CHQ_FACT_conveyor_belt.ogg"
+		if not FileAccess.file_exists(path):
+			return
+		var stream := load(path) as AudioStream
+		if stream == null:
+			return
+		stream = stream.duplicate()
+		if stream is AudioStreamOggVorbis:
+			(stream as AudioStreamOggVorbis).loop = true
+		_belt_loop = AudioStreamPlayer.new()
+		_belt_loop.stream = stream
+		_belt_loop.volume_db = -10.0
+		add_child(_belt_loop)
+	if not _belt_loop.playing:
+		_belt_loop.play()
+
+
+func _pose_diner(diner: Dictionary, row: Dictionary, delta: float) -> void:
+	var status := String(row.get("status", ""))
+	var cog := diner.get("node") as Node
+	if cog == null or not cog.has_method("_pose_elapsed"):
+		var box := diner.get("node") as Node3D
+		if box != null:
+			var glow := status == "hungry" or status == "angry"
+			box.scale = Vector3(1.25, 1.25, 1.25) if glow else Vector3.ONE
+			box.visible = status != "dead"
+			_diner_icon(diner, box, row)
+		return
+	var want := "sit_hungry_right"
+	var meal := 0.0
+	if status == "angry":
+		want = "sit_angry"
+	elif status == "eating":
+		var duration := float(row.get("eat", 25.0))
+		var left := float(row.get("left", 0.0))
+		meal = maxf(duration - left, 0.0)
+		var eat_in := 32.0 / 24.0
+		var eat_out := 21.0 / 24.0
+		if meal < 5.0:
+			want = "sit"
+		elif meal < 5.0 + eat_in:
+			want = "sit_eat_in"
+		elif meal < duration - eat_out:
+			want = "sit_eat_loop"
+		else:
+			want = "sit_eat_out"
+	elif status == "dead":
+		want = "sit_lose"
+	elif int(row.get("lean", 0)) == 1:
+		want = "sit_hungry_left"
+	if String(diner.get("clip", "")) != want:
+		diner["clip"] = want
+		diner["age"] = 0.0
+	if status == "eating" and (want == "sit_eat_in" or want == "sit_eat_out"):
+		var duration_now := float(row.get("eat", 25.0))
+		if want == "sit_eat_in":
+			diner["age"] = maxf(meal - 5.0, 0.0)
+		else:
+			diner["age"] = maxf(meal - (duration_now - 21.0 / 24.0), 0.0)
+	else:
+		diner["age"] = float(diner.get("age", 0.0)) + delta
+	_hold_meal(diner, cog as Node3D, status == "eating" and meal >= 5.0 + 6.0 / 24.0 and meal < float(row.get("eat", 25.0)) - 21.0 / 24.0 + 12.0 / 24.0)
+	var body_name := String(diner.get("body", "c"))
+	var path := "res://assets/cogs/anims/%s/%s.walk" % [body_name, want]
+	if not FileAccess.file_exists(path):
+		if status == "dead":
+			(cog as Node3D).visible = false
+		return
+	if not _diner_banks.has(path):
+		var loaded: Variant = cog.call("_read_bank", path)
+		if loaded is Dictionary:
+			_diner_banks[path] = loaded
+	var bank: Dictionary = _diner_banks.get(path, {})
+	var looping := want != "sit_eat_in" and want != "sit_eat_out" and want != "sit_lose"
+	cog.call("_pose_elapsed", bank, float(diner.get("age", 0.0)), 24.0, looping)
+	var show_lose := status == "dead" and want == "sit_lose" and float(diner.get("age", 0.0)) <= 2.4
+	(cog as Node3D).visible = status != "dead" or show_lose
+	_diner_icon(diner, cog as Node3D, row)
+
+
+func _fill_belt(snacks: bool) -> void:
+	for item in _food:
+		var old := item.get("mesh") as Node
+		if old != null:
+			old.queue_free()
+	_food.clear()
+	_belts.clear()
+	for belt_index in 2:
+		var start := _find("conveyer_belt_start_%d" % (belt_index + 1))
+		var finish := _find("conveyer_belt_end_%d" % (belt_index + 1))
+		if start == null or finish == null:
+			continue
+		var span := start.global_position.distance_to(finish.global_position)
+		if span < 1.0:
+			continue
+		_belts.append(start.global_position)
+		for slot in 4:
+			var mesh := _belt_mesh(snacks, slot, belt_index)
+			_food.append({
+				"mesh": mesh,
+				"start": start.global_position,
+				"end": finish.global_position,
+				"length": span,
+				"slot": slot,
+				"belt": belt_index,
+				"heal": [1, 2, 3, 4][slot],
+				"picked": -1,
+			})
+	if _food.is_empty():
+		var pad := _panda_box(0.0, 200.0, 0.0, Color(0.7, 0.45, 0.2), Vector3(8.0, 0.4, 1.4), "Belt")
+		_belts.append(pad.global_position)
+
+
+func _belt_mesh(snacks: bool, slot: int, belt_index: int) -> Node3D:
+	var names: PackedStringArray = PackedStringArray([
+		"res://assets/cog_hq/picnic_apple.glb",
+		"res://assets/cog_hq/picnic_cupcake.glb",
+		"res://assets/cog_hq/picnic_sandwich.glb",
+		"res://assets/cog_hq/picnic_cake.glb",
+	])
+	var path := "res://assets/cog_hq/can_of_food.glb"
+	var scale := 0.75
+	if snacks:
+		path = names[slot]
+		scale = 4.0 if slot == 3 else 5.0
+	var mesh := _model_or_box(path, Vector3.ZERO, "BeltFood%d_%d" % [belt_index, slot], Color(0.72, 0.48, 0.2), Vector3(0.7, 0.5, 0.7))
+	mesh.scale = Vector3.ONE * scale
+	return mesh
+
+
+func _diner_icon(diner: Dictionary, cog: Node3D, row: Dictionary) -> void:
+	if cog == null:
+		return
+	var status := String(row.get("status", ""))
+	var icons := diner.get("icons") as Node3D
+	if icons == null or not is_instance_valid(icons):
+		var packed := load("res://assets/cog_hq/banquet_icons.glb") as PackedScene
+		if packed == null:
+			return
+		icons = packed.instantiate() as Node3D
+		if icons == null:
+			return
+		cog.add_child(icons)
+		icons.position = Vector3(0.0, float(diner.get("height", 4.0)) + 1.4, 0.0)
+		diner["icons"] = icons
+	var show_name := "Hunger"
+	if status == "angry":
+		show_name = "Anger"
+	elif status == "eating":
+		show_name = "Food"
+	for icon_name in ["Hunger", "Anger", "Food"]:
+		var icon := icons.find_child(icon_name, true, false) as Node3D
+		if icon != null:
+			icon.visible = icon_name == show_name and status != "dead"
+	icons.visible = status != "dead"
+	var camera := get_viewport().get_camera_3d() if get_viewport() != null else null
+	if camera != null and icons.global_position.distance_squared_to(camera.global_position) > 0.04:
+		icons.look_at(camera.global_position, Vector3.UP)
+	if status == "angry" or status == "dead":
+		return
+	var duration := float(row.get("eat", 25.0)) if status == "eating" else float(row.get("hungry", 30.0))
+	var left := float(row.get("left", duration))
+	var cover := 1.0 - clampf(left / maxf(duration, 0.1), 0.0, 1.0)
+	var meter := icons.get_node_or_null("Meter") as MeshInstance3D
+	if meter == null:
+		meter = MeshInstance3D.new()
+		meter.name = "Meter"
+		var quad := QuadMesh.new()
+		quad.size = Vector2(1.1, 1.1)
+		meter.mesh = quad
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.15, 0.15, 0.15, 0.55)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		meter.material_override = mat
+		icons.add_child(meter)
+	meter.position = Vector3(0.0, -0.55 + cover * 0.55, 0.05)
+	meter.scale = Vector3(1.0, maxf(cover, 0.02), 1.0)
+	var shown := icons.find_child(show_name, true, false) as Node3D
+	if shown != null:
+		if left < 10.0:
+			var flash := 0.5 + 0.5 * sin(_clock * 10.0)
+			shown.scale = Vector3.ONE * lerpf(1.0, 1.25, flash)
+		else:
+			shown.scale = Vector3.ONE
+
+
+func _hold_meal(diner: Dictionary, cog: Node3D, holding: bool) -> void:
+	var can := diner.get("food") as Node3D
+	if not holding:
+		if can != null:
+			can.visible = false
+		return
+	if can == null or not is_instance_valid(can):
+		can = _model_or_box("res://assets/cog_hq/can_of_food.glb", Vector3.ZERO, "Meal", Color(0.72, 0.48, 0.2), Vector3(0.4, 0.3, 0.4))
+		var scale := 0.6 if String(diner.get("body", "c")) == "c" else 0.8
+		can.scale = Vector3.ONE * 0.75 * scale
+		diner["food"] = can
+	var hand := cog.find_child("joint_Rhold", true, false) as Node3D
+	if hand == null:
+		hand = cog.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		hand = cog
+	if can.get_parent() != hand:
+		hand.add_child(can)
+	can.visible = true
+	if hand == cog:
+		can.position = Vector3(0.35, 1.2, 0.25)
+	else:
+		can.position = Vector3(-0.15, -0.7, -0.4)
+		if String(diner.get("body", "c")) == "c":
+			can.position = Vector3(0.1, -0.25, -0.31)
+
+
+func _tick_belt(delta: float, body: CharacterBody3D, snacks: bool) -> void:
+	_belt_sound(true)
+	var rate := 5.35 * (1.0 / 5.0 if snacks else 1.0)
+	_belt_u += delta * rate
+	for belt_name in ["conveyor_belt_1", "conveyor_belt_2"]:
+		var belt := _find(belt_name)
+		if belt != null:
+			_scroll_surface(belt, _belt_u)
+	var speed := 1.0 if snacks else 5.0
+	for slot in _food.size():
+		var item: Dictionary = _food[slot]
+		var mesh := item.get("mesh") as Node3D
+		if mesh == null:
+			continue
+		var length := float(item.get("length", 1.0))
+		var along := _clock * speed + float(item.get("slot", 0)) * length / 4.0
+		var lap := int(along / length)
+		var frac := fposmod(along, length) / length
+		var start: Vector3 = item["start"]
+		var finish: Vector3 = item["end"]
+		mesh.global_position = start.lerp(finish, frac)
+		var dropping := frac > 0.92
+		if dropping:
+			mesh.global_position.y = lerpf(mesh.global_position.y, 0.2, (frac - 0.92) / 0.08)
+		var picked := int(item.get("picked", -1))
+		mesh.visible = picked != lap and not dropping
+		if not mesh.visible or dropping:
+			continue
+		if not _near(body, mesh.global_position, 2.2):
+			continue
+		if snacks:
+			item["picked"] = lap
+			mesh.visible = false
+			_boss.call("note_snack", int(item.get("heal", 1)))
+			_sfx("res://assets/cog_hq/audio/LB_toonup.ogg")
+		elif not _carry:
+			item["picked"] = lap
+			mesh.visible = false
+			_carry = true
+			_sfx("res://assets/audio/sfx/SZ_MM_gliss.ogg")
+		_food[slot] = item
+
+
+func _follow_plate(body: CharacterBody3D) -> void:
+	var plate: Node3D = null
+	if _root != null:
+		plate = _root.get_node_or_null("Plate") as Node3D
+	var toon := _playground_toon()
+	if not _carry:
+		if plate != null:
+			plate.visible = false
+			if _root != null and plate.get_parent() != _root:
+				_root.add_child(plate)
+		if toon != null and toon.has_method("set_waiter_tray"):
+			toon.call("set_waiter_tray", false)
+		return
+	if plate == null:
+		plate = _model_or_box("res://assets/cog_hq/can_of_food.glb", Vector3.ZERO, "Plate", Color(0.72, 0.48, 0.2), Vector3(0.5, 0.35, 0.5))
+	var hand: Node3D = null
+	var suit := body.get_node_or_null("CogSuit") as Node3D
+	if suit != null:
+		hand = suit.find_child("joint_Rhold", true, false) as Node3D
+	if hand != null:
+		if plate.get_parent() != hand:
+			hand.add_child(plate)
+		plate.position = Vector3.ZERO
+		plate.basis = _panda_hpr(52.1961, 180.4983, -4.2882)
+		plate.scale = Vector3.ONE * 0.75
+	else:
+		if _root != null and plate.get_parent() != _root:
+			_root.add_child(plate)
+		plate.global_position = body.global_position + Vector3(0.6, 1.3, 0.0)
+		plate.scale = Vector3.ONE * 0.75
+	plate.visible = true
+	if toon != null and toon.has_method("set_waiter_tray"):
+		toon.call("set_waiter_tray", true)
+
+
+func _swing_door(heading: float, seconds: float) -> void:
+	var door := _find("door3")
+	if door == null:
+		_banquet_door(heading)
+		return
+	_door_from = float(door.get_meta("heading", 0.0))
+	_door_to = heading
+	_door_age = 0.0
+	_door_span = maxf(seconds, 0.05)
+
+
+func _tick_door(delta: float) -> void:
+	if _door_span <= 0.0:
+		return
+	_door_age += delta
+	var along := clampf(_door_age / _door_span, 0.0, 1.0)
+	_banquet_door(lerpf(_door_from, _door_to, along))
+	if along >= 1.0:
+		_door_span = 0.0
+
+
+func _aim_world(from: Vector3, at: Vector3) -> void:
+	_grab_camera()
+	if _movie_cam == null:
+		return
+	_movie_cam.global_position = from
+	if from.distance_squared_to(at) > 0.04:
+		_movie_cam.look_at(at, Vector3.UP)
+
+
+func _aim_toon_front() -> void:
+	var body := _body()
+	if body == null:
+		return
+	var forward := Vector3(0.0, 0.0, -1.0)
+	var actor := _toon_actor(body)
+	if actor != null:
+		forward = actor.global_transform.basis.y
+		forward.y = 0.0
+		if forward.length_squared() > 0.01:
+			forward = forward.normalized()
+		else:
+			forward = Vector3(0.0, 0.0, -1.0)
+	var from := body.global_position + forward * 19.0 + Vector3.UP * 6.0
+	_aim_world(from, body.global_position + Vector3.UP * 3.0)
+
+
+func _tick_chest(delta: float) -> void:
+	_ensure_chest()
+	if _chest == null or _boss == null:
+		return
+	var state: Dictionary = _boss.call("world_state")
+	var cap := maxf(float(state.get("max", 500.0)), 1.0)
+	var health := 1.0 - clampf(float(state.get("hp", 0.0)) / cap, 0.0, 1.0)
+	_paint_chest(health)
+	if _chest_condition < 4:
+		return
+	_chest_blink += delta
+	var hold := 0.25 if _chest_condition == 5 else 0.75
+	var span := hold if _chest_red else 0.1
+	if _chest_blink < span:
+		return
+	_chest_blink = 0.0
+	_chest_red = not _chest_red
+	_apply_chest_blink()
+
+
+func _ensure_chest() -> void:
+	if _chest != null and is_instance_valid(_chest):
+		_chest.visible = true
+		return
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	var joint := ceo.find_child("joint_lifeMeter", true, false) as Node3D
+	if joint == null:
+		return
+	var light := Node3D.new()
+	light.name = "HealthLight"
+	joint.add_child(light)
+	light.rotate_object_local(Vector3.RIGHT, deg_to_rad(-20.0))
+	light.scale = Vector3(2.0, 2.0, 2.0)
+	_chest_scale = light.scale
+	var disc := MeshInstance3D.new()
+	disc.name = "Disc"
+	disc.mesh = StreetCog._disc_mesh()
+	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_chest_mat = _chest_material(Color(0, 1, 0), false)
+	disc.material_override = _chest_mat
+	light.add_child(disc)
+	var glow := MeshInstance3D.new()
+	glow.name = "Glow"
+	glow.mesh = StreetCog._disc_mesh()
+	glow.scale = Vector3(1.55, 1.55, 1.55)
+	glow.position = Vector3(0.0, 0.04, 0.0)
+	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_chest_glow = _chest_material(Color(0.25, 1, 0.25, 0.5), true)
+	glow.material_override = _chest_glow
+	light.add_child(glow)
+	_chest = light
+	_chest_condition = -1
+
+
+func _chest_material(color: Color, glow: bool) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if glow:
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	return mat
+
+
+func _chest_tone(index: int, glow: bool) -> Color:
+	var solid: Array[Color] = [
+		Color(0, 1, 0, 1),
+		Color(1, 1, 0, 1),
+		Color(1, 0.5, 0, 1),
+		Color(1, 0, 0, 1),
+		Color(0.3, 0.3, 0.3, 1),
+	]
+	var soft: Array[Color] = [
+		Color(0.25, 1, 0.25, 0.5),
+		Color(1, 1, 0.25, 0.5),
+		Color(1, 0.5, 0.25, 0.5),
+		Color(1, 0.25, 0.25, 0.5),
+		Color(0.3, 0.3, 0.3, 0.0),
+	]
+	var row := soft if glow else solid
+	return row[clampi(index, 0, row.size() - 1)]
+
+
+func _paint_chest(health: float) -> void:
+	if _chest_mat == null or _chest_glow == null:
+		return
+	var condition := 5
+	if health > 0.95:
+		condition = 0
+	elif health > 0.7:
+		condition = 1
+	elif health > 0.3:
+		condition = 2
+	elif health > 0.05:
+		condition = 3
+	elif health > 0.0:
+		condition = 4
+	if condition == _chest_condition:
+		return
+	_chest_condition = condition
+	_chest_blink = 0.0
+	_chest_red = true
+	_chest.scale = _chest_scale
+	if condition >= 4:
+		_apply_chest_blink()
+		return
+	_chest_mat.albedo_color = _chest_tone(condition, false)
+	_chest_glow.albedo_color = _chest_tone(condition, true)
+
+
+func _apply_chest_blink() -> void:
+	if _chest_mat == null or _chest_glow == null or _chest == null or not is_instance_valid(_chest):
+		return
+	var index := 3 if _chest_red else 4
+	_chest_mat.albedo_color = _chest_tone(index, false)
+	_chest_glow.albedo_color = _chest_tone(index, true)
+	var pulse := 1.17 if _chest_condition == 5 and _chest_red else 1.0
+	_chest.scale = _chest_scale * pulse
+
+
+func _scale_club(amount: float) -> void:
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	var club := ceo.find_child("golfclub", true, false) as Node3D
+	if club == null:
+		return
+	club.scale = Vector3.ONE * amount
+
+
+func _show_gil_suit() -> void:
+	if _root == null:
+		return
+	_place_gil(Vector3(0.0, -5.0, 0.0))
+	if _gil != null and is_instance_valid(_gil):
+		_gil.basis = _panda_hpr(0.0, 0.0, 0.0)
+		_gil.visible = false
+	if _root.get_node_or_null("GilSuit") != null:
+		return
+	var bosses: Array = [
+		{"code": "f", "name": "Flunky", "body": "c", "height": 4.88},
+		{"code": "p", "name": "Pencil Pusher", "body": "b", "height": 5.0},
+		{"code": "ym", "name": "Yesman", "body": "a", "height": 5.28},
+		{"code": "mm", "name": "Micromanager", "body": "c", "height": 3.25},
+		{"code": "ds", "name": "Downsizer", "body": "b", "height": 6.08},
+		{"code": "hh", "name": "Head Hunter", "body": "a", "height": 7.45},
+		{"code": "cr", "name": "Corporate Raider", "body": "c", "height": 8.23},
+		{"code": "tbc", "name": "The Big Cheese", "body": "a", "height": 9.34},
+	]
+	var picked: Dictionary = bosses[randi() % bosses.size()]
+	var suit := StreetCog.new()
+	suit.name = "GilSuit"
+	_root.add_child(suit)
+	suit.present({
+		"code": String(picked.get("code", "f")),
+		"name": String(picked.get("name", "Flunky")),
+		"dept": "c",
+		"body": String(picked.get("body", "c")),
+		"height": float(picked.get("height", 4.88)),
+		"level": 1,
+		"hp": 1,
+		"max": 1,
+	}, {})
+	suit.set_process(false)
+	if suit.has_method("_release_nametag"):
+		suit.call("_release_nametag")
+	suit.global_position = _root.to_global(Vector3(0.0, -5.0, 0.0))
+	var ahead := _root.to_global(Vector3(0.0, 10.0, 0.0))
+	ahead.y = suit.global_position.y
+	if suit.global_position.distance_squared_to(ahead) > 0.04:
+		suit.look_at(ahead, Vector3.UP)
+	var tag := Label3D.new()
+	tag.name = "GilSuitTag"
+	tag.text = "Good ol' Gil Giggles"
+	tag.position = Vector3(0.0, -5.0, 5.4)
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.font_size = 48
+	tag.pixel_size = 0.01
+	_root.add_child(tag)
+
+
+func _hide_gil_suit() -> void:
+	if _root != null:
+		var suit := _root.get_node_or_null("GilSuit")
+		if suit != null:
+			suit.queue_free()
+		var tag := _root.get_node_or_null("GilSuitTag")
+		if tag != null:
+			tag.queue_free()
+	_hide_gil()
+
+
+func _aim_ceo_talk() -> void:
+	var intro := _page_next == "cogs" or _gil_job == "intro_leave"
+	var elev := Vector3(0.0, -100.544, 7.18258)
+	var close := Vector3(0.0, -80.544, 5.18258)
+	var gil := Vector3(0.0, -64.0, 4.0)
+	if intro:
+		if _page <= 0 and _gil_job == "":
+			var along := clampf(_act_t / 3.0, 0.0, 1.0)
+			_aim_at(elev.lerp(close, along), gil)
+			return
+		if _page == 1 and _gil_job == "":
+			_aim_at(Vector3(0.0, -69.0, 4.0), Vector3(0.0, -90.0, 3.0))
+			return
+		var swing := 1.0 if _gil_job == "intro_leave" or _page > 2 else clampf(_act_t / 2.0, 0.0, 1.0)
+		var heading := lerpf(0.0, -15.0, swing)
+		var ahead := Vector3(-sin(deg_to_rad(heading)), cos(deg_to_rad(heading)), 0.0)
+		_aim_at(close, close + ahead * 24.0 + Vector3(0.0, 0.0, -1.2))
+		return
+	if _page_next == "threat":
+		var boss_y := 355.0
+		if _page == 2 and _act_t < 2.5:
+			_aim_toon_front()
+			return
+		_aim_at(Vector3(0.0, boss_y - 45.0, 5.0), Vector3(0.0, boss_y, 14.0))
+		return
+	if _page_next == "seltzer":
+		if _page <= 1:
+			_aim_at(Vector3(0.0, 8.0, 5.0), Vector3(0.0, -5.0, 3.0))
+			return
+		_aim_at(Vector3(0.0, 310.0, 5.0), Vector3(0.0, 355.0, 14.0))
+		return
+	var gil_cam := Vector3(0.0, -42.0, 6.0)
+	var gil_look := Vector3(0.0, -20.0, 4.0)
+	var boss_cam := Vector3(0.0, -20.0, 18.0)
+	var boss_look := Vector3(0.0, 20.0, 8.0)
+	var side_cam := Vector3(5.0, -45.0, 12.0)
+	if _page <= 0 and _gil_job == "":
+		_aim_at(gil_cam, gil_look)
+		return
+	if (_page == 1 or _page == 2) and _gil_job == "":
+		var open := 1.0 if _page >= 2 else clampf(_act_t / 2.0, 0.0, 1.0)
+		_aim_at(gil_cam.lerp(boss_cam, open), gil_look.lerp(boss_look, open))
+		return
+	var aside := 1.0 if _gil_job != "" or _page > 3 else clampf(_act_t / 2.0, 0.0, 1.0)
+	_aim_at(boss_cam.lerp(side_cam, aside), boss_look.lerp(gil_look, aside))
+
+
+func _tick_walk_in(delta: float) -> void:
+	var body := _body()
+	if body == null or _root == null:
+		_finish_walk_in()
+		return
+	if not _walk_ready:
+		_walk_from = _root.to_local(body.global_position)
+		_walk_floor = body.global_position.y
+		_walk_ready = true
+	_gil_age += delta
+	var mid := Vector3(0.0, 0.0, 0.0)
+	var dest := Vector3(-14.0, 25.0, 0.0)
+	var panda := dest
+	var face := dest
+	var moving := true
+	if _gil_age < 3.0:
+		panda = _walk_from.lerp(mid, clampf(_gil_age / 3.0, 0.0, 1.0))
+		face = mid
+	elif _gil_age < 6.0:
+		panda = mid.lerp(dest, clampf((_gil_age - 3.0) / 3.0, 0.0, 1.0))
+		face = dest
+	elif _gil_age < 7.0:
+		moving = false
+	else:
+		_finish_walk_in()
+		return
+	var world := _root.to_global(Vector3(panda.x, panda.y, 0.0))
+	world.y = _walk_floor
+	body.velocity = Vector3.ZERO
+	body.global_position = world
+	var host := _boss.get_parent() if _boss != null else null
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if toon != null and toon.has_method("aim_fishing"):
+		if moving:
+			var look := _root.to_global(Vector3(face.x, face.y, 0.0))
+			var flat := look - body.global_position
+			flat.y = 0.0
+			if flat.length_squared() > 0.0001:
+				toon.call("aim_fishing", rad_to_deg(atan2(flat.x, -flat.z)))
+		else:
+			toon.call("aim_fishing", 0.0)
+	var actor := _toon_actor(body)
+	if actor != null:
+		actor.set_locomotion(4.8 if moving else 0.0, false, false, delta)
+
+
+func _tick_gil_walk(delta: float) -> void:
+	if _gil == null or not is_instance_valid(_gil):
+		_finish_gil_walk()
+		return
+	_gil_age += delta
+	_gil.visible = true
+	if _gil_job == "intro_leave":
+		var turn := clampf(_gil_age / 1.0, 0.0, 1.0)
+		_gil.basis = _panda_hpr(lerpf(180.0, 270.0, turn), 0.0, 0.0)
+		if _gil_age > 1.0:
+			var walk := clampf((_gil_age - 1.0) / 2.5, 0.0, 1.0)
+			_gil.position = Vector3(lerpf(0.0, 40.0, walk), -64.0, 0.0)
+			_gil.play_walk(delta)
+		if _gil_age >= 3.5:
+			_finish_gil_walk()
+		return
+	var turn_out := clampf(_gil_age / 1.0, 0.0, 1.0)
+	_gil.basis = _panda_hpr(lerpf(180.0, 90.0, turn_out), 0.0, 0.0)
+	if _gil_age > 1.0:
+		var walk_out := clampf((_gil_age - 1.0) / 2.5, 0.0, 1.0)
+		_gil.position = Vector3(lerpf(0.0, -40.0, walk_out), -20.0, 0.0)
+		_gil.play_walk(delta)
+	if _gil_age >= 3.5:
+		_finish_gil_walk()
+
+
+func _finish_gil_walk() -> void:
+	var job := _gil_job
+	_gil_job = ""
+	_hide_gil()
+	_banquet_door(0.0)
+	if job == "intro_leave":
+		_mode = ""
+		_release_camera()
+		if _boss != null:
+			_boss.call("finish_ceo_intro")
+		return
+	if job != "banquet_leave":
+		return
+	_gil_job = "walk_in"
+	_gil_age = 0.0
+	_walk_ready = false
+	_release_camera()
+	_lock_toon()
+	return
+
+
+func _finish_walk_in() -> void:
+	_gil_job = ""
+	var body := _body()
+	var actor := _toon_actor(body) if body != null else null
+	if actor != null:
+		actor.set_locomotion(0.0, false, false, 0.0)
+	_free_toon()
+	_mode = "banquet"
+	_carry = false
+	if _suit_at >= 0.0:
+		_wear_waiter()
+		_suit_at = -1.0
+	play_music("ceo")
+	_tell("Walk into a can on the conveyor. Serve it to a hungry cog. Three plates in a row make it explode.")
+
+
+func _upright_table() -> int:
+	var choices: Array[int] = []
+	if _root == null:
+		return -1
+	var count := _bottle_count()
+	for index in count:
+		var bottle := _root.get_node_or_null("Bottle%d" % index) as Node3D
+		if bottle == null:
+			continue
+		var table_index := int(bottle.get_meta("table", -1))
+		if table_index >= 0 and not _table_is_flat(table_index):
+			choices.append(table_index)
+	if choices.is_empty():
+		return -1
+	return choices[randi() % choices.size()]
+
+
+func _face_ceo(target: Vector3, span: float) -> void:
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	var flat := _root.to_local(target) - ceo.position
+	if Vector2(flat.x, flat.y).length() < 0.2:
+		return
+	_face_from = _face_now
+	_face_to = rad_to_deg(atan2(-flat.x, flat.y))
+	_face_age = 0.0
+	_face_span = maxf(span, 0.05)
+
+
+func _tick_face(delta: float) -> void:
+	if _face_span <= 0.0 or _root == null or _crushing:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	if not ceo.has_meta("rest_basis"):
+		ceo.set_meta("rest_basis", ceo.basis)
+	_face_age += delta
+	var along := clampf(_face_age / _face_span, 0.0, 1.0)
+	_face_now = rad_to_deg(lerp_angle(deg_to_rad(_face_from), deg_to_rad(_face_to), along))
+	var rest := ceo.get_meta("rest_basis") as Basis
+	ceo.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(_face_now)) * rest
+	if along >= 1.0:
+		_face_span = 0.0
+
+
+func _tint_club() -> void:
+	if not _over_one or _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	var club := ceo.find_child("golfclub", true, false)
+	if club == null:
+		return
+	var pulse := 0.5 + 0.5 * sin(_clock * 16.0)
+	var tint := Color.WHITE.lerp(Color(0.1, 1.0, 0.1), pulse)
+	if _over_two:
+		tint = Color.WHITE.lerp(Color(1.0, 0.1, 0.1), pulse)
+	_tint_meshes(club, tint)
+
+
+func _tint_meshes(node: Node, color: Color) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		var mat := mesh.get_surface_override_material(0) as StandardMaterial3D
+		if mat == null:
+			var active := mesh.get_active_material(0)
+			if active is StandardMaterial3D:
+				mat = (active as StandardMaterial3D).duplicate()
+			else:
+				mat = StandardMaterial3D.new()
+			mesh.set_surface_override_material(0, mat)
+		mat.albedo_color = color
+	for child in node.get_children():
+		_tint_meshes(child, color)
+
+
+func holds_camera() -> bool:
+	return _epilogue_on or (_golf and _mode == "seltzer")
+
+
+func aim(camera: Camera3D) -> void:
+	if _epilogue_on and _gil != null and is_instance_valid(_gil) and _gil.get_parent() != null:
+		var parent := _gil.get_parent() as Node3D
+		var want := parent.to_global(_gil.position + Vector3(-9.0, -12.0, 6.0))
+		camera.global_position = camera.global_position.lerp(want, 0.12)
+		var face := parent.to_global(_gil.position + Vector3(0.0, 0.0, 3.0))
+		if camera.global_position.distance_squared_to(face) > 0.04:
+			camera.look_at(face, Vector3.UP)
+		return
+	var node := _station_node()
+	if node == null or _root == null or camera == null:
+		return
+	var back := Vector3(0.0, -50.0, 40.0)
+	if _station == "tee":
+		back = Vector3(0.0, -10.0, 3.0)
+	var want := _root.to_global(node.position + back)
+	camera.global_position = camera.global_position.lerp(want, 0.12)
+	var look := node.global_position + Vector3.UP * 2.0
+	if camera.global_position.distance_squared_to(look) > 0.04:
+		camera.look_at(look, Vector3.UP)
+
+
+func _tick_board(delta: float, body: CharacterBody3D) -> void:
+	var node := _station_node()
+	if node == null:
+		return
+	var spot := node.global_position + Vector3.UP * 1.6
+	if _station == "tee":
+		spot = node.to_global(Vector3(-2.0, 0.0, 0.2))
+	var actor := _toon_actor(body)
+	body.velocity = Vector3.ZERO
+	if _board_age < _board_span:
+		_board_age += delta
+		var along := clampf(_board_age / _board_span, 0.0, 1.0)
+		var hop := 0.0
+		if _station == "bottle":
+			var rise := clampf((_board_age - 0.43) / 0.9, 0.0, 1.0)
+			along = rise
+			hop = sin(rise * PI) * 3.0
+			if actor != null:
+				actor.pose_action("jump", _board_age)
+		else:
+			hop = sin(along * PI) * 0.4
+			if actor != null:
+				actor.play_walk(delta)
+		body.global_position = _board_from.lerp(spot, along) + Vector3.UP * hop
+		return
+	body.global_position = spot
+	if _station == "tee":
+		_show_putter(body)
+		if actor != null:
+			actor.set_locomotion(0.0, false, false, delta)
+	else:
+		_hide_putter()
+		if actor != null:
+			actor.pose_action("leverNeutral", 0.0)
+
+
+func _release_board(body: Node) -> void:
+	_board_span = 0.0
+	_board_age = 0.0
+	if body == null:
+		return
+	var actor := _toon_actor(body)
+	if actor != null:
+		actor.release_pose()
+
+
+func _toon_actor(body: Node = null) -> ToonActor:
+	if body == null:
+		body = _body()
+	if body == null:
+		return null
+	for child in body.get_children():
+		if child is ToonActor:
+			return child
+	return null
+
+
+func _show_putter(body: Node3D) -> void:
+	if _putter != null and is_instance_valid(_putter):
+		return
+	var packed := load("res://assets/minigolf/putter.glb") as PackedScene
+	if packed == null:
+		return
+	_putter = packed.instantiate() as Node3D
+	if _putter == null:
+		return
+	body.add_child(_putter)
+	_putter.position = Vector3(0.35, 1.05, 0.2)
+	_putter.rotation_degrees = Vector3(70.0, 0.0, 90.0)
+
+
+func _hide_putter() -> void:
+	if _putter != null and is_instance_valid(_putter):
+		_putter.queue_free()
+	_putter = null
+
+
+func _show_spray(origin: Vector3, target: Vector3) -> void:
+	if _root == null:
+		return
+	var packed := load("res://assets/battle/props/spray.glb") as PackedScene
+	if packed == null:
+		return
+	var mesh := packed.instantiate() as Node3D
+	if mesh == null:
+		return
+	_root.add_child(mesh)
+	var length := clampf(origin.distance_to(target), 1.0, 36.0)
+	mesh.global_position = origin
+	if origin.distance_squared_to(target) > 0.04:
+		mesh.look_at(target, Vector3.UP)
+		mesh.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	mesh.scale = Vector3(0.05, 0.05, 0.05)
+	_water.append({"mesh": mesh, "age": 0.0, "length": length / 1.5})
+
+
+func _tick_water(delta: float) -> void:
+	var kept: Array[Dictionary] = []
+	for spray in _water:
+		var age := float(spray.get("age", 0.0)) + delta
+		spray["age"] = age
+		var mesh := spray.get("mesh") as Node3D
+		var length := float(spray.get("length", 1.0))
+		if mesh != null and age < 0.55:
+			var grow := clampf(age / 0.2, 0.0, 1.0)
+			if age > 0.4:
+				grow = clampf(1.0 - (age - 0.4) / 0.15, 0.05, 1.0)
+			mesh.scale = Vector3(length * grow, length * grow, length * grow)
+			kept.append(spray)
+		elif mesh != null:
+			mesh.queue_free()
+	_water = kept
+
+
+func _place_gil(at: Vector3) -> void:
+	var parent: Node3D = _root if _root != null else _geometry()
+	if parent == null:
+		return
+	if _gil == null or not is_instance_valid(_gil):
+		_gil = ToonActor.new()
+		_gil.name = "Gil"
+		parent.add_child(_gil)
+		var style := ToonStyle.new()
+		style.first_name = "Good ol' Gil"
+		style.last_name = "Giggles"
+		style.gender = "m"
+		style.head = "sls"
+		style.torso = "ss"
+		style.legs = "m"
+		style.top_tex = 0
+		style.top_color = 3
+		style.bot_tex = 1
+		style.bot_color = 16
+		style.arm_color = 19
+		style.glove_color = 0
+		style.leg_color = 19
+		style.head_color = 19
+		_gil.show_style(style)
+		var tag := Label3D.new()
+		tag.text = "Good ol' Gil Giggles"
+		tag.position = Vector3(0.0, 4.2, 0.0)
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.font_size = 48
+		tag.pixel_size = 0.01
+		_gil.add_child(tag)
+	_gil.visible = true
+	_gil.position = at
+	_gil.basis = _panda_hpr(180.0, 0.0, 0.0)
+
+
+func _hide_gil() -> void:
+	if _gil != null and is_instance_valid(_gil):
+		_gil.visible = false
+
+
+func _banquet_door(heading: float) -> void:
+	var door := _find("door3")
+	if door == null:
+		return
+	if not door.has_meta("closed_basis"):
+		door.set_meta("closed_basis", door.basis)
+	var closed := door.get_meta("closed_basis") as Basis
+	door.basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(heading)) * closed
+	door.set_meta("heading", heading)
+
+
+func _belt_point(index: int) -> Vector3:
+	var finish := _find("conveyer_belt_end_%d" % (index + 1))
+	if finish != null:
+		return finish.global_position
+	if index < _belts.size():
+		return _belts[index]
+	return _boss_pos
+
+
+func _swing_club(target: Vector3) -> void:
+	_wind_up("golf_swing", target)
+
+
+func _wind_up(attack: String, target: Vector3) -> float:
+	_face_ceo(target, 1.0)
+	if _ceo_raised:
+		_play_ceo(attack, false, "Ff_neutral")
+		return 0.0
+	_ceo_raised = true
+	_play_ceo("Fb_down2Up", false, attack)
+	return _ceo_span("Fb_down2Up")
+
+
+func _play_ceo(clip: String, looping: bool, then_clip: String = "") -> void:
+	if clip == _ceo_clip and looping == _ceo_loop and then_clip == _ceo_next:
+		return
+	_ceo_clip = clip
+	_ceo_time = 0.0
+	_ceo_loop = looping
+	_ceo_next = then_clip if not looping else ""
+	if clip == "golf_swing":
+		_sfx("res://assets/audio/battle/SA_hardball.ogg")
+
+
+func _ceo_span(clip: String) -> float:
+	_load_ceo_rates()
+	var frames := float(_ceo_frames.get(clip, 24))
+	var rate := float(_ceo_rates.get(clip, 24.0))
+	var bank: Dictionary = _ceo_banks.get(clip, {})
+	if int(bank.get("frames", 0)) > 1:
+		frames = float(bank["frames"])
+	if rate <= 0.0:
+		rate = 24.0
+	return frames / rate
+
+
+func _load_ceo_rates() -> void:
+	if not _ceo_rates.is_empty():
+		return
+	var path := "res://assets/cogs/bosses/ceo_anims/clips.json"
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if parsed is Dictionary:
+		for key in parsed:
+			var row: Dictionary = parsed[key]
+			_ceo_rates[String(key)] = float(row.get("fps", 24.0))
+			_ceo_frames[String(key)] = int(row.get("frames", 24))
+
+
+func _advance_ceo_pose(delta: float) -> void:
+	if _root == null or _ceo_clip == "":
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	var path := "res://assets/cogs/bosses/ceo_anims/%s.walk" % _ceo_clip
+	if not FileAccess.file_exists(path):
+		return
+	if not _ceo_banks.has(_ceo_clip):
+		if _poser == null:
+			_poser = StreetCog.new()
+		_load_ceo_rates()
+		var loaded: Variant = _poser.call("_read_bank", path, ceo)
+		if loaded is Dictionary:
+			_ceo_banks[_ceo_clip] = loaded
+	var bank: Dictionary = _ceo_banks.get(_ceo_clip, {})
+	var frames := int(bank.get("frames", 0))
+	if frames <= 1 or _poser == null:
+		return
+	var fps := float(_ceo_rates.get(_ceo_clip, 24.0))
+	_ceo_time += delta
+	_poser.call("_pose_elapsed", bank, _ceo_time, fps, _ceo_loop)
+	if _ceo_loop:
+		return
+	if _ceo_time < float(frames) / fps:
+		return
+	var follow := _ceo_next
+	_ceo_next = ""
+	if follow == "":
+		_play_ceo("Ff_neutral", true)
+	elif follow == "Ff_neutral":
+		_play_ceo("Ff_neutral", true)
+	else:
+		_play_ceo(follow, false, "Ff_neutral")
+
+
+func _throw_gears(target: Vector3, kind: String) -> void:
+	var first := _ceo_shots.size()
+	var start := _boss_pos + Vector3.UP * 4.0
+	var windup := _wind_up("Fb_UpThrow", target)
+	_sfx("res://assets/cogs/bosses/audio/CHQ_VP_frisbee_gears.ogg")
+	for index in 4:
+		var spread := Vector3(randf_range(-2.0, 2.0), 0.0, randf_range(-2.0, 2.0))
+		if index == 2:
+			spread = Vector3.ZERO
+		var mesh := _gear(0.2)
+		mesh.visible = false
+		_ceo_shots.append({
+			"from": start,
+			"to": target + spread,
+			"age": 0.0,
+			"wait": windup + 0.19 + float(index) * 0.15,
+			"mesh": mesh,
+			"kind": kind,
+			"hurt": index != 2,
+		})
+	_remember_volley(kind, first)
+
+
+func _throw_balls(target: Vector3) -> void:
+	var first := _ceo_shots.size()
+	var start := _boss_pos + Vector3.UP * 4.0
+	var windup := _wind_up("golf_swing", target)
+	for index in 5:
+		var spread := Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-2.0, 2.0))
+		if index == 2:
+			spread = Vector3.ZERO
+		var mesh := _model_or_box("res://assets/battle/props/golf-ball.glb", Vector3.ZERO, "CeoBall%d" % _ceo_shots.size(), Color(0.95, 0.95, 0.95), Vector3(0.4, 0.4, 0.4))
+		mesh.visible = false
+		_ceo_shots.append({
+			"from": start,
+			"to": target + spread,
+			"age": 0.0,
+			"wait": windup + 1.08 + float(index) * 0.15,
+			"mesh": mesh,
+			"kind": "ball",
+			"hurt": index != 2,
+		})
+	_remember_volley("ball", first)
+
+
+func _remember_fore(at: Vector3) -> void:
+	if not ToonNet.networked() or not ToonNet.ceo_driving():
+		return
+	_attack_seq += 1
+	_attack_log.append({
+		"seq": _attack_seq,
+		"kind": "fore",
+		"x": at.x, "y": at.y, "z": at.z,
+		"rows": [],
+	})
+	_trim_attacks()
+
+
+func _remember_volley(kind: String, first: int) -> void:
+	if not ToonNet.networked() or not ToonNet.ceo_driving():
+		return
+	var rows: Array = []
+	for index in range(first, _ceo_shots.size()):
+		var shot: Dictionary = _ceo_shots[index]
+		var origin: Vector3 = shot["from"]
+		var dest: Vector3 = shot["to"]
+		rows.append({
+			"fx": origin.x, "fy": origin.y, "fz": origin.z,
+			"tx": dest.x, "ty": dest.y, "tz": dest.z,
+			"wait": float(shot.get("wait", 0.0)),
+			"kind": String(shot.get("kind", kind)),
+			"hurt": bool(shot.get("hurt", false)),
+		})
+	_attack_seq += 1
+	_attack_log.append({"seq": _attack_seq, "kind": kind, "rows": rows})
+	_trim_attacks()
+
+
+func _trim_attacks() -> void:
+	while _attack_log.size() > 8:
+		_attack_log.pop_front()
+
+
+func _apply_attacks() -> void:
+	var attacks: Array = ToonNet.latest("ceo-field").get("attacks", [])
+	for item in attacks:
+		if not (item is Dictionary):
+			continue
+		var seq := int(item.get("seq", 0))
+		if seq <= _attack_seen:
+			continue
+		_attack_seen = seq
+		var kind := String(item.get("kind", ""))
+		if kind == "fore":
+			var at := Vector3(float(item.get("x", 0.0)), float(item.get("y", 0.0)), float(item.get("z", 0.0)))
+			_attack_kind = "area"
+			_attack_at = at
+			_attack_left = 1.0
+			_tell("Fore!")
+			_swing_club(at)
+			continue
+		var rows: Array = item.get("rows", [])
+		var aim := Vector3.ZERO
+		if not rows.is_empty() and rows[0] is Dictionary:
+			var sample: Dictionary = rows[0]
+			aim = Vector3(float(sample.get("tx", 0.0)), float(sample.get("ty", 0.0)), float(sample.get("tz", 0.0)))
+		if kind == "ball":
+			_wind_up("golf_swing", aim)
+		else:
+			_wind_up("Fb_UpThrow", aim)
+			_sfx("res://assets/cogs/bosses/audio/CHQ_VP_frisbee_gears.ogg")
+		for row in rows:
+			if not (row is Dictionary):
+				continue
+			var shot: Dictionary = row
+			var origin := Vector3(float(shot.get("fx", 0.0)), float(shot.get("fy", 0.0)), float(shot.get("fz", 0.0)))
+			var dest := Vector3(float(shot.get("tx", 0.0)), float(shot.get("ty", 0.0)), float(shot.get("tz", 0.0)))
+			var mesh: Node3D
+			if String(shot.get("kind", kind)) == "ball":
+				mesh = _model_or_box("res://assets/battle/props/golf-ball.glb", Vector3.ZERO, "CeoBall%d" % _ceo_shots.size(), Color(0.95, 0.95, 0.95), Vector3(0.4, 0.4, 0.4))
+			else:
+				mesh = _gear(0.2)
+			mesh.visible = false
+			_ceo_shots.append({
+				"from": origin,
+				"to": dest,
+				"age": 0.0,
+				"wait": float(shot.get("wait", 0.0)),
+				"mesh": mesh,
+				"kind": String(shot.get("kind", kind)),
+				"hurt": bool(shot.get("hurt", false)),
+			})
+
+
+func _tick_ceo_shots(delta: float, body: CharacterBody3D) -> void:
+	var kept: Array[Dictionary] = []
+	for shot in _ceo_shots:
+		var age := float(shot.get("age", 0.0)) + delta
+		shot["age"] = age
+		var wait := float(shot.get("wait", 0.0))
+		var mesh := shot.get("mesh") as Node3D
+		if age < wait:
+			kept.append(shot)
+			continue
+		var along := clampf((age - wait) / 1.0, 0.0, 1.0)
+		var at: Vector3 = (shot["from"] as Vector3).lerp(shot["to"] as Vector3, along)
+		if mesh != null:
+			mesh.visible = true
+			mesh.global_position = at
+		var kind := String(shot.get("kind", ""))
+		if not bool(shot.get("hurt", false)) and _near(body, at, 2.2) and (kind != "ball" or along > 0.6):
+			shot["hurt"] = true
+			if kind == "overtime":
+				_boss.call("note_overtime")
+			elif kind == "gear":
+				_boss.call("note_gear")
+			else:
+				_boss.call("note_golf", false)
+		if along < 1.0:
+			kept.append(shot)
+		elif mesh != null:
+			mesh.queue_free()
+	_ceo_shots = kept
+
+
+func _wear_waiter() -> void:
+	var toon := _playground_toon()
+	if toon != null and toon.has_method("wear_waiter"):
+		toon.call("wear_waiter")
+
+
+func _clear_waiter() -> void:
+	var toon := _playground_toon()
+	if toon != null and toon.has_method("clear_disguise"):
+		toon.call("clear_disguise")
+
+
+func _playground_toon() -> Node:
+	if _boss == null:
+		return null
+	var host := _boss.get_parent()
+	if host == null:
+		return null
+	return host.get_node_or_null("PlaygroundToon")
+
+
+func _mounted_table() -> int:
+	if not _golf or _station != "bottle":
+		return -1
+	return _station_table
+
+
+func _banquet_by_index(index: int) -> Node3D:
+	for table in _find_all("BanquetTable"):
+		if int(table.get_meta("table_index", -1)) == index:
+			return table
+	return null
+
+
+func _table_is_flat(index: int) -> bool:
+	var table := _banquet_by_index(index)
+	if table == null or not table.has_meta("flat_until"):
+		return false
+	return _clock < float(table.get_meta("flat_until"))
+
+
+func _start_crush(index: int) -> void:
+	var table := _banquet_by_index(index)
+	if table == null or _table_is_flat(index):
+		return
+	_crushing = true
+	_crush_table = index
+	_crush_to = table.global_position
+	if _ceo_clip == "" or _ceo_clip == "Ff_neutral":
+		_play_ceo("Ff_neutral", true)
+	_tell("The C.E.O. is heading for a table.")
+
+
+func _tick_crush(delta: float, slowed: float) -> void:
+	if not _crushing or _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		_crushing = false
+		return
+	var speed := 22.0 - 14.5 * clampf(slowed / 90.0, 0.0, 1.0)
+	var gap := ceo.global_position.distance_to(_crush_to)
+	var step := speed * delta
+	if gap <= maxf(step, 1.5):
+		ceo.global_position = _crush_to
+		_flatten_table(_crush_table)
+		_crushing = false
+		return
+	var direction := _crush_to - ceo.global_position
+	direction.y = 0.0
+	if direction.length_squared() < 0.04:
+		ceo.global_position = _crush_to
+		_flatten_table(_crush_table)
+		_crushing = false
+		return
+	direction = direction.normalized()
+	var turn := deg_to_rad(60.0 - 40.0 * clampf(slowed / 90.0, 0.0, 1.0))
+	var facing := -ceo.global_transform.basis.z
+	facing.y = 0.0
+	var angle := facing.angle_to(direction) if facing.length_squared() > 0.01 else 0.0
+	if angle > 0.12:
+		var aimed := ceo.global_transform.looking_at(ceo.global_position + direction, Vector3.UP)
+		var blend := clampf((turn * delta) / angle, 0.0, 1.0)
+		ceo.global_basis = ceo.global_basis.slerp(aimed.basis, blend)
+		return
+	ceo.global_position += direction * step
+	var treads := ceo.find_child("treads", true, false)
+	if treads != null:
+		_tread_u += delta * 3.5
+		_scroll_uv(treads)
+
+
+func _flatten_table(index: int) -> void:
+	var table := _banquet_by_index(index)
+	if table == null or _table_is_flat(index):
+		return
+	if not table.has_meta("saved_scale"):
+		table.set_meta("saved_scale", table.scale)
+	var saved := table.get_meta("saved_scale") as Vector3
+	table.scale = Vector3(saved.x, saved.y, saved.z * 0.01)
+	table.set_meta("flat_until", _clock + _flat_for)
+	if _mounted_table() == index:
+		_flat_return = index
+		_golf = false
+		_spray = 0.0
+		_station = ""
+		_hide_putter()
+		_release_board(_body())
+		_free_toon()
+		if _boss != null:
+			_boss.call("note_crush")
+
+
+func start_ceo_victory(boss: Node) -> void:
+	_boss = boss
+	_mode = "ceo_victory"
+	_clock = 0.0
+	_ceo_win = 0
+	_victory_done = false
+	_golf = false
+	_belt_sound(false)
+	if _power_root != null:
+		_power_root.visible = false
+	_lock_toon()
+	_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v2.ogg", "ceo2")
+	_tell("No! The Chairman won't like this.")
+	_aim_ceo_victory()
+
+
+func _tick_ceo_victory(delta: float) -> void:
+	if _victory_done:
+		return
+	_tick_chest(delta)
+	_tick_puffs(delta)
+	_aim_ceo_victory()
+	if _ceo_win < 1 and _clock >= 3.0:
+		_ceo_win = 1
+		_tell("Arrrggghhh!!!!")
+	elif _ceo_win < 2 and _clock >= 5.0:
+		_ceo_win = 2
+		_tell("")
+		var ceo: Node3D = null
+		if _root != null:
+			ceo = _root.get_node_or_null("CEO") as Node3D
+		_puff_dust(ceo, 4.0)
+	elif _ceo_win < 3 and _clock >= 5.5:
+		_ceo_win = 3
+		_show_demoted()
+	elif _ceo_win < 4 and _clock >= 7.5:
+		_ceo_win = 4
+		_victory_done = true
+		_seat_gil_for_reward()
+		_release_camera()
+		if _boss != null:
+			_boss.call("ceo_victory_done")
+
+
+func _aim_ceo_victory() -> void:
+	var y := 355.0
+	if _root != null:
+		var ceo := _root.get_node_or_null("CEO") as Node3D
+		if ceo != null:
+			y = ceo.position.y
+	_aim_at(Vector3(0.0, y - 35.0, 25.0), Vector3(0.0, y, 12.0))
+
+
+func _show_demoted() -> void:
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	ceo.visible = false
+	if _root.get_node_or_null("Demoted") != null:
+		return
+	var suit := StreetCog.new()
+	suit.name = "Demoted"
+	_root.add_child(suit)
+	suit.present({
+		"code": "f",
+		"name": "Flunky",
+		"dept": "c",
+		"body": "c",
+		"height": 4.88,
+		"level": 1,
+		"hp": 1,
+		"max": 1,
+	}, {})
+	suit.set_process(false)
+	if suit.has_method("_release_nametag"):
+		suit.call("_release_nametag")
+	suit.global_position = ceo.global_position
+	var back := -ceo.global_transform.basis.y
+	back.y = 0.0
+	if back.length_squared() > 0.01:
+		suit.look_at(suit.global_position + back.normalized(), Vector3.UP)
+
+
+func _seat_gil_for_reward() -> void:
+	_place_gil(Vector3(0.0, 90.0, 0.0))
+	var geom := _geometry()
+	if _gil != null and is_instance_valid(_gil) and geom != null and _gil.get_parent() != geom:
+		_gil.reparent(geom)
+	if _gil != null and is_instance_valid(_gil):
+		_gil.visible = true
+		_gil.pose_action("sit", 0.0)
+
+
+func pose_ceo_epilogue() -> void:
+	var geom := _geometry()
+	_place_gil(Vector3(0.0, 90.0, 0.0))
+	if _gil == null or not is_instance_valid(_gil):
+		return
+	if geom != null and _gil.get_parent() != geom:
+		geom.add_child(_gil)
+	_gil.position = Vector3(0.0, 90.0, 0.0)
+	_gil.basis = _panda_hpr(180.0, 0.0, 0.0)
+	_gil.visible = true
+	_gil.pose_action("sit", 0.0)
+	var ceo := _root.get_node_or_null("CEO") if _root != null else null
+	if ceo != null:
+		ceo.visible = false
+	var body := _body()
+	if body != null and _gil.get_parent() != null:
+		var parent := _gil.get_parent() as Node3D
+		body.velocity = Vector3.ZERO
+		body.global_position = parent.to_global(_gil.position + Vector3(0.0, -7.0, 0.0))
+		if body.global_position.distance_squared_to(_gil.global_position) > 0.04:
+			body.look_at(_gil.global_position, Vector3.UP)
+	_lock_toon()
+	_epilogue_on = true
+
+
+func hold_epilogue() -> void:
+	_epilogue_on = true
+	_lock_toon()
+
+
+func _return_to_bottle(index: int) -> void:
+	if _root == null or index < 0:
+		_flat_return = -1
+		return
+	var bottle: Node3D = null
+	var bottle_index := -1
+	for slot in _bottle_count():
+		var node := _root.get_node_or_null("Bottle%d" % slot) as Node3D
+		if node != null and int(node.get_meta("table", -1)) == index:
+			bottle = node
+			bottle_index = slot
+			break
+	_flat_return = -1
+	if bottle == null:
+		return
+	var body := _body()
+	_golf = true
+	_station = "bottle"
+	_station_index = bottle_index
+	_station_table = index
+	_tee_h = 0.0
+	_spray = 0.0
+	_station_arm = true
+	_board_span = 0.0
+	_board_age = 1.0
+	_lock_toon()
+	if body != null:
+		body.velocity = Vector3.ZERO
+		body.global_position = bottle.global_position + Vector3.UP * 1.6
+		var actor := _toon_actor(body)
+		if actor != null:
+			actor.pose_action("leverNeutral", 0.0)
+
+
+func _seat_taken(kind: String, index: int) -> bool:
+	if not ToonNet.networked():
+		return false
+	var mine := ToonNet.peer_id()
+	for channel in ToonNet.channels("ceo-seat:"):
+		var row := ToonNet.latest(channel)
+		if int(row.get("peer", 0)) == mine:
+			continue
+		if String(row.get("station", "")) != kind:
+			continue
+		var claimed := int(row.get("table", -1)) if kind == "bottle" else int(row.get("index", -1))
+		if claimed == index:
+			return true
+	return false
+
+
+func _publish_seat() -> void:
+	if not ToonNet.networked() or _mode != "seltzer":
+		return
+	ToonNet.ceo_seat({
+		"station": _station if _golf else "",
+		"index": _station_index,
+		"table": _station_table,
+	})
+
+
+func _publish_ceo_field(delta: float) -> void:
+	if _boss == null or not ToonNet.ceo_driving():
+		return
+	_ceo_field_send -= delta
+	if _ceo_field_send > 0.0:
+		return
+	_ceo_field_send = 0.2
+	var state: Dictionary = _boss.call("world_state")
+	var flats: Array = []
+	for table in _find_all("BanquetTable"):
+		if not table.has_meta("flat_until"):
+			continue
+		flats.append({
+			"index": int(table.get_meta("table_index", -1)),
+			"left": float(table.get_meta("flat_until")) - _clock,
+		})
+	state["flats"] = flats
+	state["attacks"] = _attack_log
+	ToonNet.ceo_field(state)
+
+
+func _apply_flats() -> void:
+	var field := ToonNet.latest("ceo-field")
+	var flats: Array = field.get("flats", [])
+	var open := {}
+	for item in flats:
+		if item is Dictionary:
+			open[int(item.get("index", -1))] = float(item.get("left", 0.0))
+	for table in _find_all("BanquetTable"):
+		var index := int(table.get_meta("table_index", -1))
+		if open.has(index) and float(open[index]) > 0.0:
+			if not table.has_meta("saved_scale"):
+				table.set_meta("saved_scale", table.scale)
+			var saved := table.get_meta("saved_scale") as Vector3
+			table.scale = Vector3(saved.x, saved.y, saved.z * 0.01)
+			table.set_meta("flat_until", _clock + float(open[index]))
+			if _mounted_table() == index:
+				_flat_return = index
+				_golf = false
+				_spray = 0.0
+				_station = ""
+				_hide_putter()
+				_release_board(_body())
+				_free_toon()
+				if _boss != null:
+					_boss.call("note_crush")
+		elif table.has_meta("flat_until"):
+			var saved_scale: Variant = table.get_meta("saved_scale")
+			if saved_scale is Vector3:
+				table.scale = saved_scale
+			table.remove_meta("flat_until")
+			if _flat_return == index:
+				_return_to_bottle(index)
+
+
+func _tick_unflatten() -> void:
+	for table in _find_all("BanquetTable"):
+		if not table.has_meta("flat_until"):
+			continue
+		if _clock < float(table.get_meta("flat_until")):
+			continue
+		var saved: Variant = table.get_meta("saved_scale")
+		if saved is Vector3:
+			table.scale = saved
+		table.remove_meta("flat_until")
+		if _flat_return == int(table.get_meta("table_index", -1)):
+			_return_to_bottle(_flat_return)
+
+
+func _mount_station(body: CharacterBody3D) -> void:
+	if not _KEYS.use_held() or _cool > 0.0 or _root == null:
+		return
+	var count := _bottle_count()
+	for index in count:
+		var bottle := _root.get_node_or_null("Bottle%d" % index) as Node3D
+		var table_index := int(bottle.get_meta("table", -1)) if bottle != null else -1
+		if bottle != null and not _table_is_flat(table_index) and not _seat_taken("bottle", table_index) and _near(body, bottle.global_position, 2.4):
+			_golf = true
+			_station = "bottle"
+			_station_index = index
+			_station_table = table_index
+			_tee_h = 0.0
+			_spray = 0.0
+			_station_arm = true
+			_cool = 0.3
+			_board_from = body.global_position
+			_board_age = 0.0
+			_board_span = 1.33
+			_lock_toon()
+			return
+	for index in 4:
+		var tee := _root.get_node_or_null("GolfTee%d" % index) as Node3D
+		if tee != null and not _seat_taken("tee", index) and _near(body, tee.global_position, 2.4):
+			_golf = true
+			_station = "tee"
+			_station_index = index
+			_tee_h = 0.0
+			_spray = 0.0
+			_station_arm = true
+			_cool = 0.3
+			_board_from = body.global_position
+			_board_age = 0.0
+			_board_span = 0.2
+			_lock_toon()
+			return
+
+
+func _aim_station(delta: float, speed: float) -> void:
+	var turn := 0.0
+	if Input.is_physical_key_pressed(KEY_LEFT):
+		turn -= 1.0
+	elif Input.is_physical_key_pressed(KEY_RIGHT):
+		turn += 1.0
+	if turn == 0.0:
+		return
+	_tee_h = fposmod(_tee_h - turn * speed * delta, 360.0)
+	var node := _station_node()
+	if node == null or _root == null:
+		return
+	var ahead := _root.to_global(node.position + _aim_vector(_tee_h))
+	if node.global_position.distance_squared_to(ahead) > 0.04:
+		node.look_at(ahead, Vector3.UP)
+
+
+func _station_node() -> Node3D:
+	if _root == null:
+		return null
+	if _station == "bottle":
+		return _root.get_node_or_null("Bottle%d" % _station_index) as Node3D
+	return _root.get_node_or_null("GolfTee%d" % _station_index) as Node3D
+
+
+func _aim_vector(heading: float) -> Vector3:
+	var rad := deg_to_rad(heading)
+	return Vector3(-sin(rad), cos(rad), 0.0)
+
+
+func _water_power(elapsed: float) -> float:
+	var t := fposmod(elapsed / 15.0, 1.0)
+	return clampf(1.0 - pow(1.0 - t, 0.75), 0.001, 1.0)
+
+
+func _ball_power(elapsed: float) -> float:
+	var saw := fposmod(pow(maxf(elapsed, 0.0) / 3.0, 0.75) * 100.0, 200.0)
+	if saw > 100.0:
+		saw = 200.0 - saw
+	return saw
+
+
+func _fire_bottle(power: float) -> void:
+	var bottle := _station_node()
+	if bottle == null or _root == null:
+		return
+	var origin: Vector3 = bottle.position
+	var target := origin + _aim_vector(_tee_h) * (250.0 * power)
+	var boss_at := Vector3(0.0, 355.0, 4.0)
+	var unit := 1
+	if power >= 0.97:
+		unit = 3
+	elif power >= 0.75:
+		unit = 2
+	_show_spray(bottle.global_position + Vector3.UP * 1.4, _root.to_global(target))
+	if _segment_hits(origin, target, boss_at, 8.0):
+		_boss.call("note_seltzer", unit)
+		_sfx("res://assets/audio/battle/SA_watercooler_spray_only.ogg")
+	else:
+		_tell("The seltzer missed.")
+		_sfx("res://assets/audio/battle/AA_squirt_seltzer_miss.ogg")
+	_spray = 0.0
+	_cool = 0.35
+
+
+func _fire_ball(power: float) -> void:
+	var tee := _station_node()
+	if tee == null or _root == null:
+		_spray = 0.0
+		return
+	var remain := 1.0 - power / 100.0
+	var dist := 300.0 - 200.0 * remain
+	var span := 1.5 + 0.5 * remain
+	var gravity := 32.174
+	var velocity := _aim_vector(_tee_h) * (dist / span) + Vector3(0.0, 0.0, 0.5 * gravity * span)
+	var mesh := _model_or_box("res://assets/battle/props/golf-ball.glb", tee.position, "FlyBall%d" % _balls.size(), Color(0.95, 0.95, 0.95), Vector3(0.4, 0.4, 0.4))
+	mesh.position = tee.position
+	_balls.append({"at": tee.position, "vel": velocity, "age": 0.0, "mesh": mesh, "hit": false})
+	_sfx("res://assets/minigolf/audio/Golf_Hit_Ball.ogg")
+	_spray = 0.0
+	_cool = 0.45
+
+
+func _tick_balls(delta: float) -> void:
+	for slot in _balls.size():
+		var ball: Dictionary = _balls[slot]
+		if bool(ball.get("hit", false)):
+			continue
+		var vel: Vector3 = ball["vel"]
+		vel.z -= 32.174 * delta
+		ball["vel"] = vel
+		var at: Vector3 = ball["at"] + vel * delta
+		ball["at"] = at
+		ball["age"] = float(ball.get("age", 0.0)) + delta
+		var mesh := ball.get("mesh") as Node3D
+		if mesh != null:
+			mesh.position = at
+		var flat := Vector2(at.x, at.y).distance_to(Vector2(0.0, 355.0))
+		if not bool(ball.get("hit", false)) and flat < 8.0 and at.z > -1.0 and at.z < 16.0:
+			ball["hit"] = true
+			_boss.call("note_golf_ball", 2)
+			if mesh != null:
+				mesh.visible = false
+		elif float(ball.get("age", 0.0)) >= 3.0 or at.z < -4.0:
+			ball["hit"] = true
+			if mesh != null:
+				mesh.visible = false
+		_balls[slot] = ball
+
+
+func _segment_hits(origin: Vector3, target: Vector3, point: Vector3, reach: float) -> bool:
+	var span := target - origin
+	var length := span.length()
+	if length < 0.001:
+		return origin.distance_to(point) <= reach
+	var along := clampf((point - origin).dot(span) / (length * length), 0.0, 1.0)
+	return origin.lerp(target, along).distance_to(point) <= reach
+
+
 func play_music(which: String) -> void:
+	if which == "ceo":
+		_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v1.ogg", which)
+		return
 	var file := ""
 	match which:
 		"battle", "battle1":
 			file = "encntr_general_bg.ogg"
 		"battle3":
 			file = "encntr_suit_winning_indoor.ogg"
+		"jury":
+			file = "LB_juryBG.ogg"
+		"between":
+			file = "encntr_toon_winning.ogg"
 		"epilogue":
 			file = "encntr_hall_of_fame.ogg"
 	if file == "":
 		return
-	var path := "res://assets/cogs/bosses/audio/" + file
+	_play_music_file("res://assets/cogs/bosses/audio/" + file, which)
+
+
+func _play_music_file(path: String, which: String) -> void:
 	if not FileAccess.file_exists(path):
 		return
 	var stream := load(path) as AudioStream
@@ -3696,16 +7715,6 @@ func finish_cfo_victory() -> void:
 		actor.call("clear_gesture")
 	_release_camera()
 	_free_toon()
-
-
-func _toon_actor() -> Node:
-	var body := _body()
-	if body == null:
-		return null
-	for child in body.get_children():
-		if child.has_method("play_emote"):
-			return child
-	return null
 
 
 func _stand_on_crane(body: CharacterBody3D, delta: float) -> void:

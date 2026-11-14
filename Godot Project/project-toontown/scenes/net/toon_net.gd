@@ -616,6 +616,7 @@ func _process(delta: float) -> void:
 		_HOLIDAYS.tick_county(delta)
 		_tick_vp_district(delta)
 		_tick_cfo_district(delta)
+		_tick_cj_district(delta)
 	_tick_clock(delta)
 	if _stop_file == "" or _shutdown_started:
 		return
@@ -1356,6 +1357,174 @@ func _cfo_occupied() -> bool:
 	return false
 
 
+func _cj_script() -> GDScript:
+	return load("res://scenes/cog_hq/cj_district.gd") as GDScript
+
+
+func _ceo_script() -> GDScript:
+	return load("res://scenes/cog_hq/ceo_district.gd") as GDScript
+
+
+func _ceo_begin(hp: int, maximum: int) -> void:
+	if is_authority():
+		var sim := _ceo_script()
+		if sim != null:
+			sim.call("begin", hp, maximum)
+			_store("ceo-boss", sim.call("snapshot"))
+		return
+	if _role == "client":
+		_request_ceo_begin.rpc_id(1, hp, maximum)
+
+
+func _accept_ceo_hit(serial: int, kind: String, amount: int) -> void:
+	var sim := _ceo_script()
+	if sim == null:
+		return
+	if not bool(sim.call("running")):
+		sim.call("begin", 0, 500)
+	sim.call("hit", serial, kind, amount)
+	_store("ceo-boss", sim.call("snapshot"))
+
+
+func _cj_begin(hp: int, maximum: int) -> void:
+	if is_authority():
+		var sim := _cj_script()
+		if sim != null:
+			sim.call("begin", hp, maximum)
+			_store("cj-scale", sim.call("snapshot"))
+		return
+	if _role == "client":
+		_request_cj_begin.rpc_id(1, hp, maximum)
+
+
+func _accept_cj_hit(serial: int, kind: String, amount: int) -> void:
+	var sim := _cj_script()
+	if sim == null:
+		return
+	if not bool(sim.call("running")):
+		sim.call("begin", 1350, 2700)
+	sim.call("hit", serial, kind, amount)
+	_store("cj-scale", sim.call("snapshot"))
+
+
+func _accept_cj_field(sender: int, state: Dictionary) -> void:
+	if sender <= 0 or sender != _cj_sim_peer():
+		return
+	state["peer"] = sender
+	_store("cj-field", state)
+
+
+func _accept_cj_shots(sender: int, state: Dictionary) -> void:
+	if sender <= 0:
+		return
+	state["peer"] = sender
+	_store("cj-shots:%d" % sender, state)
+
+
+func _ceo_driver() -> int:
+	var mine := district_id()
+	var best := 0
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if not String(state.get("place", "")).ends_with("bossbot_ceo.tscn"):
+			continue
+		var peer := channel.trim_prefix("toon:").to_int()
+		if best == 0 or peer < best:
+			best = peer
+	if best == 0:
+		return multiplayer.get_unique_id() if _role != "offline" else 1
+	return best
+
+
+func _accept_ceo_field(sender: int, state: Dictionary) -> void:
+	if sender <= 0 or sender != _ceo_driver():
+		return
+	_store("ceo-field", state)
+
+
+func _accept_ceo_serve(index: int) -> void:
+	var seq := int(_states.get("ceo-serve", {}).get("seq", 0)) + 1
+	_store("ceo-serve", {"seq": seq, "index": index})
+
+
+func _accept_ceo_seat(sender: int, state: Dictionary) -> void:
+	if sender <= 0:
+		return
+	state["peer"] = sender
+	_store("ceo-seat:%d" % sender, state)
+
+
+func _cj_sim_peer() -> int:
+	var mine := district_id()
+	var best := 0
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if not String(state.get("place", "")).ends_with("lawbot_cj.tscn"):
+			continue
+		var peer := channel.trim_prefix("toon:").to_int()
+		if peer <= 0:
+			continue
+		if best == 0 or peer < best:
+			best = peer
+	return best
+
+
+func _tick_cj_district(_delta: float) -> void:
+	if _role == "offline":
+		return
+	var sim := _cj_script()
+	if sim == null:
+		return
+	if not _cj_occupied():
+		if bool(sim.call("running")):
+			sim.call("stop")
+			_store("cj-scale", sim.call("snapshot"))
+		return
+	if not bool(sim.call("running")):
+		return
+	if bool(sim.call("take_dirty")):
+		_store("cj-scale", sim.call("snapshot"))
+
+
+func _cj_occupied() -> bool:
+	var mine := district_id()
+	for key in _states.keys():
+		var channel := String(key)
+		if not channel.begins_with("toon:"):
+			continue
+		var state: Dictionary = _states[channel]
+		if int(state.get("district", -1)) != mine:
+			continue
+		if String(state.get("place", "")).ends_with("lawbot_cj.tscn"):
+			return true
+	return false
+
+
+func _grant_cj_heal(target: int, amount: int) -> void:
+	if target <= 0 or amount <= 0 or not _avatars.has(target):
+		return
+	var healed: Dictionary = _BANK.heal(int(_avatars[target]), amount)
+	if healed.is_empty():
+		return
+	var maximum := int(healed["max_hp"])
+	var seq := int(healed["seq"])
+	var gained := int(healed["gained"])
+	if target == _self_peer():
+		_take_heal(maximum, seq, gained)
+		return
+	_apply_heal.rpc_id(target, maximum, seq, gained)
+
+
 func _clear_cfo_cranes() -> void:
 	var keys: Array = _states.keys()
 	for key in keys:
@@ -1904,6 +2073,124 @@ static func cfo_begin() -> void:
 	if net == null or not net.networked():
 		return
 	net._cfo_begin()
+
+
+static func cj_begin(hp: int, maximum: int) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	net._cj_begin(hp, maximum)
+
+
+static func ceo_begin(hp: int, maximum: int) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	net._ceo_begin(hp, maximum)
+
+
+static func ceo_driving() -> bool:
+	var net := live()
+	if net == null or not net.networked():
+		return true
+	return peer_id() == net._ceo_driver()
+
+
+static func ceo_field(state: Dictionary) -> void:
+	var net := live()
+	if net == null or not net.networked() or not ceo_driving():
+		return
+	if is_authority():
+		net._store("ceo-field", state)
+		return
+	if net._role == "client":
+		net._request_ceo_field.rpc_id(1, state)
+
+
+static func ceo_serve(index: int) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_ceo_serve(index)
+		return
+	if net._role == "client":
+		net._request_ceo_serve.rpc_id(1, index)
+
+
+static func ceo_seat(state: Dictionary) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_ceo_seat(peer_id(), state)
+		return
+	if net._role == "client":
+		net._request_ceo_seat.rpc_id(1, state)
+
+
+static func ceo_sync() -> void:
+	var net := live()
+	if net == null or not is_authority():
+		return
+	var sim := load("res://scenes/cog_hq/ceo_district.gd") as GDScript
+	if sim != null and bool(sim.call("running")):
+		net._store("ceo-boss", sim.call("snapshot"))
+
+
+static func ceo_hit(serial: int, kind: String, amount: int) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_ceo_hit(serial, kind, amount)
+		return
+	if net._role == "client":
+		net._request_ceo_hit.rpc_id(1, serial, kind, amount)
+
+
+static func cj_hit(serial: int, kind: String, amount: int) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_cj_hit(serial, kind, amount)
+		return
+	if net._role == "client":
+		net._request_cj_hit.rpc_id(1, serial, kind, amount)
+
+
+static func cj_field(state: Dictionary) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_cj_field(peer_id(), state)
+		return
+	if net._role == "client":
+		net._request_cj_field.rpc_id(1, state)
+
+
+static func cj_shots(state: Dictionary) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	if is_authority():
+		net._accept_cj_shots(peer_id(), state)
+		return
+	if net._role == "client":
+		net._request_cj_shots.rpc_id(1, state)
+
+
+static func cj_toonup(target: int, amount: int) -> void:
+	var net := live()
+	if net == null or not net.networked() or target <= 0 or amount <= 0:
+		return
+	if is_authority():
+		net._grant_cj_heal(target, amount)
+		return
+	if net._role == "client":
+		net._request_cj_toonup.rpc_id(1, target, amount)
 
 
 static func cfo_field(state: Dictionary) -> void:
@@ -2921,6 +3208,76 @@ func _request_cfo_crane(state: Dictionary) -> void:
 	if not is_authority():
 		return
 	_accept_cfo_crane(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_ceo_field(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_ceo_field(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "reliable")
+func _request_ceo_serve(index: int) -> void:
+	if not is_authority():
+		return
+	_accept_ceo_serve(index)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_ceo_seat(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_ceo_seat(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "reliable")
+func _request_ceo_begin(hp: int, maximum: int) -> void:
+	if not is_authority():
+		return
+	_ceo_begin(hp, maximum)
+
+
+@rpc("any_peer", "reliable")
+func _request_ceo_hit(serial: int, kind: String, amount: int) -> void:
+	if not is_authority():
+		return
+	_accept_ceo_hit(serial, kind, amount)
+
+
+@rpc("any_peer", "reliable")
+func _request_cj_begin(hp: int, maximum: int) -> void:
+	if not is_authority():
+		return
+	_cj_begin(hp, maximum)
+
+
+@rpc("any_peer", "reliable")
+func _request_cj_hit(serial: int, kind: String, amount: int) -> void:
+	if not is_authority():
+		return
+	_accept_cj_hit(serial, kind, amount)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_cj_field(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_cj_field(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _request_cj_shots(state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_accept_cj_shots(multiplayer.get_remote_sender_id(), state)
+
+
+@rpc("any_peer", "reliable")
+func _request_cj_toonup(target: int, amount: int) -> void:
+	if not is_authority():
+		return
+	_grant_cj_heal(target, amount)
 
 
 @rpc("any_peer", "reliable")

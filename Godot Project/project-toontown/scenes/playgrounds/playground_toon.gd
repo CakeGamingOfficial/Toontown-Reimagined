@@ -95,6 +95,8 @@ const _NO_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
 const _NO_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
 # "in" loads this toon's house. "out" returns to the yard in front of the door.
 static var door_trip := ""
+var _ack: Control
+var _ack_was_locked := false
 
 const FORWARD_SPEED := 20.0
 const REVERSE_SPEED := 10.0
@@ -110,6 +112,27 @@ const BODY_RADIUS := 0.35
 # Street curbs rise 0.5. Plaza stairs rise 0.82, and the top one is 0.90.
 # Cashbot HQ treads rise 1.82, so the step has to clear that riser.
 const STEP_HEIGHT := 1.95
+# SuitDNA sellbot ladder, the same order putOnSuit uses for a finished suit.
+const _SELLBOT_SUITS: Array = [
+	{"code": "cc", "name": "Cold Caller", "body": "c", "height": 4.63},
+	{"code": "tm", "name": "Telemarketer", "body": "b", "height": 5.24},
+	{"code": "nd", "name": "Name Dropper", "body": "a", "height": 5.98},
+	{"code": "gh", "name": "Glad Hander", "body": "c", "height": 6.4},
+	{"code": "ms", "name": "Mover & Shaker", "body": "b", "height": 6.7},
+	{"code": "tf", "name": "Two-Face", "body": "a", "height": 6.95},
+	{"code": "m", "name": "The Mingler", "body": "a", "height": 7.61},
+	{"code": "mh", "name": "Mr. Hollywood", "body": "a", "height": 8.95},
+]
+const _BOSSBOT_SUITS: Array = [
+	{"code": "f", "name": "Flunky", "body": "c", "height": 4.88},
+	{"code": "p", "name": "Pencil Pusher", "body": "b", "height": 5.0},
+	{"code": "ym", "name": "Yesman", "body": "a", "height": 5.28},
+	{"code": "mm", "name": "Micromanager", "body": "c", "height": 3.25},
+	{"code": "ds", "name": "Downsizer", "body": "b", "height": 6.08},
+	{"code": "hh", "name": "Head Hunter", "body": "a", "height": 7.45},
+	{"code": "cr", "name": "Corporate Raider", "body": "c", "height": 8.23},
+	{"code": "tbc", "name": "The Big Cheese", "body": "a", "height": 9.34},
+]
 const _CAM_PITCH_HOME := 0.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
@@ -118,6 +141,8 @@ const _CAM_DIST_MAX := 2.1
 
 var _body: CharacterBody3D
 var _player: ToonActor
+var _cog_suit: StreetCog
+var _shown_heading := 0.0
 var _camera: Camera3D
 var _nametags: Nametags
 var _margins: Node
@@ -474,6 +499,19 @@ func _ready() -> void:
 		_locked = false
 		_place_camera()
 		return
+	if _scene_path().ends_with("sellbot_lobby.tscn"):
+		_wear_sellbot_disguise()
+	if from_sell != "":
+		var sell_doors := get_parent().get_node_or_null("SellbotHqDoors")
+		if sell_doors != null and sell_doors.has_method("play_exit"):
+			await sell_doors.play_exit(self)
+		else:
+			_fade_in()
+		if sad_arrival:
+			await _death_ack()
+		_locked = false
+		_place_camera()
+		return
 	if from_door != "" or from_shop != "" or from_kart != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "":
 		_tasks.note_hood(_hood)
 		if from_lib == "out":
@@ -540,6 +578,7 @@ func _keep_quests() -> void:
 
 
 func _process(delta: float) -> void:
+	_follow_disguise(delta)
 	if not _active or _player == null:
 		return
 	if _map != null and _body != null:
@@ -582,6 +621,8 @@ func _process(delta: float) -> void:
 		_trolley.aim(_camera)
 	elif _minigolf != null and _minigolf.has_method("holds_camera") and bool(_minigolf.call("holds_camera")):
 		_minigolf.call("aim", _camera)
+	elif _boss_camera():
+		pass
 	elif _party_camera():
 		pass
 	elif _closet_open:
@@ -718,6 +759,75 @@ func show_notice(message: String) -> void:
 	say_line(message)
 
 
+## TTDialog.Acknowledge. A door rejection stops the toon until OK.
+func show_popup(message: String) -> void:
+	if _ack != null and is_instance_valid(_ack):
+		return
+	_ack_was_locked = _locked
+	_locked = true
+	if _body != null:
+		_body.velocity = Vector3.ZERO
+	var view := get_viewport().get_visible_rect().size
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hud().add_child(root)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.35)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(dim)
+	var panel := TextureRect.new()
+	panel.texture = _DIALOG
+	panel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	panel.stretch_mode = TextureRect.STRETCH_SCALE
+	panel.modulate = Color(1.0, 1.0, 0.75)
+	panel.size = Vector2(minf(view.x * 0.5, 820.0), minf(view.y * 0.42, 480.0))
+	panel.position = (view - panel.size) * 0.5
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(panel)
+	var label := Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.position = Vector2(panel.size.x * 0.1, panel.size.y * 0.1)
+	label.size = Vector2(panel.size.x * 0.8, panel.size.y * 0.48)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(label, Color(0.05, 0.05, 0.05), int(panel.size.y * 0.075), Color(0, 0, 0, 0), 0)
+	panel.add_child(label)
+	var button := TextureButton.new()
+	button.texture_normal = _OK_UP
+	button.texture_pressed = _OK_DOWN
+	button.texture_hover = _OK_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.button_sounds(button)
+	var diameter := panel.size.y * 0.16
+	button.size = Vector2(diameter, diameter)
+	button.position = Vector2((panel.size.x - diameter) * 0.5, panel.size.y * 0.62)
+	button.pressed.connect(_close_popup)
+	panel.add_child(button)
+	var ok := Label.new()
+	ok.text = "OK"
+	ok.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ok.position = Vector2(0, button.position.y + diameter)
+	ok.size = Vector2(panel.size.x, panel.size.y * 0.12)
+	ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(ok, Color(0.05, 0.05, 0.05), int(panel.size.y * 0.07), Color(0, 0, 0, 0), 0)
+	panel.add_child(ok)
+	_ack = root
+
+
+func _close_popup() -> void:
+	if _ack != null and is_instance_valid(_ack):
+		_ack.queue_free()
+	_ack = null
+	if not _ack_was_locked:
+		_locked = false
+
+
 func _on_phrase(text: String) -> void:
 	var chat := _hud().get_node_or_null("SpeedChat")
 	_line_kind = "plus"
@@ -774,6 +884,16 @@ func quiet_line(expected: String = "") -> void:
 	_line_text = ""
 	_line_left = 0.0
 	_line.visible = false
+
+
+func _boss_camera() -> bool:
+	var rounds := get_parent().find_child("BossRounds", true, false) if get_parent() != null else null
+	if rounds == null or not rounds.has_method("holds_camera"):
+		return false
+	if not bool(rounds.call("holds_camera")):
+		return false
+	rounds.call("aim", _camera)
+	return true
 
 
 func _party_camera() -> bool:
@@ -4149,6 +4269,157 @@ func _spawn(underground: bool) -> void:
 		_player.visible = false
 
 
+## DistributedCogHQDoorAI.requestExit sets the cog index when the lobby door
+## opens. A finished Sellbot suit is the one they earned. The toon head rides
+## the suit, and the card becomes SuitBaseNameWithLevel.
+func wear_waiter() -> void:
+	# makeWaiter paints the Bossbot suit the toon has earned. A rental is a Flunky.
+	if _cog_suit != null:
+		clear_disguise()
+	var spec := _bossbot_suit()
+	spec["waiter"] = true
+	_wear_cog_suit(spec)
+
+
+func set_waiter_tray(carrying: bool) -> void:
+	if _cog_suit != null and is_instance_valid(_cog_suit):
+		_cog_suit.set_meta("tray", carrying)
+
+
+func clear_disguise() -> void:
+	if _cog_suit == null or not is_instance_valid(_cog_suit):
+		_cog_suit = null
+		return
+	var head := _cog_suit.get_meta("toon_head") as Node3D
+	var neck := _cog_suit.get_meta("toon_neck") as Node3D
+	if head != null and neck != null and is_instance_valid(head) and is_instance_valid(neck):
+		head.reparent(neck)
+		var restored: Variant = _cog_suit.get_meta("toon_head_xform")
+		if restored is Transform3D:
+			head.transform = restored
+	if _player != null:
+		if _player.has_method("drop_disguise"):
+			_player.call("drop_disguise")
+		else:
+			_player.disguised = false
+	if _nametags != null and _player != null:
+		_nametags.undress_suit(_player)
+	_cog_suit.queue_free()
+	_cog_suit = null
+	_cache_eye_height()
+
+
+func _bossbot_suit() -> Dictionary:
+	var progress := DisguisePage.suit_progress(0)
+	var cog_type := 0
+	if DisguisePage.suit_complete(0):
+		cog_type = clampi(int(progress.get("type", 0)), 0, _BOSSBOT_SUITS.size() - 1)
+	var spec: Dictionary = (_BOSSBOT_SUITS[cog_type] as Dictionary).duplicate()
+	spec["level"] = maxi(int(progress.get("level", 0)) + 1, 1)
+	spec["dept"] = "c"
+	return spec
+
+
+func _wear_sellbot_disguise() -> void:
+	if _cog_suit != null or _player == null or _body == null:
+		return
+	var spec := _sellbot_disguise()
+	spec["dept"] = "s"
+	_wear_cog_suit(spec)
+
+
+func _wear_cog_suit(spec: Dictionary) -> void:
+	if _cog_suit != null or _player == null or _body == null:
+		return
+	var suit := StreetCog.new()
+	suit.name = "CogSuit"
+	_body.add_child(suit)
+	suit.present({
+		"code": spec["code"],
+		"name": spec["name"],
+		"dept": String(spec.get("dept", "s")),
+		"body": spec["body"],
+		"height": spec["height"],
+		"level": int(spec["level"]),
+		"hp": 1,
+		"max": 1,
+		"waiter": bool(spec.get("waiter", false)),
+	}, {})
+	var joint := suit.find_child("joint_head", true, false) as Node3D
+	var head := _player.find_child("head_look", true, false) as Node3D
+	if joint == null or head == null or suit.get_node_or_null("Suit") == null:
+		suit.queue_free()
+		return
+	for piece in joint.get_children():
+		if piece is Node3D:
+			(piece as Node3D).visible = false
+	# putOnSuit. joint_head is still panda Z-up under the suit root. The head
+	# sits 0.2 above that joint, at the toon's own size, not the suit's.
+	suit.set_meta("toon_head", head)
+	suit.set_meta("toon_neck", head.get_parent())
+	suit.set_meta("toon_head_xform", head.transform)
+	var head_pos := Node3D.new()
+	head_pos.name = "headPos"
+	joint.add_child(head_pos)
+	var toon_scale := _player.transform.basis.get_scale().x
+	if toon_scale < 0.01:
+		toon_scale = 1.0
+	var suit_scale := _suit_chain_scale(joint, suit)
+	if suit_scale < 0.01:
+		suit_scale = 1.0
+	head_pos.scale = Vector3.ONE * (toon_scale / suit_scale)
+	head.reparent(head_pos)
+	head.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, 0.2))
+	# The walk pose turns the body back on. Leave it hidden for the whole lobby.
+	_player.disguised = true
+	for child in _player.get_children():
+		if child.name == "1000" or child.name == "500" or child.name == "250" or child.name == "0":
+			child.visible = false
+	_cog_suit = suit
+	_shown_heading = _heading
+	suit.position = Vector3.ZERO
+	suit.rotation = Vector3(0.0, deg_to_rad(_heading), 0.0)
+	suit.set_meta("disguise", true)
+	suit.set_meta("neck_rest", joint.transform)
+	suit.play_step(false, 0.0)
+	# putOnSuit sets the avatar height to the suit. The camera sits on that.
+	_cache_eye_height()
+	if _nametags != null:
+		var card := "%s\n%s\nLevel %d" % [_player.name, String(spec["name"]), int(spec["level"])]
+		_nametags.dress_suit(_player, card, float(spec["height"]) + 1.3)
+	_follow_disguise(0.0)
+
+
+func _sellbot_disguise() -> Dictionary:
+	var progress := DisguisePage.suit_progress(3)
+	var cog_type := 0
+	if DisguisePage.suit_complete(3):
+		cog_type = clampi(int(progress.get("type", 0)), 0, _SELLBOT_SUITS.size() - 1)
+	var spec: Dictionary = (_SELLBOT_SUITS[cog_type] as Dictionary).duplicate()
+	spec["level"] = maxi(int(progress.get("level", 0)) + 1, 1)
+	return spec
+
+
+func _suit_chain_scale(joint: Node3D, suit: Node) -> float:
+	var scale := 1.0
+	var cursor: Node = joint
+	while cursor != null and cursor != suit:
+		if cursor is Node3D:
+			scale *= (cursor as Node3D).transform.basis.get_scale().x
+		cursor = cursor.get_parent()
+	return scale
+
+
+func _follow_disguise(delta: float) -> void:
+	if _cog_suit == null or not is_instance_valid(_cog_suit) or _body == null or _player == null:
+		return
+	# The suit rides the body. look_at was flipping it against the walk cycle.
+	_cog_suit.position = Vector3.ZERO
+	_cog_suit.rotation = Vector3(0.0, deg_to_rad(_shown_heading), 0.0)
+	var stepping := absf(_player.gait_speed) > 0.5 or _player.gait_turning
+	_cog_suit.play_step(stepping, delta)
+
+
 func _pop_up() -> void:
 	var pivot := Node3D.new()
 	pivot.name = "HolePivot"
@@ -4558,7 +4829,7 @@ func _walk(delta: float) -> void:
 	if on_floor:
 		if _jump_lock > 0.0:
 			_jump_lock = maxf(_jump_lock - delta, 0.0)
-		if not _is_sad() and not _player.holding_book() and _KEYS.held("jump") and _jump_lock <= 0.0:
+		if _cog_suit == null and not _is_sad() and not _player.holding_book() and _KEYS.held("jump") and _jump_lock <= 0.0:
 			_body.velocity.y = JUMP_FORCE
 			jumped = true
 			_jumping = true
@@ -5017,6 +5288,9 @@ func _cache_eye_height() -> void:
 	_eye_height = 3.0
 	if _player == null:
 		return
+	if _cog_suit != null and is_instance_valid(_cog_suit):
+		_eye_height = maxf(_cog_suit.height, 3.0)
+		return
 	_eye_height = _player.clamped_height()
 
 
@@ -5042,6 +5316,8 @@ func _adopt_facing() -> void:
 
 
 func _face(actor: Node3D, heading: float) -> void:
+	if actor == _player:
+		_shown_heading = heading
 	var body_scale := actor.transform.basis.get_scale().x
 	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
 	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))

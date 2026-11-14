@@ -50,6 +50,15 @@ var _dizzy := 0.0
 var _marker := 0.0
 var _shots := 0
 var _toon_jurors := 0
+var _cj_won := false
+var _ceo_won := false
+var _cj_hit_seq := 0
+var _ceo_seq := 0
+var _serve_seq := 0
+var _serve_clock: TextureRect
+var _serve_count: Label
+var _serve_shown := -1
+var _ceo_send := 0.0
 var _weight := 1
 var _ammo := 0
 var _ammo_max := 0
@@ -58,8 +67,15 @@ var _bonus_wait := 0.0
 var _bonus := 0.0
 var _gavel := 0.0
 var _diners: Array[float] = []
+var _diner_rows: Array[Dictionary] = []
 var _hungry := 0
 var _serve_left := 300.0
+var _ceo_speed := 0.0
+var _ceo_speed_at := 0.0
+var _ceo_over_one := false
+var _ceo_over_two := false
+var _ceo_exp_before: Dictionary = {}
+var _ceo_chat := false
 var _holding := false
 var _note := ""
 var _note_left := 0.0
@@ -109,6 +125,10 @@ var _epi_pages: PackedStringArray = PackedStringArray()
 var _cfo_reward_lines: PackedStringArray = PackedStringArray()
 var _cfo_exp_before: Dictionary = {}
 var _cfo_earned: Dictionary = {}
+var _cj_reward_lines: PackedStringArray = PackedStringArray()
+var _cj_exp_before: Dictionary = {}
+var _cj_chat_bonus := -2
+var _cj_hold := false
 var _epi_at := 0
 var _epi_danced := false
 var _epi_fired := false
@@ -173,6 +193,25 @@ func _process(delta: float) -> void:
 		return
 	if _fight_id == 0 and _kind == "vp" and (_phase == "cogs" or _phase == "skele"):
 		_claim_vp_fight()
+	if (_kind == "cj" or _kind == "ceo") and _cj_hold:
+		if _kind == "cj":
+			_sync_cj_chat()
+		else:
+			_sync_ceo_chat()
+		if (_phase == "cogs" or _phase == "cogs2") and _partner_running():
+			return
+		_cj_hold = false
+		if _phase == "cogs" or _phase == "cogs2":
+			_advance_from_cogs()
+		return
+	if _fight_id == 0 and _kind == "cj" and _phase == "cogs":
+		_claim_cj_fight()
+	if _fight_id == 0 and _kind == "ceo" and (_phase == "cogs" or _phase == "cogs2"):
+		_claim_ceo_fight()
+	if _kind == "cj":
+		_sync_cj_chat()
+	if _kind == "ceo":
+		_sync_ceo_chat()
 	if _fight_id != 0:
 		_watch_fight()
 		return
@@ -199,6 +238,14 @@ func _process(delta: float) -> void:
 	if _over:
 		return
 	if _phase == "pies" or _phase == "cranes" or _phase == "cannons" or _phase == "evidence" or _phase == "banquet" or _phase == "seltzer":
+		if _kind == "cj" and _phase == "evidence" and ToonNet.networked():
+			_follow_cj()
+		elif _kind == "ceo" and _phase == "seltzer" and ToonNet.networked():
+			_ceo_send -= delta
+			if ToonNet.is_authority() and _ceo_send <= 0.0:
+				_ceo_send = 0.2
+				ToonNet.ceo_sync()
+			_follow_ceo()
 		return
 
 
@@ -281,6 +328,7 @@ func _go(phase: String) -> void:
 	elif phase == "reward":
 		_start_reward()
 	_paint_bar()
+	_paint_serve_clock()
 
 
 func _intro() -> void:
@@ -293,6 +341,16 @@ func _intro() -> void:
 	if _kind == "cfo":
 		_rounds.call("start_cfo_intro", self)
 		_button("Skip", _skip_cfo_intro)
+		return
+	if _kind == "cj":
+		_body.text = ""
+		_rounds.call("start_cj_intro", self)
+		_button("Skip", _skip_cj_intro)
+		return
+	if _kind == "ceo":
+		_body.text = ""
+		_rounds.call("start_ceo_intro", self)
+		_button("Skip", _skip_ceo_intro)
 		return
 	_body.text = _intro_line()
 	_button("Continue", _after_intro)
@@ -416,6 +474,27 @@ func vp_ending() -> bool:
 
 
 func _start_cogs(hard: bool, skeleton: bool = false) -> void:
+	if _kind == "cj" and _rounds != null:
+		_rounds.call("settle_cj_court")
+	if _kind == "cj":
+		_cj_hold = false
+		_remember_cj_exp()
+		if ToonNet.is_authority() and _open_cj_sides():
+			return
+		if ToonNet.networked() and not ToonNet.is_authority():
+			_title.text = "Battle One"
+			_body.text = "The Chief Justice's cogs."
+			return
+	if _kind == "ceo":
+		_cj_hold = false
+		if not hard:
+			_remember_ceo_exp()
+		if ToonNet.is_authority() and _open_ceo_sides(hard):
+			return
+		if ToonNet.networked() and not ToonNet.is_authority():
+			_title.text = "Battle Three" if hard else "Battle One"
+			_body.text = "The diners who are still standing." if hard else "The waiters."
+			return
 	if _kind == "cfo" and _rounds != null:
 		_rounds.call("play_music", "battle")
 		_remember_cfo_exp()
@@ -647,11 +726,14 @@ func _start_evidence() -> void:
 	_lawyers.clear()
 	for _lawyer in int(row[2]):
 		_lawyers.append(0.0)
-	_bonus_wait = 0.0
+	# bonusTimeStarted begins at 0, so the first all-stunned bonus is available immediately.
+	_bonus_wait = -60.0
 	_bonus = 0.0
 	_gavel = 7.0
 	_title.text = "Battle Three"
 	_paint_bar()
+	if ToonNet.networked():
+		ToonNet.cj_begin(_hp, _max_hp)
 	_rounds.call("start_evidence", self)
 
 
@@ -659,16 +741,35 @@ func _start_banquet() -> void:
 	_title.text = "Battle Two"
 	_serve_left = 300.0
 	var table := _ceo_table()
-	var count := int(table.get("tables", 1)) * int(table.get("diners", 4))
+	var tables := int(table.get("tables", 1))
+	var seats := int(table.get("diners", 4))
+	var hungry := float(table.get("hungry", 30))
+	var eating := float(table.get("eat", 25))
 	_diner_level = int(table.get("level", 11))
-	_diners.clear()
+	_diner_rows.clear()
 	_plates.clear()
 	_stuffed.clear()
-	_hungry = 0
-	for _index in count:
-		_diners.append(3.0)
-		_plates.append(0)
-		_stuffed.append(false)
+	for table_index in tables:
+		for seat_index in seats:
+			var look := _make_cog("c", maxi(_diner_level - 4, 1), 0, false, 0, _diner_rows.size())
+			var row := {
+				"status": "hungry",
+				"left": hungry + randf_range(-5.0, 5.0),
+				"hungry": hungry,
+				"eat": eating,
+				"plates": 0,
+				"level": _diner_level,
+				"table": table_index,
+				"seat": seat_index,
+				"lean": 1 if randf() < 0.5 else 0,
+				"code": String(look.get("code", "f")),
+				"body": String(look.get("body", "c")),
+				"cog_name": String(look.get("name", "Cog")),
+				"height": float(look.get("height", 4.0)),
+			}
+			_diner_rows.append(row)
+			_plates.append(0)
+			_stuffed.append(false)
 	_rounds.call("start_banquet", self)
 
 
@@ -676,6 +777,8 @@ func _start_seltzer() -> void:
 	_title.text = "Battle Four"
 	_hp = 0
 	_paint_bar()
+	if ToonNet.networked():
+		ToonNet.ceo_begin(0, _max_hp)
 	_rounds.call("start_seltzer", self)
 
 
@@ -698,45 +801,118 @@ func _stun_lawyer(index: int) -> void:
 
 
 func _finish_serving() -> void:
+	if _serve_left < 0.0:
+		return
+	_serve_left = -1.0
+	if _rounds != null:
+		_rounds.call("start_ceo_threat", self)
+		return
 	_go("cogs2")
 
 
 func _tick_banquet(delta: float) -> void:
-	_serve_left = maxf(_serve_left - delta, 0.0)
-	_hungry = _next_hungry(_hungry)
-	if _hungry >= 0:
-		_diners[_hungry] -= delta
-		if _diners[_hungry] <= 0.0:
-			_hurt(8)
-			_diners[_hungry] = 3.0
-			_say("Seat %d got angry." % (_hungry + 1))
-	if _serve_left <= 0.0:
-		_go("cogs2")
+	if ToonNet.networked() and not ToonNet.ceo_driving():
+		_follow_banquet()
+		_paint_serve_clock()
 		return
-	var line := "Banquet time left: %d." % ceili(_serve_left)
-	if _hungry >= 0:
-		line += " Seat %d is hungry (%d/3)." % [_hungry + 1, int(_plates[_hungry])]
+	var order := ToonNet.latest("ceo-serve")
+	var seq := int(order.get("seq", 0))
+	if seq != _serve_seq and seq > 0:
+		_serve_seq = seq
+		_serve(int(order.get("index", -1)))
+	_serve_left = maxf(_serve_left - delta, 0.0)
+	var hungry_count := 0
+	for index in _diner_rows.size():
+		var row: Dictionary = _diner_rows[index]
+		var status := String(row.get("status", ""))
+		if status == "dead":
+			_stuffed[index] = true
+			continue
+		row["left"] = float(row.get("left", 0.0)) - delta
+		if status == "hungry" and float(row["left"]) <= 0.0:
+			row["status"] = "angry"
+			row["plates"] = 0
+			_plates[index] = 0
+			_say("Cog %d is angry. The streak is gone." % (index + 1))
+		elif status == "eating" and float(row["left"]) <= 0.0:
+			var eaten := int(row.get("plates", 0)) + 1
+			row["plates"] = eaten
+			_plates[index] = eaten
+			if eaten >= 3:
+				row["status"] = "dead"
+				_stuffed[index] = true
+				_say("Cog %d exploded." % (index + 1))
+			else:
+				row["status"] = "hungry"
+				row["left"] = float(row.get("hungry", 30.0))
+		if String(row.get("status", "")) == "hungry" or String(row.get("status", "")) == "angry":
+			hungry_count += 1
+		_diner_rows[index] = row
+	if _serve_left <= 0.0:
+		_finish_serving()
+		return
+	var line := "Hungry cogs: %d." % hungry_count
 	if _note_left > 0.0 and _note != "":
 		line += "\n" + _note
 	_body.text = line
+	_paint_serve_clock()
+
+
+func _paint_serve_clock() -> void:
+	var show := _kind == "ceo" and _phase == "banquet" and _serve_left >= 0.0
+	if _serve_clock == null:
+		if not show or _layer == null:
+			return
+		_serve_clock = TextureRect.new()
+		_serve_clock.texture = load("res://assets/gui/purchase/alarm_clock.png")
+		_serve_clock.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_serve_clock.stretch_mode = TextureRect.STRETCH_SCALE
+		_serve_clock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_layer.add_child(_serve_clock)
+		_serve_count = Label.new()
+		_serve_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_serve_count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_serve_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_layer.add_child(_serve_count)
+	_serve_clock.visible = show
+	_serve_count.visible = show
+	if not show:
+		_serve_shown = -1
+		return
+	var whole := int(ceili(_serve_left))
+	var view := get_viewport().get_visible_rect().size
+	var clock_w := 0.7417 * 0.45
+	var clock_h := 0.7292 * 0.45
+	ToonGui.place(_serve_clock, view, 1.16, 0.83, clock_w, clock_h)
+	if whole == _serve_shown:
+		return
+	_serve_shown = whole
+	var digits := str(whole).length()
+	var text_scale := 0.27
+	if digits <= 1:
+		text_scale = 0.34
+	elif digits >= 3:
+		text_scale = 0.2
+	var late := digits <= 1 and whole <= 5
+	var px := maxi(int(round(text_scale * 0.45 * view.y * 0.5)), 10)
+	ToonGui.style_label(_serve_count, Color(1, 0, 0) if late else Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+	_serve_count.text = str(whole)
+	var face_x := 1.16 + (28.5 / 61.0 - 0.5) * clock_w
+	var face_z := 0.83 - (33.5 / 61.0 - 0.5) * clock_h
+	ToonGui.place(_serve_count, view, face_x, face_z, (29.0 / 61.0) * clock_w, (27.0 / 61.0) * clock_h)
 
 
 func _serve(index: int) -> void:
-	if _phase != "banquet" or index < 0 or index >= _stuffed.size() or _stuffed[index]:
+	if _phase != "banquet" or index < 0 or index >= _diner_rows.size():
 		return
-	if index != _hungry:
-		_hurt(8)
-		_say("That cog was not hungry.")
+	var row: Dictionary = _diner_rows[index]
+	var status := String(row.get("status", ""))
+	if status != "hungry" and status != "angry":
 		return
-	_heal(5)
-	_plates[index] += 1
-	_diners[index] = 3.0
-	if _plates[index] >= 3:
-		_stuffed[index] = true
-		_say("Seat %d had three plates and is out of the battle." % (index + 1))
-	else:
-		_say("You served seat %d." % (index + 1))
-	_hungry = _next_hungry(index + 1)
+	row["status"] = "eating"
+	row["left"] = float(row.get("eat", 25.0))
+	_diner_rows[index] = row
+	_say("You served cog %d." % (index + 1))
 
 
 func _next_hungry(start: int) -> int:
@@ -750,8 +926,14 @@ func _next_hungry(start: int) -> int:
 
 
 func _start_reward() -> void:
+	if _kind == "cj" and _rounds != null:
+		_rounds.call("pose_cj_epilogue")
+	if _kind == "ceo" and _rounds != null:
+		_rounds.call("pose_ceo_epilogue")
 	if _rounds != null:
 		_rounds.call("shutdown")
+	if _kind == "ceo" and _rounds != null:
+		_rounds.call("hold_epilogue")
 	_over = true
 	_title.text = "Victory"
 	var lines: PackedStringArray = []
@@ -772,7 +954,13 @@ func _start_reward() -> void:
 	else:
 		if journal != null:
 			journal.note_ceo(_zone)
-		lines.append(_REWARDS.grant_pink(1))
+		var table := _ceo_table()
+		lines.append("You did it!  You've demoted the C.E.O.!")
+		lines.append("Here, take these pink slips the C.E.O. left behind.")
+		lines.append("With it you'll be able to fire Cogs in a battle.")
+		lines.append(_REWARDS.grant_pink(int(table.get("rank", 0)) + 1))
+		for extra in _ceo_epilogue_lines():
+			lines.append(extra)
 	if DisguisePage.ready_for_promotion(_dept):
 		lines.append(DisguisePage.promote(_dept))
 	else:
@@ -785,6 +973,16 @@ func _start_reward() -> void:
 		if _rounds != null:
 			_rounds.call("start_cfo_victory")
 		_finish_cfo_victory()
+		return
+	if _kind == "cj":
+		_cj_reward_lines = lines
+		_body.text = ""
+		_show_cj_reward()
+		return
+	if _kind == "ceo":
+		_cj_reward_lines = lines
+		_body.text = ""
+		_show_ceo_reward()
 		return
 	_button("Return to the lobby", _leave)
 
@@ -809,6 +1007,42 @@ func _skip_cfo_intro() -> void:
 		_after_intro()
 
 
+func finish_cj_intro() -> void:
+	if _phase == "intro":
+		_after_intro()
+
+
+func _skip_cj_intro() -> void:
+	if _rounds != null:
+		_rounds.call("skip_cj_intro")
+
+
+func finish_ceo_intro() -> void:
+	if _phase == "intro":
+		_after_intro()
+
+
+func _skip_ceo_intro() -> void:
+	if _rounds != null:
+		_rounds.call("skip_ceo_intro")
+	finish_ceo_intro()
+
+
+func finish_ceo_threat() -> void:
+	if _phase == "banquet":
+		_go("cogs2")
+
+
+func finish_cj_defeat() -> void:
+	_over = true
+	_leave()
+
+
+func finish_cj_victory() -> void:
+	if _phase == "evidence":
+		_go("reward")
+
+
 func cfo_flee_line(text: String) -> void:
 	_body.text = text
 	ToonSpeech.cog(text)
@@ -823,6 +1057,138 @@ func cfo_victory_done() -> void:
 	if _phase != "reward":
 		return
 	_open_cfo_pages(_cfo_reward_lines)
+
+
+func _remember_ceo_exp() -> void:
+	_ceo_exp_before.clear()
+	var loadout := _loadout()
+	if loadout == null:
+		return
+	for track in ToonLoadout.TRACK_COUNT:
+		_ceo_exp_before[track] = loadout.experience_of(track)
+
+
+func ceo_victory_done() -> void:
+	if _over or _phase == "reward":
+		return
+	_go("reward")
+
+
+func _show_ceo_reward() -> void:
+	if _rounds != null:
+		_rounds.call("play_music", "between")
+	var loadout := _loadout()
+	var earned := {}
+	var any := false
+	if loadout != null and not _ceo_exp_before.is_empty():
+		for track in ToonLoadout.TRACK_COUNT:
+			var gained := loadout.experience_of(track) - int(_ceo_exp_before.get(track, 0))
+			earned[track] = maxi(gained, 0)
+			if gained > 0:
+				any = true
+	if any and loadout != null:
+		await play_gag_reward(loadout, _ceo_exp_before, earned, "", false)
+	if not is_inside_tree() or _body == null:
+		return
+	if _rounds != null:
+		_rounds.call("play_music", "epilogue")
+	_body.text = "\n".join(_cj_reward_lines)
+	_button("Return to the lobby", _leave)
+
+
+func _sync_ceo_chat() -> void:
+	if _ceo_chat:
+		return
+	var chat := _speed_chat()
+	if chat == null or not chat.has_method("set_ceo_menu"):
+		return
+	_ceo_chat = true
+	chat.call("set_ceo_menu", true)
+
+
+func _clear_ceo_chat() -> void:
+	if not _ceo_chat:
+		return
+	_ceo_chat = false
+	var chat := _speed_chat()
+	if chat != null and chat.has_method("set_ceo_menu"):
+		chat.call("set_ceo_menu", false)
+
+
+func _ceo_epilogue_lines() -> PackedStringArray:
+	var progress := DisguisePage.suit_progress(_dept)
+	var cog_type := int(progress.get("type", 0))
+	var cog_level := int(progress.get("level", 0))
+	var lines := PackedStringArray()
+	if cog_type >= 7 and cog_level >= 49:
+		lines.append("I see that you have a level 50 Cog Suit. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to defend more Toons!")
+		return lines
+	if not DisguisePage.ready_for_promotion(_dept):
+		return lines
+	var new_level := cog_level + 1
+	if cog_type >= 7 and new_level == 49:
+		lines.append("Wow, you've reached level 50 on your Cog Suit!\nCogs don't get promoted higher than that.\nYou can't upgrade your Cog Suit anymore, but you can certainly keep working for the Resistance!")
+	if cog_type >= 7 and (new_level == 14 or new_level == 19 or new_level == 29 or new_level == 39 or new_level == 49):
+		lines.append("You've done a lot of work for the Resistance.\nThe Toon Council has decided to give you another Laff point. Congratulations!")
+	return lines
+
+
+func _remember_cj_exp() -> void:
+	_cj_exp_before.clear()
+	var loadout := _loadout()
+	if loadout == null:
+		return
+	for track in ToonLoadout.TRACK_COUNT:
+		_cj_exp_before[track] = loadout.experience_of(track)
+
+
+func _show_cj_reward() -> void:
+	var loadout := _loadout()
+	var earned := {}
+	var any := false
+	if loadout != null and not _cj_exp_before.is_empty():
+		for track in ToonLoadout.TRACK_COUNT:
+			var gained := loadout.experience_of(track) - int(_cj_exp_before.get(track, 0))
+			earned[track] = maxi(gained, 0)
+			if gained > 0:
+				any = true
+	if any and loadout != null:
+		await play_gag_reward(loadout, _cj_exp_before, earned, "", false)
+	if not is_inside_tree() or _body == null:
+		return
+	_body.text = "\n".join(_cj_reward_lines)
+	_button("Return to the lobby", _leave)
+
+
+func _sync_cj_chat() -> void:
+	var bonus := -1
+	if _phase == "evidence":
+		var row: Array = _difficulty()
+		if int(row[4]) != 0:
+			bonus = maxi(_weight - 1, 0)
+	if bonus == _cj_chat_bonus:
+		return
+	var chat := _speed_chat()
+	if chat == null or not chat.has_method("set_cj_menu"):
+		return
+	_cj_chat_bonus = bonus
+	chat.call("set_cj_menu", bonus)
+
+
+func _clear_cj_chat() -> void:
+	if _cj_chat_bonus < -1:
+		return
+	_cj_chat_bonus = -2
+	var chat := _speed_chat()
+	if chat != null and chat.has_method("set_cj_menu"):
+		chat.call("set_cj_menu", -2)
+
+
+func _speed_chat() -> Node:
+	var host := get_parent()
+	if host == null:
+		return null
+	return host.find_child("SpeedChat", true, false)
 
 
 func _remember_cfo_exp() -> void:
@@ -1000,12 +1366,80 @@ func _is_playground(hood: int) -> bool:
 
 
 func _leave() -> void:
+	var host := get_parent()
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if toon != null and toon.has_method("clear_disguise"):
+		toon.call("clear_disguise")
+	_clear_cj_chat()
+	_clear_ceo_chat()
 	_GATE.trip = "out"
 	ToonLoading.change_to(_lobby)
 
 
 func lawyer_count() -> int:
 	return _lawyers.size()
+
+
+func gavel_count() -> int:
+	return int(_difficulty()[1])
+
+
+func cj_epilogue_lines() -> PackedStringArray:
+	var progress := DisguisePage.suit_progress(_dept)
+	var cog_type := int(progress.get("type", 0))
+	var cog_level := int(progress.get("level", 0))
+	var lines := PackedStringArray()
+	if cog_type >= 7 and cog_level >= 49:
+		lines.append("I see that you have a level 50 Cog Suit. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to defend more Toons!")
+		return lines
+	if not DisguisePage.ready_for_promotion(_dept):
+		return lines
+	var new_level := cog_level + 1
+	if cog_type >= 7 and new_level == 49:
+		lines.append("Wow, you've reached level 50 on your Cog Suit!\nCogs don't get promoted higher than that.\nYou can't upgrade your Cog Suit anymore, but you can certainly keep working for the Resistance!")
+	if cog_type >= 7 and (new_level == 14 or new_level == 19 or new_level == 29 or new_level == 39 or new_level == 49):
+		lines.append("You've done a lot of work for the Resistance.\nThe Toon Council has decided to give you another Laff point. Congratulations!")
+	return lines
+
+
+func _follow_cj() -> void:
+	var snap := ToonNet.latest("cj-scale")
+	if not bool(snap.get("live", false)):
+		return
+	var hp := clampi(int(snap.get("hp", _hp)), 0, _max_hp)
+	if hp == _hp:
+		return
+	_hp = hp
+	_paint_bar()
+	if _phase != "evidence" or _over:
+		return
+	if _hp <= 0:
+		_over = true
+		_say("I find in favor of the plaintiff")
+		if _rounds != null:
+			_rounds.call("start_cj_defeat", self)
+		return
+	_check_boss()
+
+
+func cj_bonus_line() -> String:
+	var row: Array = _difficulty()
+	if int(row[4]) == 0:
+		return ""
+	var extra := _weight - 1
+	if extra <= 0:
+		return ""
+	var promotions := DisguisePage.promotions(_dept)
+	var rank := clampi(int(float(promotions) / 77.0 * float(_CJ.size())), 0, _CJ.size() - 1)
+	var seated := _toon_jurors
+	var one := extra == 1
+	if rank == 6:
+		return ("This is a tough case. You seated %d Toon juror, so your evidence has a bonus weight of %d." if one else "This is a tough case. You seated %d Toon jurors, so your evidence has a bonus weight of %d.") % [seated, extra]
+	if rank == 7:
+		return ("This is a very tough case. You seated %d Toon juror, so your evidence has a bonus weight of %d." if one else "This is a very tough case. You seated %d Toon jurors, so your evidence has a bonus weight of %d.") % [seated, extra]
+	if rank == 8:
+		return ("This is the toughest case. You seated %d Toon juror, so your evidence has a bonus weight of %d." if one else "This is the toughest case. You seated %d Toon jurors, so your evidence has a bonus weight of %d.") % [seated, extra]
+	return ""
 
 
 func world_state() -> Dictionary:
@@ -1024,6 +1458,9 @@ func world_state() -> Dictionary:
 		"serve": _serve_left,
 		"plates": _plates.duplicate(),
 		"stuffed": _stuffed.duplicate(),
+		"diners": _diner_rows.duplicate(true),
+		"speed": _ceo_speed_now(),
+		"flat": int(_ceo_table().get("flat", 3)),
 	}
 
 
@@ -1265,10 +1702,20 @@ func note_treasure(amount: int = 5) -> void:
 	_say("The treasure restored %d laff." % heal)
 
 
-func note_chair(toon: bool) -> void:
+func note_shot() -> bool:
 	if _shots >= 12:
-		return
+		return false
 	_shots += 1
+	return true
+
+
+func set_jurors(count: int) -> void:
+	_toon_jurors = maxi(count, 0)
+
+
+func note_chair(toon: bool) -> void:
+	if not note_shot():
+		return
 	if toon:
 		_toon_jurors += 1
 		_say("You landed in chair %d." % _shots)
@@ -1288,41 +1735,80 @@ func restock_evidence() -> void:
 	_say("You picked up %d evidence." % _ammo)
 
 
-func note_evidence() -> void:
+func throw_evidence() -> bool:
 	if _ammo <= 0:
-		_say("You need more evidence from the stand.")
-		return
+		_say("You need to get more evidence!")
+		return false
 	_ammo -= 1
+	return true
+
+
+func note_evidence() -> void:
 	var dealt := _weight * (2 if _bonus > 0.0 else 1)
-	_hp = mini(_hp + dealt, _max_hp)
 	_say("The defense pan rose by %d." % dealt)
+	if ToonNet.networked():
+		_cj_hit_seq += 1
+		ToonNet.cj_hit(ToonNet.peer_id() * 100000 + _cj_hit_seq, "evidence", dealt)
+		return
+	_hp = mini(_hp + dealt, _max_hp)
 	_check_boss()
+
+
+func note_evidence_toon(peer: int) -> void:
+	var amount := int(_difficulty()[3])
+	if amount <= 0 or peer <= 0:
+		return
+	_say("Evidence healed a Toon for %d." % amount)
+	if ToonNet.networked():
+		ToonNet.cj_toonup(peer, amount)
 
 
 func stun_lawyer(index: int) -> void:
 	_stun_lawyer(index)
 
 
-func note_all_stunned(delta: float) -> void:
+func note_all_stunned(_delta: float) -> void:
+	# The 60 seconds is the gap between bonuses. The bonus itself lasts 20 seconds.
 	if _bonus > 0.0 or _lawyers.is_empty():
 		return
-	_bonus_wait += delta
-	if _bonus_wait >= 60.0:
-		_bonus = 20.0
-		_bonus_wait = 0.0
-		_heal(10)
-		_say("Bonus weight. Evidence counts double, and you recover 10 laff.")
+	if _clock - _bonus_wait < 60.0:
+		return
+	_bonus = 20.0
+	_bonus_wait = _clock
+	_heal(10)
+	if _rounds != null:
+		_rounds.call("play_cj_sfx", "res://assets/cog_hq/audio/LB_toonup.ogg")
+	_say("Bonus weight. Evidence counts double for 20 seconds, and you recover 10 laff.")
+
+
+func heal_scale(amount: int) -> void:
+	var dealt := maxi(amount, 0)
+	_say("A lawyer healed the scale by %d." % dealt)
+	if ToonNet.networked():
+		_cj_hit_seq += 1
+		ToonNet.cj_hit(ToonNet.peer_id() * 100000 + _cj_hit_seq, "heal", dealt)
+		return
+	_hp = maxi(_hp - dealt, 0)
+	_paint_bar()
+	if _hp <= 0 and not _over:
+		_over = true
+		_say("I find in favor of the plaintiff")
+		if _rounds != null:
+			_rounds.call("start_cj_defeat", self)
+
+
+func note_lawyer_hit() -> void:
+	_hurt(5)
+	_say("A lawyer's evidence hit for 5.")
+
+
+func note_area_attack() -> void:
+	_hurt(10)
 
 
 func tick_lawyers(delta: float) -> void:
 	for index in _lawyers.size():
 		_lawyers[index] = maxf(float(_lawyers[index]) - delta, 0.0)
-	if fposmod(_clock, 6.0) < delta:
-		for left in _lawyers:
-			if left <= 0.0:
-				_hp = maxi(_hp - 2, 0)
-				_say("A lawyer healed the scale by 2.")
-				return
 
 
 func note_gavel(stomp: bool) -> void:
@@ -1332,6 +1818,9 @@ func note_gavel(stomp: bool) -> void:
 
 
 func serve_seat(index: int) -> void:
+	if ToonNet.networked() and not ToonNet.ceo_driving():
+		ToonNet.ceo_serve(index)
+		return
 	_serve(index)
 
 
@@ -1343,14 +1832,109 @@ func tick_banquet(delta: float) -> void:
 
 func note_seltzer(unit: int) -> void:
 	var dealt := clampi(unit, 1, 3) * 2
-	_hp = mini(_hp + dealt, _max_hp)
 	_say("The seltzer did %d." % dealt)
-	_check_boss()
+	_ceo_damage(dealt)
+
+
+func note_gear() -> void:
+	var dealt := maxi(int(round(15.0 * _ceo_damage_mult())), 1)
+	_say("His gears did %d." % dealt)
+	_hurt(dealt)
+
+
+func note_overtime() -> void:
+	var dealt := maxi(int(round(10.0 * _ceo_damage_mult())), 1)
+	_hurt(dealt)
+
+
+func note_crush() -> void:
+	var dealt := maxi(int(round(20.0 * _ceo_damage_mult())), 1)
+	_hurt(dealt)
+	_say("The table flattened. That did %d." % dealt)
+
+
+func note_snack(amount: int) -> void:
+	var healed := maxi(amount, 1)
+	_heal(healed)
+	_say("The snack healed %d." % healed)
+
+
+func note_golf_ball(amount: int) -> void:
+	if _phase != "seltzer" or amount < 1:
+		return
+	if ToonNet.networked():
+		_ceo_seq += 1
+		ToonNet.ceo_hit(ToonNet.peer_id() * 100000 + _ceo_seq, "golf", amount)
+		_say("The golf ball slowed him.")
+		return
+	_ceo_speed = minf(_ceo_speed_now() + float(amount), 90.0)
+	_ceo_speed_at = _clock
+	_say("The golf ball slowed him. Slow %d." % int(_ceo_speed))
 
 
 func note_golf(area: bool) -> void:
-	_hurt(15)
-	_say("His %s did 15." % ("area swing" if area else "club"))
+	var base := 15
+	var dealt := maxi(int(round(float(base) * _ceo_damage_mult())), 1)
+	_hurt(dealt)
+	if area:
+		_say("Fore! That did %d." % dealt)
+	else:
+		_say("His club did %d." % dealt)
+
+
+func _ceo_speed_now() -> float:
+	if ToonNet.networked():
+		return float(ToonNet.latest("ceo-boss").get("speed", 0.0))
+	return maxf(_ceo_speed - 20.0 * (_clock - _ceo_speed_at) / 60.0, 0.0)
+
+
+func _ceo_damage(dealt: int) -> void:
+	if ToonNet.networked():
+		_ceo_seq += 1
+		ToonNet.ceo_hit(ToonNet.peer_id() * 100000 + _ceo_seq, "seltzer", dealt)
+		return
+	_hp = mini(_hp + dealt, _max_hp)
+	_check_boss()
+
+
+func _follow_banquet() -> void:
+	var field := ToonNet.latest("ceo-field")
+	var rows: Array = field.get("diners", [])
+	if rows.is_empty():
+		return
+	_serve_left = float(field.get("serve", _serve_left))
+	for index in mini(rows.size(), _diner_rows.size()):
+		if not (rows[index] is Dictionary):
+			continue
+		var src: Dictionary = rows[index]
+		var row: Dictionary = _diner_rows[index]
+		row["status"] = src.get("status", row.get("status", ""))
+		row["left"] = src.get("left", row.get("left", 0.0))
+		row["plates"] = src.get("plates", row.get("plates", 0))
+		row["lean"] = int(src.get("lean", row.get("lean", 0)))
+		_diner_rows[index] = row
+		if index < _plates.size():
+			_plates[index] = int(row["plates"])
+
+
+func _follow_ceo() -> void:
+	var snap := ToonNet.latest("ceo-boss")
+	if not bool(snap.get("live", false)):
+		return
+	var hp := clampi(int(snap.get("hp", _hp)), 0, _max_hp)
+	if hp == _hp:
+		return
+	_hp = hp
+	_paint_bar()
+	_check_boss()
+
+
+func _ceo_damage_mult() -> float:
+	if _clock > 1800.0:
+		return _clock / 1800.0 + 1.0
+	if _clock > 1200.0:
+		return 1.25
+	return 1.0
 
 
 func _boss_damage() -> int:
@@ -1557,6 +2141,20 @@ func _check_boss() -> void:
 			_phase = "flee"
 			_rounds.call("start_flee")
 			return
+		if _kind == "cj" and _phase == "evidence":
+			if _cj_won:
+				return
+			_cj_won = true
+			if _rounds != null:
+				_rounds.call("start_cj_victory", self)
+			return
+		if _kind == "ceo" and _phase == "seltzer":
+			if _ceo_won:
+				return
+			_ceo_won = true
+			if _rounds != null:
+				_rounds.call("start_ceo_victory", self)
+			return
 		_go("reward")
 
 
@@ -1725,6 +2323,12 @@ func _watch_fight() -> void:
 		_close_battle()
 		if alive != null and alive.hp <= 0:
 			return
+		# handleBattleADone waits until battle B is gone, then rolls.
+		if (_kind == "cj" or _kind == "ceo") and _partner_running():
+			_cj_hold = true
+			_title.text = "Battle Three" if _phase == "cogs2" else "Battle One"
+			_body.text = "The other side is still fighting."
+			return
 		_advance_from_cogs()
 		return
 	_fight_seen = true
@@ -1740,6 +2344,82 @@ func _close_battle() -> void:
 		return
 	for child in _suits.get_children():
 		child.queue_free()
+
+
+func _open_cj_sides() -> bool:
+	# initializeBattles builds battle A and battle B, each from building 13.
+	var left := _building_floor(13, false, 0)
+	var right := _building_floor(13, false, 0)
+	for key in ["active", "reserves"]:
+		for cog in right.get(key, []):
+			if cog is Dictionary:
+				cog["id"] = int(cog.get("id", 0)) + 500
+	var teams := _cj_teams()
+	var side_a: Array = teams[0]
+	var side_b: Array = teams[1]
+	if side_a.is_empty() and not side_b.is_empty():
+		var held := side_a
+		side_a = side_b
+		side_b = held
+		var swapped := left
+		left = right
+		right = swapped
+	if side_a.is_empty():
+		return false
+	if side_b.is_empty():
+		_fold_reserves(left, right)
+	var boss := Vector3(-2.798, -60.0, 0.0)
+	var spot_a := _panda_world(boss + Vector3(0.0, -25.0, 0.0))
+	var spot_b := _panda_world(boss + Vector3(0.0, 25.0, 0.0))
+	var mine := ToonNet.peer_id()
+	var opened := _open_boss_side(left, side_a, 0, false, spot_a, 0.0, "cj")
+	if not side_b.is_empty():
+		var kept_id := _fight_id
+		var kept_slug := _battle_slug
+		if _open_boss_side(right, side_b, 1, false, spot_b, 180.0, "cj") and not side_b.has(mine):
+			_fight_id = kept_id
+			_battle_slug = kept_slug
+			opened = kept_id != 0
+		elif side_b.has(mine):
+			opened = _fight_id != 0
+	_title.text = "Battle One"
+	_body.text = "The Chief Justice's cogs."
+	return opened
+
+
+func _partner_running() -> bool:
+	var prefix := ""
+	if _kind == "cj":
+		prefix = "boss_cj_1_"
+	elif _kind == "ceo" and _phase == "cogs2":
+		prefix = "boss_ceo_3_"
+	elif _kind == "ceo":
+		prefix = "boss_ceo_1_"
+	if prefix == "" or not _battle_slug.begins_with(prefix):
+		return false
+	var district := ToonNet.district_id()
+	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
+	for side in ["a", "b"]:
+		var slug := prefix + String(side)
+		if slug == _battle_slug:
+			continue
+		if ToonNet.is_authority() and fights != null and fights.has_method("slug_active"):
+			if bool(fights.call("slug_active", district, slug)):
+				return true
+			continue
+		var rows: Array = ToonNet.latest("fights:%d:%s" % [district, slug]).get("rows", [])
+		if not rows.is_empty():
+			return true
+	return false
+
+
+func _cj_teams() -> Array:
+	var peers := _seeded_order(_boss_peers())
+	var num := mini(peers.size(), 8)
+	var num_b := num / 2
+	if num >= 4:
+		num_b = (num + (_split_bit(peers) % 2)) / 2
+	return [peers.slice(num_b, num), peers.slice(0, num_b)]
 
 
 func _open_vp_sides(skeleton: bool) -> bool:
@@ -1896,19 +2576,21 @@ func _boss_rider(peer: int) -> Dictionary:
 	}
 
 
-func _open_boss_side(plan: Dictionary, peers: Array, side: int, skeleton: bool) -> bool:
+func _open_boss_side(plan: Dictionary, peers: Array, side: int, skeleton: bool, spot: Variant = null, yaw := 180.0, slug_kind := "vp", round_override := 0) -> bool:
 	if peers.is_empty():
 		return false
 	var riders: Array = []
 	for peer in peers:
 		riders.append(_boss_rider(int(peer)))
-	var round_number := 2 if skeleton else 1
+	var round_number := round_override if round_override > 0 else (2 if skeleton else 1)
 	_battle_round = round_number
-	_battle_slug = "boss_vp_%d_%s" % [round_number, "b" if side == 1 else "a"]
+	_battle_slug = "boss_%s_%d_%s" % [slug_kind, round_number, "b" if side == 1 else "a"]
 	var depth := 60.0 if skeleton else -35.0
 	var height := 18.0 if skeleton else 0.0
 	# BossCogBattleAPosHpr / B, composed with the boss heading of -90.
 	var origin := _panda_world(Vector3(25.0 if side == 1 else -25.0, depth, height))
+	if spot is Vector3:
+		origin = spot
 	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
 	if fights == null or not fights.has_method("open_roster"):
 		return false
@@ -1920,7 +2602,7 @@ func _open_boss_side(plan: Dictionary, peers: Array, side: int, skeleton: bool) 
 		plan.get("reserves", []),
 		riders,
 		origin,
-		180.0,
+		yaw,
 		0,
 		[origin.x, origin.y, origin.z],
 		false,
@@ -1936,10 +2618,23 @@ func _open_boss_side(plan: Dictionary, peers: Array, side: int, skeleton: bool) 
 	return true
 
 
+func _claim_ceo_fight() -> void:
+	var round_number := 3 if _phase == "cogs2" else 1
+	_claim_side_fight("ceo", round_number, "")
+
+
+func _claim_cj_fight() -> void:
+	_claim_side_fight("cj", 1, "")
+
+
 func _claim_vp_fight() -> void:
 	var round_number := 2 if _phase == "skele" else 1
+	_claim_side_fight("vp", round_number, "battle2" if round_number == 2 else "battle")
+
+
+func _claim_side_fight(kind: String, round_number: int, music: String) -> void:
 	for side in ["a", "b"]:
-		var slug := "boss_vp_%d_%s" % [round_number, side]
+		var slug := "boss_%s_%d_%s" % [kind, round_number, side]
 		var key := "%d:%s" % [ToonNet.district_id(), slug]
 		var rows: Array = ToonNet.latest("fights:" + key).get("rows", [])
 		for item in rows:
@@ -1954,8 +2649,8 @@ func _claim_vp_fight() -> void:
 					_fight_seen = false
 					if _layer != null:
 						_layer.visible = false
-					if _show != null:
-						_show.call("music", "battle2" if round_number == 2 else "battle")
+					if music != "" and _show != null:
+						_show.call("music", music)
 					return
 
 
@@ -2060,7 +2755,7 @@ func _battle_plan(hard: bool, skeleton: bool) -> Dictionary:
 		merged["round"] = 1
 		return merged
 	if _kind == "cj":
-		var lawyers := _building_floor(13, false, 1)
+		var lawyers := _building_floor(13, false, 0)
 		lawyers["title"] = "Battle One"
 		lawyers["blurb"] = "The Chief Justice's cogs."
 		lawyers["round"] = 1
@@ -2185,7 +2880,78 @@ func _ceo_table() -> Dictionary:
 		{"tables": 8, "diners": 8, "level": 12},
 		{"tables": 13, "diners": 5, "level": 12},
 	]
-	return rows[rank]
+	var picked: Dictionary = rows[rank]
+	picked["rank"] = rank
+	picked["hungry"] = [30, 28, 26, 24, 22][rank]
+	picked["eat"] = [25, 26, 27, 28, 29][rank]
+	picked["flat"] = [3, 6, 7, 8, 9][rank]
+	return picked
+
+
+func _open_ceo_sides(diners: bool) -> bool:
+	var boss := Vector3(0.0, 355.0, 0.0)
+	var round_number := 3 if diners else 1
+	var left: Dictionary
+	var right: Dictionary
+	if diners:
+		left = {"active": [], "reserves": []}
+		for index in 2:
+			(left["active"] as Array).append(_make_cog("c", 12, 8, false, 1, 900 + index))
+		var spare := 0
+		for row in _diner_rows:
+			if String(row.get("status", "")) == "dead":
+				continue
+			spare += 1
+			var tier := maxi(int(row.get("level", 11)) - 4, 1)
+			(left["reserves"] as Array).append(_make_cog("c", int(row.get("level", 11)), tier, false, 1, 1000 + spare))
+		right = {"active": [], "reserves": []}
+	else:
+		left = _building_floor(14, false, 0)
+		right = _building_floor(14, false, 0)
+		for key in ["active", "reserves"]:
+			for cog in right.get(key, []):
+				if cog is Dictionary:
+					cog["id"] = int(cog.get("id", 0)) + 700
+		# invokeSuitPlanner pulls reserves into the fight until four are active.
+		_fill_active(left)
+		_fill_active(right)
+	var teams := _cj_teams()
+	var side_a: Array = teams[0]
+	var side_b: Array = teams[1]
+	if side_a.is_empty() and not side_b.is_empty():
+		var held := side_a
+		side_a = side_b
+		side_b = held
+		var swapped := left
+		left = right
+		right = swapped
+	if side_a.is_empty():
+		return false
+	if diners and not side_b.is_empty():
+		var pool: Array = (left["active"] as Array).duplicate()
+		pool.append_array(left["reserves"] as Array)
+		if pool.size() >= 2:
+			right = {"active": [pool.pop_back()], "reserves": []}
+			left = {"active": [pool.pop_front()], "reserves": pool}
+	elif side_b.is_empty():
+		_fold_reserves(left, right)
+	var shift := Vector3(20.0, -240.0, 0.0) if diners else Vector3(20.0, -400.0, 0.0)
+	var spot_a := _panda_world(boss + Vector3(shift.x, shift.y, 0.0))
+	var spot_b := _panda_world(boss + Vector3(-shift.x, shift.y, 0.0))
+	var mine := ToonNet.peer_id()
+	var opened := _open_boss_side(left, side_a, 0, false, spot_a, 0.0, "ceo", round_number)
+	if not side_b.is_empty():
+		var kept_id := _fight_id
+		var kept_slug := _battle_slug
+		if _open_boss_side(right, side_b, 1, false, spot_b, 0.0, "ceo", round_number) and not side_b.has(mine):
+			_fight_id = kept_id
+			_battle_slug = kept_slug
+			opened = kept_id != 0
+		elif side_b.has(mine):
+			opened = _fight_id != 0
+	_title.text = "Battle Three" if diners else "Battle One"
+	_body.text = "The diners who are still standing." if diners else "The waiters."
+	return opened
 
 
 func _make_cog(dept: String, level: int, forced_type: int, skeleton: bool, revives: int, cog_id: int) -> Dictionary:

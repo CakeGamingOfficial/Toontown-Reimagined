@@ -69,6 +69,42 @@ var _chat_live := false
 var _flying := false
 var _plus_ready := false
 var _pinned := false
+## -2 hides the menu. -1 is the courtroom list. Zero and up adds the bonus-weight line.
+var _cj_bonus := -2
+var _ceo_menu := false
+const _CJ_LINES: PackedStringArray = [
+	"You need to hit the scale.",
+	"I will hit the scale.",
+	"I need help with the scale!",
+	"You need to stun the Cogs.",
+	"I will stun the Cogs.",
+	"I need help with the Cogs!",
+	"I need more evidence!",
+	"I'm shooting for chairs in the top row.",
+	"I'm shooting for chairs in the bottom row.",
+	"Move out of the way! We can't hit the pan.",
+	"I'll do Toon-Ups for us.",
+]
+const _CEO_LINES: PackedStringArray = [
+	"You feed the Cogs on the left.",
+	"I'll feed the Cogs on the left.",
+	"You feed the Cogs on the right.",
+	"I'll feed the Cogs on the right.",
+	"You feed the Cogs in the front.",
+	"I'll feed the Cogs in the front.",
+	"You feed the Cogs in the back.",
+	"I'll feed the Cogs in the back.",
+	"I'll serve this table.",
+	"Can you serve this table?",
+	"Feed the same cog again.",
+	"Hurry, your cog is hungry!",
+	"You use the seltzer bottle.",
+	"I'll use the seltzer bottle.",
+	"You use the golf tee.",
+	"I'll use the golf tee.",
+	"Please save the snacks for sadder toons.",
+	"Take the snacks before they fall.",
+]
 ## The panel is rebuilt in every area. The log lives in this file so a scene
 ## change cannot throw it away with the old panel.
 const _LOG_PATH := "user://chat_log.json"
@@ -1785,13 +1821,62 @@ func apply_catalog() -> void:
 		else:
 			emotions["items"] = lines
 			_items[0] = emotions
-	if phrases.is_empty():
+	if not phrases.is_empty():
+		var placed := false
+		for group in _items:
+			if group is Dictionary and String(group.get("title", "")) == "MY PHRASES":
+				group["items"] = phrases
+				placed = true
+				break
+		if not placed:
+			_items.append({"title": "MY PHRASES", "items": phrases})
+	_apply_cj_menu()
+	_apply_ceo_menu()
+
+
+func set_cj_menu(bonus: int) -> void:
+	if _cj_bonus == bonus:
+		_apply_cj_menu()
 		return
-	for group in _items:
-		if group is Dictionary and String(group.get("title", "")) == "MY PHRASES":
-			group["items"] = phrases
-			return
-	_items.append({"title": "MY PHRASES", "items": phrases})
+	_cj_bonus = bonus
+	_apply_cj_menu()
+
+
+func _apply_cj_menu() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and String((group as Dictionary).get("title", "")) == "CHIEF JUSTICE":
+			_items.remove_at(index)
+	if _cj_bonus < -1:
+		return
+	var lines: Array = []
+	for text in _CJ_LINES:
+		lines.append({"text": text, "say": text})
+	if _cj_bonus >= 0:
+		var weight := mini(_cj_bonus, 11)
+		var phrase := "I don't have any bonus weight." if weight == 0 else "I have a bonus weight of %d." % weight
+		lines.append({"text": phrase, "say": phrase})
+	var at := mini(2, _items.size())
+	_items.insert(at, {"title": "CHIEF JUSTICE", "items": lines})
+
+
+func set_ceo_menu(on: bool) -> void:
+	_ceo_menu = on
+	_apply_ceo_menu()
+
+
+func _apply_ceo_menu() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and String((group as Dictionary).get("title", "")) == "C.E.O.":
+			_items.remove_at(index)
+	if not _ceo_menu:
+		return
+	var lines: Array = []
+	for text in _CEO_LINES:
+		lines.append({"text": text, "say": text})
+	var at := mini(2, _items.size())
+	_items.insert(at, {"title": "C.E.O.", "items": lines})
 
 
 func _has_emote(lines: Array, emote: int) -> bool:

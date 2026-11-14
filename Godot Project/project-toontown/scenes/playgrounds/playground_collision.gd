@@ -34,6 +34,8 @@ func _ready() -> void:
 		_lawbot = host.scene_file_path.get_file().begins_with("lawbot")
 		preload("res://scenes/cog_hq/sellbot_doors.gd").place(host)
 		preload("res://scenes/cog_hq/factory_floor.gd").place(host)
+		# The VP car has to be in the lobby before these meshes become solid.
+		preload("res://scenes/cog_hq/boss_gate.gd").place_car(host)
 	_add_collision(self)
 	_place_recorded_solids()
 	_place_shells()

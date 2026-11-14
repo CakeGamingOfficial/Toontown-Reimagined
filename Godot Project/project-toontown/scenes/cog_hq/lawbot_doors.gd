@@ -127,8 +127,8 @@ func _physics_process(_delta: float) -> void:
 	_armed = false
 	# DistributedCogHQDoorAI.requestEnter locks only the exterior door.
 	if _dests[pick] == _CJ and not _DISGUISE.suit_complete(_LAWBOT):
-		if not _told and toon.has_method("show_notice"):
-			toon.call("show_notice", _LOCKED)
+		if not _told and toon.has_method("show_popup"):
+			toon.call("show_popup", _LOCKED)
 			_told = true
 		return
 	_traveling = true

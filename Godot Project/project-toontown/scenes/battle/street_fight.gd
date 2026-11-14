@@ -582,7 +582,7 @@ func _play(fight: Dictionary, _delta: float) -> void:
 			_reward_seq = seq
 			_dance = 0.0
 			if _mine(fight) and not bool(fight.get("floor_clear", false)):
-				if String(fight.get("slug", "")).begins_with("boss_vp"):
+				if _boss_card_waits(String(fight.get("slug", ""))):
 					_apply_my_reward(fight)
 				else:
 					_reward_token += 1
@@ -2051,6 +2051,10 @@ func _battle_basis(fight: Dictionary) -> Dictionary:
 	else:
 		right = right.normalized()
 	return {"origin": origin, "forward": forward, "right": right}
+
+
+func _boss_card_waits(slug: String) -> bool:
+	return slug.begins_with("boss_vp") or slug.begins_with("boss_cj") or slug.begins_with("boss_ceo")
 
 
 func _battle_forward(heading: float) -> Vector3:

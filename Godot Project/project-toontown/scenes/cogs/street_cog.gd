@@ -112,6 +112,8 @@ var _walk_fps := DEFAULT_FPS
 var _neutral_fps := DEFAULT_FPS
 var _walk_time := 0.0
 var _idle_time := 0.0
+var _tray_time := 0.0
+var _tray_banks: Dictionary = {}
 var _prop_time := 0.0
 var _prop_frames := 0
 var _prop_fps := DEFAULT_FPS
@@ -1004,7 +1006,29 @@ func set_walking(moving: bool) -> void:
 	set_meta("walking", moving)
 
 
+## Toon.setSpeed while disguised. The suit loops walk or neutral. A street cull
+## must not freeze the one the local toon is wearing.
+func play_step(moving: bool, delta: float) -> void:
+	set_meta("disguise", true)
+	var neck := find_child("joint_head", true, false) as Node3D
+	if neck != null and not has_meta("neck_rest"):
+		set_meta("neck_rest", neck.transform)
+	_detail = 2
+	if bool(get_meta("tray", false)) and _pose_tray(moving, delta):
+		pass
+	elif moving:
+		_march(delta)
+	else:
+		_idle(delta)
+	# The walk clip swings joint_head. The toon head is parented there, so put
+	# the neck back on the rest pose and let the body mesh do the stepping.
+	if neck != null and has_meta("neck_rest"):
+		neck.transform = get_meta("neck_rest")
+
+
 func _process(delta: float) -> void:
+	if bool(get_meta("disguise", false)):
+		return
 	# The death actor is posed by the battle movie. Idle would put the suit back.
 	if _lose_on:
 		_lose_age += delta
@@ -1460,6 +1484,23 @@ func _step_lane() -> void:
 func _face(toward: Vector2) -> void:
 	# Heading 0 faces -Z, matching the tutorial suit.
 	rotation.y = atan2(-toward.x, -toward.y)
+
+
+func _pose_tray(moving: bool, delta: float) -> bool:
+	var clip := "tray_walk" if moving else "tray_neutral"
+	var path := "res://assets/cogs/anims/%s/%s.walk" % [body, clip]
+	if not FileAccess.file_exists(path):
+		return false
+	if not _tray_banks.has(path):
+		var loaded: Variant = _read_bank(path)
+		if loaded is Dictionary:
+			_tray_banks[path] = loaded
+	var bank: Dictionary = _tray_banks.get(path, {})
+	if int(bank.get("frames", 0)) <= 1:
+		return false
+	_tray_time += delta
+	_pose_elapsed(bank, _tray_time, 24.0, true)
+	return true
 
 
 func _march(delta: float) -> void:

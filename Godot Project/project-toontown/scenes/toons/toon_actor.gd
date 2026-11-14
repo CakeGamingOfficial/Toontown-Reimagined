@@ -42,6 +42,11 @@ const _GHOST_ALPHA := 0.4
 var follows_ground := false
 ## True while ~ghost is on. Other clients hide this toon. The local one fades.
 var ghost_mode := false
+## putOnSuit hides the toon geom. The walk pose must not turn that body back on.
+var disguised := false
+## The last setSpeed the disguise reads. Position jitter must not change the clip.
+var gait_speed := 0.0
+var gait_turning := false
 ## LocalToon.soundWalk and soundRun. Only the toon you are playing hears them.
 var footsteps := false
 var _step_mode := ""
@@ -338,7 +343,19 @@ func _ensure_lod(lod: int) -> bool:
 	return true
 
 
+func drop_disguise() -> void:
+	disguised = false
+	_shown = -1
+	_show_body(_wanted_lod())
+
+
 func _show_body(lod: int) -> void:
+	if disguised:
+		for key in _lod_roots.keys():
+			var hidden := _lod_roots[key] as Node3D
+			if hidden:
+				hidden.visible = false
+		return
 	if lod == _shown:
 		return
 	_shown = lod
@@ -470,8 +487,14 @@ func is_sad() -> bool:
 func set_locomotion(forward_speed: float, turning: bool, jumping: bool, delta: float) -> void:
 	if _style == null:
 		return
+	gait_speed = forward_speed
+	gait_turning = turning
 	# The face tick plays dog ears on its own unless locomotion just posed them.
 	_locomotion_msec = Time.get_ticks_msec()
+	# The suit plays walk. Posing the hidden toon rewrites the head on that suit.
+	if disguised:
+		_footsteps(forward_speed, turning)
+		return
 	if _pose_lock:
 		return
 	_ensure_clips()
@@ -2599,6 +2622,9 @@ func _process(delta: float) -> void:
 	if _style == null:
 		return
 	_tick_stun_flash(delta)
+	if disguised:
+		_tick_blink(delta)
+		return
 	if _book_phase != "":
 		_tick_shticker(delta)
 	_tick_blink(delta)

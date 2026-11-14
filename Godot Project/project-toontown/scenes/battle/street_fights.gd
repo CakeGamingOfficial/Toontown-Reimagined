@@ -1252,8 +1252,8 @@ func _open_reward(fight: Dictionary, toons: Array) -> void:
 	fight["floor_clear"] = false
 	fight["reward_rows"] = _reward_rows(fight, toons)
 	fight["state"] = "reward"
-	# DistributedBattleFinal plays the dance, then the cage drop. The gag card waits for the VP.
-	var boss_floor := String(fight.get("slug", "")).begins_with("boss_vp")
+	# DistributedBattleFinal plays the dance. The gag card waits for the boss reward.
+	var boss_floor := _boss_card_waits(String(fight.get("slug", "")))
 	fight["left"] = FLOOR_REWARD_TIME if boss_floor else REWARD_TIME
 	fight["finished"] = []
 	fight["beats"] = []
@@ -1892,3 +1892,19 @@ func _publish_key(key: String) -> void:
 		if int(fight.get("district", -1)) == district and String(fight.get("slug", "")) == slug and String(fight.get("state", "")) != "gone":
 			rows.append(fight)
 	ToonNet.publish("fights:" + key, {"rows": rows})
+
+
+func slug_active(district: int, slug: String) -> bool:
+	for item in _fights:
+		if not (item is Dictionary):
+			continue
+		var fight: Dictionary = item
+		if int(fight.get("district", -1)) != district or String(fight.get("slug", "")) != slug:
+			continue
+		if String(fight.get("state", "")) != "gone":
+			return true
+	return false
+
+
+func _boss_card_waits(slug: String) -> bool:
+	return slug.begins_with("boss_vp") or slug.begins_with("boss_cj") or slug.begins_with("boss_ceo")
