@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bkbrem22fshru"
 path.s3tc="res://.godot/imported/hll_0.png-5355e3b83aec3a0ecc419078c3c5e12e.s3tc.ctex"
+path.etc2="res://.godot/imported/hll_0.png-5355e3b83aec3a0ecc419078c3c5e12e.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/toons/heads/hll_0.png"
-dest_files=["res://.godot/imported/hll_0.png-5355e3b83aec3a0ecc419078c3c5e12e.s3tc.ctex"]
+dest_files=["res://.godot/imported/hll_0.png-5355e3b83aec3a0ecc419078c3c5e12e.s3tc.ctex", "res://.godot/imported/hll_0.png-5355e3b83aec3a0ecc419078c3c5e12e.etc2.ctex"]
 
 [params]
 

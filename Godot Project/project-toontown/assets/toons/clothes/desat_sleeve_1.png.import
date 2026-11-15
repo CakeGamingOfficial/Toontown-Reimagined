@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bpbebnwu51iok"
 path.s3tc="res://.godot/imported/desat_sleeve_1.png-248b8b6bd4a09126405f550b16e93bcb.s3tc.ctex"
+path.etc2="res://.godot/imported/desat_sleeve_1.png-248b8b6bd4a09126405f550b16e93bcb.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/toons/clothes/desat_sleeve_1.png"
-dest_files=["res://.godot/imported/desat_sleeve_1.png-248b8b6bd4a09126405f550b16e93bcb.s3tc.ctex"]
+dest_files=["res://.godot/imported/desat_sleeve_1.png-248b8b6bd4a09126405f550b16e93bcb.s3tc.ctex", "res://.godot/imported/desat_sleeve_1.png-248b8b6bd4a09126405f550b16e93bcb.etc2.ctex"]
 
 [params]
 

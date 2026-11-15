@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://22vlvhnvnl8f"
 path.s3tc="res://.godot/imported/barnacle_boulevard_4.png-ab7c63d6c9f43cd5cec67e5b7596cabe.s3tc.ctex"
+path.etc2="res://.godot/imported/barnacle_boulevard_4.png-ab7c63d6c9f43cd5cec67e5b7596cabe.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/donalds_dock/streets/barnacle_boulevard_4.png"
-dest_files=["res://.godot/imported/barnacle_boulevard_4.png-ab7c63d6c9f43cd5cec67e5b7596cabe.s3tc.ctex"]
+dest_files=["res://.godot/imported/barnacle_boulevard_4.png-ab7c63d6c9f43cd5cec67e5b7596cabe.s3tc.ctex", "res://.godot/imported/barnacle_boulevard_4.png-ab7c63d6c9f43cd5cec67e5b7596cabe.etc2.ctex"]
 
 [params]
 

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://ovx1gjq4csnm"
 path.s3tc="res://.godot/imported/dls_5.png-6301a470b9620e70bb91ff11ab47ea3a.s3tc.ctex"
+path.etc2="res://.godot/imported/dls_5.png-6301a470b9620e70bb91ff11ab47ea3a.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/toons/heads/dls_5.png"
-dest_files=["res://.godot/imported/dls_5.png-6301a470b9620e70bb91ff11ab47ea3a.s3tc.ctex"]
+dest_files=["res://.godot/imported/dls_5.png-6301a470b9620e70bb91ff11ab47ea3a.s3tc.ctex", "res://.godot/imported/dls_5.png-6301a470b9620e70bb91ff11ab47ea3a.etc2.ctex"]
 
 [params]
 

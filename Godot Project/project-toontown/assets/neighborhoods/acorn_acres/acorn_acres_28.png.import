@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bhpab3fck5xbd"
 path.s3tc="res://.godot/imported/acorn_acres_28.png-2b28591520d3cc24ed2e10844a771f54.s3tc.ctex"
+path.etc2="res://.godot/imported/acorn_acres_28.png-2b28591520d3cc24ed2e10844a771f54.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/acorn_acres/acorn_acres_28.png"
-dest_files=["res://.godot/imported/acorn_acres_28.png-2b28591520d3cc24ed2e10844a771f54.s3tc.ctex"]
+dest_files=["res://.godot/imported/acorn_acres_28.png-2b28591520d3cc24ed2e10844a771f54.s3tc.ctex", "res://.godot/imported/acorn_acres_28.png-2b28591520d3cc24ed2e10844a771f54.etc2.ctex"]
 
 [params]
 

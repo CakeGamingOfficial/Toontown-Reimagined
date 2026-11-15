@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://c4gsvnyb4ddhm"
 path.s3tc="res://.godot/imported/seaweed_street_54.png-c5cd14f63c6ccce2fa9a623bd5f41670.s3tc.ctex"
+path.etc2="res://.godot/imported/seaweed_street_54.png-c5cd14f63c6ccce2fa9a623bd5f41670.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/donalds_dock/streets/seaweed_street_54.png"
-dest_files=["res://.godot/imported/seaweed_street_54.png-c5cd14f63c6ccce2fa9a623bd5f41670.s3tc.ctex"]
+dest_files=["res://.godot/imported/seaweed_street_54.png-c5cd14f63c6ccce2fa9a623bd5f41670.s3tc.ctex", "res://.godot/imported/seaweed_street_54.png-c5cd14f63c6ccce2fa9a623bd5f41670.etc2.ctex"]
 
 [params]
 

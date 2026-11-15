@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bod6w40bd7v3n"
 path.s3tc="res://.godot/imported/drop_shadow.png-69e7c338bcd5ac62ed3462b1708352e2.s3tc.ctex"
+path.etc2="res://.godot/imported/drop_shadow.png-69e7c338bcd5ac62ed3462b1708352e2.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/neighborhoods/toontown_central/props/drop_shadow.png"
-dest_files=["res://.godot/imported/drop_shadow.png-69e7c338bcd5ac62ed3462b1708352e2.s3tc.ctex"]
+dest_files=["res://.godot/imported/drop_shadow.png-69e7c338bcd5ac62ed3462b1708352e2.s3tc.ctex", "res://.godot/imported/drop_shadow.png-69e7c338bcd5ac62ed3462b1708352e2.etc2.ctex"]
 
 [params]
 

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cd2mc8csvsduu"
 path.s3tc="res://.godot/imported/lighthouse_lane_6.png-763082d4a3868e6a095cf60952c7eea8.s3tc.ctex"
+path.etc2="res://.godot/imported/lighthouse_lane_6.png-763082d4a3868e6a095cf60952c7eea8.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/neighborhoods/donalds_dock/streets/lighthouse_lane_6.png"
-dest_files=["res://.godot/imported/lighthouse_lane_6.png-763082d4a3868e6a095cf60952c7eea8.s3tc.ctex"]
+dest_files=["res://.godot/imported/lighthouse_lane_6.png-763082d4a3868e6a095cf60952c7eea8.s3tc.ctex", "res://.godot/imported/lighthouse_lane_6.png-763082d4a3868e6a095cf60952c7eea8.etc2.ctex"]
 
 [params]
 

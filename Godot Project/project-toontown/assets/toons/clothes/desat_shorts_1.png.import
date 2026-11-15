@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://1b2yq6a63oxl"
 path.s3tc="res://.godot/imported/desat_shorts_1.png-035f1ef2d1f13ef0a945284b80ee1dca.s3tc.ctex"
+path.etc2="res://.godot/imported/desat_shorts_1.png-035f1ef2d1f13ef0a945284b80ee1dca.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/toons/clothes/desat_shorts_1.png"
-dest_files=["res://.godot/imported/desat_shorts_1.png-035f1ef2d1f13ef0a945284b80ee1dca.s3tc.ctex"]
+dest_files=["res://.godot/imported/desat_shorts_1.png-035f1ef2d1f13ef0a945284b80ee1dca.s3tc.ctex", "res://.godot/imported/desat_shorts_1.png-035f1ef2d1f13ef0a945284b80ee1dca.etc2.ctex"]
 
 [params]
 

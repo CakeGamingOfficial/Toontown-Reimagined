@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cbicnt2c658ut"
 path.s3tc="res://.godot/imported/room_0.png-553bde26b6512ddf413fcf28f2167f25.s3tc.ctex"
+path.etc2="res://.godot/imported/room_0.png-553bde26b6512ddf413fcf28f2167f25.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/toons/room_0.png"
-dest_files=["res://.godot/imported/room_0.png-553bde26b6512ddf413fcf28f2167f25.s3tc.ctex"]
+dest_files=["res://.godot/imported/room_0.png-553bde26b6512ddf413fcf28f2167f25.s3tc.ctex", "res://.godot/imported/room_0.png-553bde26b6512ddf413fcf28f2167f25.etc2.ctex"]
 
 [params]
 
