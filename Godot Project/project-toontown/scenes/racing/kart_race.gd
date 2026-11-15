@@ -7,14 +7,18 @@ extends Node3D
 ## pays the deposit back, then the place winnings and any leaderboard bonus.
 
 const _RULES := preload("res://scenes/racing/kart_rules.gd")
+const _RACES := preload("res://scenes/racing/race_matches.gd")
 const _GARAGE := preload("res://scenes/racing/kart_garage.gd")
 const _MODEL := preload("res://scenes/racing/kart_model.gd")
 const _COLLISION := preload("res://scenes/playgrounds/playground_collision.gd")
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _PROPS := "res://assets/racing/track_props.json"
 const _CURVES := "res://assets/racing/tracks/curves.json"
+const _SOLIDS := "res://assets/racing/tracks/collision.json"
 const _QBOX := "res://assets/racing/props/qbox.glb"
 const _BANANA := "res://assets/battle/props/banana.glb"
+const _PIE := "res://assets/battle/props/creampie.glb"
+const _ANVIL := "res://assets/battle/props/anvil.glb"
 const _ARROW := "res://assets/racing/maps/boost_arrow.png"
 const _GAUGE := preload("res://assets/gui/racing/speedometer_gauge.png")
 const _NEEDLE := preload("res://assets/gui/racing/speedometer_spin.png")
@@ -32,6 +36,12 @@ const _LEAVE_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
 const _LEAVE_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
 const _LEAVE_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
 const _YELLOW := Color(0.95, 0.95, 0, 1)
+const _BLOTS: Array[Color] = [
+	Color(0.95, 0.25, 0.2),
+	Color(0.25, 0.45, 0.95),
+	Color(0.2, 0.75, 0.35),
+	Color(0.95, 0.8, 0.2),
+]
 const _NEEDLE_REST := -75.0
 const _SCENE := "res://scenes/racing/kart_race.tscn"
 const _SPEEDWAY := "res://scenes/playgrounds/goofy_speedway.tscn"
@@ -67,7 +77,12 @@ var _index := 0
 var _passed_mid := false
 var _on_start := true
 var _gag := 0
+var _gag_roll := 0
+var _gag_spin := 0.0
 var _gag_wait := 0.0
+var _pies: Array[Node3D] = []
+var _anvil: Node3D
+var _flat := -1.0
 var _hud_root: Control
 var _hud_lap: Label
 var _hud_note: Label
@@ -90,6 +105,10 @@ var _wrong_blink := 0.0
 var _music: AudioStreamPlayer
 var _driver: ToonActor
 var _limit := 300.0
+var _pose_left := 0.0
+var _event_seq := 0
+var _loot_seq := 0
+var _remotes: Dictionary = {}
 
 
 static func launch(which: int, kind: int, laps: int, point: Vector3, heading: float) -> void:
@@ -144,16 +163,24 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_sync_remotes(delta)
+	_sync_race()
 	if not _started or _finished or _kart == null:
 		return
 	_clock += delta
 	_gag_wait = maxf(_gag_wait - delta, 0.0)
+	if _gag_spin > 0.0:
+		_gag_spin = maxf(_gag_spin - delta, 0.0)
+		if _gag_spin == 0.0:
+			_gag = _gag_roll
 	_turbo = maxf(_turbo - delta, 0.0)
+	_tick_pies(delta)
 	if _clock >= _limit:
 		_end(false, "You took too long to finish the race.  Your tickets have not been refunded.  Keep trying!")
 		return
 	_drive(delta)
 	_watch_lap()
+	_send_pose(delta)
 	_paint_hud()
 	if Keybinds.held("jump") or Input.is_physical_key_pressed(KEY_L):
 		_throw_gag()
@@ -170,6 +197,15 @@ func _drive(delta: float) -> void:
 		_kart.move_and_slide()
 		_aim_camera(delta)
 		return
+	if _flat >= 0.0:
+		_tick_flat(delta)
+		if _flat >= 0.92:
+			_speed = 0.0
+			_slide = 0.0
+			_kart.velocity = Vector3.ZERO
+			_kart.move_and_slide()
+			_aim_camera(delta)
+			return
 	var throttle := 0.0
 	var steer_input := 0.0
 	if Keybinds.held("forward") or Input.is_physical_key_pressed(KEY_UP):
@@ -343,15 +379,36 @@ func _throw_gag() -> void:
 	_gag_wait = 0.4
 	if thrown == _RULES.TURBO:
 		_turbo = 3.0
-	elif thrown == _RULES.BANANA:
-		_drop_peel()
-	elif thrown == _RULES.ANVIL or thrown == _RULES.PIE:
-		pass
+		return
+	if _RACES.mine().is_empty():
+		if thrown == _RULES.BANANA:
+			_drop_peel()
+		elif thrown == _RULES.ANVIL:
+			_drop_anvil()
+		elif thrown == _RULES.PIE:
+			_shoot_pie()
+		return
+	var at := _kart.global_position
+	var aim := _nose()
+	if thrown == _RULES.BANANA:
+		at -= aim * 5.0
+	ToonNet.race_act("throw", {
+		"gag": thrown,
+		"x": at.x,
+		"y": at.y,
+		"z": at.z,
+		"nx": aim.x,
+		"ny": aim.y,
+		"nz": aim.z,
+	})
+	_sync_race()
 
 
-func _drop_peel() -> void:
+func _drop_peel(at: Vector3 = Vector3.ZERO, placed: bool = false, owner: int = -1) -> void:
 	var peel := Area3D.new()
-	peel.position = _kart.global_position - _nose() * 5.0
+	peel.position = at if placed else _kart.global_position - _nose() * 5.0
+	peel.set_meta("owner", owner)
+	peel.set_meta("born", Time.get_ticks_msec())
 	var shape := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
 	ball.radius = 1.4
@@ -366,10 +423,126 @@ func _drop_peel() -> void:
 			peel.add_child(show)
 	add_child(peel)
 	peel.body_entered.connect(func(body: Node) -> void:
-		if body == _kart:
-			_spin = 1.4
-			peel.queue_free()
+		if body != _kart:
+			return
+		var mine := int(peel.get_meta("owner", -1)) == ToonNet.peer_id()
+		if mine and Time.get_ticks_msec() - int(peel.get_meta("born", 0)) < 600:
+			return
+		_spin = 1.4
+		peel.queue_free()
 	)
+
+
+func _shoot_pie() -> void:
+	var pie := Node3D.new()
+	pie.name = "Pie"
+	pie.position = _kart.global_position + Vector3.UP * 2.0
+	var show := _prop(_PIE, 3.0)
+	if show != null:
+		# FlyingGag tips the pie and copies it at scale 3.
+		show.rotation_degrees = Vector3(-45.0, 0.0, 0.0)
+		pie.add_child(show)
+	var aim := _nose()
+	pie.set_meta("aim", aim)
+	pie.set_meta("vel", aim * (_speed + 50.0) + Vector3.UP * 50.0)
+	pie.set_meta("life", 3.2)
+	pie.set_meta("splat", 0.0)
+	pie.set_meta("spin", randf_range(-360.0, 360.0))
+	add_child(pie)
+	_pies.append(pie)
+
+
+func _tick_pies(delta: float) -> void:
+	var spent: Array[Node3D] = []
+	for pie in _pies:
+		if not is_instance_valid(pie):
+			spent.append(pie)
+			continue
+		var resting := float(pie.get_meta("splat"))
+		if resting > 0.0:
+			resting -= delta
+			pie.set_meta("splat", resting)
+			if resting <= 0.0:
+				pie.queue_free()
+				spent.append(pie)
+			continue
+		var life := float(pie.get_meta("life")) - delta
+		var vel := pie.get_meta("vel") as Vector3
+		var aim := pie.get_meta("aim") as Vector3
+		var drag := 0.2 + 0.8 * clampf(1.0 - life / 3.2, 0.0, 1.0)
+		vel += aim * 100.0 * delta
+		vel.y += 3.0 * delta
+		vel -= vel * drag * delta
+		pie.position += vel * delta
+		pie.rotate_object_local(Vector3.RIGHT, deg_to_rad(float(pie.get_meta("spin")) * delta))
+		pie.set_meta("vel", vel)
+		pie.set_meta("life", life)
+		if life <= 0.0:
+			# The flying pie is already scale 3. This lands it at the splat size of 6.
+			pie.scale = Vector3.ONE * 2.0
+			pie.set_meta("splat", 1.0)
+	for done in spent:
+		_pies.erase(done)
+
+
+func _drop_anvil() -> void:
+	if _kart == null or _flat >= 0.0:
+		return
+	if _anvil != null and is_instance_valid(_anvil):
+		_anvil.queue_free()
+	var weight := _prop(_ANVIL, 1.0)
+	if weight == null:
+		return
+	weight.name = "Anvil"
+	# dropOnMe starts the anvil overhead at scale (7, 9, 7) and drops it in one second.
+	weight.position = Vector3(0.0, 50.0, 0.0)
+	weight.scale = Vector3(7.0, 9.0, 7.0)
+	_kart.add_child(weight)
+	_anvil = weight
+	_flat = 0.0
+
+
+func _tick_flat(delta: float) -> void:
+	_flat += delta
+	var body: Node3D = _kart.get_node_or_null("Kart") as Node3D
+	if _anvil != null and is_instance_valid(_anvil):
+		var fall := clampf(_flat / 1.0, 0.0, 1.0)
+		_anvil.position.y = lerpf(50.0, 0.6, fall)
+		if _flat >= 1.0:
+			_anvil.scale.y = lerpf(9.0, 4.0, clampf((_flat - 1.0) / 0.2, 0.0, 1.0))
+		if _flat >= 1.2:
+			_anvil.queue_free()
+			_anvil = null
+	if body != null and _flat >= 0.92 and _flat < 1.7:
+		body.scale = Vector3(1.0, 0.1, 1.0)
+	elif body != null and _flat >= 1.7 and _flat < 2.0:
+		body.scale = Vector3(1.0, 2.0, 1.0)
+	elif body != null and _flat >= 2.0:
+		body.scale = Vector3.ONE
+		_flat = -1.0
+
+
+func _prop(path: String, prop_scale: float) -> Node3D:
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return null
+	var show: Node3D = packed.instantiate() as Node3D
+	if show == null:
+		return null
+	show.scale = Vector3.ONE * prop_scale
+	return show
+
+
+func _gag_texture(which: int) -> Texture2D:
+	match which:
+		_RULES.TURBO:
+			return _GAG_BOOST
+		_RULES.ANVIL:
+			return _GAG_ANVIL
+		_RULES.PIE:
+			return _GAG_PIE
+		_:
+			return _GAG_BANANA
 
 
 func _end(finished: bool, reason: String) -> void:
@@ -379,8 +552,21 @@ func _end(finished: bool, reason: String) -> void:
 	_started = false
 	var result := {}
 	if finished:
+		ToonNet.race_act("finish", {"time": _clock})
+		var place := _RACES.my_place()
+		var waits := 0
+		while place <= 0 and waits < 20 and is_inside_tree():
+			await get_tree().create_timer(0.05).timeout
+			place = _RACES.my_place()
+			waits += 1
+		if place <= 0:
+			place = _standing()
+		var racers := 1
+		var listed: Variant = _RACES.mine().get("racers", [])
+		if listed is Array and not (listed as Array).is_empty():
+			racers = (listed as Array).size()
 		var qualified := _clock <= _RULES.qualifying(track_id)
-		result = _GARAGE.finish_race(track_id, race_type, _clock, qualified, 1, 1)
+		result = _GARAGE.finish_race(track_id, race_type, _clock, qualified, place, racers)
 	_show_results(result, reason)
 	await get_tree().create_timer(4.0).timeout
 	if is_inside_tree():
@@ -432,6 +618,9 @@ func _build_world() -> void:
 		geom.name = "Track"
 		geom.set_script(_COLLISION)
 		add_child(geom)
+	# The visible pieces with cutout textures never became solid. The original
+	# track and wall polygons are the floor and the barriers.
+	_add_track_solids(slug)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, 30, 0)
 	add_child(sun)
@@ -443,6 +632,31 @@ func _build_world() -> void:
 	env.ambient_light_color = Color(0.7, 0.7, 0.7)
 	fill.environment = env
 	add_child(fill)
+
+
+func _add_track_solids(slug: String) -> void:
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_SOLIDS))
+	if not (parsed is Dictionary):
+		return
+	var raw: Array = (parsed as Dictionary).get(slug, [])
+	if raw.size() < 9:
+		return
+	var faces := PackedVector3Array()
+	var cursor := 0
+	while cursor + 2 < raw.size():
+		faces.append(Vector3(float(raw[cursor]), float(raw[cursor + 1]), float(raw[cursor + 2])))
+		cursor += 3
+	var body := StaticBody3D.new()
+	body.name = "TrackSolids"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.set_faces(faces)
+	var collision := CollisionShape3D.new()
+	collision.shape = shape
+	body.add_child(collision)
+	add_child(body)
 
 
 func _build_kart() -> void:
@@ -551,15 +765,20 @@ func _place_kart() -> void:
 	_aim_camera(0.0, true)
 
 
-func _grid_start() -> Vector3:
+func _grid_start(slot: int = -1) -> Vector3:
+	if slot < 0:
+		slot = _seat_index()
 	var curves: Variant = JSON.parse_string(FileAccess.get_file_as_string(_CURVES))
 	if not (curves is Dictionary):
 		return Vector3.INF
 	var record: Dictionary = (curves as Dictionary).get(_RULES.model_slug(track_id), {})
 	var starts: Array = record.get("starts", [])
-	if starts.is_empty() or not (starts[0] is Dictionary):
+	if starts.is_empty():
 		return Vector3.INF
-	var pos: Variant = (starts[0] as Dictionary).get("pos", [])
+	var pick := clampi(slot, 0, starts.size() - 1)
+	if not (starts[pick] is Dictionary):
+		return Vector3.INF
+	var pos: Variant = (starts[pick] as Dictionary).get("pos", [])
 	if pos is Array and (pos as Array).size() >= 3:
 		var row: Array = pos
 		return Vector3(float(row[0]), float(row[1]), float(row[2]))
@@ -613,15 +832,26 @@ func _make_gag(slot: int, at: Vector3) -> void:
 			# RaceGag.genGag grows the question box to scale 4.
 			box.scale = Vector3.ONE * 4.0
 			pad.add_child(box)
+	pad.set_meta("slot", slot)
 	add_child(pad)
 	pad.body_entered.connect(_take_gag.bind(pad))
 
 
 func _take_gag(body: Node, pad: Area3D) -> void:
-	if body != _kart or _gag != 0 or pad == null or not pad.visible:
+	if body != _kart or _gag != 0 or _gag_spin > 0.0 or pad == null or not pad.visible:
 		return
-	_gag = _RULES.gag_type(1, randi() % 6)
-	_gag_wait = 2.0
+	# GagFreq follows the racer's place. The district rolls the box once,
+	# so the same question mark cannot pay two karts.
+	if not _RACES.mine().is_empty() and pad.has_meta("slot"):
+		pad.visible = false
+		pad.monitoring = false
+		pad.set_meta("pending", Time.get_ticks_msec())
+		ToonNet.race_act("box", {"slot": int(pad.get_meta("slot"))})
+		_sync_race()
+		return
+	_gag_roll = _RULES.gag_type(_standing(), randi() % 6)
+	_gag = 0
+	_gag_spin = 2.0
 	pad.visible = false
 	pad.monitoring = false
 	get_tree().create_timer(5.0).timeout.connect(func() -> void:
@@ -659,8 +889,9 @@ func _make_boost(at: Vector3, panda_heading: float) -> void:
 			quad.size = Vector2(24.0, 24.0)
 			card.mesh = quad
 			card.material_override = material
-			# The card faces +Z. Pitch it onto the road so the arrow follows local -Z.
-			card.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			# The card faces +Z, with the arrow tip toward +Y. Pitch -90 lays it on
+			# the road and sends that tip along local -Z, the boost direction.
+			card.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 			card.position = Vector3(0.0, 0.08, -24.0 * float(step))
 			pad.add_child(card)
 	add_child(pad)
@@ -862,6 +1093,8 @@ func _layout_hud() -> void:
 	# on the map at (1.1, 0.75).
 	_map_line.position = Vector2(view.x * 0.5 + 1.1 * unit, view.y * 0.5 - 0.75 * unit)
 	_map_line.scale = Vector2(unit, unit)
+	# LineSegs.setThickness(2) is a screen width. The map scale must not fatten it.
+	_map_line.width = 2.0 / unit
 	_GUI.place(_map_spot, view, 1.1, 0.75, 0.0469, 0.0469)
 	_GUI.place(_hud_root.get_node("Gauge") as Control, view, 1.24, -0.98, 0.75, 0.75)
 	_GUI.place(_needle, view, 1.24, -0.98, 0.75, 0.75)
@@ -940,24 +1173,24 @@ func _paint_hud() -> void:
 		return
 	var showing := mini(_laps + 1, lap_total)
 	_hud_lap.text = "%d/%d" % [showing, lap_total]
-	_hud_place.text = "1"
-	_hud_suffix.text = "st"
+	var place := _standing()
+	_hud_place.text = str(place)
+	_hud_suffix.text = _place_suffix(place)
 	var shown := clampf(_speed, 0.0, _MAX_SPEED) * 200.0 / _MAX_SPEED
 	_hud_speed.text = str(int(shown / 3.0))
 	var sweep := clampf(shown / 3.0 / 120.0 * 110.0, 0.0, 110.0)
 	if _needle != null:
 		_needle.rotation_degrees = _NEEDLE_REST + sweep
 	if _gag_icon != null:
-		_gag_icon.visible = _gag != 0
-		match _gag:
-			_RULES.BANANA:
-				_gag_icon.texture = _GAG_BANANA
-			_RULES.TURBO:
-				_gag_icon.texture = _GAG_BOOST
-			_RULES.ANVIL:
-				_gag_icon.texture = _GAG_ANVIL
-			_RULES.PIE:
-				_gag_icon.texture = _GAG_PIE
+		# waitingOnGag flips the panel through banana, turbo, anvil, and pie, then lands.
+		var spinning := _gag_spin > 0.0
+		_gag_icon.visible = spinning or _gag != 0
+		if spinning:
+			var cycle := 1.0 - _gag_spin / 2.0
+			var eased := 1.0 - pow(1.0 - cycle, 3.0)
+			_gag_icon.texture = _gag_texture(int(eased * 16.0) % 4 + 1)
+		else:
+			_gag_icon.texture = _gag_texture(_gag)
 	var lap_index := mini(_laps, lap_total - 1)
 	if lap_index >= 0 and lap_index < _lap_mins.size():
 		var elapsed := maxf(_clock - _split, 0.0)
@@ -982,6 +1215,324 @@ func _paint_hud() -> void:
 				var world := 0.00025 * _map_factor() * 0.25
 				var spot := _points[_index]
 				_GUI.place(_map_spot, view, 1.1 + spot.x * world, 0.75 - spot.z * world, 0.0469, 0.0469)
+				_place_blips(view, world)
+
+
+func _send_pose(delta: float) -> void:
+	if _RACES.mine().is_empty() or _kart == null:
+		return
+	_pose_left -= delta
+	if _pose_left > 0.0:
+		return
+	_pose_left = 0.1
+	var along := float(_laps) * float(maxi(_points.size(), 1)) + float(_index)
+	var spot := _kart.global_position
+	ToonNet.race_act("pose", {
+		"x": spot.x,
+		"y": spot.y,
+		"z": spot.z,
+		"yaw": _yaw,
+		"speed": _speed,
+		"lap": _laps,
+		"along": along,
+	})
+
+
+func _sync_race() -> void:
+	var race := _RACES.mine()
+	if race.is_empty():
+		return
+	_apply_events(race)
+	_apply_loot(race)
+	_apply_boxes(race)
+
+
+func _apply_events(race: Dictionary) -> void:
+	var listed: Variant = race.get("events", [])
+	if not (listed is Array):
+		return
+	for item in listed as Array:
+		if not (item is Dictionary):
+			continue
+		var event: Dictionary = item
+		var seq := int(event.get("seq", 0))
+		if seq <= _event_seq:
+			continue
+		_event_seq = seq
+		var gag := int(event.get("gag", 0))
+		var owner := int(event.get("owner", 0))
+		var target := int(event.get("target", 0))
+		var at := Vector3(float(event.get("x", 0.0)), float(event.get("y", 0.0)), float(event.get("z", 0.0)))
+		if gag == _RULES.BANANA:
+			_drop_peel(at, true, owner)
+		elif gag == _RULES.PIE:
+			if owner == ToonNet.peer_id():
+				_shoot_pie()
+			elif target == ToonNet.peer_id():
+				_spin = 1.4
+		elif gag == _RULES.ANVIL and target == ToonNet.peer_id():
+			_drop_anvil()
+		elif gag == _RULES.ANVIL:
+			_anvil_remote(target)
+
+
+func _apply_loot(race: Dictionary) -> void:
+	var listed: Variant = race.get("loot", [])
+	if not (listed is Array):
+		return
+	var mine := ToonNet.peer_id()
+	for item in listed as Array:
+		if not (item is Dictionary):
+			continue
+		var card: Dictionary = item
+		if int(card.get("peer", 0)) != mine:
+			continue
+		var seq := int(card.get("seq", 0))
+		if seq <= _loot_seq:
+			continue
+		_loot_seq = seq
+		_gag_roll = int(card.get("gag", _RULES.BANANA))
+		_gag = 0
+		_gag_spin = 2.0
+
+
+func _apply_boxes(race: Dictionary) -> void:
+	var listed: Variant = race.get("down", [])
+	if not (listed is Array):
+		return
+	var down: Array = listed
+	var now := Time.get_ticks_msec()
+	for child in get_children():
+		if not (child is Area3D) or not child.has_meta("slot"):
+			continue
+		var pad := child as Area3D
+		var slot := int(pad.get_meta("slot"))
+		var pending := int(pad.get_meta("pending", 0))
+		var taken := false
+		for held in down:
+			if int(held) == slot:
+				taken = true
+		var hidden := taken or (pending > 0 and now - pending < 1000)
+		if not hidden:
+			pad.set_meta("pending", 0)
+		pad.visible = not hidden
+		pad.monitoring = not hidden
+
+
+func _sync_remotes(delta: float) -> void:
+	var race := _RACES.mine()
+	var listed: Variant = race.get("racers", [])
+	var want: Dictionary = {}
+	if listed is Array:
+		var racers: Array = listed
+		for index in racers.size():
+			if not (racers[index] is Dictionary):
+				continue
+			var racer: Dictionary = racers[index]
+			var peer := int(racer.get("peer", 0))
+			if peer == 0 or peer == ToonNet.peer_id():
+				continue
+			want[peer] = true
+			var show := _remotes.get(peer) as Node3D
+			if show == null:
+				show = _make_remote(racer, index)
+				_remotes[peer] = show
+			_follow_remote(show, racer, index, delta)
+	var gone: Array = []
+	for key in _remotes.keys():
+		if not want.has(key):
+			gone.append(key)
+	for key in gone:
+		var old := _remotes[key] as Node3D
+		if old != null and is_instance_valid(old):
+			var blip := old.get_meta("blip") as TextureRect
+			if blip != null:
+				blip.queue_free()
+			old.queue_free()
+		_remotes.erase(key)
+
+
+func _make_remote(racer: Dictionary, slot: int) -> Node3D:
+	var root := Node3D.new()
+	root.name = "RemoteKart"
+	add_child(root)
+	var dna: Array = []
+	var row: Variant = racer.get("dna", [])
+	if row is Array:
+		dna = row
+	var model := _MODEL.build(dna)
+	model.rotate_y(PI)
+	root.add_child(model)
+	root.scale = Vector3(2.0, 2.0, 2.0)
+	var dressed: Variant = racer.get("style", {})
+	if dressed is Dictionary and not (dressed as Dictionary).is_empty():
+		var seat := Node3D.new()
+		seat.name = "ToonSeat"
+		seat.position = Vector3(0.0, 0.1555, -0.1238)
+		seat.scale = Vector3(0.5, 0.5, 0.5)
+		root.add_child(seat)
+		var actor := ToonActor.new()
+		actor.name = "Driver"
+		actor.footsteps = false
+		seat.add_child(actor)
+		actor.show_style(ToonStyle.from_dict(dressed))
+		var body_scale := actor.transform.basis.get_scale().x
+		var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+		actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
+		_tuck_driver(actor)
+		actor.pose_synced_loop("sit")
+	var label := Label3D.new()
+	label.text = String(racer.get("name", "Toon"))
+	label.font = _GUI.sign_font()
+	label.font_size = 42
+	label.pixel_size = 0.012
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = _BLOTS[slot % _BLOTS.size()]
+	label.outline_modulate = Color.WHITE
+	label.position = Vector3(0.0, 2.4, 0.0)
+	root.add_child(label)
+	if _hud_root != null:
+		var blip := TextureRect.new()
+		blip.texture = _MAP_SPOT
+		blip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		blip.stretch_mode = TextureRect.STRETCH_SCALE
+		blip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		blip.modulate = _BLOTS[slot % _BLOTS.size()]
+		_hud_root.add_child(blip)
+		root.set_meta("blip", blip)
+	root.set_meta("flat", -1.0)
+	var park := _grid_start(slot)
+	if park != Vector3.INF:
+		root.global_position = park
+	return root
+
+
+func _follow_remote(show: Node3D, racer: Dictionary, slot: int, delta: float) -> void:
+	var driver := show.get_node_or_null("ToonSeat/Driver") as ToonActor
+	if driver != null:
+		driver.pose_synced_loop("sit")
+	_tick_remote_flat(show, delta)
+	var spot := Vector3(float(racer.get("x", 0.0)), float(racer.get("y", 0.0)), float(racer.get("z", 0.0)))
+	var parked := spot.length_squared() < 4.0 and float(racer.get("along", 0.0)) <= 0.0
+	if parked:
+		if not bool(show.get_meta("parked", false)):
+			var grid := _grid_start(slot)
+			if grid != Vector3.INF:
+				show.global_position = grid
+			show.set_meta("parked", true)
+		return
+	if not bool(show.get_meta("got", false)):
+		show.global_position = spot
+		show.rotation.y = deg_to_rad(float(racer.get("yaw", 0.0)))
+		if not parked:
+			show.set_meta("got", true)
+		return
+	var weight := 1.0 - exp(-12.0 * delta)
+	show.global_position = show.global_position.lerp(spot, weight)
+	show.rotation.y = lerp_angle(show.rotation.y, deg_to_rad(float(racer.get("yaw", 0.0))), weight)
+
+
+func _anvil_remote(peer: int) -> void:
+	var show := _remotes.get(peer) as Node3D
+	if show == null or float(show.get_meta("flat", -1.0)) >= 0.0:
+		return
+	var weight := _prop(_ANVIL, 1.0)
+	if weight == null:
+		return
+	weight.position = Vector3(0.0, 50.0, 0.0)
+	weight.scale = Vector3(7.0, 9.0, 7.0)
+	show.add_child(weight)
+	show.set_meta("anvil", weight)
+	show.set_meta("flat", 0.0)
+
+
+func _tick_remote_flat(show: Node3D, delta: float) -> void:
+	var flat := float(show.get_meta("flat", -1.0))
+	if flat < 0.0:
+		return
+	flat += delta
+	show.set_meta("flat", flat)
+	var weight := show.get_meta("anvil") as Node3D
+	var body := show.get_node_or_null("Kart") as Node3D
+	if weight != null and is_instance_valid(weight):
+		weight.position.y = lerpf(50.0, 0.6, clampf(flat / 1.0, 0.0, 1.0))
+		if flat >= 1.0:
+			weight.scale.y = lerpf(9.0, 4.0, clampf((flat - 1.0) / 0.2, 0.0, 1.0))
+		if flat >= 1.2:
+			weight.queue_free()
+			show.set_meta("anvil", null)
+	if body != null and flat >= 0.92 and flat < 1.7:
+		body.scale = Vector3(1.0, 0.1, 1.0)
+	elif body != null and flat >= 1.7 and flat < 2.0:
+		body.scale = Vector3(1.0, 2.0, 1.0)
+	elif body != null and flat >= 2.0:
+		body.scale = Vector3.ONE
+		show.set_meta("flat", -1.0)
+
+
+func _place_blips(view: Vector2, world: float) -> void:
+	for key in _remotes.keys():
+		var show := _remotes[key] as Node3D
+		if show == null:
+			continue
+		var blip := show.get_meta("blip") as TextureRect
+		if blip == null:
+			continue
+		var spot := show.global_position
+		_GUI.place(blip, view, 1.1 + spot.x * world, 0.75 - spot.z * world, 0.0469, 0.0469)
+
+
+func _seat_index() -> int:
+	var listed: Variant = _RACES.mine().get("racers", [])
+	if not (listed is Array):
+		return 0
+	var peer := ToonNet.peer_id()
+	var racers: Array = listed
+	for index in racers.size():
+		if racers[index] is Dictionary and int((racers[index] as Dictionary).get("peer", 0)) == peer:
+			return index
+	return 0
+
+
+func _standing() -> int:
+	var listed: Variant = _RACES.mine().get("racers", [])
+	if not (listed is Array):
+		return 1
+	var mine := float(_laps) * float(maxi(_points.size(), 1)) + float(_index)
+	if _finished:
+		var official := _RACES.my_place()
+		if official > 0:
+			return official
+		mine = 1.0e12
+	var place := 1
+	var peer := ToonNet.peer_id()
+	for item in listed as Array:
+		if not (item is Dictionary):
+			continue
+		var racer: Dictionary = item
+		if int(racer.get("peer", 0)) == peer:
+			continue
+		var along := float(racer.get("along", 0.0))
+		if bool(racer.get("done", false)):
+			along = 1.0e12
+		if along > mine:
+			place += 1
+	return place
+
+
+func _place_suffix(place: int) -> String:
+	var teen := place % 100
+	if teen >= 11 and teen <= 13:
+		return "th"
+	match place % 10:
+		1:
+			return "st"
+		2:
+			return "nd"
+		3:
+			return "rd"
+		_:
+			return "th"
 
 
 func _play_music() -> void:
@@ -1007,6 +1558,7 @@ func _leave_early() -> void:
 
 
 func _leave() -> void:
+	ToonNet.race_act("exit", {})
 	var pads = load("res://scenes/racing/speedway_racing.gd")
 	pads.park_return(return_point, return_heading)
 	ToonLoading.change_to(_SPEEDWAY)

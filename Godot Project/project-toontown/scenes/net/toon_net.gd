@@ -365,6 +365,26 @@ static func minigolf_act(kind: String, a: int, b: float, c: float) -> void:
 		net._minigolf_act.rpc_id(1, kind, a, b, c)
 
 
+static func _tell_race(peer: int, kind: String, state: Dictionary) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	var bus := tree.root.get_node_or_null("RaceBus")
+	if bus != null and bus.has_method("take"):
+		bus.call("take", peer, kind, state)
+
+
+static func race_act(kind: String, state: Dictionary) -> void:
+	var net := live()
+	if net == null:
+		return
+	if is_authority():
+		_tell_race(peer_id(), kind, state)
+		return
+	if net._role == "client":
+		net._race_act.rpc_id(1, kind, state)
+
+
 static func channels(prefix: String) -> PackedStringArray:
 	var found := PackedStringArray()
 	var net := live()
@@ -2539,6 +2559,7 @@ func _on_peer_gone(id: int) -> void:
 	districts_changed.emit()
 	_drop_toon(id)
 	MiniGolf.drop_peer(id)
+	_tell_race(id, "drop", {})
 	_clear_trolley_peer(id)
 	var factory := get_node_or_null("/root/StreetTraffic/FactoryBoard")
 	if factory != null and factory.has_method("drop"):
@@ -3127,6 +3148,13 @@ func _minigolf_act(kind: String, a: int, b: float, c: float) -> void:
 	if not is_authority():
 		return
 	MiniGolf.act(multiplayer.get_remote_sender_id(), kind, a, b, c)
+
+
+@rpc("any_peer", "reliable")
+func _race_act(kind: String, state: Dictionary) -> void:
+	if not is_authority():
+		return
+	_tell_race(multiplayer.get_remote_sender_id(), kind, state)
 
 
 @rpc("any_peer", "reliable")

@@ -638,7 +638,12 @@ func _process(delta: float) -> void:
 	# walk does not keep playing on everyone else's screen.
 	if _locked and _remotes != null and not _through_door:
 		var stuck_anim := _remotes.published_anim()
-		if stuck_anim == "walk" or stuck_anim == "run" or stuck_anim == "reverse" or stuck_anim == "turn" or stuck_anim == "jump" or stuck_anim == "sad-walk":
+		var racing := get_parent().get_node_or_null("SpeedwayRacing")
+		var boarding := racing != null and racing.has_method("holds_camera") and bool(racing.call("holds_camera"))
+		# The starting-block kart is the body other toons should see.
+		if boarding:
+			_remotes.note(_heading, 0.0, false, false, true)
+		elif stuck_anim == "walk" or stuck_anim == "run" or stuck_anim == "reverse" or stuck_anim == "turn" or stuck_anim == "jump" or stuck_anim == "sad-walk":
 			_remotes.note(_heading, 0.0, false, false, false)
 	MagicWords.maintain(get_parent())
 	_FIREWORKS.follow(get_parent())
@@ -654,6 +659,8 @@ func _process(delta: float) -> void:
 		_trolley.aim(_camera)
 	elif _minigolf != null and _minigolf.has_method("holds_camera") and bool(_minigolf.call("holds_camera")):
 		_minigolf.call("aim", _camera)
+	elif _speedway_camera():
+		pass
 	elif _boss_camera():
 		pass
 	elif _party_camera():
@@ -917,6 +924,17 @@ func quiet_line(expected: String = "") -> void:
 	_line_text = ""
 	_line_left = 0.0
 	_line.visible = false
+
+
+func _speedway_camera() -> bool:
+	# The starting block pulls the camera back while the toon brings out the kart.
+	var racing := get_parent().get_node_or_null("SpeedwayRacing")
+	if racing == null or not racing.has_method("holds_camera"):
+		return false
+	if not bool(racing.call("holds_camera")):
+		return false
+	racing.call("aim", _camera)
+	return true
 
 
 func _boss_camera() -> bool:

@@ -2,14 +2,17 @@ extends Node
 
 ## Race pads, kart stands, and the three central leaderboards on Goofy Speedway.
 ## A pad's sign changes track every 15 seconds until a toon is waiting.
-## Toon Battle and Grand Prix still need two racers, the same as considerAllAboard.
+## The district owns the pad. Toon Battle and Grand Prix still need two racers.
 
 const _RULES := preload("res://scenes/racing/kart_rules.gd")
 const _GARAGE := preload("res://scenes/racing/kart_garage.gd")
 const _MODEL := preload("res://scenes/racing/kart_model.gd")
 const _RACE := preload("res://scenes/racing/kart_race.gd")
+const _RACES := preload("res://scenes/racing/race_matches.gd")
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _LAYOUT := "res://assets/racing/speedway.json"
+const _CLOCK := preload("res://assets/gui/purchase/alarm_clock.png")
+const _APPEAR := "res://assets/racing/audio/KART_Appear.ogg"
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
 const _YES_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
 const _YES_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
@@ -43,6 +46,31 @@ var _near := false
 var _cancel := false
 var _shown: Node3D
 var _hidden: Node3D
+var _boarding := false
+var _depart := -1.0
+var _race_left := 0.0
+var _board_pad := -1
+var _told_seat := false
+var _launched := false
+var _field: Dictionary = {}
+var _board_time := 0.0
+var _board_hit: Dictionary = {}
+var _board_kart: Node3D
+var _board_anchor: Node3D
+var _board_seat: Node3D
+var _cam_from := Vector3.ZERO
+var _cam_to := Vector3.ZERO
+var _cam_look := Vector3.ZERO
+var _stand_at := Vector3.ZERO
+var _run_from := Vector3.ZERO
+var _block_heading := 0.0
+var _toss_from := Vector3.ZERO
+var _toss_yaw := 0.0
+var _toss_to := Vector3.ZERO
+var _posed := ""
+var _clock_face: TextureRect
+var _clock: Label
+var _appear: AudioStreamPlayer
 
 
 static func place(host: Node) -> void:
@@ -69,15 +97,16 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	var shared := _pull_pads()
+	_sync_field()
 	for pad in _pads:
-		if int(pad.get("waiting", -1)) >= 0:
-			continue
-		pad["left"] = float(pad.get("left", _RULES.SIGN_TIME)) - delta
-		if float(pad["left"]) <= 0.0:
-			pad["left"] = _RULES.SIGN_TIME
-			var picked: Dictionary = _RULES.next_track(int(pad.get("track", -1)), String(pad.get("genre", "")), int(pad.get("index", 0)))
-			pad["track"] = int(picked.get("track", 0))
-			pad["type"] = int(picked.get("type", 0))
+		if not shared and int(pad.get("waiting", -1)) < 0:
+			pad["left"] = float(pad.get("left", _RULES.SIGN_TIME)) - delta
+			if float(pad["left"]) <= 0.0:
+				pad["left"] = _RULES.SIGN_TIME
+				var picked: Dictionary = _RULES.next_track(int(pad.get("track", -1)), String(pad.get("genre", "")), int(pad.get("index", 0)))
+				pad["track"] = int(picked.get("track", 0))
+				pad["type"] = int(picked.get("type", 0))
 		var sign := pad.get("sign") as Label3D
 		if sign != null:
 			sign.text = "%s\n%s" % [_RULES.track_name(int(pad.get("track", 0))), _RULES.RACE_NAMES[int(pad.get("type", 0))]]
@@ -86,6 +115,9 @@ func _process(delta: float) -> void:
 		_board_left = 10.0
 		_board_step += 1
 		_paint_boards()
+	if _boarding:
+		_tick_boarding(delta)
+		return
 	if _busy:
 		return
 	var body := _body()
@@ -175,37 +207,533 @@ func _say(text: String) -> void:
 
 
 func _wait_out(hit: Dictionary) -> void:
-	var left := _RULES.COUNTDOWN
+	_board_begin(hit)
+
+
+func holds_camera() -> bool:
+	return _boarding
+
+
+func aim(camera: Camera3D) -> void:
+	if camera == null or not _boarding:
+		return
+	var weight := clampf(_board_time / 1.5, 0.0, 1.0)
+	camera.global_position = _cam_from.lerp(_cam_to, weight)
+	if camera.global_position.distance_squared_to(_cam_look) > 0.04:
+		camera.look_at(_cam_look, Vector3.UP)
+
+
+func _board_begin(hit: Dictionary) -> void:
+	_boarding = true
+	_depart = -1.0
+	_posed = ""
+	_told_seat = false
+	_launched = false
+	_board_time = 0.0
+	_board_pad = int(hit.get("pad_index", -1))
+	_race_left = _RULES.COUNTDOWN
+	var waiting := _RACES.wait_left(_board_pad)
+	if waiting >= 0.0:
+		_race_left = waiting
+	_board_hit = hit
+	var style := ToonRoster.selected_style()
+	var dressed: Dictionary = {}
+	var toon_name := "Toon"
+	if style != null:
+		dressed = style.to_dict()
+		toon_name = style.display_name()
+	ToonNet.race_act("join", {
+		"pad": _board_pad,
+		"block": int(hit.get("block_index", -1)),
+		"av": ToonRoster.avatar_id(),
+		"name": toon_name,
+		"dna": _GARAGE.dna().duplicate(),
+		"style": dressed,
+	})
 	_cancel = false
+	var panda_heading := float(hit.get("heading", 0.0))
+	_block_heading = -panda_heading
+	var at: Vector3 = hit.get("pos", Vector3.ZERO)
+	var host := get_parent()
+	_board_anchor = Node3D.new()
+	_board_anchor.position = at
+	_board_anchor.rotation.y = deg_to_rad(_block_heading)
+	host.add_child(_board_anchor)
+	var body := _body()
+	var origin := body.global_position if body != null else at
+	var ahead := _board_anchor.to_global(Vector3(0.0, 0.0, -6.5))
+	var behind := _board_anchor.to_global(Vector3(0.0, 0.0, 6.5))
+	ahead.y = origin.y
+	behind.y = origin.y
+	_stand_at = ahead if origin.distance_squared_to(ahead) <= origin.distance_squared_to(behind) else behind
+	_run_from = origin
+	_toss_to = at
+	_cam_to = _board_anchor.to_global(Vector3(0.0, 10.0, 23.0))
+	_cam_look = _board_anchor.to_global(Vector3(0.0, 1.2, 0.0))
+	var view_cam := get_viewport().get_camera_3d()
+	_cam_from = view_cam.global_position if view_cam != null else _cam_to
+	_board_kart = _MODEL.build()
+	_board_kart.scale = Vector3.ONE * 0.1
+	_board_kart.visible = false
+	host.add_child(_board_kart)
+	_board_seat = Node3D.new()
+	_board_seat.name = "Seat"
+	_board_seat.position = Vector3(0.0, 0.1555, -0.1238)
+	_board_kart.add_child(_board_seat)
+	var toon := _toon()
+	if toon != null:
+		toon.ensure_clip("feedPet")
+		toon.release_pose()
+		toon.clear_gesture()
 	_clear_buttons()
-	_no.pressed.connect(func() -> void:
-		_cancel = true
-	, CONNECT_ONE_SHOT)
-	while left > 0.0 and is_inside_tree() and not _cancel:
-		_prompt.text = "%s\nRace begins in %d" % [_RULES.track_name(int(hit.get("track", 0))), int(ceil(left))]
-		_set_yes(false)
-		_no_caption.text = "Exit"
-		_layer.visible = true
-		_layout_prompt()
-		await get_tree().create_timer(0.25).timeout
-		left -= 0.25
-	if not is_inside_tree():
+	_no.pressed.connect(_board_exit, CONNECT_ONE_SHOT)
+	_show_clock(true)
+	_paint_clock()
+
+
+func _tick_boarding(delta: float) -> void:
+	if _launched:
 		return
-	_set_yes(true)
-	_no_caption.text = "No"
-	if _cancel:
-		_decline()
+	var race := _RACES.mine()
+	if not race.is_empty() and String(race.get("phase", "")) == "run":
+		_launched = true
+		_launch_board()
 		return
-	if int(hit.get("type", 0)) != _RULES.PRACTICE:
+	if _depart >= 0.0:
+		_use_pose("sit", delta)
+		_sit_toon()
+		if not _RACES.live():
+			_depart -= delta
+			if _depart <= 0.0:
+				_launched = true
+				_launch_board()
+		return
+	_board_time += delta
+	if _RACES.live():
+		var remote := _RACES.wait_left(_board_pad)
+		if remote >= 0.0:
+			_race_left = remote
+		var note := _RACES.notice(_board_pad)
+		if note == "racers" and not _RACES.on_pad(_board_pad) and race.is_empty():
+			_board_stop()
+			_say("Toon Battle and Grand Prix races require two or more racers.")
+			return
+		if not race.is_empty() and String(race.get("phase", "")) == "enter" and _board_time >= 7.13:
+			_show_going()
+			return
+		if _board_time > 2.0 and not _RACES.on_pad(_board_pad) and race.is_empty():
+			_board_stop()
+			if _RACES.pad_closed(_board_pad):
+				_say("That race is already leaving.")
+			else:
+				_say("That starting block is already taken.")
+			return
+	else:
+		_race_left = maxf(_race_left - delta, 0.0)
+	_paint_clock()
+	_step_movie(delta)
+	if _RACES.live():
+		if _posed == "sit" and not _told_seat:
+			_told_seat = true
+			ToonNet.race_act("seated", {})
+	elif _race_left <= 0.0:
+		_begin_depart()
+
+
+func _show_going() -> void:
+	if _depart >= 0.0:
+		return
+	_depart = 0.0
+	_use_pose("sit", 0.0)
+	_sit_toon()
+	_prompt.text = "Going to the Race!"
+	_show_clock(false)
+	_no_caption.text = "Exit"
+	_clear_buttons()
+	_no.pressed.connect(_board_exit, CONNECT_ONE_SHOT)
+
+
+func _step_movie(delta: float) -> void:
+	var t := _board_time
+	var body := _body()
+	if t < 0.5:
+		_use_pose("", delta)
+		return
+	if t < 1.5:
+		var walk := clampf((t - 0.5) / 1.0, 0.0, 1.0)
+		var place := _run_from.lerp(_stand_at, walk)
+		var face := _heading_of(_run_from, _stand_at)
+		_move_toon(place, face)
+		_use_pose("run", delta)
+		return
+	if t < 3.6:
+		_move_toon(_stand_at, _block_heading)
+		if _posed != "feedPet":
+			_put_in_hand()
+			_play_appear()
+		_use_pose("feedPet", delta)
+		return
+	if t < 4.25:
+		_use_pose("feedPet", delta)
+	elif t < 5.8:
+		_use_pose("", delta)
+	elif t < 6.8:
+		_use_pose("jump", delta)
+	elif t < 7.13:
+		_use_pose("sit-start", delta)
+	else:
+		_use_pose("sit", delta)
+	if t < 4.8:
+		if _board_kart != null and _board_kart.get_parent() != get_parent():
+			_toss_from = _board_kart.global_position
+			_toss_yaw = _board_kart.global_rotation.y
+			var kept := _board_kart.global_transform
+			get_parent().add_child(_board_kart)
+			_board_kart.global_transform = kept
+		var flight := clampf((t - 3.6) / 1.2, 0.0, 1.0)
+		_fly_kart(flight)
+		return
+	if t < 5.0:
+		_settle_kart(0.0)
+		return
+	if t < 5.8:
+		_settle_kart(clampf((t - 5.0) / 0.8, 0.0, 1.0))
+		return
+	_settle_kart(1.0)
+	var hop := t - 5.8
+	if hop < 0.43:
+		_move_toon(_stand_at, _block_heading)
+		return
+	var rise := clampf((hop - 0.43) / 0.9, 0.0, 1.0)
+	var seat := _board_seat.global_position if _board_seat != null else _toss_to
+	var spot := _stand_at.lerp(seat, rise)
+	spot.y += sin(rise * PI) * 2.2
+	_move_toon(spot, _block_heading)
+
+
+func _put_in_hand() -> void:
+	var toon := _toon()
+	if toon == null or _board_kart == null:
+		return
+	var hand := toon.find_child("def_joint_right_hold", true, false) as Node3D
+	if hand == null:
+		return
+	hand.add_child(_board_kart)
+	_board_kart.position = Vector3.ZERO
+	_board_kart.rotation = Vector3.ZERO
+	_board_kart.scale = Vector3.ONE * 0.1
+	_board_kart.visible = true
+
+
+func _fly_kart(weight: float) -> void:
+	if _board_kart == null:
+		return
+	var flight := 1.2
+	var gravity := -32.0 * 0.45
+	var tau := weight * flight
+	var vel_y := (_toss_to.y - _toss_from.y) / flight - 0.5 * gravity * flight
+	var spot := _toss_from.lerp(_toss_to, weight)
+	spot.y = _toss_from.y + vel_y * tau + 0.5 * gravity * tau * tau
+	_board_kart.global_position = spot
+	_board_kart.scale = Vector3.ONE * 0.1
+	_board_kart.global_rotation.y = lerp_angle(_toss_yaw, deg_to_rad(_block_heading), weight)
+
+
+func _settle_kart(weight: float) -> void:
+	if _board_kart == null:
+		return
+	_board_kart.global_position = _toss_to
+	_board_kart.global_rotation.y = deg_to_rad(_block_heading)
+	_board_kart.scale = _pop_scale(weight)
+
+
+func _pop_scale(weight: float) -> Vector3:
+	# generateKartAppearTrack springs the kart from a flat card up to full size.
+	var marks: PackedFloat32Array = PackedFloat32Array([0.0, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8])
+	var wide: PackedFloat32Array = PackedFloat32Array([0.1, 1.1, 0.9, 1.0, 1.0, 1.0, 1.0])
+	var tall: PackedFloat32Array = PackedFloat32Array([0.1, 0.1, 0.1, 0.1, 1.1, 0.9, 1.0])
+	var along := clampf(weight, 0.0, 1.0) * 0.8
+	var index := 0
+	while index < marks.size() - 2 and along > marks[index + 1]:
+		index += 1
+	var span := marks[index + 1] - marks[index]
+	var blend := 0.0 if span <= 0.0 else clampf((along - marks[index]) / span, 0.0, 1.0)
+	var width := lerpf(wide[index], wide[index + 1], blend) * 1.6
+	var height := lerpf(tall[index], tall[index + 1], blend) * 1.6
+	return Vector3(width, height, width)
+
+
+func _use_pose(name: String, delta: float) -> void:
+	var toon := _toon()
+	if toon == null:
+		return
+	if name == "run":
+		if _posed != "run":
+			_posed = "run"
+			toon.release_pose()
+			toon.clear_gesture()
+		toon.play_run(delta)
+		return
+	if name == "sit":
+		if _posed != "sit":
+			_posed = "sit"
+			toon.release_pose()
+			toon.clear_gesture()
+		toon.pose_synced_loop("sit")
+		return
+	if _posed == name:
+		return
+	_posed = name
+	toon.release_pose()
+	toon.clear_gesture()
+	if name == "":
+		return
+	toon.play_gesture(name, 1.0, name == "jump")
+
+
+func _move_toon(at: Vector3, heading: float) -> void:
+	var body := _body()
+	if body != null:
+		body.global_position = at
+		body.velocity = Vector3.ZERO
+	var toon := _toon()
+	if toon != null:
+		_face_toon(toon, heading)
+
+
+func _sit_toon() -> void:
+	if _board_seat == null:
+		return
+	_move_toon(_board_seat.global_position, _block_heading)
+
+
+func _face_toon(actor: Node3D, heading: float) -> void:
+	var body_scale := actor.transform.basis.get_scale().x
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	upright = upright.rotated(Vector3.UP, deg_to_rad(heading))
+	actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
+
+
+func _heading_of(from: Vector3, to: Vector3) -> float:
+	var flat := Vector3(to.x - from.x, 0.0, to.z - from.z)
+	if flat.length_squared() < 0.0001:
+		return _block_heading
+	return rad_to_deg(atan2(-flat.x, -flat.z))
+
+
+func _begin_depart() -> void:
+	if int(_board_hit.get("type", 0)) != _RULES.PRACTICE:
+		_board_stop()
 		_say("Toon Battle and Grand Prix races require two or more racers.")
 		return
+	_depart = _RULES.ENTER_RACE
 	_prompt.text = "Going to the Race!"
-	await get_tree().create_timer(_RULES.ENTER_RACE).timeout
-	if not is_inside_tree():
-		return
+	_show_clock(false)
+	_no_caption.text = "Exit"
+	_clear_buttons()
+	_no.pressed.connect(_board_exit, CONNECT_ONE_SHOT)
+
+
+func _launch_board() -> void:
+	var hit := _board_hit
 	var spot: Vector3 = hit.get("pos", Vector3.ZERO)
-	var back := Vector3(sin(deg_to_rad(float(hit.get("heading", 0.0)))), 0.0, cos(deg_to_rad(float(hit.get("heading", 0.0))))) * 4.0
-	_RACE.launch(int(hit.get("track", 0)), int(hit.get("type", 0)), _RULES.LAPS, spot + back, float(hit.get("heading", 0.0)))
+	var heading := float(hit.get("heading", 0.0))
+	var back := Vector3(sin(deg_to_rad(heading)), 0.0, cos(deg_to_rad(heading))) * 4.0
+	var race := _RACES.mine()
+	var track := int(hit.get("track", 0))
+	var kind := int(hit.get("type", 0))
+	var laps := _RULES.LAPS
+	if not race.is_empty():
+		track = int(race.get("track", track))
+		kind = int(race.get("type", kind))
+		laps = int(race.get("laps", laps))
+	_RACE.launch(track, kind, laps, spot + back, heading)
+
+
+func _board_exit() -> void:
+	_board_stop()
+	_decline()
+
+
+func _board_stop() -> void:
+	if _boarding:
+		ToonNet.race_act("exit", {})
+		ToonNet.race_act("leave", {})
+	_boarding = false
+	_depart = -1.0
+	_posed = ""
+	_told_seat = false
+	_launched = false
+	var toon := _toon()
+	if toon != null:
+		toon.release_pose()
+		toon.clear_gesture()
+	if _board_kart != null and is_instance_valid(_board_kart):
+		_board_kart.queue_free()
+	_board_kart = null
+	_board_seat = null
+	if _board_anchor != null and is_instance_valid(_board_anchor):
+		_board_anchor.queue_free()
+	_board_anchor = null
+	if _appear != null:
+		_appear.stop()
+	_show_clock(false)
+	_layer.visible = false
+
+
+func _show_clock(clock: bool) -> void:
+	_layer.visible = true
+	var dim := _prompt_root.get_child(0) as CanvasItem
+	var frame := _prompt_root.get_child(1) as CanvasItem
+	dim.visible = not clock
+	frame.visible = not clock
+	_prompt.visible = not clock
+	_clock_face.visible = clock
+	_clock.visible = clock
+	_set_yes(false)
+	_no.visible = true
+	_no_caption.visible = true
+	if clock:
+		_no_caption.text = "Exit"
+		_prompt_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	else:
+		_prompt_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_layout_prompt()
+
+
+func _paint_clock() -> void:
+	if _clock == null:
+		return
+	_clock.text = str(int(ceil(_race_left)))
+
+
+func _play_appear() -> void:
+	var stream := load(_APPEAR) as AudioStream
+	if stream == null:
+		return
+	if _appear == null:
+		_appear = AudioStreamPlayer.new()
+		add_child(_appear)
+	_appear.stream = stream
+	_appear.play()
+
+
+func _toon() -> ToonActor:
+	var body := _body()
+	if body == null:
+		return null
+	for child in body.get_children():
+		if child is ToonActor:
+			return child as ToonActor
+	return null
+
+
+func _pull_pads() -> bool:
+	var rows := _RACES.pads()
+	if rows.is_empty():
+		return false
+	var count := mini(_pads.size(), rows.size())
+	for index in count:
+		var pad: Dictionary = _pads[index]
+		if bool(pad.get("viewing", false)) or not (rows[index] is Dictionary):
+			continue
+		var row: Dictionary = rows[index]
+		pad["track"] = int(row.get("track", pad.get("track", 0)))
+		pad["type"] = int(row.get("type", pad.get("type", 0)))
+		pad["left"] = float(row.get("left", pad.get("left", _RULES.SIGN_TIME)))
+		var peers: Variant = row.get("peers", [])
+		pad["waiting"] = 0 if peers is Array and not (peers as Array).is_empty() else -1
+	return true
+
+
+func _sync_field() -> void:
+	var rows := _RACES.pads()
+	var want: Dictionary = {}
+	for pad_index in rows.size():
+		if pad_index >= _pads.size() or not (rows[pad_index] is Dictionary):
+			continue
+		var row: Dictionary = rows[pad_index]
+		var peers: Variant = row.get("peers", [])
+		var blocks: Variant = row.get("blocks", [])
+		var names: Variant = row.get("names", [])
+		var dna: Variant = row.get("dna", [])
+		var styles: Variant = row.get("styles", [])
+		if not (peers is Array) or not (blocks is Array):
+			continue
+		var pad: Dictionary = _pads[pad_index]
+		var local_blocks: Array = pad.get("blocks", [])
+		for seat in (peers as Array).size():
+			var peer := int((peers as Array)[seat])
+			if peer == ToonNet.peer_id():
+				continue
+			if seat >= (blocks as Array).size():
+				continue
+			var block_index := int((blocks as Array)[seat])
+			if block_index < 0 or block_index >= local_blocks.size() or not (local_blocks[block_index] is Dictionary):
+				continue
+			want[peer] = true
+			if not _field.has(peer):
+				var toon_name := "Toon"
+				if names is Array and seat < (names as Array).size():
+					toon_name = String((names as Array)[seat])
+				var kart_dna: Array = []
+				if dna is Array and seat < (dna as Array).size() and (dna as Array)[seat] is Array:
+					kart_dna = (dna as Array)[seat]
+				var dressed: Dictionary = {}
+				if styles is Array and seat < (styles as Array).size() and (styles as Array)[seat] is Dictionary:
+					dressed = (styles as Array)[seat]
+				_field[peer] = _make_waiter(local_blocks[block_index], toon_name, kart_dna, dressed)
+	var gone: Array = []
+	for key in _field.keys():
+		if not want.has(key):
+			gone.append(key)
+	for key in gone:
+		var node := _field[key] as Node
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+		_field.erase(key)
+	for key in _field.keys():
+		var show := _field[key] as Node3D
+		if show == null:
+			continue
+		var driver := show.get_node_or_null("Seat/Driver") as ToonActor
+		if driver != null:
+			driver.pose_synced_loop("sit")
+
+
+func _make_waiter(block: Dictionary, toon_name: String, dna: Array, dressed: Dictionary) -> Node3D:
+	var kart := _MODEL.build(dna)
+	var at: Vector3 = block.get("pos", Vector3.ZERO)
+	kart.position = at + Vector3.UP * 0.2
+	kart.rotation.y = deg_to_rad(-float(block.get("heading", 0.0)))
+	kart.scale = Vector3.ONE * 1.6
+	add_child(kart)
+	var seat := Node3D.new()
+	seat.name = "Seat"
+	seat.position = Vector3(0.0, 0.1555, -0.1238)
+	seat.scale = Vector3.ONE * (1.0 / 1.6)
+	kart.add_child(seat)
+	if not dressed.is_empty():
+		var actor := ToonActor.new()
+		actor.name = "Driver"
+		actor.footsteps = false
+		seat.add_child(actor)
+		actor.show_style(ToonStyle.from_dict(dressed))
+		var body_scale := actor.transform.basis.get_scale().x
+		var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+		actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
+		actor.pose_synced_loop("sit")
+	var label := Label3D.new()
+	label.text = toon_name
+	label.font = _GUI.sign_font()
+	label.font_size = 42
+	label.pixel_size = 0.02
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color(0.1, 0.35, 0.85)
+	label.outline_modulate = Color.WHITE
+	label.position = Vector3(0.0, 3.2, 0.0)
+	kart.add_child(label)
+	return kart
 
 
 func _park(hit: Dictionary) -> void:
@@ -289,7 +817,16 @@ func _read_layout() -> void:
 				current["sign"] = sign
 		elif name.begins_with("starting_block") and not current.is_empty():
 			var blocks: Array = current.get("blocks", [])
-			blocks.append({"pos": pos, "heading": heading, "viewing": bool(current.get("viewing", false)), "track": current.get("track", 0), "type": current.get("type", 0), "pad": current})
+			blocks.append({
+				"pos": pos,
+				"heading": heading,
+				"viewing": bool(current.get("viewing", false)),
+				"track": current.get("track", 0),
+				"type": current.get("type", 0),
+				"pad": current,
+				"pad_index": _pads.size() - 1,
+				"block_index": blocks.size(),
+			})
 			current["blocks"] = blocks
 			var sign := current.get("sign") as Label3D
 			if sign != null and blocks.size() == 1:
@@ -403,6 +940,20 @@ func _build_prompt() -> void:
 	_yes_caption = _choice_caption("Yes")
 	_no = _choice(_NO_UP, _NO_DOWN, _NO_HOVER)
 	_no_caption = _choice_caption("No")
+	# ToontownTimer on a starting block: alarm clock at (1.16, 0, -0.73), scale 0.3.
+	_clock_face = TextureRect.new()
+	_clock_face.texture = _CLOCK
+	_clock_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_clock_face.stretch_mode = TextureRect.STRETCH_SCALE
+	_clock_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_clock_face.visible = false
+	_prompt_root.add_child(_clock_face)
+	_clock = Label.new()
+	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_clock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_clock.visible = false
+	_prompt_root.add_child(_clock)
 	var view := get_viewport()
 	if view != null and not view.size_changed.is_connected(_layout_prompt):
 		view.size_changed.connect(_layout_prompt)
@@ -450,6 +1001,15 @@ func _layout_prompt() -> void:
 	var dim := _prompt_root.get_child(0) as Control
 	dim.position = Vector2.ZERO
 	dim.size = view
+	if _clock_face != null and _clock_face.visible:
+		_GUI.place(_clock_face, view, 1.16, -0.73, 0.7417 * 0.3, 0.7292 * 0.3)
+		_GUI.place(_clock, view, 1.16, -0.73, 0.22, 0.16)
+		var digits := maxi(int(round(0.12 * view.y * 0.5)), 1)
+		_GUI.style_label(_clock, Color(0, 0, 0), digits, Color(0, 0, 0, 0), 0)
+		_place_choice(_no, _no_caption, view, 1.16)
+		_GUI.place(_no, view, 1.16, -0.9, 0.1, 0.1)
+		_GUI.place(_no_caption, view, 1.16, -1.02, 0.36, 0.1)
+		return
 	# dialog_box_gui tight bounds. OTPDialog text is scale 0.07, wrap 12.
 	_GUI.place(_prompt_root.get_child(1), view, 0.0, 0.0, 1.1122, 1.1861)
 	var px := maxi(int(round(0.07 * view.y * 0.5)), 1)
