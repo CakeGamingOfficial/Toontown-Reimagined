@@ -52,6 +52,7 @@ const _REVERSE := 28.0
 const _GRAVITY := 32.0
 const _YAW_SLOW := 140.0
 const _YAW_FAST := 100.0
+const _RACE_BUS := "RaceTempo"
 
 static var track_id := 0
 static var race_type := 0
@@ -103,6 +104,7 @@ var _note_left := 0.0
 var _wrong := false
 var _wrong_blink := 0.0
 var _music: AudioStreamPlayer
+var _music_shift: AudioEffectPitchShift
 var _driver: ToonActor
 var _limit := 300.0
 var _pose_left := 0.0
@@ -136,6 +138,7 @@ func _ready() -> void:
 	_build_kart()
 	_build_hud()
 	_play_music()
+	_lift_iris()
 	await get_tree().physics_frame
 	_place_kart()
 	_place_props()
@@ -319,8 +322,7 @@ func _watch_lap() -> void:
 		_laps += 1
 		_split = _clock
 		_passed_mid = false
-		if _music != null:
-			_music.pitch_scale = 1.0 + float(_laps) * 0.5
+		_set_music_tempo(1.0 + float(_laps) * 0.5)
 		if _laps >= lap_total:
 			_end(true, "")
 		elif _hud_note != null:
@@ -545,6 +547,19 @@ func _gag_texture(which: int) -> Texture2D:
 			return _GAG_BANANA
 
 
+## The reel slows onto the rolled gag. A fixed cycle always eased out on the pie.
+func _spinning_gag() -> int:
+	var order: Array[int] = [_RULES.BANANA, _RULES.TURBO, _RULES.ANVIL, _RULES.PIE]
+	var stop := order.find(_gag_roll)
+	if stop < 0:
+		stop = 0
+	var steps := 8 * order.size()
+	var cycle := clampf(1.0 - _gag_spin / 2.0, 0.0, 1.0)
+	var eased := 1.0 - pow(1.0 - cycle, 3.0)
+	var shown := mini(int(eased * float(steps + 1)), steps)
+	return order[(shown + stop) % order.size()]
+
+
 func _end(finished: bool, reason: String) -> void:
 	if _finished:
 		return
@@ -587,6 +602,20 @@ func _show_results(result: Dictionary, reason: String) -> void:
 	var trophies: Variant = result.get("trophies", [])
 	if trophies is PackedStringArray and not (trophies as PackedStringArray).is_empty():
 		_hud_note.text += "\nTrophies: " + ", ".join(trophies)
+
+
+func _lift_iris() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 40
+	add_child(layer)
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 1)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(shade)
+	var fade := create_tween()
+	fade.tween_property(shade, "color:a", 0.0, 0.6)
+	fade.tween_callback(layer.queue_free)
 
 
 func _countdown() -> void:
@@ -940,10 +969,11 @@ func _aim_camera(delta: float, snap: bool = false) -> void:
 	if forward.length_squared() < 0.0001:
 		return
 	forward = forward.normalized()
-	# Close chase. The old arm sat 11.5 back and looked 8 ahead, so the kart stayed small.
-	var back := 9.5 if _turbo > 0.0 else 6.5
-	var want := _kart.global_position - forward * back + Vector3.UP * 3.2
-	var look := _kart.global_position + forward * 2.0 + Vector3.UP * 1.1
+	# DistributedVehicle puts the camera at (0, -33, 16) with pitch -10.
+	# Turbo pulls that arm in to (0, -25, 16) and leaves the height alone.
+	var back := 25.0 if _turbo > 0.0 else 33.0
+	var want := _kart.global_position - forward * back + Vector3.UP * 16.0
+	var look := want + forward * 40.0 - Vector3.UP * (40.0 * tan(deg_to_rad(10.0)))
 	if snap:
 		_camera.global_position = want
 	else:
@@ -1182,13 +1212,11 @@ func _paint_hud() -> void:
 	if _needle != null:
 		_needle.rotation_degrees = _NEEDLE_REST + sweep
 	if _gag_icon != null:
-		# waitingOnGag flips the panel through banana, turbo, anvil, and pie, then lands.
+		# waitingOnGag flips the panel, then updateGag shows the gag that was rolled.
 		var spinning := _gag_spin > 0.0
 		_gag_icon.visible = spinning or _gag != 0
 		if spinning:
-			var cycle := 1.0 - _gag_spin / 2.0
-			var eased := 1.0 - pow(1.0 - cycle, 3.0)
-			_gag_icon.texture = _gag_texture(int(eased * 16.0) % 4 + 1)
+			_gag_icon.texture = _gag_texture(_spinning_gag())
 		else:
 			_gag_icon.texture = _gag_texture(_gag)
 	var lap_index := mini(_laps, lap_total - 1)
@@ -1541,11 +1569,45 @@ func _play_music() -> void:
 	if stream == null:
 		return
 	stream.loop = true
+	_ensure_race_bus()
 	_music = AudioStreamPlayer.new()
 	_music.stream = stream
+	_music.bus = _RACE_BUS
 	_music.volume_db = linear_to_db(0.7)
 	add_child(_music)
 	_music.play()
+	_set_music_tempo(1.0)
+
+
+func _ensure_race_bus() -> void:
+	var index := AudioServer.get_bus_index(_RACE_BUS)
+	if index < 0:
+		AudioServer.add_bus()
+		index = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(index, _RACE_BUS)
+		AudioServer.set_bus_send(index, "Master")
+	if AudioServer.get_bus_effect_count(index) == 0:
+		var shift := AudioEffectPitchShift.new()
+		shift.pitch_scale = 1.0
+		AudioServer.add_bus_effect(index, shift)
+	_music_shift = AudioServer.get_bus_effect(index, 0) as AudioEffectPitchShift
+
+
+## The lap tempo is the original 1 + laps * 0.5. Playing the stream faster
+## also raises its pitch, so the bus shifts that pitch back down.
+func _set_music_tempo(tempo: float) -> void:
+	if _music == null:
+		return
+	var rate := maxf(tempo, 0.01)
+	_music.pitch_scale = rate
+	if _music_shift == null:
+		return
+	var index := AudioServer.get_bus_index(_RACE_BUS)
+	if index < 0:
+		return
+	var faster := rate > 1.01
+	AudioServer.set_bus_effect_enabled(index, 0, faster)
+	_music_shift.pitch_scale = 1.0 / rate
 
 
 func _leave_early() -> void:

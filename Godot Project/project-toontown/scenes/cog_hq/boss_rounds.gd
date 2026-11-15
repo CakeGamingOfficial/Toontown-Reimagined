@@ -596,7 +596,7 @@ func start_ceo_threat(boss: Node) -> void:
 func start_seltzer(boss: Node) -> void:
 	_boss = boss
 	if _root == null:
-		_begin(boss)
+	_begin(boss)
 	_clock = 0.0
 	_golf = false
 	_carry = false
@@ -989,10 +989,10 @@ func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 		_aim_crane_camera()
 	_apply_crane_fit(delta)
 	if _crane >= 0 and _fresh_press():
-		if _held >= 0:
-			_drop_safe()
-		else:
-			_grab_safe()
+			if _held >= 0:
+				_drop_safe()
+			else:
+				_grab_safe()
 	_tick_crane_audio(delta, swinging, limited)
 	for index in _safes.size():
 		var safe: Dictionary = _safes[index]
@@ -1034,7 +1034,7 @@ func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 				safe["vy"] = 0.0
 				safe["ground"] = true
 				safe["at"] = at
-				node.global_position = at
+			node.global_position = at
 				if landed:
 					_land_safe(at, float(safe.get("impact", 0.0)), bool(safe.get("struck", false)))
 				var slide := Vector2(float(safe["vx"]), float(safe["vz"])).length()
@@ -1042,12 +1042,12 @@ func _tick_cfo(delta: float, body: CharacterBody3D) -> void:
 					safe["fall"] = 0.0
 					safe["vx"] = 0.0
 					safe["vz"] = 0.0
-				else:
+		else:
 					safe["vx"] = float(safe["vx"]) * 0.92
 					safe["vz"] = float(safe["vz"]) * 0.92
-			else:
+		else:
 				safe["ground"] = false
-				node.global_position = at
+			node.global_position = at
 				safe["at"] = at
 				if _driving and not bool(safe.get("struck", false)) and _near_point(at, _boss_pos, 8.0):
 					safe["struck"] = true
@@ -1147,7 +1147,7 @@ func _tick_cannon(delta: float, body: CharacterBody3D) -> void:
 			_clock = float(snap.get("clock", _clock))
 		_apply_cj_field()
 	_publish_cj(delta)
-	var along := clampf(_clock / 70.0, 0.0, 1.0)
+		var along := clampf(_clock / 70.0, 0.0, 1.0)
 	var slide := Vector3(30.0, 0.0, 12.645) * along
 	if _jury != null:
 		_jury.position = _jury_start + slide
@@ -1273,7 +1273,7 @@ func _tick_evidence(delta: float, body: CharacterBody3D) -> void:
 	var stunned := 0
 	for index in _lawyers.size():
 		if _cj_driving():
-			_lawyers[index]["stun"] = maxf(float(_lawyers[index]["stun"]) - delta, 0.0)
+		_lawyers[index]["stun"] = maxf(float(_lawyers[index]["stun"]) - delta, 0.0)
 		if float(_lawyers[index]["stun"]) > 0.0:
 			stunned += 1
 	if stunned == _lawyers.size() and not _lawyers.is_empty():
@@ -1645,9 +1645,9 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 		_mount_station(body)
 	elif _swing_age < 0.0 and _KEYS.use_held() and not _station_arm and _cool <= 0.0 and not _KEYS.held("jump"):
 		_golf = false
-		_spray = 0.0
+			_spray = 0.0
 		_station_arm = true
-		_cool = 0.3
+			_cool = 0.3
 		_hide_putter()
 		_release_board(body)
 		_free_toon()
@@ -2330,7 +2330,7 @@ func _end_cannons() -> void:
 	if _jury_loop != null and is_instance_valid(_jury_loop):
 		_jury_loop.stop()
 	_boss.call("set_jurors", _toon_jurors())
-	_boss.call("finish_cannons")
+		_boss.call("finish_cannons")
 
 
 func _place_chairs() -> void:

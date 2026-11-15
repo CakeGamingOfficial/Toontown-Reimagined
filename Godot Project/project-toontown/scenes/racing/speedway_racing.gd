@@ -64,6 +64,9 @@ var _cam_look := Vector3.ZERO
 var _stand_at := Vector3.ZERO
 var _run_from := Vector3.ZERO
 var _block_heading := 0.0
+var _drive := -1.0
+var _drive_from := Vector3.ZERO
+var _iris: ColorRect
 var _toss_from := Vector3.ZERO
 var _toss_yaw := 0.0
 var _toss_to := Vector3.ZERO
@@ -226,6 +229,7 @@ func aim(camera: Camera3D) -> void:
 func _board_begin(hit: Dictionary) -> void:
 	_boarding = true
 	_depart = -1.0
+	_drive = -1.0
 	_posed = ""
 	_told_seat = false
 	_launched = false
@@ -251,8 +255,9 @@ func _board_begin(hit: Dictionary) -> void:
 		"style": dressed,
 	})
 	_cancel = false
-	var panda_heading := float(hit.get("heading", 0.0))
-	_block_heading = -panda_heading
+	# setPosHpr adds 180 to the block in the speedway. That turn points the
+	# block's nose into the tunnel. Local -Z of this anchor is that nose.
+	_block_heading = float(hit.get("heading", 0.0)) + 180.0
 	var at: Vector3 = hit.get("pos", Vector3.ZERO)
 	var host := get_parent()
 	_board_anchor = Node3D.new()
@@ -268,8 +273,11 @@ func _board_begin(hit: Dictionary) -> void:
 	_stand_at = ahead if origin.distance_squared_to(ahead) <= origin.distance_squared_to(behind) else behind
 	_run_from = origin
 	_toss_to = at
+	# cameraPos (0, -23, 10) sits behind the block. cameraHpr (0, -10, 0)
+	# looks along the block, 10 degrees down, into the tunnel.
 	_cam_to = _board_anchor.to_global(Vector3(0.0, 10.0, 23.0))
-	_cam_look = _board_anchor.to_global(Vector3(0.0, 1.2, 0.0))
+	var drop := tan(deg_to_rad(10.0)) * 40.0
+	_cam_look = _board_anchor.to_global(Vector3(0.0, 10.0 - drop, 23.0 - 40.0))
 	var view_cam := get_viewport().get_camera_3d()
 	_cam_from = view_cam.global_position if view_cam != null else _cam_to
 	_board_kart = _MODEL.build()
@@ -291,22 +299,24 @@ func _board_begin(hit: Dictionary) -> void:
 	_paint_clock()
 
 
+func _kart_heading() -> float:
+	# The boarding model is not given the race kart's extra half turn, so its
+	# hood is local +Z. That axis lines up with the tunnel at this yaw.
+	return _block_heading + 180.0
+
+
 func _tick_boarding(delta: float) -> void:
 	if _launched:
 		return
-	var race := _RACES.mine()
-	if not race.is_empty() and String(race.get("phase", "")) == "run":
-		_launched = true
-		_launch_board()
+	if _drive >= 0.0:
+		_tick_tunnel(delta)
 		return
-	if _depart >= 0.0:
-		_use_pose("sit", delta)
-		_sit_toon()
-		if not _RACES.live():
-			_depart -= delta
-			if _depart <= 0.0:
-				_launched = true
-				_launch_board()
+	var race := _RACES.mine()
+	var phase := String(race.get("phase", ""))
+	var movie_done := _board_time >= 7.13
+	if movie_done and _board_kart != null and (phase == "enter" or phase == "run" or _depart >= 0.0):
+		_start_tunnel()
+		_tick_tunnel(delta)
 		return
 	_board_time += delta
 	if _RACES.live():
@@ -317,9 +327,6 @@ func _tick_boarding(delta: float) -> void:
 		if note == "racers" and not _RACES.on_pad(_board_pad) and race.is_empty():
 			_board_stop()
 			_say("Toon Battle and Grand Prix races require two or more racers.")
-			return
-		if not race.is_empty() and String(race.get("phase", "")) == "enter" and _board_time >= 7.13:
-			_show_going()
 			return
 		if _board_time > 2.0 and not _RACES.on_pad(_board_pad) and race.is_empty():
 			_board_stop()
@@ -338,19 +345,6 @@ func _tick_boarding(delta: float) -> void:
 			ToonNet.race_act("seated", {})
 	elif _race_left <= 0.0:
 		_begin_depart()
-
-
-func _show_going() -> void:
-	if _depart >= 0.0:
-		return
-	_depart = 0.0
-	_use_pose("sit", 0.0)
-	_sit_toon()
-	_prompt.text = "Going to the Race!"
-	_show_clock(false)
-	_no_caption.text = "Exit"
-	_clear_buttons()
-	_no.pressed.connect(_board_exit, CONNECT_ONE_SHOT)
 
 
 func _step_movie(delta: float) -> void:
@@ -436,14 +430,14 @@ func _fly_kart(weight: float) -> void:
 	spot.y = _toss_from.y + vel_y * tau + 0.5 * gravity * tau * tau
 	_board_kart.global_position = spot
 	_board_kart.scale = Vector3.ONE * 0.1
-	_board_kart.global_rotation.y = lerp_angle(_toss_yaw, deg_to_rad(_block_heading), weight)
+	_board_kart.global_rotation.y = lerp_angle(_toss_yaw, deg_to_rad(_kart_heading()), weight)
 
 
 func _settle_kart(weight: float) -> void:
 	if _board_kart == null:
 		return
 	_board_kart.global_position = _toss_to
-	_board_kart.global_rotation.y = deg_to_rad(_block_heading)
+	_board_kart.global_rotation.y = deg_to_rad(_kart_heading())
 	_board_kart.scale = _pop_scale(weight)
 
 
@@ -522,16 +516,55 @@ func _heading_of(from: Vector3, to: Vector3) -> float:
 
 
 func _begin_depart() -> void:
+	if _depart >= 0.0:
+		return
 	if int(_board_hit.get("type", 0)) != _RULES.PRACTICE:
 		_board_stop()
 		_say("Toon Battle and Grand Prix races require two or more racers.")
 		return
-	_depart = _RULES.ENTER_RACE
-	_prompt.text = "Going to the Race!"
-	_show_clock(false)
-	_no_caption.text = "Exit"
-	_clear_buttons()
-	_no.pressed.connect(_board_exit, CONNECT_ONE_SHOT)
+	_depart = 0.0
+
+
+## doExitToRaceTrack drives 40 units along the block, shrinks the kart, and
+## irises out. That roll into the tunnel is what loads the race.
+func _start_tunnel() -> void:
+	if _drive >= 0.0 or _board_kart == null:
+		return
+	_drive = 2.0
+	_drive_from = _board_kart.global_position
+	_layer.visible = false
+	var layer := CanvasLayer.new()
+	layer.layer = 40
+	add_child(layer)
+	_iris = ColorRect.new()
+	_iris.color = Color(0, 0, 0, 0)
+	_iris.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_iris.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(_iris)
+
+
+func _tick_tunnel(delta: float) -> void:
+	_drive = maxf(_drive - delta, 0.0)
+	var weight := 1.0 - _drive / 2.0
+	if _board_kart != null:
+		_board_kart.global_rotation.y = deg_to_rad(_kart_heading())
+		var nose := _board_kart.global_basis.z
+		nose.y = 0.0
+		if nose.length_squared() > 0.0001:
+			nose = nose.normalized()
+		_board_kart.global_position = _drive_from + nose * 40.0 * weight
+		var full := _pop_scale(1.0)
+		_board_kart.scale = full.lerp(full * 0.2, weight)
+	_use_pose("sit", delta)
+	_sit_toon()
+	if _iris != null:
+		var color := _iris.color
+		color.a = clampf(weight / 0.75, 0.0, 1.0)
+		_iris.color = color
+	if _drive > 0.0:
+		return
+	_launched = true
+	_launch_board()
 
 
 func _launch_board() -> void:
@@ -561,6 +594,12 @@ func _board_stop() -> void:
 		ToonNet.race_act("leave", {})
 	_boarding = false
 	_depart = -1.0
+	_drive = -1.0
+	if _iris != null and is_instance_valid(_iris):
+		var cover := _iris.get_parent()
+		if cover != null:
+			cover.queue_free()
+	_iris = null
 	_posed = ""
 	_told_seat = false
 	_launched = false
@@ -705,7 +744,7 @@ func _make_waiter(block: Dictionary, toon_name: String, dna: Array, dressed: Dic
 	var kart := _MODEL.build(dna)
 	var at: Vector3 = block.get("pos", Vector3.ZERO)
 	kart.position = at + Vector3.UP * 0.2
-	kart.rotation.y = deg_to_rad(-float(block.get("heading", 0.0)))
+	kart.rotation.y = deg_to_rad(float(block.get("heading", 0.0)))
 	kart.scale = Vector3.ONE * 1.6
 	add_child(kart)
 	var seat := Node3D.new()
@@ -720,7 +759,10 @@ func _make_waiter(block: Dictionary, toon_name: String, dna: Array, dressed: Dic
 		seat.add_child(actor)
 		actor.show_style(ToonStyle.from_dict(dressed))
 		var body_scale := actor.transform.basis.get_scale().x
+		# The waiting kart is not turned by the race's extra half turn, so its
+		# hood is local +Z. Turn the sitter to match that hood.
 		var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+		upright = upright.rotated(Vector3.UP, PI)
 		actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
 		actor.pose_synced_loop("sit")
 	var label := Label3D.new()
