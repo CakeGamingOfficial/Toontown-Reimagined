@@ -521,11 +521,23 @@ func _move_puppets(delta: float) -> void:
 			_clear_portal(actor, puppet)
 			actor.hide_remote_book()
 			actor.set_swimming(false)
+			# The lineup pins a toon while the victory dance plays. After the
+			# fight, the last "victory" update must not lock the body again.
+			# The SpeedChat dance is the same clip, played as a gesture.
+			if anim == "victory":
+				if String(puppet.get("emote", "")) != "victory":
+					puppet["emote"] = "victory"
+					actor.play_gesture("victory", 1.0, false)
+				continue
+			puppet["emote"] = ""
 			actor.pose_action(anim, _elapsed_pose(puppet))
 			continue
 		_clear_portal(actor, puppet)
 		actor.hide_remote_book()
 		actor.set_swimming(actor.under_water())
+		if String(puppet.get("emote", "")) == "victory":
+			puppet["emote"] = ""
+			actor.clear_gesture()
 		if anim == "sit":
 			actor.pose_synced_loop("sit")
 			continue

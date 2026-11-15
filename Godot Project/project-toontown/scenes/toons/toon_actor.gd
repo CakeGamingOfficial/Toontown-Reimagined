@@ -73,6 +73,7 @@ var _idle_loaded := false
 var _idle_missing := false
 var _posing := false
 var _pose_lock := false
+var _locked_clip := ""
 var _shown_pose := 0.0
 var _sad := false
 var _clip := ""
@@ -184,6 +185,7 @@ func show_style(style: ToonStyle) -> void:
 	_idle_missing = false
 	_posing = false
 	_pose_lock = false
+	_locked_clip = ""
 	_clip = ""
 	_jump_kind = ""
 	_land_kind = ""
@@ -638,6 +640,11 @@ func set_dialogue(delta: float) -> void:
 func play_gesture(suffix: String, rate: float, loop: bool) -> void:
 	if _style == null:
 		return
+	# A held battle pose must not stay locked underneath a gesture. set_locomotion
+	# refuses to play while that lock is set, so the body would freeze.
+	if _pose_lock:
+		_pose_lock = false
+		_locked_clip = ""
 	_ensure_clips()
 	if _gesture != suffix:
 		var frames := int((_extra.get(suffix, {}) as Dictionary).get("frames", 0))
@@ -1270,6 +1277,7 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	if frames <= 1 or clips.is_empty():
 		return
 	_pose_lock = true
+	_locked_clip = suffix
 	# RemoteToons leaves a clip alone when the battle movie posed it this frame.
 	set_meta("pose_frame", Engine.get_process_frames())
 	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
@@ -1295,6 +1303,7 @@ func pose_synced_loop(suffix: String) -> void:
 
 func release_pose() -> void:
 	_pose_lock = false
+	_locked_clip = ""
 
 
 ## The clip other clients should play. Empty means the walk speed is enough.
@@ -1375,10 +1384,29 @@ func end_action(suffix: String) -> void:
 	var clips: Array = bank.get("clips", [])
 	var joints: Array = bank.get("joints", [])
 	_restore_clip(clips, joints)
+	if _gesture == suffix:
+		_gesture = ""
+		_look_enabled = true
 	if _clip == suffix:
 		_clip = ""
 		_posing = false
+	# play_gesture clears _clip without dropping the lock. The lock is what
+	# freezes the last dance frame, so release it by the clip that took it.
+	if _locked_clip == suffix:
 		_pose_lock = false
+		_locked_clip = ""
+		_posing = false
+
+
+## The battle is over. Drop whatever clip is holding the body, even if a
+## gesture cleared the clip name and left the lock behind.
+func release_held_pose() -> void:
+	var suffix := _locked_clip
+	if suffix == "":
+		if not _pose_lock or _clip == "" or _clip == "book":
+			return
+		suffix = _clip
+	end_action(suffix)
 
 
 func _play_idle(delta: float) -> void:

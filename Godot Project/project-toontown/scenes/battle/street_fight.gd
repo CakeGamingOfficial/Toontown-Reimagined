@@ -1821,7 +1821,7 @@ func _end_victory() -> void:
 			continue
 		var actor := _actor_for(int((item as Dictionary).get("id", 0)))
 		if actor != null:
-			actor.end_action("victory")
+			actor.release_held_pose()
 
 
 func _battle_actors() -> Array:
