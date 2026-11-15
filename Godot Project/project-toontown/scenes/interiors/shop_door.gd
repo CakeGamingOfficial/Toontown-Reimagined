@@ -270,9 +270,11 @@ static func seal(door: Node3D) -> void:
 			part.visible = false
 
 
-static func open(host: Node, door: Node3D) -> void:
+static func open(host: Node, door: Node3D, echo := true) -> void:
 	if door == null:
 		return
+	if echo:
+		_MOTION.share(host, door, "shop")
 	# Swinging leaves stay off the street until this door opens. A copy on
 	# every building is a few hundred extra meshes in the blocks you walk past.
 	_add_panels(door)
@@ -290,6 +292,32 @@ static func open(host: Node, door: Node3D) -> void:
 			return
 		host_node = host_node.get_parent()
 		guard += 1
+
+
+static func close(host: Node, door: Node3D) -> void:
+	if door == null:
+		return
+	if _MOTION.close_in(host, door):
+		return
+	var host_node: Node = door
+	var guard := 0
+	while host_node != null and guard < 6:
+		var right := _find_exact(host_node, "def_right_door")
+		var left := _find_exact(host_node, "def_left_door")
+		if right != null or left != null:
+			_shut(host, right, 100.0)
+			_shut(host, left, -100.0)
+			_sound(host, "res://assets/interiors/hq/Door_Close_1.ogg")
+			return
+		host_node = host_node.get_parent()
+		guard += 1
+
+
+static func _shut(host: Node, panel: Node3D, degrees: float) -> void:
+	if panel == null or not panel.has_meta("closed_basis"):
+		return
+	var tween := host.create_tween()
+	tween.tween_method(_set_swing.bind(panel), degrees, 0.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 static func _gather(node: Node) -> void:

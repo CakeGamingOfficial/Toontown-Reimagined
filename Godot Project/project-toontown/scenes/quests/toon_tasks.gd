@@ -1060,6 +1060,17 @@ func note_trolley() -> void:
 	save()
 
 
+## QuestManagerAI.completeQuest. The laff meter fills whether this was the
+## last step or one part of a longer task.
+func _full_heal() -> void:
+	var loadout := ToonLoadout.for_selected()
+	if loadout == null:
+		return
+	loadout.set_hp(loadout.max_hp, loadout.max_hp)
+	loadout.save()
+	ToonNet.set_battle_laff(loadout.hp, loadout.max_hp)
+
+
 ## npc_id is who is standing in front of the toon. HQ passes 0.
 ## A visit is finished by arriving. A track choice is finished by choose_track.
 ## The returned id is the task this NPC just handed out.
@@ -1099,6 +1110,9 @@ func turn_in(quest_id: int, npc_id: int = 0) -> int:
 	# The id chosen at HQ is what a generic Central quest pays.
 	if next_id == 0 and pay > 0:
 		_collect({"reward": pay})
+	# QuestManagerAI.completeQuest calls toonUp(maxHp) for a finished task
+	# and for each step of a chain.
+	_full_heal()
 	save()
 	if next_id != 0:
 		assign(next_id, npc_id, pay)
@@ -1124,6 +1138,7 @@ func choose_track(quest_id: int, track: int) -> void:
 	if not _done.has(quest_id):
 		_done.append(quest_id)
 	_collect({"reward": 400})
+	_full_heal()
 	save()
 
 

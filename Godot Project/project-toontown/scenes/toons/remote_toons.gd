@@ -13,6 +13,25 @@ const _SNAP := 96.0
 const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
 const _DOODLE := preload("res://scenes/pets/doodle.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
+const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
+const _DOOR := preload("res://scenes/interiors/door_motion.gd")
+const _SHOP_DOOR := preload("res://scenes/interiors/shop_door.gd")
+const _HOUSE_DOOR := preload("res://scenes/interiors/house_door.gd")
+const _GAG_DOOR := preload("res://scenes/interiors/gag_shop_door.gd")
+const _PET_DOOR := preload("res://scenes/interiors/pet_shop_door.gd")
+const _KART_DOOR := preload("res://scenes/interiors/kart_shop_door.gd")
+const _HALL_DOOR := preload("res://scenes/interiors/toon_hall_door.gd")
+const _LIB_DOOR := preload("res://scenes/interiors/library_door.gd")
+const _BANK_DOOR := preload("res://scenes/interiors/bank_door.gd")
+const _HQ_DOOR := preload("res://scenes/interiors/toon_hq_door.gd")
+const _TELEPORT_SFX := "res://assets/audio/sfx/AV_teleport.ogg"
+# Toon.getTeleportOutTrack. The hole leaves the hand at 1.708 and the clip ends at 3.4.
+const _OUT_TIME := 3.4
+const _SOUND_AT := 0.5
+const _DROP_AT := 1.708
+const _IN_OPEN := 0.3
+const _IN_HOLD := 0.6
+const _JUMP_FROM := 0.45
 
 var _world: Node
 var _body: Node3D
@@ -27,6 +46,14 @@ var _turning := false
 var _jumping := false
 var _hidden := false
 var _anim := ""
+var _arrival := false
+var _clip_pose := -1.0
+var _sent_pose_anim := ""
+var _door_path := ""
+var _door_kind := ""
+var _door_stamp := 0
+var _door_pos := Vector3.ZERO
+var _door_tokens: Dictionary = {}
 var _fishing := false
 var _fish_pose := -1.0
 var _fish_rod := 0
@@ -60,13 +87,14 @@ func bind(world: Node, body: Node3D, actor: ToonActor, tags: Nametags) -> void:
 
 func note(heading: float, speed: float, turning: bool, jumping: bool, hidden: bool) -> void:
 	var anim := _anim_name(speed, turning, jumping)
-	var changed := anim != _anim or hidden != _hidden or _fishing
+	var changed := anim != _anim or hidden != _hidden or _fishing or _arrival
 	_heading = heading
 	_speed = speed
 	_turning = turning
 	_jumping = jumping
 	_hidden = hidden
 	_anim = anim
+	_arrival = false
 	_fishing = false
 	_fish_pose = -1.0
 	if changed:
@@ -75,6 +103,9 @@ func note(heading: float, speed: float, turning: bool, jumping: bool, hidden: bo
 
 ## The trolley publishes sit instead of a walk speed. A change goes out immediately.
 func note_anim(heading: float, anim: String) -> void:
+	# The teleport movie owns the channel until the hole finishes.
+	if _arrival:
+		return
 	var changed := anim != _anim or _fishing
 	_heading = heading
 	_speed = 0.0
@@ -87,8 +118,45 @@ func note_anim(heading: float, anim: String) -> void:
 		_wait = 0.0
 
 
+## Teleport out and teleport in. pose is seconds into that movie.
+func note_clip(heading: float, anim: String, pose: float) -> void:
+	var changed := anim != _anim or not _arrival
+	_heading = heading
+	_speed = 0.0
+	_turning = false
+	_jumping = false
+	_hidden = false
+	_fishing = false
+	_fish_pose = -1.0
+	_arrival = true
+	_anim = anim
+	_clip_pose = pose
+	if changed:
+		_wait = 0.0
+
+
+func published_anim() -> String:
+	return _anim
+
+
+## DistributedDoor.setState. The owner names the door they just opened.
+func note_door(door: Node3D, kind: String) -> void:
+	if door == null or not is_instance_valid(door):
+		return
+	var scene := get_tree().current_scene if get_tree() != null else null
+	if scene == null:
+		return
+	_door_path = str(scene.get_path_to(door))
+	_door_kind = kind
+	_door_pos = door.global_position
+	_door_stamp = Time.get_ticks_msec()
+	_wait = 0.0
+
+
 ## The fishing spot plays castlong by pose time. pose is -1 when the clip runs on its own.
 func note_fishing(heading: float, anim: String, pose: float, rod: int) -> void:
+	if _arrival:
+		return
 	var changed := anim != _anim or rod != _fish_rod or absf(pose - _fish_pose) > 0.12 or not _fishing
 	_heading = heading
 	_speed = 0.0
@@ -111,6 +179,13 @@ func _process(delta: float) -> void:
 		_tags.place()
 	# setGM is broadcast with the toon. Send the new icon on this frame.
 	if MagicWords.gm_type() != _sent_gm:
+		_wait = 0.0
+	# A teleport, the shticker book, or an emote replaces the walk the moment it starts.
+	var posed := ""
+	if _actor != null and is_instance_valid(_actor) and not _arrival:
+		posed = _actor.remote_anim()
+	if posed != _sent_pose_anim:
+		_sent_pose_anim = posed
 		_wait = 0.0
 	_wait -= delta
 	if _wait <= 0.0:
@@ -154,8 +229,20 @@ func _send() -> void:
 	var worn := _CLOSET.accessory_ids()
 	# A quest close-up hides the local mesh because the camera sits on that
 	# spot. Other toons still see you standing where the movie left you.
+	var anim := _anim
+	var clip_pose := -1.0
+	if _arrival:
+		clip_pose = _clip_pose
+	else:
+		var posed := _actor.remote_anim()
+		if posed != "":
+			anim = posed
+			clip_pose = _actor.remote_pose_time()
 	var concealed := _hidden or not _actor.visible
 	if _world != null and _world.has_method("in_cutscene") and bool(_world.call("in_cutscene")):
+		concealed = false
+	# The arrival hole hides the local mesh until the leap. Other toons still play it.
+	if not MagicWords.ghosting() and (_arrival or anim == "teleport" or anim == "book" or _battle_clip(anim)):
 		concealed = false
 	ToonNet.submit("toon:%d" % ToonNet.peer_id(), {
 		"district": ToonNet.district_id(),
@@ -169,7 +256,14 @@ func _send() -> void:
 		"z": where.z,
 		"heading": _heading,
 		"speed": _speed,
-		"anim": _anim,
+		"anim": anim,
+		"clip_pose": clip_pose,
+		"door_path": _door_path if _door_stamp > 0 and Time.get_ticks_msec() - _door_stamp < 3000 else "",
+		"door_kind": _door_kind if _door_stamp > 0 and Time.get_ticks_msec() - _door_stamp < 3000 else "",
+		"door_stamp": _door_stamp if _door_stamp > 0 and Time.get_ticks_msec() - _door_stamp < 3000 else 0,
+		"door_x": _door_pos.x,
+		"door_y": _door_pos.y,
+		"door_z": _door_pos.z,
 		"fishing": _fishing,
 		"pose": _fish_pose,
 		"rod": _fish_rod,
@@ -242,6 +336,9 @@ func _apply(channel: String) -> void:
 		return
 	var state := ToonNet.latest(channel)
 	if state.is_empty() or int(state.get("district", -1)) != ToonNet.district_id() or String(state.get("place", "")) != _place:
+		# Leaving the zone used to delete the toon on the spot. Finish the hole first.
+		if _keep_teleport(peer):
+			return
 		_drop(peer)
 		return
 	if bool(state.get("ghost", false)) or bool(state.get("hidden", false)):
@@ -276,10 +373,17 @@ func _apply(channel: String) -> void:
 	puppet["heading"] = float(state.get("heading", 0.0))
 	puppet["speed"] = float(state.get("speed", 0.0))
 	puppet["anim"] = String(state.get("anim", "neutral"))
+	puppet["clip_pose"] = float(state.get("clip_pose", -1.0))
+	puppet["pose_msec"] = Time.get_ticks_msec()
+	puppet["departing"] = false
 	puppet["fishing"] = bool(state.get("fishing", false))
 	puppet["pose"] = float(state.get("pose", -1.0))
 	puppet["rod"] = int(state.get("rod", 0))
 	puppet["seen"] = true
+	var swung := int(state.get("door_stamp", 0))
+	if swung > 0 and swung != int(puppet.get("door_stamp", 0)):
+		puppet["door_stamp"] = swung
+		_play_remote_door(String(state.get("door_path", "")), String(state.get("door_kind", "")), Vector3(float(state.get("door_x", 0.0)), float(state.get("door_y", 0.0)), float(state.get("door_z", 0.0))))
 	_puppets[peer] = puppet
 	actor.set_meta("peer", peer)
 	actor.set_meta("av", int(state.get("av", 0)))
@@ -358,13 +462,39 @@ func _move_puppets(delta: float) -> void:
 		var puppet: Dictionary = _puppets[peer]
 		_move_pet(puppet, delta)
 		var actor: ToonActor = puppet.get("actor")
-		if actor == null or not is_instance_valid(actor) or not actor.visible:
+		if actor == null or not is_instance_valid(actor):
+			continue
+		if bool(puppet.get("departing", false)):
+			actor.visible = true
+			_play_portal(actor, puppet, "teleport")
+			if _elapsed_pose(puppet) >= _OUT_TIME:
+				_drop(int(peer))
+			continue
+		if not actor.visible and String(puppet.get("anim", "")) != "arrival":
 			continue
 		if _pins.has(peer):
 			var pinned: Dictionary = _pins[peer]
 			actor.global_position = pinned.get("pos", actor.global_position)
 			_face(actor, float(pinned.get("heading", 0.0)))
 			actor.set_swimming(false)
+			# The battle slot used to freeze the body. Duck, lose, and the
+			# victory dance are published on the same channel as a teleport.
+			var pinned_anim := String(puppet.get("anim", ""))
+			var has_pose := float(puppet.get("clip_pose", -1.0)) >= 0.0
+			var frame_now := Engine.get_process_frames()
+			var posed_frame := int(actor.get_meta("pose_frame", -1))
+			var posed_this_frame := posed_frame == frame_now
+			var owned := String(actor.get_meta("net_clip", ""))
+			var showing := actor.remote_anim()
+			if _battle_clip(pinned_anim) and has_pose and not posed_this_frame:
+				_clear_portal(actor, puppet)
+				actor.hide_remote_book()
+				actor.pose_action(pinned_anim, _elapsed_pose(puppet))
+				actor.set_meta("net_clip", pinned_anim)
+			elif not posed_this_frame and owned != "" and owned == showing:
+				actor.release_pose()
+				actor.set_locomotion(0.0, false, false, 0.0)
+				actor.remove_meta("net_clip")
 			continue
 		var target: Vector3 = puppet.get("pos", actor.global_position)
 		var blend := clampf(delta / _PERIOD, 0.0, 1.0)
@@ -375,9 +505,26 @@ func _move_puppets(delta: float) -> void:
 		var anim := String(puppet.get("anim", "neutral"))
 		actor.set_sad(anim == "sad-walk" or anim == "sad-neutral")
 		if bool(puppet.get("fishing", false)):
+			_clear_portal(actor, puppet)
 			_play_fishing(actor, puppet, anim, delta)
 			continue
 		_drop_pole(puppet)
+		if anim == "teleport" or anim == "arrival":
+			_play_portal(actor, puppet, anim)
+			continue
+		if anim == "book":
+			_clear_portal(actor, puppet)
+			actor.set_swimming(false)
+			actor.pose_remote_book(float(puppet.get("clip_pose", 0.0)))
+			continue
+		if _held_clip(anim) and float(puppet.get("clip_pose", -1.0)) >= 0.0:
+			_clear_portal(actor, puppet)
+			actor.hide_remote_book()
+			actor.set_swimming(false)
+			actor.pose_action(anim, _elapsed_pose(puppet))
+			continue
+		_clear_portal(actor, puppet)
+		actor.hide_remote_book()
 		actor.set_swimming(actor.under_water())
 		if anim == "sit":
 			actor.pose_synced_loop("sit")
@@ -409,6 +556,234 @@ func _move_puppets(delta: float) -> void:
 			actor.set_locomotion(0.0, false, false, delta)
 		else:
 			actor.set_locomotion(0.0, false, false, delta)
+
+
+func _held_clip(anim: String) -> bool:
+	return anim != "neutral" and anim != "walk" and anim != "run" and anim != "reverse" and anim != "turn" and anim != "jump" and anim != "sad-walk" and anim != "sad-neutral" and anim != "sit" and anim != "sit-start"
+
+
+## Duck, lose, and victory. The teleport hole and the shticker book have their own movies.
+func _battle_clip(anim: String) -> bool:
+	return _held_clip(anim) and anim != "teleport" and anim != "arrival" and anim != "book"
+
+
+func _elapsed_pose(puppet: Dictionary) -> float:
+	var base := float(puppet.get("clip_pose", 0.0))
+	var stamp := int(puppet.get("pose_msec", 0))
+	if stamp <= 0:
+		return base
+	return base + float(Time.get_ticks_msec() - stamp) / 1000.0
+
+
+func _keep_teleport(peer: int) -> bool:
+	var puppet: Dictionary = _puppets.get(peer, {})
+	if puppet.is_empty():
+		return false
+	if String(puppet.get("anim", "")) != "teleport":
+		return false
+	if bool(puppet.get("departing", false)):
+		return true
+	if _elapsed_pose(puppet) >= _OUT_TIME:
+		return false
+	puppet["departing"] = true
+	_puppets[peer] = puppet
+	return true
+
+
+func _play_portal(actor: ToonActor, puppet: Dictionary, anim: String) -> void:
+	actor.hide_remote_book()
+	actor.set_swimming(false)
+	var shadow := actor.find_child("drop_shadow", true, false) as Node3D
+	if shadow != null:
+		shadow.visible = false
+	var tag: Control = puppet.get("tag")
+	var pose := _elapsed_pose(puppet)
+	if anim == "teleport":
+		if pose >= _OUT_TIME:
+			_clear_portal(actor, puppet)
+			actor.visible = false
+			if tag != null:
+				tag.visible = false
+			return
+		actor.visible = true
+		actor.set_hole_clip(true, actor.global_position.y)
+		actor.pose_action("teleport", pose)
+		var hole := _ensure_hole(actor, puppet, pose < _DROP_AT)
+		if hole != null:
+			hole.call("pose_at", pose)
+		if pose >= _SOUND_AT and not bool(puppet.get("sounded", false)):
+			puppet["sounded"] = true
+			_play_teleport_sound(actor)
+		return
+	var leap := actor.action_length("leap")
+	var total := _IN_OPEN + _IN_HOLD + _IN_OPEN
+	if leap > _JUMP_FROM:
+		total = maxf(total, _IN_OPEN + (leap - _JUMP_FROM))
+	if pose >= total:
+		_clear_portal(actor, puppet)
+		actor.visible = true
+		if tag != null:
+			tag.visible = true
+		actor.release_pose()
+		actor.set_locomotion(0.0, false, false, 0.016)
+		return
+	var landing := _ensure_hole(actor, puppet, false)
+	if landing != null:
+		if not bool(puppet.get("hole_set", false)):
+			puppet["hole_set"] = true
+			landing.global_transform = actor.global_transform
+			landing.global_position = actor.to_global(Vector3(0.0, -2.4, 0.0))
+		landing.call("pose_at", _arrival_hole(pose))
+	if pose < _IN_OPEN:
+		actor.visible = false
+		if tag != null:
+			tag.visible = false
+		return
+	actor.visible = true
+	if tag != null:
+		tag.visible = true
+	actor.set_hole_clip(false, 0.0)
+	actor.pose_action("leap", _JUMP_FROM + (pose - _IN_OPEN))
+
+
+func _arrival_hole(elapsed: float) -> float:
+	if elapsed < _IN_OPEN:
+		return lerpf(_OUT_TIME, 3.1, elapsed / _IN_OPEN)
+	if elapsed < _IN_OPEN + _IN_HOLD:
+		return 3.1
+	var shut := clampf((elapsed - _IN_OPEN - _IN_HOLD) / _IN_OPEN, 0.0, 1.0)
+	return lerpf(3.1, _OUT_TIME, shut)
+
+
+func _ensure_hole(actor: ToonActor, puppet: Dictionary, on_hand: bool) -> Node3D:
+	var portal := puppet.get("portal") as Node3D
+	if portal == null or not is_instance_valid(portal):
+		portal = _PORTAL.new() as Node3D
+		portal.name = "TeleportPortal"
+		actor.add_child(portal)
+		portal.call("setup")
+		puppet["portal"] = portal
+		puppet["hole_down"] = false
+		puppet["hole_set"] = false
+	if on_hand and not bool(puppet.get("hole_down", false)):
+		var hand := actor.find_child("def_joint_right_hold", true, false) as Node3D
+		var parent := actor as Node
+		if hand != null:
+			parent = hand
+		if portal.get_parent() != parent:
+			parent.add_child(portal)
+			portal.transform = Transform3D.IDENTITY
+		return portal
+	if not bool(puppet.get("hole_down", false)):
+		portal.reparent(actor, false)
+		portal.transform = Transform3D.IDENTITY
+		puppet["hole_down"] = true
+	return portal
+
+
+func _clear_portal(actor: ToonActor, puppet: Dictionary) -> void:
+	var portal: Variant = puppet.get("portal")
+	if not (portal is Node):
+		return
+	if is_instance_valid(portal):
+		(portal as Node).queue_free()
+	puppet.erase("portal")
+	puppet.erase("hole_down")
+	puppet.erase("hole_set")
+	puppet.erase("sounded")
+	actor.set_hole_clip(false, 0.0)
+	var shadow := actor.find_child("drop_shadow", true, false) as Node3D
+	if shadow != null:
+		shadow.visible = true
+
+
+func _play_teleport_sound(actor: ToonActor) -> void:
+	var stream := ToonAudio.stream(_TELEPORT_SFX)
+	if stream == null:
+		return
+	var player := ToonAudio.effect_3d()
+	player.stream = stream
+	actor.add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
+
+
+func _play_remote_door(path: String, kind: String, at: Vector3) -> void:
+	var door := _find_shared_door(path, at)
+	if door == null:
+		return
+	_swing_shared(door, kind)
+	var token := Time.get_ticks_msec()
+	_door_tokens[path] = token
+	await get_tree().create_timer(2.0).timeout
+	if int(_door_tokens.get(path, 0)) != token:
+		return
+	_door_tokens.erase(path)
+	if is_instance_valid(door):
+		_close_shared(door, kind)
+
+
+func _find_shared_door(path: String, at: Vector3) -> Node3D:
+	var scene := get_tree().current_scene if get_tree() != null else null
+	if scene == null:
+		return null
+	if path != "":
+		var named := scene.get_node_or_null(path) as Node3D
+		if named != null:
+			return named
+	var state := {"door": null, "dist": 12.0}
+	_scan_shared_door(scene, at, state)
+	return state["door"] as Node3D
+
+
+func _scan_shared_door(node: Node, at: Vector3, state: Dictionary) -> void:
+	if node is Node3D:
+		var called := str(node.name)
+		if called.begins_with("door_double_") or called == "door_0" or called.begins_with("door_origin") or called.ends_with("_Door"):
+			var here := (node as Node3D).global_position
+			if here.distance_to(at) < float(state["dist"]):
+				state["dist"] = here.distance_to(at)
+				state["door"] = node
+	for child in node.get_children():
+		_scan_shared_door(child, at, state)
+
+
+func _swing_shared(door: Node3D, kind: String) -> void:
+	match kind:
+		"shop":
+			_SHOP_DOOR.open(self, door, false)
+		"house":
+			_HOUSE_DOOR.open(self, door, false)
+		"gag":
+			_GAG_DOOR.open(self, door, false)
+		"pet":
+			_PET_DOOR.open(self, door, false)
+		"kart":
+			_KART_DOOR.open(self, door, false)
+		"hall":
+			_HALL_DOOR.open(self, door, false)
+		"hall-out":
+			_HALL_DOOR.open_out(self, door, false)
+		"library":
+			_LIB_DOOR.open(self, door, false)
+		"bank":
+			_BANK_DOOR.open(self, door, false)
+		"hq":
+			_HQ_DOOR.open(self, door, false)
+
+
+func _close_shared(door: Node3D, kind: String) -> void:
+	if kind == "hall-out":
+		_HALL_DOOR.close_out(self, door)
+		return
+	if kind == "kart":
+		_DOOR.close_in(self, door)
+		_DOOR.close_left(self, door)
+		return
+	if kind == "shop":
+		_SHOP_DOOR.close(self, door)
+		return
+	_DOOR.close_in(self, door)
 
 
 func _play_fishing(actor: ToonActor, puppet: Dictionary, anim: String, delta: float) -> void:

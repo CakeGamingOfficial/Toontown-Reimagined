@@ -673,12 +673,24 @@ func _shown(track: int) -> int:
 
 
 func _place_quest_line() -> void:
-	var text_scale := 0.22
+	# RewardPanel quest labels are text_scale 0.05, left aligned at x -0.85,
+	# and each following task sits 0.1 lower. Four is the carry limit.
+	var text_scale := 0.05
 	var px := maxi(int(round(text_scale * size.y * 0.5)), 1)
-	_quest_line.add_theme_font_override("normal_font", ToonGui.font())
+	var font := ToonGui.font()
+	_quest_line.add_theme_font_override("normal_font", font)
 	_quest_line.add_theme_font_size_override("normal_font_size", px)
 	_quest_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	ToonGui.place(_quest_line, size, -0.1, _PANEL_Z - 0.15 + text_scale * 0.35, 1.5, text_scale * 1.45)
+	_quest_line.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	var unit := size.y * 0.5
+	var step := int(round(0.1 * unit))
+	var gap := maxi(step - font.get_height(px), 0)
+	_quest_line.add_theme_constant_override("line_separation", gap)
+	_quest_line.add_theme_constant_override("paragraph_separation", gap)
+	var lines := 4
+	var height := text_scale * 1.45 + 0.1 * float(lines - 1)
+	var center := _PANEL_Z + text_scale * 1.075 - height * 0.5
+	ToonGui.place(_quest_line, size, -0.1, center, 1.5, height)
 
 
 func _style(label: Label, x: float, baseline: float, width: float, text_scale: float, align: HorizontalAlignment) -> void:

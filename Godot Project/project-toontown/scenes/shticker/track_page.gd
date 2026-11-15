@@ -21,7 +21,6 @@ var _films: Array[TextureRect] = []
 var _marks: Array[Label] = []
 var _numbers: Array[Label] = []
 var _ports: Array[SubViewport] = []
-var _snap_wait := 0
 
 
 func _ready() -> void:
@@ -60,22 +59,17 @@ func _ready() -> void:
 		_films.append(film)
 		_marks.append(mark)
 		_numbers.append(number)
-	set_process(false)
 
 
-func _process(_delta: float) -> void:
-	# The portrait is posed once. Leave it up for a frame so the viewport
-	# actually draws, then stop so eighteen toons are not rendered all the time.
-	if _snap_wait <= 0:
-		set_process(false)
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_VISIBILITY_CHANGED:
 		return
-	_snap_wait -= 1
-	if _snap_wait > 0:
-		return
+	var mode := SubViewport.UPDATE_DISABLED
+	if is_visible_in_tree():
+		mode = SubViewport.UPDATE_ALWAYS
 	for port in _ports:
 		if is_instance_valid(port):
-			port.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	set_process(false)
+			port.render_target_update_mode = mode
 
 
 func layout(page_size: Vector2) -> void:
@@ -172,9 +166,6 @@ func refresh() -> void:
 		number.text = str(index)
 		var ink := Color(0.5, 0.5, 0.5) if not training else tint * Color(0.3, 0.3, 0.3, 1.0)
 		_tint(number, ink)
-	if not _ports.is_empty():
-		_snap_wait = 2
-		set_process(true)
 
 
 func _show_toon(frame: Control, track: int, film_index: int) -> void:
@@ -187,7 +178,7 @@ func _show_toon(frame: Control, track: int, film_index: int) -> void:
 	port.transparent_bg = true
 	port.own_world_3d = true
 	port.handle_input_locally = false
-	port.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	port.render_target_update_mode = SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 	frame.add_child(port)
 	var world := Node3D.new()
 	port.add_child(world)
@@ -207,13 +198,39 @@ func _show_toon(frame: Control, track: int, film_index: int) -> void:
 	camera.current = true
 	world.add_child(camera)
 	var actor := ToonActor.new()
+	actor.footsteps = false
 	world.add_child(actor)
 	actor.show_style(style)
-	# TrackFrame stands the toon at heading 210, a three-quarter view.
-	actor.rotation.y = deg_to_rad(-30.0)
+	# TrackFrame heading 210. rotation.y would replace the standing basis,
+	# and the portrait would leave the film hole.
+	var body_scale := actor.transform.basis.get_scale().x
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	upright = upright.rotated(Vector3.UP, deg_to_rad(150.0))
+	actor.transform.basis = upright.scaled(Vector3.ONE * body_scale)
 	var anim := _ANIMS[track] if track < _ANIMS.size() else "throw"
 	var span := actor.action_length(anim)
 	actor.pose_action(anim, span * float(film_index) / float(_MAX))
+	var focus := Vector3(0.0, style.avatar_height() * 0.45, 0.0)
+	var span_size := style.avatar_height() * 1.15
+	var merged := AABB()
+	var found := false
+	for node in actor.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		if mesh.name == "drop_shadow":
+			mesh.visible = false
+			continue
+		var piece := mesh.global_transform * mesh.get_aabb()
+		merged = piece if not found else merged.merge(piece)
+		found = true
+	if found and merged.size.y > 0.05:
+		focus = merged.get_center()
+		span_size = maxf(merged.size.x, merged.size.y) * 1.35
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = span_size
+	camera.position = focus + Vector3(span_size * 0.12, 0.0, span_size * 1.6)
+	camera.look_at(focus)
 	var view := TextureRect.new()
 	view.name = "ToonView"
 	view.texture = port.get_texture()
@@ -235,8 +252,6 @@ func _show_toon(frame: Control, track: int, film_index: int) -> void:
 
 
 func _clear_toons() -> void:
-	_snap_wait = 0
-	set_process(false)
 	for port in _ports:
 		if is_instance_valid(port):
 			port.queue_free()

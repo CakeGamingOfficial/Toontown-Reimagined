@@ -78,9 +78,11 @@ static func seal(door: Node3D) -> void:
 			part.visible = false
 
 
-static func open(host: Node, door: Node3D) -> void:
+static func open(host: Node, door: Node3D, echo := true) -> void:
 	if door == null:
 		return
+	if echo:
+		_MOTION.share(host, door, "library")
 	# The right leaf swings. The flat frame stays, and the opening is black.
 	_MOTION.open_in(host, door)
 

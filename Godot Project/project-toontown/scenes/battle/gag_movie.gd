@@ -3436,7 +3436,8 @@ func _cog_death(marks: Array, still: Callable) -> void:
 	var dying := false
 	for mark in marks:
 		var row: Dictionary = mark
-		if int(row.get("hp", 1)) <= 0 and row.get("cog") != null:
+		# A client missing the suit node still ducks. MovieUtil ducks every toon.
+		if int(row.get("hp", 1)) <= 0:
 			dying = true
 	if not dying:
 		return
@@ -3456,8 +3457,9 @@ func _cog_death(marks: Array, still: Callable) -> void:
 		points.append(body.global_position + Vector3(0.0, tall - 0.2, 0.0))
 	var toons := _lineup_actors()
 	var duck_len := 0.0
-	if not toons.is_empty() and toons[0] is ToonActor:
-		duck_len = (toons[0] as ToonActor).action_length("duck")
+	for ducker in toons:
+		if ducker is ToonActor and is_instance_valid(ducker):
+			duck_len = maxf(duck_len, (ducker as ToonActor).action_length("duck"))
 	var waits: Array[float] = []
 	waits.resize(points.size())
 	var gate := {}

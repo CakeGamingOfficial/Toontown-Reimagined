@@ -84,9 +84,11 @@ static func inside_drop(host: Node, index: int) -> Dictionary:
 	return {"point": point, "heading": _heading(inward)}
 
 
-static func open(host: Node, door: Node3D) -> void:
+static func open(host: Node, door: Node3D, echo := true) -> void:
 	if door == null:
 		return
+	if echo:
+		preload("res://scenes/interiors/door_motion.gd").share(host, door, "kart")
 	_sound(host, OPEN_SFX)
 	for part_name in ["doorFrameHoleRight", "doorFrameHoleLeft"]:
 		var hole := _find_starting(door, part_name)

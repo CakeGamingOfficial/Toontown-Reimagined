@@ -1120,8 +1120,9 @@ func _refresh_map() -> void:
 	if at_home and _tasks != null:
 		dest = _tasks.return_hood()
 	# MapPage shows Back to Playground everywhere except a playground itself.
-	# The estate yard and the house are not playgrounds.
-	_go_back.visible = not _guided and (on_street or (at_home and dest > 0))
+	# A shopkeeper's room uses the playground's scene id, so the street test misses it.
+	var in_shop := _PLACES.is_shop(scene_path) or _PLACES.is_gag_shop(scene_path) or _PLACES.is_pet_shop(scene_path) or _PLACES.is_kart_shop(scene_path)
+	_go_back.visible = not _guided and (on_street or in_shop or (at_home and dest > 0))
 	var back_caption := _go_back.get_child(0) as Label
 	if dest >= 10000 and dest < 16000:
 		back_caption.text = "Back to Cog Headquarters"
@@ -1189,9 +1190,10 @@ func _back_to_hood() -> void:
 		_travel(dest)
 		return
 	var zone := _LINKS.zone_for_scene(scene_path)
-	if zone == 0:
+	var hood := _LINKS.hood_of(zone) if zone != 0 else _PLACES.hood_for_scene(scene_path)
+	if hood == 0:
 		return
-	_travel(_LINKS.hood_of(zone))
+	_travel(hood)
 
 
 func _ask_switch() -> void:

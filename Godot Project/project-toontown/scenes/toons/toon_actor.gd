@@ -73,6 +73,7 @@ var _idle_loaded := false
 var _idle_missing := false
 var _posing := false
 var _pose_lock := false
+var _shown_pose := 0.0
 var _sad := false
 var _clip := ""
 var _jump_kind := ""
@@ -123,6 +124,7 @@ const _NO_SHAKE := [0.1, 40.0, 0.15, -40.0, 0.15, 40.0, 0.15, -40.0, 0.15, 20.0,
 var _book_phase := ""
 var _book_clock := 0.0
 var _book_hold := 0.0
+var _book_frame := 0.0
 var _book_prop: Node3D
 var _book_joints: Array = []
 var _parcel: MeshInstance3D
@@ -956,6 +958,7 @@ func _tick_shticker(delta: float) -> void:
 
 
 func _pose_book_frame(time: float) -> void:
+	_book_frame = time
 	ensure_clip("book")
 	var bank: Dictionary = _extra.get("book", {})
 	var frames := int(bank.get("frames", 0))
@@ -1256,6 +1259,10 @@ func action_length(suffix: String) -> float:
 func pose_action(suffix: String, elapsed: float) -> void:
 	# A held pose owns the ears too. The idle flop would replace them after a tenth of a second.
 	_locomotion_msec = Time.get_ticks_msec()
+	_shown_pose = elapsed
+	# A held throw, teleport, or emote is not a walk. Stop the footstep loop.
+	if _step_mode != "":
+		_play_footsteps("")
 	ensure_clip(suffix)
 	var bank: Dictionary = _extra.get(suffix, {})
 	var frames := int(bank.get("frames", 0))
@@ -1263,6 +1270,8 @@ func pose_action(suffix: String, elapsed: float) -> void:
 	if frames <= 1 or clips.is_empty():
 		return
 	_pose_lock = true
+	# RemoteToons leaves a clip alone when the battle movie posed it this frame.
+	set_meta("pose_frame", Engine.get_process_frames())
 	var time := clampf(elapsed * 24.0, 0.0, float(frames - 1))
 	var frame := mini(int(time), frames - 1)
 	var following := mini(frame + 1, frames - 1)
@@ -1286,6 +1295,46 @@ func pose_synced_loop(suffix: String) -> void:
 
 func release_pose() -> void:
 	_pose_lock = false
+
+
+## The clip other clients should play. Empty means the walk speed is enough.
+func remote_anim() -> String:
+	if disguised or _style == null:
+		return ""
+	if _book_phase != "":
+		return "book"
+	# Swim, walk, and sit already go out as the movement state.
+	if _pose_lock and _clip != "" and _clip != "walk" and _clip != "idle" and _clip != "run" and _clip != "swim" and _clip != "sit":
+		return _clip
+	if _gesture != "" and _gesture != "swim" and _gesture != "sit" and _gesture != "sit-start":
+		return _gesture
+	return ""
+
+
+## Seconds into a held clip, or a shticker frame index while the book is open.
+func remote_pose_time() -> float:
+	if _book_phase != "":
+		return _book_frame
+	if _pose_lock:
+		return _shown_pose
+	if _gesture != "":
+		return float(_cycle_time.get(_gesture, 0.0)) / 24.0
+	return 0.0
+
+
+## A remote toon reads the book the owner has open.
+func pose_remote_book(frame: float) -> void:
+	_locomotion_msec = Time.get_ticks_msec()
+	_pose_lock = true
+	_ensure_book_prop()
+	if _book_prop != null and is_instance_valid(_book_prop):
+		_book_prop.visible = true
+	_pose_book_frame(frame)
+
+
+func hide_remote_book() -> void:
+	if _book_prop != null and is_instance_valid(_book_prop):
+		_book_prop.visible = false
 
 
 func set_look_enabled(enabled: bool) -> void:

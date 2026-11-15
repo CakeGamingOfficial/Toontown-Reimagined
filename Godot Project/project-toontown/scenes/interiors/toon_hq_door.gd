@@ -207,9 +207,11 @@ static func seal(door: Node3D) -> void:
 			part.visible = false
 
 
-static func open(host: Node, door: Node3D) -> void:
+static func open(host: Node, door: Node3D, echo := true) -> void:
 	if door == null:
 		return
+	if echo:
+		_MOTION.share(host, door, "hq")
 	var flat := _flat(door)
 	for part_name in ["doorFrameHoleRight", "doorFrameHoleLeft"]:
 		var hole := _find_starting(door, part_name)

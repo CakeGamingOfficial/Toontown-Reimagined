@@ -85,7 +85,19 @@ const _GAGS: Array[Texture2D] = [
 ]
 
 const _TRACKS: PackedStringArray = ["TOON-UP", "TRAP", "LURE", "SOUND", "THROW", "SQUIRT", "DROP"]
-const _ROW_Y: PackedFloat32Array = [56, 64, 72, 80, 88, 96, 104]
+## ToonAvatarDetailPanel.__updateTrackInfo. Positions are in the card's own
+## space. The card is then scaled by 0.5.
+const _GAG_X := -0.501814
+const _GAG_DX := 0.1835
+const _GAG_Z := 0.1
+const _GAG_DZ := -0.115
+const _WELL_W := 0.180392 * 0.92
+const _WELL_H := 0.113725
+const _ICON_SCALE := 0.6
+const _LABEL_X := -0.9
+const _LABEL_Z := 0.08
+const _LABEL_SCALE := 0.066
+const _PANEL_SCALE := 0.5
 const _CARD_W := 0.4542
 const _CARD_H := 0.9458
 ## ToonAvatarDetailPanel is the avatarInfoPanel card at scale 0.5. Its center
@@ -846,18 +858,25 @@ func _layout() -> void:
 			continue
 		var row := int(node.get_meta("row", 0))
 		var col := int(node.get_meta("col", -1))
-		var mid := _ROW_Y[row]
 		if col < 0:
-			_place_tex(node, view, 10, mid - 4, 40, mid + 4)
-			var row_px := (8.0 / 128.0) * _detail_size.y * unit
-			ToonGui.style_label(node as Label, Color.BLACK, maxi(int(row_px * 0.7), 8), Color(0, 0, 0, 0), 0)
+			var local_z := _LABEL_Z + float(row) * _GAG_DZ
+			var text_h := _LABEL_SCALE * _PANEL_SCALE
+			var text_w := (_GAG_X - _WELL_W * 0.5 - _LABEL_X) * _PANEL_SCALE
+			var left := _detail_at.x + _LABEL_X * _PANEL_SCALE
+			var baseline := _detail_at.y + local_z * _PANEL_SCALE
+			ToonGui.place(node, view, left + text_w * 0.5, baseline + text_h * 0.35, text_w, text_h)
+			(node as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			ToonGui.style_label(node as Label, Color.BLACK, maxi(int(text_h * unit), 8), Color(0, 0, 0, 0), 0)
 		else:
-			var x0 := 42.0 + float(col) * 9.0
+			var local_x := _GAG_X + float(col) * _GAG_DX
+			var local_z := _GAG_Z + float(row) * _GAG_DZ
 			var well := bool(node.get_meta("well", false))
-			if well:
-				_place_tex(node, view, x0, mid - 3.5, x0 + 8.5, mid + 3.5)
-			else:
-				_place_tex(node, view, x0 + 0.6, mid - 3.0, x0 + 7.8, mid + 3.0)
+			var box_w := _WELL_W * _PANEL_SCALE
+			var box_h := _WELL_H * _PANEL_SCALE
+			if not well:
+				box_w *= _ICON_SCALE
+				box_h *= _ICON_SCALE
+			ToonGui.place(node, view, _detail_at.x + local_x * _PANEL_SCALE, _detail_at.y + local_z * _PANEL_SCALE, box_w, box_h)
 	_refresh_lock()
 	if _shade.visible:
 		_layout_notice(view)
@@ -951,7 +970,14 @@ func _hood_name(place: String) -> String:
 	var text := String(found.get("text", ""))
 	if text == "":
 		return ""
-	return text.get_slice("\n", 0)
+	var hood := text.get_slice("\n", 0)
+	# A playground's second line is "Playground". A street keeps its own name.
+	if not place.contains("/streets/"):
+		return hood
+	var street := text.get_slice("\n", 1)
+	if street == "":
+		return hood
+	return "%s, %s" % [hood, street]
 
 
 func _pretty(raw: String) -> String:

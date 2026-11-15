@@ -17,6 +17,19 @@ static func open_in(host: Node, door: Node3D) -> bool:
 	return _swing_named(host, door, "rightDoor", "doorFrameHoleRight", 100.0, 0.4)
 
 
+## The owner already swung this door. Other clients in the same place play it too.
+static func share(host: Node, door: Node3D, kind: String) -> void:
+	if host == null or door == null or not is_instance_valid(door):
+		return
+	var remotes := host.get_node_or_null("RemoteToons")
+	if remotes != null and remotes.has_method("note_door"):
+		remotes.call("note_door", door, kind)
+
+
+static func close_left(host: Node, door: Node3D) -> bool:
+	return _close_named(host, door, "leftDoor", "doorFrameHoleLeft", -100.0, false)
+
+
 static func close_in(host: Node, door: Node3D, play_sound: bool = true) -> bool:
 	return _close_named(host, door, "rightDoor", "doorFrameHoleRight", 100.0, play_sound)
 

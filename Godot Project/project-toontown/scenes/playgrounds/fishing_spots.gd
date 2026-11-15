@@ -1,15 +1,15 @@
 extends Node
 
 ## DistributedFishingTarget. Each pond keeps getNumTargets spots. A spot is the
-## phase_3 drop shadow plus Bubbles, and setState glides it to the next point
-## in the pond with an easeInOut lerp that lasts FishingTargetGlobals.StepTime.
+## phase_3 drop shadow plus Bubbles. setState glides it with an easeInOut lerp.
+## The glide lasts somewhere from StepTime (5) to 10 seconds, then the spot
+## holds still for another 2.5 to 5 seconds before the next point.
 ## The point is getDestPos: center + (radius * cos(angle), radius * sin(angle))
 ## with the angle in radians. Streets that were slid onto the origin use that
 ## same slide, so the circle stays on the water. The estate pond keeps three.
 
 const _SHADOW := "res://assets/neighborhoods/toontown_central/props/drop_shadow.png"
 const _BUBBLE := "res://assets/neighborhoods/toontown_central/props/bubble.png"
-const _STEP := 5.0
 const _SHADOW_SIZE := 2.64
 
 const _PONDS := {
@@ -159,10 +159,15 @@ class FishSpot extends Node3D:
 		_sail()
 
 	func _sail() -> void:
+		# The glide is uniform(5, 10). The next one waits that long plus
+		# uniform(2.5, 5), which is the hold after the spot arrives.
+		var glide := randf_range(5.0, 10.0)
+		var hold := randf_range(2.5, 5.0)
 		_glide = create_tween()
 		_glide.set_trans(Tween.TRANS_SINE)
 		_glide.set_ease(Tween.EASE_IN_OUT)
-		_glide.tween_property(self, "global_position", _destination(), _STEP)
+		_glide.tween_property(self, "global_position", _destination(), glide)
+		_glide.tween_interval(hold)
 		_glide.finished.connect(_sail)
 
 	func _destination() -> Vector3:

@@ -227,6 +227,12 @@ func skip() -> void:
 	_complete()
 
 
+## The introduction, the roll, and the epilogue own the toon camera.
+## playground_toon leaves the orbit alone while this is true.
+func holds_camera() -> bool:
+	return _movie != "" or _reward_cam or _waiting
+
+
 func place_damage(along: float) -> void:
 	if _movie != "" or _vp == null:
 		return

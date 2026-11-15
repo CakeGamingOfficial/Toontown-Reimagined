@@ -79,13 +79,21 @@ static func seal(door: Node3D) -> void:
 ## DistributedDoor.enterOpening. Going through uses the right door: the open
 ## sound starts, the panel waits 0.4s, then eases to heading 100 over 0.6s.
 ## rightSwing is set, which is the default swing of 3.
-static func open(host: Node, door: Node3D) -> void:
+static func _share(host: Node, door: Node3D, kind: String) -> void:
+	preload("res://scenes/interiors/door_motion.gd").share(host, door, kind)
+
+
+static func open(host: Node, door: Node3D, echo := true) -> void:
+	if echo:
+		_share(host, door, "hall")
 	_swing_named(host, door, "rightDoor", "doorFrameHoleRight", 100.0, 0.4)
 
 
 ## exitDoorEnterOpening. Coming out of a doorway uses the left door, and that
 ## swing starts immediately. leftSwing makes the heading -100.
-static func open_out(host: Node, door: Node3D) -> void:
+static func open_out(host: Node, door: Node3D, echo := true) -> void:
+	if echo:
+		_share(host, door, "hall-out")
 	_swing_named(host, door, "leftDoor", "doorFrameHoleLeft", -100.0, 0.0)
 
 

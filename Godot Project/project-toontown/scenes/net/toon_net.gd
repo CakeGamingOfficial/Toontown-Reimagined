@@ -1740,6 +1740,9 @@ func _apply_battle_laff(peer: int, hp: int, max_hp: int) -> void:
 	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
 	if fights != null and fights.has_method("set_laff"):
 		fights.call("set_laff", peer, hp, max_hp)
+	# A turn-in happens outside a fight. The district row is what the next
+	# battle reads, so the full laff has to be stored even with no fight open.
+	persist_laff(avatar_of(peer), hp, max_hp)
 
 
 func _finish_reward(fight_id: int) -> void:

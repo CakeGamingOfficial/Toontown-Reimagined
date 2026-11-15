@@ -2499,39 +2499,158 @@ func start_cj_intro(boss: Node) -> void:
 	_mode = "cj_intro"
 	_intro_at = 0
 	_intro_wait = 0.0
+	_slip_left = 0.0
 	_place_cj(Vector3(-2.798, -60.0, 0.0), 0.0)
-	_head_talk = 3.4
 	_place_witness()
 	settle_cj_court()
-	_boss.call("set_round_text", "Hmmm what's on the docket today?")
+	_cj_line("Hmmm what's on the docket today?")
 
 
 func skip_cj_intro() -> void:
 	_mode = ""
+	_release_camera()
+	_drop_cj_suit()
+	_free_toon()
 	if _boss != null:
 		_boss.call("finish_cj_intro")
 
 
+## DistributedLawbotBoss.makeIntroductionMovie. Speech, look right and back,
+## then the suits come off and he says Attack.
 func _tick_cj_intro(delta: float) -> void:
-	var lines: PackedStringArray = PackedStringArray([
-		"Hmmm what's on the docket today?",
-		"Aha, we have a Toon on trial!",
-		"The prosecution's case is strong.",
-		"And here are the public defenders.",
-		"Wait a minute... You're Toons!",
-	])
 	_intro_wait += delta
-	_pose_cj_head(delta)
-	if _intro_wait < 3.4:
-		return
-	_intro_wait = 0.0
-	_intro_at += 1
-	_head_talk = 3.4
-	if _intro_at >= lines.size():
+	_lock_toon()
+	if _intro_at < 5:
+		_wear_cj_suit()
+	_aim_cj_intro()
+	if not _pose_cj_clip(_cj_clip(_intro_wait), _cj_clip_time(_intro_wait)):
+		_pose_cj_head(delta)
+	_tick_puffs(delta)
+	if _slip_left > 0.0:
+		_slip_left = maxf(_slip_left - delta, 0.0)
+		var actor := _toon_actor()
+		if actor != null:
+			actor.pose_action("slip-backward", 1.2 - _slip_left)
+	var t := _intro_wait
+	if _intro_at < 1 and t >= 5.6:
+		_intro_at = 1
+		_cj_line("Aha, we have a Toon on trial!")
+	if _intro_at < 2 and t >= 12.0:
+		_intro_at = 2
+		_cj_line("The prosecution's case is strong.")
+	if _intro_at < 3 and t >= 18.0:
+		_intro_at = 3
+		_cj_line("And here are the public defenders.")
+	if _intro_at < 4 and t >= 22.0:
+		_intro_at = 4
+		_cj_line("Wait a minute... You're Toons!")
+	if _intro_at < 5 and t >= 24.0:
+		_intro_at = 5
+		_cj_line("")
+		_puff_dust()
+		_drop_cj_suit()
+		_sad_eyes()
+		_slip_left = 1.2
+	if _intro_at < 6 and t >= 27.0:
+		_intro_at = 6
+		_normal_eyes()
+		_cj_line("Attack!!")
 		_mode = ""
-		_boss.call("finish_cj_intro")
+		_release_camera()
+		_free_toon()
+		if _boss != null:
+			_boss.call("finish_cj_intro")
+
+
+func _cj_line(text: String) -> void:
+	if _boss != null:
+		_boss.call("set_round_text", text)
+	if text != "":
+		ToonSpeech.cog(text)
+
+
+func _cj_clip(t: float) -> String:
+	# Ff_speech for 10s, look right, the reverse, neutral, then speech again.
+	if t < 10.0 or (t >= 18.0 and t < 25.0):
+		return "Ff_speech"
+	if t < 16.0:
+		return "Ff_lookRt"
+	return "Ff_neutral"
+
+
+func _cj_clip_time(t: float) -> float:
+	if t < 10.0:
+		return t + 2.0
+	if t < 13.0:
+		return t - 10.0
+	if t < 16.0:
+		# Ff_lookRt is 3 seconds. The second interval plays it backward.
+		return 3.0 - (t - 13.0)
+	if t < 18.0:
+		return t - 16.0
+	if t < 25.0:
+		return t - 18.0
+	return 0.0
+
+
+func _pose_cj_clip(clip: String, at: float) -> bool:
+	if _cj == null or not is_instance_valid(_cj):
+		return false
+	var path := "res://assets/cogs/bosses/anims/%s.walk" % clip
+	if not FileAccess.file_exists(path):
+		return false
+	if not _anim_banks.has(clip):
+		if _poser == null:
+			_poser = StreetCog.new()
+		var loaded: Variant = _poser.call("_read_bank", path, _cj)
+		if loaded is Dictionary:
+			_anim_banks[clip] = loaded
+	var bank := _anim_banks.get(clip, {}) as Dictionary
+	var frames := int(bank.get("frames", 0))
+	if frames <= 1 or _poser == null:
+		return false
+	var loop := clip == "Ff_speech" or clip == "Ff_neutral"
+	_poser.call("_pose_elapsed", bank, maxf(at, 0.0), 24.0, loop)
+	return true
+
+
+func _aim_cj_intro() -> void:
+	# loseCogSuits cuts to the toons. Until then the elevator camera stays.
+	if _intro_wait >= 24.0:
+		_aim_movie(Vector3(-2.798, -70.0, 10.0), 180.0, 0.0)
 		return
-	_boss.call("set_round_text", lines[_intro_at])
+	var elev := _find("elevator_origin")
+	if elev == null:
+		elev = _find("elevator")
+	if elev == null:
+		_aim_movie(Vector3(-2.798, -70.0, 10.0), 180.0, 0.0)
+		return
+	_grab_camera()
+	if _movie_cam == null:
+		return
+	var at := elev.to_global(Vector3(0.0, 30.0, 8.0))
+	var look := elev.to_global(Vector3(0.0, 0.0, 6.0))
+	_movie_cam.global_position = at
+	if at.distance_squared_to(look) > 0.04:
+		_movie_cam.look_at(look, Vector3.UP)
+
+
+func _wear_cj_suit() -> void:
+	if _boss == null:
+		return
+	var host := _boss.get_parent()
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if toon != null and toon.has_method("wear_lawbot_suit"):
+		toon.call("wear_lawbot_suit")
+
+
+func _drop_cj_suit() -> void:
+	if _boss == null:
+		return
+	var host := _boss.get_parent()
+	var toon := host.get_node_or_null("PlaygroundToon") if host != null else null
+	if toon != null and toon.has_method("clear_disguise"):
+		toon.call("clear_disguise")
 
 
 func start_cj_defeat(boss: Node) -> void:
@@ -7176,6 +7295,9 @@ func _tint_meshes(node: Node, color: Color) -> void:
 
 
 func holds_camera() -> bool:
+	# Introduction movies aim their own camera. The orbit would cover them.
+	if _mode == "cfo_intro" or _mode == "cj_intro" or _mode == "ceo_talk":
+		return true
 	return _epilogue_on or (_golf and _mode == "seltzer")
 
 

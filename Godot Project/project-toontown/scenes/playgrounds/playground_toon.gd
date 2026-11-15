@@ -133,6 +133,17 @@ const _BOSSBOT_SUITS: Array = [
 	{"code": "cr", "name": "Corporate Raider", "body": "c", "height": 8.23},
 	{"code": "tbc", "name": "The Big Cheese", "body": "a", "height": 9.34},
 ]
+# Suit.setHeight for the lawbot ladder, the same order putOnSuit uses.
+const _LAWBOT_SUITS: Array = [
+	{"code": "bf", "name": "Bottom Feeder", "body": "c", "height": 4.81},
+	{"code": "b", "name": "Bloodsucker", "body": "b", "height": 6.17},
+	{"code": "dt", "name": "Double Talker", "body": "a", "height": 5.63},
+	{"code": "ac", "name": "Ambulance Chaser", "body": "b", "height": 6.39},
+	{"code": "bs", "name": "Back Stabber", "body": "a", "height": 6.71},
+	{"code": "sd", "name": "Spin Doctor", "body": "b", "height": 7.9},
+	{"code": "le", "name": "Legal Eagle", "body": "a", "height": 8.27},
+	{"code": "bw", "name": "Big Wig", "body": "a", "height": 8.69},
+]
 const _CAM_PITCH_HOME := 0.0
 const _CAM_PITCH_MIN := -18.0
 const _CAM_PITCH_MAX := 42.0
@@ -156,9 +167,12 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
+var _through_door := false
 var _quest_wait := false
 var _quest_advance := false
 var _quest_npc: Node3D
+var _hq_actor: Node3D
+var _hq_face := Basis.IDENTITY
 var _quest_choice := false
 var _quest_cam_age := 0.0
 var _quest_cam_from := Vector3.ZERO
@@ -298,7 +312,9 @@ static func reload_resume() -> bool:
 ## A street keeps the free-fly camera until a toon is due. Every door home
 ## counts, not only a shop or a tunnel. Missing one leaves no one to walk.
 static func expects_avatar() -> bool:
-	if reload_resume() or from_toontorial or teleport_in or portal_in:
+	# Go To a friend is not a tunnel or a door. Without this the street keeps
+	# the free-fly camera and nobody is standing next to them.
+	if reload_resume() or from_toontorial or teleport_in or portal_in or ToonSocial.visit_on:
 		return true
 	if door_trip != "" or _LINKS.arriving():
 		return true
@@ -406,7 +422,8 @@ func _ready() -> void:
 	var from_law := String(_LAW_DOORS.trip)
 	var from_sell := String(_SELL_DOORS.trip)
 	var restoring := reload_resume()
-	var incoming := arriving or logging_in or from_portal or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != "" or from_course != "" or from_boss != "" or from_law != "" or from_sell != ""
+	var visiting := ToonSocial.visit_on
+	var incoming := arriving or logging_in or from_portal or visiting or from_door != "" or from_shop != "" or from_pet != "" or from_kart != "" or from_hall != "" or from_lib != "" or from_teller != "" or from_hq != "" or from_bldg != "" or from_tunnel or from_factory != "" or from_mint != "" or from_office != "" or from_course != "" or from_boss != "" or from_law != "" or from_sell != ""
 	from_toontorial = false
 	teleport_in = false
 	portal_in = false
@@ -609,11 +626,20 @@ func _process(delta: float) -> void:
 		_place_line(delta)
 		return
 	if _filming:
-		_player.set_locomotion(_LINKS.run_speed(), false, false, delta)
+		var tunnel_speed := _LINKS.run_speed()
+		_player.set_locomotion(tunnel_speed, false, false, delta)
+		if _remotes != null:
+			_remotes.note(_heading, tunnel_speed, false, false, false)
 		if _shot and is_instance_valid(_shot_origin):
 			_aim_tunnel_camera(_shot_origin, _shot_from, _shot_blend)
 		_place_line(delta)
 		return
+	# Physics stops while a movie holds the toon. Publish a stand so the last
+	# walk does not keep playing on everyone else's screen.
+	if _locked and _remotes != null and not _through_door:
+		var stuck_anim := _remotes.published_anim()
+		if stuck_anim == "walk" or stuck_anim == "run" or stuck_anim == "reverse" or stuck_anim == "turn" or stuck_anim == "jump" or stuck_anim == "sad-walk":
+			_remotes.note(_heading, 0.0, false, false, false)
 	MagicWords.maintain(get_parent())
 	_FIREWORKS.follow(get_parent())
 	var book_open := _book != null and _book.is_open()
@@ -894,7 +920,15 @@ func quiet_line(expected: String = "") -> void:
 
 
 func _boss_camera() -> bool:
-	var rounds := get_parent().find_child("BossRounds", true, false) if get_parent() != null else null
+	var host := get_parent()
+	if host == null:
+		return false
+	# The VP movie writes this same camera. Leaving the orbit on top of it
+	# snaps every introduction shot back to the toon.
+	var show := host.find_child("VpShow", true, false)
+	if show != null and show.has_method("holds_camera") and bool(show.call("holds_camera")):
+		return true
+	var rounds := host.find_child("BossRounds", true, false)
 	if rounds == null or not rounds.has_method("holds_camera"):
 		return false
 	if not bool(rounds.call("holds_camera")):
@@ -1033,7 +1067,7 @@ func _arrival_spot() -> Dictionary:
 		return {"point": _snap_drop(golf["point"]), "heading": float(golf["heading"])}
 	if ToonSocial.visit_on and ToonSocial.visit_scene == _scene_path():
 		ToonSocial.visit_on = false
-		return {"point": ToonSocial.visit_point, "heading": ToonSocial.visit_heading}
+		return {"point": _snap_drop(ToonSocial.visit_point), "heading": ToonSocial.visit_heading}
 	var club: Dictionary = preload("res://scenes/cog_hq/bossbot_doors.gd").arrival(get_parent())
 	if not club.is_empty():
 		return {"point": _snap_drop(club["point"]), "heading": float(club["heading"])}
@@ -2131,8 +2165,12 @@ func _try_officer() -> void:
 			return
 	_officer_ready = false
 	var actor := _clerk_actor(officer)
+	# setupCamera stays on for the whole visit. Unlocking in the middle
+	# hands the orbit back and the rest of the movie plays on the toon.
+	_start_hq_movie(actor, false)
 	if pending != 0:
 		await _speak_pages(actor, _tasks.busy_pages(pending))
+		_end_hq_movie()
 		return
 	if not card.is_empty():
 		var finished_id := int(card.get("id", 0))
@@ -2155,13 +2193,16 @@ func _try_officer() -> void:
 		await _speak_pages(actor, _tasks.choice_pages(choosing))
 		if not is_inside_tree():
 			return
+		_start_hq_movie(actor, true)
 		_pin_for_panel()
 		var track: int = await _pick_track(choosing)
-		_locked = false
 		if not is_inside_tree():
 			return
+		_start_hq_movie(actor, false)
 		if track < 0:
 			_say_clerk(actor, "Come back when you have decided.", 1.5)
+			await get_tree().create_timer(1.5).timeout
+			_end_hq_movie()
 			return
 		_tasks.choose_track(choosing, track)
 		if _book != null:
@@ -2171,8 +2212,10 @@ func _try_officer() -> void:
 			return
 		offers = _tasks.offers()
 	if offers.is_empty():
+		_end_hq_movie()
 		return
 	# QuestMovieQuestChoice. The posters stay up until Choose, Cancel, or 20 seconds.
+	_start_hq_movie(actor, true)
 	_pin_for_panel()
 	_say_clerk(actor, "Choose a ToonTask.", 30.0)
 	var panel := _QUEST_CHOICE.new() as QuestChoice
@@ -2182,10 +2225,10 @@ func _try_officer() -> void:
 	var picked: int = await panel.chosen
 	if is_instance_valid(panel):
 		panel.queue_free()
-	_locked = false
 	_say_clerk(null, "", 0.0)
 	if not is_inside_tree():
 		return
+	_start_hq_movie(actor, false)
 	if picked != 0:
 		_tasks.assign(picked, 0, _pay_of(offers, picked))
 		if _book != null:
@@ -2193,6 +2236,8 @@ func _try_officer() -> void:
 		await _speak_assign(actor, picked)
 	else:
 		_say_clerk(actor, "Come back later if you need a ToonTask! Bye!", 1.5)
+		await get_tree().create_timer(1.5).timeout
+	_end_hq_movie()
 
 
 func _try_quest_npc() -> void:
@@ -2506,6 +2551,7 @@ func _grant_task_reward(card: Dictionary, paid: int) -> void:
 		if maximum > _loadout.max_hp:
 			_loadout.set_hp(maximum, maximum)
 			_loadout.save()
+			ToonNet.set_battle_laff(_loadout.hp, _loadout.max_hp)
 	if carry > 0 and _loadout != null and _loadout.max_carry < carry:
 		_loadout.max_carry = carry
 		_loadout.save()
@@ -3439,6 +3485,7 @@ func _avatar_axes() -> Basis:
 func _hall_stride(goal: Vector3, duration: float, facing: float) -> void:
 	if _player == null or _body == null:
 		return
+	_through_door = true
 	var start := _body.global_position
 	_heading = facing
 	_face(_player, facing)
@@ -3457,6 +3504,7 @@ func _hall_stride(goal: Vector3, duration: float, facing: float) -> void:
 		if _remotes != null:
 			_remotes.note(_heading, 4.0, false, false, false)
 		await get_tree().process_frame
+	_through_door = false
 	_player.set_locomotion(0.0, false, false, 0.0)
 
 
@@ -4008,6 +4056,7 @@ func _walk_into_door(goal: Vector3, hall_cam := true) -> void:
 	if _player == null or _body == null:
 		await _fade_black()
 		return
+	_through_door = true
 	var duration := 1.0
 	var start := _body.global_position
 	var flat := goal - start
@@ -4055,6 +4104,7 @@ func _walk_into_door(goal: Vector3, hall_cam := true) -> void:
 		await get_tree().process_frame
 	if hall_cam:
 		_door_cam = false
+	_through_door = false
 	_player.set_locomotion(0.0, false, false, 0.0)
 	if _remotes != null:
 		_remotes.note(_heading, 0.0, false, false, false)
@@ -4284,6 +4334,25 @@ func wear_bossbot_suit() -> void:
 	if _cog_suit != null:
 		return
 	_wear_cog_suit(_bossbot_suit())
+
+
+func wear_lawbot_suit() -> void:
+	# putToonInCogSuit for the Chief Justice introduction.
+	if _cog_suit != null:
+		return
+	var spec := _lawbot_suit()
+	spec["dept"] = "l"
+	_wear_cog_suit(spec)
+
+
+func _lawbot_suit() -> Dictionary:
+	var progress := DisguisePage.suit_progress(1)
+	var cog_type := 0
+	if DisguisePage.suit_complete(1):
+		cog_type = clampi(int(progress.get("type", 0)), 0, _LAWBOT_SUITS.size() - 1)
+	var spec: Dictionary = (_LAWBOT_SUITS[cog_type] as Dictionary).duplicate()
+	spec["level"] = maxi(int(progress.get("level", 0)) + 1, 1)
+	return spec
 
 
 func wear_waiter() -> void:
@@ -4579,6 +4648,8 @@ func _play_teleport_out() -> bool:
 	var dropped := false
 	var elapsed := 0.0
 	while elapsed < _OUT_TIME:
+		if _remotes != null:
+			_remotes.note_clip(_heading, "teleport", elapsed)
 		_player.set_hole_clip(true, _player.global_position.y)
 		_player.pose_action("teleport", elapsed)
 		portal.call("pose_at", elapsed)
@@ -4610,6 +4681,8 @@ func _portal_in() -> void:
 	_locked = true
 	_player.set_look_enabled(false)
 	_show_shadow(false)
+	if _remotes != null:
+		_remotes.note_clip(_heading, "arrival", 0.0)
 	_player.pose_action("teleport", _player.action_length("teleport"))
 	var portal := _make_portal()
 	_body.add_child(portal)
@@ -4623,6 +4696,8 @@ func _portal_in() -> void:
 	var elapsed := 0.0
 	var shown := false
 	while elapsed < total:
+		if _remotes != null:
+			_remotes.note_clip(_heading, "arrival", elapsed)
 		portal.call("pose_at", _arrival_hole_time(elapsed))
 		if elapsed >= _IN_OPEN and not shown:
 			shown = true
@@ -4642,6 +4717,8 @@ func _portal_in() -> void:
 	_player.set_look_enabled(true)
 	_show_shadow(true)
 	_face(_player, _heading)
+	if _remotes != null:
+		_remotes.note(_heading, 0.0, false, false, false)
 	_portaling = false
 	_filming = false
 	_cache_eye_height()
@@ -4950,6 +5027,33 @@ func _refresh_from_closet() -> void:
 			node.call("apply_font", font)
 
 
+func _start_hq_movie(actor: Node3D, choice: bool) -> void:
+	# setupAvatars. Both turn to face, then the camera eases into the officer's frame.
+	if actor != null and _hq_actor != actor:
+		_hq_actor = actor
+		_hq_face = actor.basis
+	if actor != null and _body != null:
+		var at_player := _body.global_position - actor.global_position
+		at_player.y = 0.0
+		if at_player.length_squared() > 0.0001:
+			_face(actor, _heading_toward(at_player))
+	_locked = true
+	if _body != null:
+		_body.velocity = Vector3.ZERO
+	if _player != null:
+		_player.set_locomotion(0.0, false, false, 0.016)
+	_begin_quest_shot(actor, choice)
+
+
+func _end_hq_movie() -> void:
+	if _hq_actor != null and is_instance_valid(_hq_actor):
+		_hq_actor.basis = _hq_face
+	_hq_actor = null
+	_quest_npc = null
+	_quest_cam_on = false
+	_locked = false
+
+
 func _begin_quest_shot(actor: Node3D, choice: bool) -> void:
 	if actor == null:
 		return
@@ -4957,8 +5061,8 @@ func _begin_quest_shot(actor: Node3D, choice: bool) -> void:
 	_quest_choice = choice
 	_quest_cam_age = 0.0
 	_quest_cam_on = false
-	# setupAvatars turns the toon to face the officer before the choice camera.
-	if choice and _player != null and _body != null:
+	# setupAvatars turns the toon to face the officer before either camera.
+	if _player != null and _body != null:
 		var toward := actor.global_position - _body.global_position
 		toward.y = 0.0
 		if toward.length_squared() > 0.0001:

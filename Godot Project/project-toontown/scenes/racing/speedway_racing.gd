@@ -10,6 +10,14 @@ const _MODEL := preload("res://scenes/racing/kart_model.gd")
 const _RACE := preload("res://scenes/racing/kart_race.gd")
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _LAYOUT := "res://assets/racing/speedway.json"
+const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _YES_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+const _YES_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+const _YES_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
+const _NO_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _NO_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _NO_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
+const _CREAM := Color(1, 1, 0.75, 1)
 
 const _LISTS := {
 	"stadium": [0, 1, 60, 61],
@@ -24,9 +32,12 @@ var _boards: Array[Dictionary] = []
 var _board_left := 0.0
 var _board_step := 0
 var _layer: CanvasLayer
+var _prompt_root: Control
 var _prompt: Label
-var _yes: Button
-var _no: Button
+var _yes: TextureButton
+var _no: TextureButton
+var _yes_caption: Label
+var _no_caption: Label
 var _busy := false
 var _near := false
 var _cancel := false
@@ -105,6 +116,9 @@ func _offer(hit: Dictionary) -> void:
 				_RULES.RACE_NAMES[race_type], _RULES.entry_fee(int(hit.get("track", 0)), race_type),
 			]
 	_prompt.text = text
+	_yes_caption.text = "Yes"
+	_no_caption.text = "No"
+	_set_yes(true)
 	_layer.visible = true
 	_yes.pressed.connect(_accept.bind(hit), CONNECT_ONE_SHOT)
 	_no.pressed.connect(_decline, CONNECT_ONE_SHOT)
@@ -149,12 +163,13 @@ func _clear_buttons() -> void:
 func _say(text: String) -> void:
 	_clear_buttons()
 	_prompt.text = text
-	_yes.visible = false
+	_set_yes(false)
 	_layer.visible = true
-	_no.text = "OK"
+	_no_caption.text = "OK"
+	_layout_prompt()
 	_no.pressed.connect(func() -> void:
-		_no.text = "No"
-		_yes.visible = true
+		_no_caption.text = "No"
+		_set_yes(true)
 		_decline()
 	, CONNECT_ONE_SHOT)
 
@@ -168,15 +183,16 @@ func _wait_out(hit: Dictionary) -> void:
 	, CONNECT_ONE_SHOT)
 	while left > 0.0 and is_inside_tree() and not _cancel:
 		_prompt.text = "%s\nRace begins in %d" % [_RULES.track_name(int(hit.get("track", 0))), int(ceil(left))]
-		_yes.visible = false
-		_no.text = "Exit"
+		_set_yes(false)
+		_no_caption.text = "Exit"
 		_layer.visible = true
+		_layout_prompt()
 		await get_tree().create_timer(0.25).timeout
 		left -= 0.25
 	if not is_inside_tree():
 		return
-	_yes.visible = true
-	_no.text = "No"
+	_set_yes(true)
+	_no_caption.text = "No"
 	if _cancel:
 		_decline()
 		return
@@ -210,13 +226,14 @@ func _park(hit: Dictionary) -> void:
 				_hidden = child
 				_hidden.visible = false
 	_prompt.text = "Parked."
-	_yes.visible = false
-	_no.text = "Exit"
+	_set_yes(false)
+	_no_caption.text = "Exit"
 	_layer.visible = true
+	_layout_prompt()
 	_no.pressed.connect(func() -> void:
 		_clear_show()
-		_no.text = "No"
-		_yes.visible = true
+		_no_caption.text = "No"
+		_set_yes(true)
 		_decline()
 	, CONNECT_ONE_SHOT)
 
@@ -354,29 +371,100 @@ func _hold(holding: bool) -> void:
 
 
 func _build_prompt() -> void:
+	# TTGlobalDialog, style YesNo. The cream card is dialog_box_gui, and the
+	# choices are the check and the X from dialog_box_buttons_gui.
 	_layer = CanvasLayer.new()
 	_layer.layer = 30
 	_layer.visible = false
 	add_child(_layer)
-	var panel := ColorRect.new()
-	panel.color = Color(0.05, 0.2, 0.45, 0.92)
-	panel.position = Vector2(360, 220)
-	panel.size = Vector2(640, 220)
-	_layer.add_child(panel)
+	_prompt_root = Control.new()
+	_prompt_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_prompt_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_layer.add_child(_prompt_root)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_prompt_root.add_child(dim)
+	var frame := TextureRect.new()
+	frame.texture = _DIALOG
+	frame.modulate = _CREAM
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_prompt_root.add_child(frame)
 	_prompt = Label.new()
-	_prompt.position = Vector2(16, 16)
-	_prompt.size = Vector2(608, 120)
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_GUI.style_label(_prompt, Color.WHITE, 22, Color.BLACK, 3)
-	panel.add_child(_prompt)
-	_yes = Button.new()
-	_yes.text = "Yes"
-	_yes.position = Vector2(150, 150)
-	_yes.size = Vector2(140, 44)
-	panel.add_child(_yes)
-	_no = Button.new()
-	_no.text = "No"
-	_no.position = Vector2(350, 150)
-	_no.size = Vector2(140, 44)
-	panel.add_child(_no)
+	_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_prompt_root.add_child(_prompt)
+	_yes = _choice(_YES_UP, _YES_DOWN, _YES_HOVER)
+	_yes_caption = _choice_caption("Yes")
+	_no = _choice(_NO_UP, _NO_DOWN, _NO_HOVER)
+	_no_caption = _choice_caption("No")
+	var view := get_viewport()
+	if view != null and not view.size_changed.is_connected(_layout_prompt):
+		view.size_changed.connect(_layout_prompt)
+	_layout_prompt()
+
+
+func _choice(up: Texture2D, down: Texture2D, hover: Texture2D) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = up
+	button.texture_pressed = down
+	button.texture_hover = hover
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_GUI.button_sounds(button)
+	_prompt_root.add_child(button)
+	return button
+
+
+func _choice_caption(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_prompt_root.add_child(label)
+	return label
+
+
+func _set_yes(shown: bool) -> void:
+	_yes.visible = shown
+	_yes_caption.visible = shown
+	_layout_prompt()
+
+
+func _layout_prompt() -> void:
+	if _prompt_root == null:
+		return
+	var view := get_viewport().get_visible_rect().size
+	if view.y < 2.0:
+		return
+	_prompt_root.position = Vector2.ZERO
+	_prompt_root.size = view
+	var dim := _prompt_root.get_child(0) as Control
+	dim.position = Vector2.ZERO
+	dim.size = view
+	# dialog_box_gui tight bounds. OTPDialog text is scale 0.07, wrap 12.
+	_GUI.place(_prompt_root.get_child(1), view, 0.0, 0.0, 1.1122, 1.1861)
+	var px := maxi(int(round(0.07 * view.y * 0.5)), 1)
+	_GUI.style_label(_prompt, Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+	_GUI.place(_prompt, view, 0.0, 0.16, 0.84, 0.5)
+	var yes_x := -0.2
+	var no_x := 0.2
+	if not _yes.visible:
+		no_x = 0.0
+	_place_choice(_yes, _yes_caption, view, yes_x)
+	_place_choice(_no, _no_caption, view, no_x)
+
+
+func _place_choice(button: TextureButton, caption: Label, view: Vector2, x: float) -> void:
+	_GUI.place(button, view, x, -0.32, 0.1, 0.1)
+	var px := maxi(int(round(0.05 * view.y * 0.5)), 1)
+	_GUI.style_label(caption, Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+	_GUI.place(caption, view, x, -0.44, 0.36, 0.1)

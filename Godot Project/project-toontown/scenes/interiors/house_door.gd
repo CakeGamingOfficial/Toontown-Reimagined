@@ -118,9 +118,11 @@ static func seal(root: Node) -> void:
 	_seal_tree(root)
 
 
-static func open(host: Node, door: Node3D) -> void:
+static func open(host: Node, door: Node3D, echo := true) -> void:
 	if door == null:
 		return
+	if echo:
+		_MOTION.share(host, door, "house")
 	# The right leaf swings. The flat frame stays, and the opening is black.
 	_MOTION.open_in(host, door)
 

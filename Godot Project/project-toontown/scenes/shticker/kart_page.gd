@@ -185,6 +185,9 @@ func _build_customize() -> void:
 	_frame = _picture("uiKartViewerFrame1")
 	sheet.add_child(_frame)
 	_view = SubViewport.new()
+	# The book is created in every playground, street, and shop. Without a
+	# private world this preview kart is part of that place and sits on its origin.
+	_view.own_world_3d = true
 	_view.transparent_bg = false
 	_view.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 	_holder = SubViewportContainer.new()

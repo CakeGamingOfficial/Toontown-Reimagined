@@ -745,6 +745,7 @@ func _resolve(fight: Dictionary) -> void:
 	for body_index in suits.size():
 		var body: Dictionary = suits[body_index]
 		body["was"] = int(body.get("hp", 0))
+		body.erase("killed_track")
 	# creditLevel is fixed before any gag resolves, so a cog defeated earlier
 	# in this round still counts toward the cap.
 	fight["credit_level"] = ToonLoadout.credit_level(suits)
@@ -961,7 +962,8 @@ func _sos_attack(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: S
 		if not (item is Dictionary):
 			continue
 		var body: Dictionary = item
-		if int(body.get("hp", 0)) <= 0:
+		# A cog defeated earlier in this track is still hit. A different track is not.
+		if int(body.get("hp", 0)) <= 0 and int(body.get("killed_track", -2)) != gag_track:
 			continue
 		if not group and target_id >= 0 and int(body.get("id", -1)) != target_id:
 			continue
@@ -992,7 +994,7 @@ func _sos_attack(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: S
 		if gag_track == 6 and lured:
 			beats.append(_beat("%s called %s, but the %s missed the lured %s." % [who, npc_name, gag, cog_name], gag_track, gag_level, toon, suit, false, 0))
 			continue
-		_hurt_cog(suit, npc_hp)
+		_hurt_cog(suit, npc_hp, gag_track)
 		if gag_track == 3 or gag_track == ToonLoadout.THROW or gag_track == ToonLoadout.SQUIRT:
 			_clear_lure(suit)
 		var revived := _revive_suit(suit)
@@ -1043,7 +1045,9 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 	var living: Array = []
 	for cog in targets:
 		var body: Dictionary = cog
-		if int(body.get("hp", 0)) > 0:
+		# BattleCalculatorAI keeps a same-track gag when an earlier one already
+		# defeated the cog. The next track finds no target and does not swing.
+		if int(body.get("hp", 0)) > 0 or int(body.get("killed_track", -2)) == track:
 			living.append(body)
 	if living.is_empty():
 		return
@@ -1082,7 +1086,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
 			continue
 		var woke := bool(suit.get("lured", false)) and (track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT)
-		_hurt_cog(suit, dealt)
+		_hurt_cog(suit, dealt, track)
 		if woke:
 			_clear_lure(suit)
 		var revived := _revive_suit(suit)
@@ -1120,7 +1124,7 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 	var laid: Dictionary = trap
 	var damage := int(laid.get("damage", 0))
 	suit["trap"] = {}
-	_hurt_cog(suit, damage)
+	_hurt_cog(suit, damage, 1)
 	var revived := _revive_suit(suit)
 	var line := "The %s hit the %s for %d damage." % [String(laid.get("gag", "trap")), cog_name, damage]
 	if not revived and int(suit.get("hp", 0)) <= 0:
@@ -1811,7 +1815,7 @@ func _cog_targets(fight: Dictionary, choice: Dictionary) -> Array:
 	var living: Array = []
 	for item in fight["cogs"]:
 		var cog: Dictionary = item
-		if int(cog.get("hp", 0)) > 0:
+		if int(cog.get("hp", 0)) > 0 or int(cog.get("killed_track", -2)) == track:
 			living.append(cog)
 	if ToonLoadout.affects_group(track, level):
 		return living
@@ -1870,9 +1874,9 @@ func _apply_combos(fight: Dictionary, beats: Array) -> void:
 		var suit := _cog_named(fight, int(last.get("cog", 0)))
 		if suit.is_empty():
 			continue
-		_hurt_cog(suit, bonus)
-		var revived := _revive_suit(suit)
 		var beat: Dictionary = beats[beat_index]
+		_hurt_cog(suit, bonus, int(beat.get("track", -1)))
+		var revived := _revive_suit(suit)
 		beat["combo"] = bonus
 		if revived:
 			beat["cog_hp"] = 0
@@ -1889,8 +1893,11 @@ func _cog_named(fight: Dictionary, cog_id: int) -> Dictionary:
 	return {}
 
 
-func _hurt_cog(suit: Dictionary, damage: int) -> void:
-	suit["hp"] = maxi(int(suit.get("hp", 0)) - maxi(damage, 0), 0)
+func _hurt_cog(suit: Dictionary, damage: int, track := -1) -> void:
+	var before := int(suit.get("hp", 0))
+	suit["hp"] = maxi(before - maxi(damage, 0), 0)
+	if before > 0 and int(suit.get("hp", 0)) <= 0 and track >= 0:
+		suit["killed_track"] = track
 
 
 ## useSkeleRevive. The killing hit plays the lose, then the suit stands back
@@ -1903,6 +1910,7 @@ func _revive_suit(suit: Dictionary) -> bool:
 	suit["revives"] = int(suit.get("revives", 0)) - 1
 	suit["had_revives"] = true
 	suit["hp"] = int(suit.get("max_hp", 1))
+	suit.erase("killed_track")
 	suit["skeleton"] = true
 	suit["name"] = "Skelecog"
 	return true

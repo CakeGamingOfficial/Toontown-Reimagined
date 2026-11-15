@@ -910,6 +910,11 @@ func _keep_lose_face() -> void:
 func defeat() -> void:
 	if bool(get_meta("playback", false)):
 		return
+	# Suit.getLoseActor is still on the clock. Clearing it here is why another
+	# toon never sees the suit come apart.
+	if _lose_on or bool(get_meta("in_fight", false)):
+		_dismissed = true
+		return
 	_clear_lose()
 	set_meta("in_fight", false)
 	_fight_key = ""
