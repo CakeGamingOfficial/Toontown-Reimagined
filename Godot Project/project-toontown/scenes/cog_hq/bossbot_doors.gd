@@ -74,6 +74,10 @@ func _physics_process(_delta: float) -> void:
 		return
 	if not _ready_walk or not _KEYS.held("forward"):
 		return
+	if BoardingParty.has_active_group():
+		BoardingParty.warn_leave()
+		_ready_walk = false
+		return
 	_ready_walk = false
 	var club := get_parent().scene_file_path.get_file() == "bossbot_country_club.tscn"
 	_trip = "lobby" if club else "club"

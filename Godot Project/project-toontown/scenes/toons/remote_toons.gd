@@ -270,6 +270,13 @@ func _send() -> void:
 		"gm": gm,
 		"hp": laff.x,
 		"max_hp": laff.y,
+		"held": _held(),
+		"promo": [
+			DisguisePage.ready_for_promotion(0),
+			DisguisePage.ready_for_promotion(1),
+			DisguisePage.ready_for_promotion(2),
+			DisguisePage.ready_for_promotion(3),
+		],
 		"ghost": MagicWords.ghosting(),
 		"asleep": MagicWords.asleep(),
 		"instant_kill": MagicWords.instant_kill(),
@@ -307,6 +314,16 @@ func _sellbot_type() -> int:
 	if not DisguisePage.suit_complete(3):
 		return 0
 	return clampi(int(DisguisePage.suit_progress(3).get("type", 0)), 0, 7)
+
+
+func _held() -> bool:
+	var host := get_parent()
+	if host == null:
+		return false
+	var toon := host.get_node_or_null("PlaygroundToon")
+	if toon == null or not ("_battle_hold" in toon):
+		return false
+	return bool(toon.get("_battle_hold"))
 
 
 func _laff() -> Vector2i:

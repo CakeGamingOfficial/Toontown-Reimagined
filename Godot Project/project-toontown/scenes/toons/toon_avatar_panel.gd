@@ -151,6 +151,8 @@ var _dialog: TextureRect
 var _dialog_text: Label
 var _notice_buttons: Array[TextureButton] = []
 var _notice_labels: Array[Label] = []
+var _group_button: TextureButton
+var _group_label: Label
 
 
 func _ready() -> void:
@@ -177,6 +179,7 @@ func _process(_delta: float) -> void:
 		return
 	if _card.visible:
 		_sync_laff()
+		_refresh_group()
 	var view := get_viewport().get_visible_rect().size
 	if view != _laid:
 		_laid = view
@@ -228,6 +231,7 @@ func _show_side(actor: Node3D, av: int) -> void:
 		label.visible = true
 	_detail_button.visible = true
 	_close_button.visible = true
+	_refresh_group()
 	_show_head()
 	_sync_laff()
 	_refresh_lock()
@@ -255,6 +259,9 @@ func _hide_side() -> void:
 		label.visible = false
 	_detail_button.visible = false
 	_close_button.visible = false
+	if _group_button != null:
+		_group_button.visible = false
+		_group_label.visible = false
 	if _viewport != null:
 		_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_actor = null
@@ -413,6 +420,14 @@ func _build_card() -> void:
 	add_child(_detail_tip)
 	_close_button = _make_button(_CLOSE_UP, _CLOSE_DOWN, _CLOSE_HOVER, close)
 	_close_button.visible = false
+	_group_button = _make_button(_FRIEND_UP, _FRIEND_DOWN, _FRIEND_HOVER, _group_act)
+	_group_button.visible = false
+	_group_label = Label.new()
+	_group_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_group_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_group_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_group_label.visible = false
+	add_child(_group_label)
 
 
 func _build_detail() -> void:
@@ -638,6 +653,50 @@ func _clear_tracks() -> void:
 	_track_nodes.clear()
 
 
+func _refresh_group() -> void:
+	if _group_button == null or _actor == null or not is_instance_valid(_actor):
+		return
+	var peer := int(_actor.get_meta("peer", -1))
+	var here := not BoardingParty.zone_info().is_empty() and peer >= 0 and _card.visible
+	_group_button.visible = here
+	_group_label.visible = here
+	if not here:
+		return
+	var members: Variant = BoardingParty.my_group().get("members", [])
+	var leader := int(BoardingParty.my_group().get("leader", -1)) == ToonNet.peer_id()
+	if members is Array and (members as Array).has(peer) and leader:
+		_group_label.text = "Remove"
+	else:
+		_group_label.text = "Invite"
+
+
+func _group_act() -> void:
+	if _actor == null or not is_instance_valid(_actor):
+		return
+	var peer := int(_actor.get_meta("peer", -1))
+	if peer < 0:
+		return
+	if _group_label.text == "Remove":
+		_notice("Are you sure you want to remove %s?" % _called, ["Yes", "No"], [_kick_group, _hide_notice])
+		return
+	var invites: Variant = BoardingParty.my_group().get("invites", [])
+	if invites is Array and (invites as Array).has(ToonNet.peer_id()):
+		_notice("You need to deal with the\n pending invitation first.", ["OK"], [_hide_notice])
+		return
+	BoardingParty.request("invite", {"who": peer})
+	close()
+
+
+func _kick_group() -> void:
+	if _actor == null or not is_instance_valid(_actor):
+		_hide_notice()
+		return
+	var peer := int(_actor.get_meta("peer", -1))
+	_hide_notice()
+	BoardingParty.request("kick", {"who": peer})
+	close()
+
+
 func _befriend() -> void:
 	if _actor == null or not is_instance_valid(_actor):
 		_notice("%s is busy right now; try again later." % _called, ["OK"], [_hide_notice])
@@ -845,6 +904,9 @@ func _layout() -> void:
 	_place_card(_detail_tip, view, -0.02, -0.395, 0.22, 0.06)
 	ToonGui.style_label(_detail_tip, Color.WHITE, int(unit * 0.035), Color(0.1, 0.25, 0.55), maxi(int(unit * 0.005), 1))
 	_place_card(_close_button, view, 0.158, -0.379, 0.09, 0.09)
+	_place_card(_group_button, view, -0.05, -0.52, 0.12, 0.07)
+	_place_card(_group_label, view, 0.08, -0.52, 0.22, 0.07)
+	ToonGui.style_label(_group_label, Color.WHITE, int(unit * 0.036), Color(0.1, 0.25, 0.55), maxi(int(unit * 0.006), 1))
 	ToonGui.place(_info, view, _detail_at.x, _detail_at.y, _detail_size.x, _detail_size.y)
 	_place_tex(_info_name, view, 12, 8, 104, 22)
 	ToonGui.style_label(_info_name, Color.BLACK, int(unit * 0.042), Color(0, 0, 0, 0), 0)

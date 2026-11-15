@@ -47,6 +47,8 @@ var _age := 0.0
 var _from := Vector3.ZERO
 var _away := false
 var _refused := false
+var _group_told := false
+var _pulled := 0
 var _cue := ""
 var _cam_from := Vector3.ZERO
 var _look_from := Vector3.FORWARD
@@ -203,6 +205,11 @@ func _process(delta: float) -> void:
 func _ride(delta: float) -> void:
 	_place_hop()
 	if _phase == "":
+		var due := BoardingParty.take_pull(_pulled)
+		if not due.is_empty():
+			_pulled = int(due.get("token", 0))
+			_start_board()
+			return
 		_offer()
 		return
 	_age += delta
@@ -240,18 +247,35 @@ func _offer() -> void:
 	if not _in_sphere(here):
 		_away = false
 		_refused = false
+		_group_told = false
 		return
 	if _away or _refused:
 		return
-	if not DisguisePage.ready_for_promotion(_dept):
+	var file := ""
+	if get_parent() != null:
+		file = get_parent().scene_file_path.get_file()
+	var gate := BoardingParty.gate(toon, file, 0, _group_told)
+	if gate < 1:
+		_group_told = true
 		_refused = true
-		toon.call("show_popup", _REJECT)
+		return
+	_group_told = false
+	if BoardingParty.leading():
+		BoardingParty.request("board", {"dest": 0})
+		_away = true
+		return
+	_start_board()
+
+
+func _start_board() -> void:
+	var toon := _toon()
+	if toon == null or _car == null:
 		return
 	_phase = "board"
 	_age = 0.0
 	_left = _COUNTDOWN
 	_cue = ""
-	_from = here
+	_from = BoardingParty.approach(toon, _car.global_transform * _SEAT)
 	toon.call("hold_for_battle", true)
 	_remember_cam()
 

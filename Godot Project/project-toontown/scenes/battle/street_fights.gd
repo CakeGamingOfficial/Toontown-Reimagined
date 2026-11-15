@@ -328,6 +328,27 @@ func toon_hp(fight_id: int, peer: int) -> int:
 	return -1
 
 
+func _cog_v2(cog: Dictionary) -> bool:
+	return bool(cog.get("had_revives", false)) or int(cog.get("revives", 0)) > 0
+
+
+func _pays_promotion(slug: String) -> bool:
+	if _factory_slug(slug) or slug == "cashbot_mint" or slug == "lawbot_office" or slug == "bossbot_course":
+		return false
+	if slug.begins_with("boss_"):
+		return false
+	return true
+
+
+func _publish_merits(fight: Dictionary) -> void:
+	var pile: Array = []
+	var found: Variant = fight.get("merits", [])
+	if found is Array:
+		pile = (found as Array).duplicate()
+	fight["merit_pay"] = pile
+	fight["merits"] = []
+
+
 func _factory_slug(slug: String) -> bool:
 	return slug == "sellbot_factory" or slug.begins_with("sellbot_factory:")
 
@@ -1503,15 +1524,24 @@ func _finish_movie(fight: Dictionary) -> void:
 		var cog: Dictionary = item
 		if int(cog.get("hp", 0)) <= 0:
 			if factory:
-				_FACTORY.remember(int(cog.get("level", 1)))
+				_FACTORY.remember(int(cog.get("level", 1)), _cog_v2(cog))
 				if bool(cog.get("boss", false)):
 					boss_down = true
 			if mint:
-				_MINT.remember(int(cog.get("level", 1)))
+				_MINT.remember(int(cog.get("level", 1)), _cog_v2(cog))
 				if bool(cog.get("boss", false)):
 					boss_down = true
 			if int(fight.get("building", 0)) == 0:
 				_HOLIDAYS.note_cog(int(fight.get("district", 0)), String(cog.get("code", "")), bool(cog.get("skeleton", false)))
+			if _pays_promotion(String(fight.get("slug", ""))):
+				var pile: Array = fight.get("merits", [])
+				pile.append({
+					"dept": String(cog.get("dept", "")),
+					"level": int(cog.get("level", 1)),
+					"v2": _cog_v2(cog),
+					"virtual": bool(cog.get("virtual", false)),
+				})
+				fight["merits"] = pile
 			if traffic != null and traffic.has_method("dismiss_cog"):
 				traffic.call("dismiss_cog", int(fight.get("district", 0)), String(fight.get("slug", "")), int(cog.get("id", 0)))
 			continue
@@ -1537,6 +1567,7 @@ func _finish_movie(fight: Dictionary) -> void:
 	_place(fight)
 	var building := int(fight.get("building", 0))
 	if toons.is_empty():
+		fight["merits"] = []
 		if building != 0:
 			_floor_bank.erase(building)
 			_close_fight(fight)
@@ -1560,6 +1591,7 @@ func _finish_movie(fight: Dictionary) -> void:
 
 func _open_reward(fight: Dictionary, toons: Array) -> void:
 	fight["floor_clear"] = false
+	_publish_merits(fight)
 	fight["reward_rows"] = _reward_rows(fight, toons)
 	fight["state"] = "reward"
 	# DistributedBattleFinal plays the dance. The gag card waits for the boss reward.
@@ -1574,6 +1606,7 @@ func _open_reward(fight: Dictionary, toons: Array) -> void:
 ## DistributedBattleBldg.enterReward. The experience card waits for the top floor.
 func _open_floor_clear(fight: Dictionary) -> void:
 	fight["floor_clear"] = true
+	_publish_merits(fight)
 	fight["reward_rows"] = []
 	fight["state"] = "reward"
 	fight["left"] = FLOOR_REWARD_TIME
@@ -1986,6 +2019,7 @@ func _add_cog(fight: Dictionary, cog: Dictionary) -> void:
 		"skeleton": bool(cog.get("skeleton", false)),
 		"boss": bool(cog.get("boss", false)),
 		"revives": int(cog.get("revives", 0)),
+		"virtual": bool(cog.get("virtual", false)),
 		"body": String(cog.get("body", "c")),
 		"height": float(cog.get("height", 4.0)),
 		"scale": float(cog.get("scale", 1.0)),

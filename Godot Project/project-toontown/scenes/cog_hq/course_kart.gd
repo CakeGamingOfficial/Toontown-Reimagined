@@ -23,6 +23,8 @@ var _age := 0.0
 var _left := 0.0
 var _from := Vector3.ZERO
 var _warned := false
+var _group_told := false
+var _pulled := 0
 var _clock: Label3D
 
 
@@ -78,6 +80,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if _phase == "":
+		var due := BoardingParty.take_pull(_pulled)
+		if not due.is_empty():
+			_pulled = int(due.get("token", 0))
+			_board_course(int(due.get("dest", 0)))
+			return
 		_offer()
 		return
 	_age += delta
@@ -131,18 +138,21 @@ func _offer() -> void:
 		if absf(here.y - kart.global_position.y) > 6.0:
 			continue
 		if bool(kart.get_meta("outside")):
-			var hp: Vector2i = toon.call("battle_hp")
-			var need := _laff(int(kart.get_meta("course", 0)))
-			if hp.x < need:
-				if not _warned:
-					_warned = true
-					toon.call("show_notice", "You need %d laff points to ride this kart" % need)
+			var course := int(kart.get_meta("course", 0))
+			var gate := BoardingParty.gate(toon, "bossbot_country_club.tscn", course, _group_told)
+			if gate < 1:
+				_group_told = true
+				return
+			_group_told = false
+			if BoardingParty.leading():
+				BoardingParty.request("board", {"dest": course})
 				return
 		elif not _floor_open():
 			return
 		_warned = false
 		_begin(kart)
 		return
+	_group_told = false
 
 
 func _laff(index: int) -> int:
@@ -157,6 +167,13 @@ func _floor_open() -> bool:
 	return true
 
 
+func _board_course(index: int) -> void:
+	for kart in _karts:
+		if kart != null and bool(kart.get_meta("outside")) and int(kart.get_meta("course", -1)) == index:
+			_begin(kart)
+			return
+
+
 func _begin(kart: Node3D) -> void:
 	var toon := _toon()
 	if toon == null:
@@ -164,7 +181,7 @@ func _begin(kart: Node3D) -> void:
 	_kart = kart
 	_phase = "board"
 	_age = 0.0
-	_from = toon.call("battle_point")
+	_from = BoardingParty.approach(toon, kart.global_position + Vector3(0.0, 1.4, 0.0))
 	toon.call("hold_for_battle", true)
 
 
@@ -200,7 +217,11 @@ func _depart() -> void:
 		return
 	_show_clock(false)
 	if bool(_kart.get_meta("outside")):
-		_RUN.begin(int(_kart.get_meta("course", 0)))
+		var shared := BoardingParty.roll()
+		if shared.is_empty():
+			_RUN.begin(int(_kart.get_meta("course", 0)))
+		else:
+			_RUN.begin_at(int(_kart.get_meta("course", 0)), int(shared.get("layout", 0)))
 		ToonLoading.change_to(_COURSE)
 		return
 	if bool(_kart.get_meta("exit")):

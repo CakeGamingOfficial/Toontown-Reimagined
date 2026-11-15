@@ -643,12 +643,16 @@ func _play(fight: Dictionary, _delta: float) -> void:
 		if _reward_seq != seq:
 			_reward_seq = seq
 			_dance = 0.0
+			_pay_promotion(fight)
 			if _mine(fight) and not bool(fight.get("floor_clear", false)):
 				if _boss_card_waits(String(fight.get("slug", ""))):
 					_apply_my_reward(fight)
+					DisguisePage.take_reward()
 				else:
 					_reward_token += 1
 					_show_reward(fight, _reward_token)
+			elif _mine(fight):
+				_show_suit_card()
 		_dance += _delta
 		_pose_roster(fight, "victory", _dance)
 		return
@@ -1689,6 +1693,49 @@ func _seconds(fight: Dictionary, delta: float) -> int:
 	return int(ceil(maxf(_clock_left - _clock_age, 0.0)))
 
 
+func _pay_promotion(fight: Dictionary) -> String:
+	if not _mine(fight):
+		return ""
+	var pile: Variant = fight.get("merit_pay", [])
+	if not (pile is Array) or (pile as Array).is_empty():
+		return ""
+	var mult := 1.0
+	if int(fight.get("building", 0)) != 0:
+		mult = 1.0 + float(fight.get("floor", 0)) * 0.5
+	return DisguisePage.recover_merits(pile, mult)
+
+
+func _show_suit_card() -> void:
+	var suit := DisguisePage.take_reward()
+	suit["local"] = true
+	if not _suit_worth(suit):
+		return
+	var loadout := _loadout()
+	if loadout == null:
+		return
+	var called := "Toon"
+	var toon := _toon()
+	if toon != null and toon.has_method("battle_name"):
+		called = str(toon.call("battle_name"))
+	_reward_token += 1
+	await _reward.present(called, loadout, {}, {}, "", false, [], false, suit)
+
+
+func _suit_worth(suit: Dictionary) -> bool:
+	var parts: Variant = suit.get("parts", [])
+	if parts is Array and not (parts as Array).is_empty():
+		return true
+	var merits: Variant = suit.get("merits", [])
+	if merits is Array and not (merits as Array).is_empty():
+		return true
+	if not bool(suit.get("local", false)):
+		return false
+	for dept in 4:
+		if DisguisePage.suit_complete(dept):
+			return true
+	return false
+
+
 func _show_reward(fight: Dictionary, token: int) -> void:
 	var rows: Array = fight.get("reward_rows", [])
 	_apply_my_reward(fight)
@@ -1711,7 +1758,6 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 				tasks.note_foreman(11500, helpers)
 				if part_line.contains("recovered"):
 					tasks.note_part(11500, helpers)
-			recovered = part_line
 	if String(fight.get("slug", "")) == "cashbot_mint":
 		var mint_key := "mint:%s" % fight.get("id", 0)
 		if _mint_key != mint_key:
@@ -1722,13 +1768,11 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 			var which := int(fight.get("mint", 0))
 			if which == 0:
 				which = _MINT_RIDE.mint_id
-			var buck_line := DisguisePage.grant_mint(_MINT.collect(), which)
+			DisguisePage.grant_mint(_MINT.collect(), which)
 			if supervisor and tasks != null:
 				var helpers := _other_laff(fight)
 				tasks.note_mint(which, helpers)
 				tasks.note_supervisor(which, helpers)
-			if buck_line != "":
-				recovered = buck_line if recovered == "" else "%s\n%s" % [recovered, buck_line]
 	if tasks != null:
 		var notes := tasks.take_battle_notes()
 		if notes != "":
@@ -1749,10 +1793,13 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 			continue
 		var quest_line := ""
 		var mine: Array = []
+		var suit := {}
 		if int(row.get("id", 0)) == ToonNet.peer_id():
 			quest_line = recovered
 			mine = quests
-		await _reward.present(String(row.get("name", "Toon")), display, before, earned, quest_line, false, mine)
+			suit = DisguisePage.take_reward()
+			suit["local"] = true
+		await _reward.present(String(row.get("name", "Toon")), display, before, earned, quest_line, false, mine, false, suit)
 	if token != _reward_token or not is_inside_tree():
 		return
 	ToonNet.finish_reward(int(fight.get("id", 0)))

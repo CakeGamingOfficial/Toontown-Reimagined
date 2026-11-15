@@ -52,8 +52,8 @@ var _goon_wait := 0.0
 var _beam: Shader
 
 
-static func remember(level: int) -> void:
-	_levels.append(level)
+static func remember(level: int, v2: bool = false) -> void:
+	_levels.append({"level": level, "v2": v2})
 
 
 static func collect() -> Array:

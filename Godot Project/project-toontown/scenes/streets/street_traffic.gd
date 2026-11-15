@@ -60,6 +60,12 @@ func _ready() -> void:
 	var runs: Node = load("res://scenes/buildings/building_runs.gd").new()
 	runs.name = "BuildingRuns"
 	add_child(runs)
+	var party: Node = load("res://scenes/cog_hq/boarding_party.gd").new()
+	party.name = "BoardingParty"
+	add_child(party)
+	var group_ui: Node = load("res://scenes/toons/boarding_group.gd").new()
+	group_ui.name = "BoardingGroup"
+	add_child(group_ui)
 
 
 ## Parked suits in one district. The live street adds the suits it is drawing.

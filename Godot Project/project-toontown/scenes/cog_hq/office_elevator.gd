@@ -41,6 +41,8 @@ var _cam_from := Vector3.ZERO
 var _look_from := Vector3.FORWARD
 var _cam_blend := -1.0
 var _warned := false
+var _group_told := false
+var _pulled := 0
 
 
 static func place(host: Node) -> void:
@@ -88,6 +90,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_place_hop()
 	if _phase == "":
+		var due := BoardingParty.take_pull(_pulled)
+		if not due.is_empty():
+			_pulled = int(due.get("token", 0))
+			_board_office(int(due.get("dest", 0)))
+			return
 		_offer()
 		return
 	_age += delta
@@ -222,18 +229,21 @@ func _offer() -> void:
 		if not _in_door(car, here):
 			continue
 		if bool(car.get_meta("outside")):
-			var hp: Vector2i = toon.call("battle_hp")
-			var need := _LAFF(int(car.get_meta("office", 0)))
-			if hp.x < need:
-				if not _warned:
-					_warned = true
-					toon.call("show_notice", "You need %d laff points to ride this elevator." % need)
+			var office := int(car.get_meta("office", 0))
+			var gate := BoardingParty.gate(toon, "lawbot_da_lobby.tscn", office, _group_told)
+			if gate < 1:
+				_group_told = true
+				return
+			_group_told = false
+			if BoardingParty.leading():
+				BoardingParty.request("board", {"dest": office})
 				return
 		elif not _floor_open():
 			return
 		_warned = false
 		_begin_board(car)
 		return
+	_group_told = false
 
 
 func _floor_open() -> bool:
@@ -260,6 +270,13 @@ func _in_door(car: Node3D, here: Vector3) -> bool:
 	return absf(local.x) < 3.2 and local.y > -2.0 and local.y < 2.0
 
 
+func _board_office(index: int) -> void:
+	for car in _cars:
+		if car != null and bool(car.get_meta("outside")) and int(car.get_meta("office", -1)) == index:
+			_begin_board(car)
+			return
+
+
 func _begin_board(car: Node3D) -> void:
 	var toon := _toon()
 	if toon == null:
@@ -267,7 +284,7 @@ func _begin_board(car: Node3D) -> void:
 	_car = car
 	_phase = "board"
 	_age = 0.0
-	_from = toon.call("battle_point")
+	_from = BoardingParty.approach(toon, car.global_transform * _SEAT)
 	toon.call("hold_for_battle", true)
 	_remember_cam()
 	_slide(0.0)
@@ -312,7 +329,11 @@ func _depart() -> void:
 		return
 	var outside := bool(_car.get_meta("outside"))
 	if outside:
-		_RUN.begin(int(_car.get_meta("office", 0)))
+		var shared := BoardingParty.roll()
+		if shared.is_empty():
+			_RUN.begin(int(_car.get_meta("office", 0)))
+		else:
+			_RUN.begin_at(int(_car.get_meta("office", 0)), int(shared.get("layout", 0)))
 		ToonLoading.change_to(_OFFICE)
 		return
 	if _RUN.has_next():

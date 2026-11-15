@@ -115,20 +115,17 @@ func _pay(row: Dictionary) -> void:
 	var spec: Dictionary = row.get("cog", {})
 	if bool(spec.get("virtual", false)) or bool(spec.get("hidden", false)):
 		return
-	var page := preload("res://scenes/shticker/disguise_page.gd")
-	var gained: int = page.grant_notices(_RUN.notices_for(int(spec.get("level", 1))))
+	var extra: Array = [0, 0, 0, 0]
 	if int(spec.get("boss", 0)) == 1 and not _boss_paid:
 		_boss_paid = true
 		_RUN.boss_paid = true
-		gained += page.grant_notices(_RUN.notice_bonus())
-	if gained <= 0:
-		return
-	var scene := get_tree().current_scene
-	if scene == null:
-		return
-	var toon := scene.get_node_or_null("PlaygroundToon")
-	if toon != null and toon.has_method("show_notice"):
-		toon.call("show_notice", "You earned %d jury notices." % gained)
+		extra[1] = _RUN.notice_bonus()
+	# The battle reward card shows the notices. This only records them.
+	DisguisePage.recover_merits([{
+		"dept": "l",
+		"level": int(spec.get("level", 1)),
+		"v2": int(spec.get("revives", 0)) > 0 or bool(spec.get("had_revives", false)),
+	}], _RUN.credit(), extra)
 
 
 func _find(cog_id: int) -> Dictionary:

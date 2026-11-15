@@ -55,6 +55,7 @@ var _age := 0.0
 var _left := 0.0
 var _seat := 0
 var _ask_wait := 0.0
+var _group_told := false
 var _from := Vector3.ZERO
 var _hop: TextureButton
 var _clock: Label3D
@@ -210,8 +211,18 @@ func _offer() -> void:
 		if not _in_door(car, here):
 			continue
 		_ask_wait = 0.4
+		if bool(car.get_meta("outside")):
+			var gate := BoardingParty.gate(toon, "sellbot_factory_exterior.tscn", int(car.get_meta("entrance")), _group_told)
+			if gate < 1:
+				_group_told = true
+				return
+			_group_told = false
+			if BoardingParty.leading():
+				BoardingParty.request("board", {"dest": int(car.get_meta("entrance"))})
+				return
 		_request_board(car)
 		return
+	_group_told = false
 
 
 ## The arrival seat is inside the car. Ready flips once the toon has walked out.
@@ -241,7 +252,7 @@ func _begin_board(car: Node3D, seat_index: int) -> void:
 	_phase = "board"
 	_age = 0.0
 	_cue = ""
-	_from = toon.call("battle_point")
+	_from = BoardingParty.approach(toon, car.global_transform * _seat_at(seat_index))
 	toon.call("hold_for_battle", true)
 	_remember_cam()
 	_slide(0.0)

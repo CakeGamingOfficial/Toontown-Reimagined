@@ -31,6 +31,15 @@ const _FRAME_Z := 0.827
 const _BAR_AT := Vector2(_FRAME_X + 0.4, 0.0)
 const _BAR_SIZE := Vector2(0.5, 0.075)
 const _ROW := 0.09
+const _MERIT_DROP := 0.40
+const _DEPT_NAMES: PackedStringArray = ["BOSSBOT", "LAWBOT", "CASHBOT", "SELLBOT"]
+const _MERIT_WORDS: PackedStringArray = ["Stock Options", "Jury Notices", "Cogbucks", "Merits"]
+const _DEPT_COLORS: Array[Color] = [
+	Color(0.647, 0.608, 0.596),
+	Color(0.588, 0.635, 0.671),
+	Color(0.596, 0.714, 0.659),
+	Color(0.761, 0.678, 0.69),
+]
 # Skip card is ±0.1333, scaled by 0.39, at (0.815, -0.395) on the panel.
 const _SKIP_AT := Vector2(0.815, _PANEL_Z - 0.395)
 const _SKIP_SIZE := Vector2(0.2666 * 0.39, 0.2666 * 0.39)
@@ -117,6 +126,16 @@ var _new_title: Label
 var _new_icon: TextureRect
 var _new_left: Label
 var _new_right: Label
+var _merit_on := false
+var _merit_frames: Array[ColorRect] = []
+var _merit_fills: Array[ColorRect] = []
+var _merit_amounts: Array[Label] = []
+var _merit_names: Array[Label] = []
+var _merit_plus: Array[Label] = []
+var _merit_open: Array[bool] = [false, false, false, false]
+var _merit_before: Array[int] = [0, 0, 0, 0]
+var _merit_added: Array[int] = [0, 0, 0, 0]
+var _merit_cap: Array[int] = [0, 0, 0, 0]
 
 
 func stop() -> void:
@@ -134,7 +153,7 @@ func _ready() -> void:
 	visible = false
 
 
-func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned: Dictionary, quest_line: String, no_skip: bool, quests: Array = [], applied: bool = false) -> void:
+func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned: Dictionary, quest_line: String, no_skip: bool, quests: Array = [], applied: bool = false, suit: Dictionary = {}) -> void:
 	_loadout = loadout
 	_before = before
 	_earned = earned
@@ -143,6 +162,7 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 	_skip = false
 	_name.text = toon_name
 	_skip_button.disabled = no_skip
+	_read_suit(suit)
 	_show_bars()
 	visible = true
 	_layout()
@@ -177,8 +197,16 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 			break
 	if _skip and not applied:
 		_grant_remaining()
-	if not showed and not _skip:
+	var parts: Array = []
+	var found_parts: Variant = suit.get("parts", [])
+	if found_parts is Array:
+		parts = found_parts
+	if not showed and not _skip and not _merit_on and parts.is_empty():
 		await _wait(2.5)
+	if not _skip and _merit_on:
+		await _tick_merits()
+	if not _skip and not parts.is_empty():
+		await _show_parts(parts)
 	if not _skip and not quest_line.is_empty():
 		_show_quest(quest_line)
 		await _wait(2.0)
@@ -321,6 +349,7 @@ func _hide_new_gag() -> void:
 func _hide_track_bars() -> void:
 	_quest_title.visible = false
 	_quest_line.visible = false
+	_hide_merit_bars()
 	for track in ToonLoadout.TRACK_COUNT:
 		_frames[track].visible = false
 		_fills[track].visible = false
@@ -331,6 +360,7 @@ func _hide_track_bars() -> void:
 
 func _restore_bars() -> void:
 	_hide_new_gag()
+	_show_merit_bars()
 	if _loadout == null:
 		return
 	for track in ToonLoadout.TRACK_COUNT:
@@ -383,6 +413,7 @@ func _show_bars() -> void:
 	_quest_title.visible = false
 	_quest_line.visible = false
 	_quest_line.bbcode_enabled = false
+	_show_merit_bars()
 	for track in ToonLoadout.TRACK_COUNT:
 		var open := _loadout != null and _loadout.track_open(track)
 		_frames[track].visible = open
@@ -395,6 +426,7 @@ func _show_bars() -> void:
 
 
 func _show_quest(line: String) -> void:
+	_hide_merit_bars()
 	for track in ToonLoadout.TRACK_COUNT:
 		_frames[track].visible = false
 		_fills[track].visible = false
@@ -488,6 +520,127 @@ func _quest_sentence(gain: Dictionary, progress: int) -> String:
 	return "[color=#%s]%s[/color]" % [color, text]
 
 
+func _read_suit(suit: Dictionary) -> void:
+	_merit_on = false
+	for dept in 4:
+		_merit_open[dept] = false
+		_merit_before[dept] = 0
+		_merit_added[dept] = 0
+		_merit_cap[dept] = 0
+	if not bool(suit.get("local", false)):
+		return
+	var gained := {}
+	for item in suit.get("merits", []):
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var dept := int(row.get("dept", -1))
+		if dept < 0 or dept > 3:
+			continue
+		if not gained.has(dept):
+			gained[dept] = row.duplicate()
+		else:
+			var have: Dictionary = gained[dept]
+			have["added"] = int(have.get("added", 0)) + int(row.get("added", 0))
+			have["after"] = int(row.get("after", have.get("after", 0)))
+			gained[dept] = have
+	for dept in 4:
+		var state := DisguisePage.meter(dept)
+		if not bool(state.get("complete", false)):
+			continue
+		_merit_on = true
+		_merit_open[dept] = true
+		var row: Dictionary = gained.get(dept, {})
+		_merit_cap[dept] = int(row.get("cap", state.get("cap", 0)))
+		_merit_added[dept] = int(row.get("added", 0))
+		_merit_before[dept] = int(row.get("before", state.get("have", 0)))
+
+
+func _show_merit_bars() -> void:
+	for dept in 4:
+		var open := _merit_on and _merit_open[dept]
+		if dept >= _merit_frames.size():
+			continue
+		_merit_frames[dept].visible = open
+		_merit_fills[dept].visible = open
+		_merit_amounts[dept].visible = open
+		_merit_names[dept].visible = open
+		_merit_plus[dept].visible = open and _merit_added[dept] > 0
+		if open:
+			_merit_plus[dept].text = "+ %d" % _merit_added[dept]
+			_paint_merit(dept, _merit_before[dept], false)
+
+
+func _hide_merit_bars() -> void:
+	for dept in _merit_frames.size():
+		_merit_frames[dept].visible = false
+		_merit_fills[dept].visible = false
+		_merit_amounts[dept].visible = false
+		_merit_names[dept].visible = false
+		_merit_plus[dept].visible = false
+
+
+func _tick_merits() -> void:
+	var any := false
+	for dept in 4:
+		if _merit_open[dept] and _merit_added[dept] > 0:
+			any = true
+	if not any:
+		return
+	var elapsed := 0.0
+	while elapsed < 0.5:
+		if _skip:
+			elapsed = 0.5
+		else:
+			await get_tree().process_frame
+			elapsed += get_process_delta_time()
+		var blend := clampf(elapsed / 0.5, 0.0, 1.0)
+		for dept in 4:
+			if not _merit_open[dept] or _merit_added[dept] <= 0:
+				continue
+			var shown := int(round(float(_merit_before[dept]) + blend * float(_merit_added[dept])))
+			_paint_merit(dept, shown, true)
+	for dept in 4:
+		if _merit_open[dept]:
+			_paint_merit(dept, _merit_before[dept] + _merit_added[dept], false)
+	await _wait(0.4)
+
+
+func _paint_merit(dept: int, shown: int, hot: bool) -> void:
+	var color := _DEPT_COLORS[dept]
+	_merit_frames[dept].color = Color(color.r * 0.7, color.g * 0.7, color.b * 0.7)
+	_merit_fills[dept].color = color if hot else Color(color.r * 0.8, color.g * 0.8, color.b * 0.8)
+	var cap := maxi(_merit_cap[dept], 1)
+	var ratio := 1.0 if _merit_cap[dept] <= 0 else clampf(float(shown) / float(cap), 0.0, 1.0)
+	var frame := _merit_frames[dept]
+	var pad := Vector2(frame.size.x * 0.02, frame.size.y * 0.133)
+	_merit_fills[dept].position = pad
+	_merit_fills[dept].size = Vector2(maxf(frame.size.x - pad.x * 2.0, 0.0) * ratio, maxf(frame.size.y - pad.y * 2.0, 0.0))
+	if _merit_cap[dept] <= 0:
+		_merit_amounts[dept].text = "Maxed"
+	elif shown >= _merit_cap[dept]:
+		_merit_amounts[dept].text = "Ready for promotion!"
+	else:
+		_merit_amounts[dept].text = "%d/%d %s" % [shown, _merit_cap[dept], _MERIT_WORDS[dept]]
+
+
+func _show_parts(parts: Array) -> void:
+	_hide_track_bars()
+	_quest_title.text = "You gained a Cog disguise part!"
+	_quest_title.visible = true
+	_quest_line.bbcode_enabled = false
+	_quest_line.add_theme_color_override("default_color", _INK)
+	_quest_line.visible = true
+	_layout()
+	for item in parts:
+		if _skip:
+			break
+		_quest_line.text = String(item)
+		await _wait(1.0)
+	_quest_title.visible = false
+	_quest_line.visible = false
+
+
 func _paint(track: int, shown: int, hot: bool) -> void:
 	var goal := 1
 	if _loadout != null:
@@ -541,6 +694,26 @@ func _build() -> void:
 		_amounts.append(amount)
 		_tracks.append(title)
 		_plus.append(plus)
+	for dept in 4:
+		var frame := ColorRect.new()
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.visible = false
+		add_child(frame)
+		var fill := ColorRect.new()
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.add_child(fill)
+		var amount := _ink_label(HORIZONTAL_ALIGNMENT_LEFT)
+		amount.visible = false
+		var title := _ink_label(HORIZONTAL_ALIGNMENT_RIGHT)
+		title.text = _DEPT_NAMES[dept]
+		title.visible = false
+		var plus := _ink_label(HORIZONTAL_ALIGNMENT_LEFT)
+		plus.visible = false
+		_merit_frames.append(frame)
+		_merit_fills.append(fill)
+		_merit_amounts.append(amount)
+		_merit_names.append(title)
+		_merit_plus.append(plus)
 	_skip_button = TextureButton.new()
 	_skip_button.texture_normal = _SKIP_UP
 	_skip_button.texture_pressed = _SKIP_DOWN
@@ -634,8 +807,17 @@ func _layout() -> void:
 	_style(_name, 0.0, _PANEL_Z + 0.3, 1.5, 0.08, HORIZONTAL_ALIGNMENT_CENTER)
 	_style(_quest_title, 0.0, _PANEL_Z + 0.2, 1.2, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
 	_place_quest_line()
+	var drop := _MERIT_DROP if _merit_on else 0.0
+	for dept in _merit_frames.size():
+		var merit_z := _FRAME_Z - _ROW * float(dept)
+		_put(_merit_frames[dept], Vector2(_BAR_AT.x, merit_z), _BAR_SIZE)
+		_style(_merit_names[dept], _FRAME_X - 0.08, merit_z - 0.02, 0.55, 0.045, HORIZONTAL_ALIGNMENT_RIGHT)
+		_style(_merit_plus[dept], _FRAME_X + 0.86, merit_z - 0.02, 0.3, 0.045, HORIZONTAL_ALIGNMENT_LEFT)
+		_style(_merit_amounts[dept], _BAR_AT.x - _BAR_SIZE.x * 0.42, merit_z, _BAR_SIZE.x * 0.9, 0.04, HORIZONTAL_ALIGNMENT_LEFT)
+		if _merit_frames[dept].visible:
+			_paint_merit(dept, _merit_before[dept], false)
 	for track in ToonLoadout.TRACK_COUNT:
-		var row_z := _FRAME_Z - _ROW * float(track)
+		var row_z := _FRAME_Z - drop - _ROW * float(track)
 		_put(_frames[track], Vector2(_BAR_AT.x, row_z), _BAR_SIZE)
 		_style(_tracks[track], _FRAME_X - 0.08, row_z - 0.02, 0.42, 0.05, HORIZONTAL_ALIGNMENT_RIGHT)
 		_style(_plus[track], _FRAME_X + 0.86, row_z - 0.02, 0.35, 0.05, HORIZONTAL_ALIGNMENT_LEFT)

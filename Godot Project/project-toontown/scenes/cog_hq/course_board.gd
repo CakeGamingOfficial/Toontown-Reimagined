@@ -114,20 +114,16 @@ func _pay(row: Dictionary) -> void:
 	var spec: Dictionary = row.get("cog", {})
 	if bool(spec.get("virtual", false)) or bool(spec.get("hidden", false)):
 		return
-	var levels: Array = [int(spec.get("level", 1))]
+	var levels: Array = [{
+		"level": int(spec.get("level", 1)),
+		"v2": int(spec.get("revives", 0)) > 0 or bool(spec.get("had_revives", false)),
+	}]
 	var president := int(spec.get("boss", 0)) == 1 and not _boss_paid
 	if president:
 		_boss_paid = true
 		_RUN.boss_paid = true
-	var text := DisguisePage.grant_course(levels, _RUN.zone(), president)
-	if text.is_empty():
-		return
-	var scene := get_tree().current_scene
-	if scene == null:
-		return
-	var toon := scene.get_node_or_null("PlaygroundToon")
-	if toon != null and toon.has_method("show_notice"):
-		toon.call("show_notice", text)
+	# The battle reward card shows the stock options. This only records them.
+	DisguisePage.grant_course(levels, _RUN.zone(), president)
 
 
 func _find(cog_id: int) -> Dictionary:

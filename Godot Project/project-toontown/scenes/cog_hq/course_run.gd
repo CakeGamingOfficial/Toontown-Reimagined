@@ -23,6 +23,16 @@ static var _book: Dictionary = {}
 static func begin(which: int) -> void:
 	course = clampi(which, 0, 2)
 	layout = course * 3 + randi() % 3
+	_open()
+
+
+static func begin_at(which: int, layout_index: int) -> void:
+	course = clampi(which, 0, 2)
+	layout = layout_index
+	_open()
+
+
+static func _open() -> void:
 	floor = 0
 	boss_paid = false
 	serial += 1

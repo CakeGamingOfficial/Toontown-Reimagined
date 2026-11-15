@@ -21,6 +21,16 @@ static var _book: Dictionary = {}
 static func begin(which: int) -> void:
 	office = clampi(which, 0, 3)
 	layout = office * 3 + randi() % 3
+	_open()
+
+
+static func begin_at(which: int, layout_index: int) -> void:
+	office = clampi(which, 0, 3)
+	layout = layout_index
+	_open()
+
+
+static func _open() -> void:
 	floor = 0
 	reward = 5
 	boss_paid = false

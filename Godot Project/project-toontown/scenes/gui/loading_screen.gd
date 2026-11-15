@@ -253,6 +253,9 @@ func _ready() -> void:
 
 
 static func change_to(path: String) -> void:
+	if not BoardingParty.allow_scene(path):
+		BoardingParty.warn_leave()
+		return
 	var screen := _screen()
 	if screen == null:
 		return

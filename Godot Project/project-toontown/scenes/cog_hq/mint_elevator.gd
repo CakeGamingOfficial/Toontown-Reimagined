@@ -97,9 +97,20 @@ func _ready() -> void:
 	_build_clock()
 
 
+var _group_told := false
+var _pulled := 0
+
+
 func _process(delta: float) -> void:
 	_place_hop()
 	if _phase == "":
+		var due := BoardingParty.take_pull(_pulled)
+		if not due.is_empty():
+			_pulled = int(due.get("token", 0))
+			var index := int(due.get("dest", 0))
+			if index >= 0 and index < _cars.size() and _cars[index] != null:
+				_begin_board(_cars[index])
+			return
 		_offer()
 		return
 	_age += delta
@@ -163,8 +174,18 @@ func _offer() -> void:
 			continue
 		if not _in_door(car, here):
 			continue
+		var index := _cars.find(car)
+		var gate := BoardingParty.gate(toon, "cashbot_trainyard.tscn", index, _group_told)
+		if gate < 1:
+			_group_told = true
+			return
+		_group_told = false
+		if BoardingParty.leading():
+			BoardingParty.request("board", {"dest": index})
+			return
 		_begin_board(car)
 		return
+	_group_told = false
 
 
 func _in_door(car: Node3D, here: Vector3) -> bool:
@@ -182,7 +203,7 @@ func _begin_board(car: Node3D) -> void:
 	_phase = "board"
 	_age = 0.0
 	_cue = ""
-	_from = toon.call("battle_point")
+	_from = BoardingParty.approach(toon, car.global_transform * _SEAT)
 	toon.call("hold_for_battle", true)
 	_remember_cam()
 	_slide(0.0)
@@ -234,7 +255,10 @@ func _depart() -> void:
 	trip = "in"
 	ride += 1
 	mint_id = int(_car.get_meta("mint"))
-	floor_num = randi() % 20
+	var shared := BoardingParty.roll()
+	floor_num = int(shared.get("floor", randi() % 20)) if not shared.is_empty() else randi() % 20
+	if not shared.is_empty():
+		ride = int(shared.get("ride", ride))
 	ToonNet.publish("mint-trip", {"mint": mint_id, "floor": floor_num, "ride": ride})
 	ToonLoading.change_to(_MINT)
 

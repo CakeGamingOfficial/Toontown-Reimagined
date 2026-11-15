@@ -1273,6 +1273,12 @@ func _apply_factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
 		doors.call("apply_switch", kind, ent_id, on)
 
 
+func _boarding_act(sender: int, action: String, payload: Dictionary) -> void:
+	var party := get_node_or_null("/root/StreetTraffic/BoardingParty")
+	if party != null and party.has_method("act_from"):
+		party.call("act_from", sender, action, payload)
+
+
 func _factory_act(sender: int, action: String, payload: Dictionary) -> void:
 	var board := get_node_or_null("/root/StreetTraffic/FactoryBoard")
 	if board == null or not board.has_method("act"):
@@ -2471,6 +2477,17 @@ static func ask_factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> v
 	net._ask_factory_switch(trip, kind, ent_id, on)
 
 
+static func boarding_act(action: String, payload: Dictionary) -> void:
+	var net := live()
+	if net == null:
+		return
+	if is_authority():
+		net._boarding_act(peer_id(), action, payload)
+		return
+	if net._role == "client":
+		net._request_boarding_act.rpc_id(1, action, payload)
+
+
 static func factory_act(action: String, payload: Dictionary) -> void:
 	var net := live()
 	if net == null:
@@ -2564,6 +2581,9 @@ func _on_peer_gone(id: int) -> void:
 	var factory := get_node_or_null("/root/StreetTraffic/FactoryBoard")
 	if factory != null and factory.has_method("drop"):
 		factory.call("drop", id)
+	var party := get_node_or_null("/root/StreetTraffic/BoardingParty")
+	if party != null and party.has_method("drop"):
+		party.call("drop", id)
 
 
 func _peer_label(id: int) -> String:
@@ -3364,6 +3384,13 @@ func _request_course(district: int, cog_id: int, x: float, y: float, z: float, y
 	if _peers.has(sender):
 		district = int(_peers[sender])
 	_open_course(district, cog_id, Vector3(x, y, z), yaw, sender, toon_name, hp, max_hp)
+
+
+@rpc("any_peer", "reliable")
+func _request_boarding_act(action: String, payload: Dictionary) -> void:
+	if not is_authority():
+		return
+	_boarding_act(multiplayer.get_remote_sender_id(), action, payload)
 
 
 @rpc("any_peer", "reliable")

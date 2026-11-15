@@ -317,6 +317,7 @@ func _press_chat() -> void:
 
 func _open_menu() -> void:
 	_apply_holiday_menus()
+	_apply_boarding_menu()
 	_close_menu()
 	_blocker.visible = not _pinned
 	var shown := _items.duplicate()
@@ -1883,6 +1884,31 @@ func _apply_ceo_menu() -> void:
 const _HOLIDAY_TITLES: Array[String] = [
 	"HALLOWEEN", "WINTER", "APRIL TOONS'", "VICTORY PARTIES", "STORM SELLBOT", "JELLYBEAN WEEK", "GREEN",
 ]
+
+
+func _apply_boarding_menu() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and String((group as Dictionary).get("title", "")) == "GROUP":
+			_items.remove_at(index)
+	var lines := BoardingParty.phrases()
+	if lines.is_empty():
+		return
+	var rows: Array = [
+		{"title": "GROUP", "items": _lines(_phrase_list(lines, "group"))},
+		{"title": "Let's go to...", "items": _lines(_phrase_list(lines, "lets"))},
+		{"title": "We're going to...", "items": _lines(_phrase_list(lines, "going"))},
+	]
+	rows.append_array(_lines(_phrase_list(lines, "ready")))
+	var at := 1 if _items.size() > 1 else _items.size()
+	_items.insert(at, {"title": "GROUP", "items": rows})
+
+
+func _phrase_list(lines: Dictionary, key: String) -> Array:
+	var found: Variant = lines.get(key, [])
+	if found is Array:
+		return found
+	return []
 
 
 func _apply_holiday_menus() -> void:

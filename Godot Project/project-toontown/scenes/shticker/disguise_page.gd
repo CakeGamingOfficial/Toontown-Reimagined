@@ -37,6 +37,14 @@ const _NEED: PackedInt32Array = [17, 14, 12, 10]
 const _MASKS: PackedInt32Array = [131071, 130175, 56447, 56411]
 # MeritsPerLevel first tier for each department's lowest suit.
 const _MERIT: PackedInt32Array = [100, 60, 40, 20]
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
+const _CURRENCY: PackedStringArray = [
+	"You got %d Stock Options.",
+	"You earned %d jury notices.",
+	"You got %d Cogbucks.",
+	"You got %d Sellbot merits.",
+]
+const _DEPT_LETTER: PackedStringArray = ["c", "l", "m", "s"]
 const _METER := Color(0.87, 0.87, 0.827)
 const _METER_HOT := Color(0.7, 0.3, 0.3)
 const _PROGRESS: PackedStringArray = [
@@ -487,29 +495,18 @@ const _PART_GROUPS: PackedInt32Array = [7, 56, 1984, 14336, 114688]
 static func grant_factory(levels: Array) -> String:
 	var record := _read_disk()
 	var parts := _four(record.get("parts", []))
-	var merits := _four(record.get("merits", []))
 	var lines: PackedStringArray = []
 	var bit := _next_part(parts[_SELLBOT])
 	if bit != 0:
 		parts[_SELLBOT] = parts[_SELLBOT] | bit
 		lines.append("You recovered a Sellbot %s." % _part_label(bit))
-	if _suit_complete(parts[_SELLBOT]):
-		var gained := 0
-		for level in levels:
-			gained += _py_round(float(level) * 0.5) * 4
-		if gained > 0:
-			var before := int(merits[_SELLBOT])
-			merits[_SELLBOT] = mini(before + gained, promotion_cap(_SELLBOT))
-			var added := int(merits[_SELLBOT]) - before
-			if added > 0:
-				lines.append("You got %d Sellbot merits." % added)
-	record["parts"] = parts
-	record["merits"] = merits
-	if not record.has("types"):
-		record["types"] = [0, 0, 0, 0]
-	if not record.has("levels"):
-		record["levels"] = [0, 0, 0, 0]
-	_write_disk(record)
+		_gained_parts.append("Sellbot %s" % _part_label(bit))
+		record["parts"] = parts
+		_keep_suit_rows(record)
+		_write_disk(record)
+	var paid := recover_merits(_dept_cogs(levels, _SELLBOT), 4.0)
+	if paid != "":
+		lines.append(paid)
 	return "\n".join(lines)
 
 
@@ -520,12 +517,6 @@ const _CASHBOT := 2
 
 
 static func grant_mint(levels: Array, mint_id: int) -> String:
-	var mask := int(_MASKS[_CASHBOT])
-	var record := _read_disk()
-	var parts := _four(record.get("parts", []))
-	if (int(parts[_CASHBOT]) & mask) != mask:
-		return ""
-	var merits := _four(record.get("merits", []))
 	var mult := 2.0
 	var bonus := 8
 	if mint_id == 12600:
@@ -534,27 +525,7 @@ static func grant_mint(levels: Array, mint_id: int) -> String:
 	elif mint_id == 12700:
 		mult = 3.0
 		bonus = 20
-	var gained := 0
-	for level in levels:
-		var base := _py_round(float(level) * 0.5)
-		gained += _py_round(float(base) * mult)
-	gained += bonus
-	if gained <= 0:
-		return ""
-	var before := int(merits[_CASHBOT])
-	merits[_CASHBOT] = mini(before + gained, promotion_cap(_CASHBOT))
-	var added := int(merits[_CASHBOT]) - before
-	if added <= 0:
-		return ""
-	record["merits"] = merits
-	if not record.has("parts"):
-		record["parts"] = parts
-	if not record.has("types"):
-		record["types"] = [0, 0, 0, 0]
-	if not record.has("levels"):
-		record["levels"] = [0, 0, 0, 0]
-	_write_disk(record)
-	return "You got %d Cogbucks." % added
+	return recover_merits(_dept_cogs(levels, _CASHBOT), mult, [0, 0, bonus, 0])
 
 
 ## PromotionManagerAI.recoverMerits for a Bossbot country club. Stock options
@@ -585,12 +556,6 @@ static func grant_part(dept: int, bit: int) -> void:
 
 
 static func grant_course(levels: Array, course_id: int, president: bool) -> String:
-	var mask := int(_MASKS[_BOSSBOT])
-	var record := _read_disk()
-	var parts := _four(record.get("parts", []))
-	if (int(parts[_BOSSBOT]) & mask) != mask:
-		return ""
-	var merits := _four(record.get("merits", []))
 	var mult := 2.0
 	var bonus := 8
 	if course_id == 10600:
@@ -599,33 +564,126 @@ static func grant_course(levels: Array, course_id: int, president: bool) -> Stri
 	elif course_id == 10700:
 		mult = 3.0
 		bonus = 20
-	var gained := 0
-	for level in levels:
-		var base := _py_round(float(level) * 0.5)
-		gained += _py_round(float(base) * mult)
+	var extra: Array = [0, 0, 0, 0]
 	if president:
-		gained += bonus
-	if gained <= 0:
-		return ""
-	var before := int(merits[_BOSSBOT])
-	merits[_BOSSBOT] = mini(before + gained, promotion_cap(_BOSSBOT))
-	var added := int(merits[_BOSSBOT]) - before
-	if added <= 0:
+		extra[_BOSSBOT] = bonus
+	return recover_merits(_dept_cogs(levels, _BOSSBOT), mult, extra)
+
+
+## PromotionManagerAI.recoverMerits. Street battles use a multiplier of 1.
+## A cog building floor uses 1 + floor * 0.5. A version 2.0 cog is doubled
+## before that multiplier, and an invasion doubles the multiplier. The flat
+## facility bonus in extra is not multiplied.
+static func recover_merits(cogs: Array, multiplier: float = 1.0, extra: Array = []) -> String:
+	var record := _read_disk()
+	var parts := _four(record.get("parts", []))
+	var merits := _four(record.get("merits", []))
+	var gained: Array[int] = [0, 0, 0, 0]
+	var scale := multiplier
+	if _HOLIDAYS.invading():
+		scale *= 2.0
+	for item in cogs:
+		if not (item is Dictionary):
+			continue
+		var cog: Dictionary = item
+		if bool(cog.get("virtual", false)):
+			continue
+		var dept := _dept_of(cog.get("dept", ""))
+		if dept < 0 or not _wearing(parts, dept):
+			continue
+		var points := _py_round(float(cog.get("level", 1)) * 0.5)
+		if _was_v2(cog):
+			points *= 2
+		gained[dept] += _py_round(float(points) * scale)
+	for dept in mini(extra.size(), 4):
+		var bonus := int(extra[dept])
+		if bonus > 0 and _wearing(parts, dept):
+			gained[dept] += bonus
+	var lines: PackedStringArray = []
+	var changed := false
+	for dept in 4:
+		if gained[dept] <= 0 or not _wearing(parts, dept):
+			continue
+		var before := int(merits[dept])
+		merits[dept] = mini(before + gained[dept], promotion_cap(dept))
+		var added := int(merits[dept]) - before
+		if added <= 0:
+			continue
+		changed = true
+		_gained_merits.append({
+			"dept": dept,
+			"before": before,
+			"added": added,
+			"after": int(merits[dept]),
+			"cap": promotion_cap(dept),
+		})
+		lines.append(_CURRENCY[dept] % added)
+	if not changed:
 		return ""
 	record["merits"] = merits
-	if not record.has("parts"):
-		record["parts"] = parts
+	record["parts"] = parts
+	_keep_suit_rows(record)
+	_write_disk(record)
+	_reload_page()
+	return "\n".join(lines)
+
+
+static func _dept_cogs(levels: Array, dept: int) -> Array:
+	var cogs: Array = []
+	for level in levels:
+		if level is Dictionary:
+			var row := (level as Dictionary).duplicate()
+			row["dept"] = _DEPT_LETTER[clampi(dept, 0, 3)]
+			cogs.append(row)
+		else:
+			cogs.append({"dept": _DEPT_LETTER[clampi(dept, 0, 3)], "level": int(level)})
+	return cogs
+
+
+static func _dept_of(raw: Variant) -> int:
+	if raw is int or raw is float:
+		var index := int(raw)
+		return index if index >= 0 and index <= 3 else -1
+	var text := String(raw)
+	match text:
+		"c", "boss", "bossbot":
+			return 0
+		"l", "law", "lawbot":
+			return 1
+		"m", "cash", "cashbot":
+			return 2
+		"s", "sell", "sellbot":
+			return 3
+	return -1
+
+
+static func _wearing(parts: Array, dept: int) -> bool:
+	if dept < 0 or dept >= _MASKS.size():
+		return false
+	var mask := int(_MASKS[dept])
+	return (int(parts[dept]) & mask) == mask
+
+
+static func _was_v2(cog: Dictionary) -> bool:
+	return bool(cog.get("v2", false)) or bool(cog.get("had_revives", false)) or int(cog.get("revives", 0)) > 0
+
+
+static func _keep_suit_rows(record: Dictionary) -> void:
+	if not record.has("merits"):
+		record["merits"] = [0, 0, 0, 0]
 	if not record.has("types"):
 		record["types"] = [0, 0, 0, 0]
 	if not record.has("levels"):
 		record["levels"] = [0, 0, 0, 0]
-	_write_disk(record)
+
+
+static func _reload_page() -> void:
 	var tree := Engine.get_main_loop() as SceneTree
-	if tree != null:
-		var page := tree.root.find_child("CogDisguise", true, false)
-		if page != null and page.has_method("reload_notices"):
-			page.call("reload_notices")
-	return "You got %d Stock Options." % added
+	if tree == null:
+		return
+	var page := tree.root.find_child("CogDisguise", true, false)
+	if page != null and page.has_method("reload_notices"):
+		page.call("reload_notices")
 
 
 static func _next_part(have: int) -> int:
@@ -648,6 +706,25 @@ static func suit_progress(dept: int) -> Dictionary:
 	var types := _four(record.get("types", []))
 	var levels := _four(record.get("levels", []))
 	return {"type": int(types[dept]), "level": int(levels[dept])}
+
+
+static func take_reward() -> Dictionary:
+	var result := {"parts": _gained_parts.duplicate(), "merits": _gained_merits.duplicate()}
+	_gained_parts = []
+	_gained_merits = []
+	return result
+
+
+static func meter(dept: int) -> Dictionary:
+	if dept < 0 or dept > 3:
+		return {"have": 0, "cap": 0, "complete": false}
+	var record := _read_disk()
+	var merits := _four(record.get("merits", []))
+	return {
+		"have": int(merits[dept]),
+		"cap": promotion_cap(dept),
+		"complete": suit_complete(dept),
+	}
 
 
 static func suit_complete(dept: int) -> bool:
@@ -800,6 +877,9 @@ static func max_suits() -> void:
 const _MERIT_FILE := "res://scenes/shticker/cog_merits.json"
 const _HP_LEVELS: PackedInt32Array = [14, 19, 29, 39, 49]
 static var _merit_rows: Array = []
+## What the last battles paid, until the reward card reads it.
+static var _gained_parts: Array = []
+static var _gained_merits: Array = []
 
 
 ## CogDisguiseGlobals.getTotalMerits. The row is the suit you are wearing.
