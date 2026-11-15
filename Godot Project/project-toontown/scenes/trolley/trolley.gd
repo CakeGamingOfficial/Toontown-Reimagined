@@ -670,9 +670,7 @@ func _ease_in(t: float) -> float:
 
 
 func _play(path: String) -> void:
-	if not FileAccess.file_exists(path):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	var player := ToonAudio.effect_player()

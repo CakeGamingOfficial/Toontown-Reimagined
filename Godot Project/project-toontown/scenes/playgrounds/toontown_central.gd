@@ -55,9 +55,7 @@ func _ready() -> void:
 func _ready_music() -> void:
 	# Playground.enter loops loader.music at 0.8. Toontown Central's playground
 	# track is TC_nbrhood ("Toontown Central"). The street theme is TC_SZ.
-	if not FileAccess.file_exists(MUSIC_PATH):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(MUSIC_PATH)
+	var stream := ToonAudio.stream(MUSIC_PATH) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true

@@ -7,6 +7,7 @@ extends Node3D
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 const _FIREWORK_SHOW := preload("res://scenes/effects/firework_show.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _BACKDROP := preload("res://scenes/sky/cog_backdrop.gdshader")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -161,11 +162,10 @@ func _watch_holiday_show() -> void:
 	var file := scene_file_path.get_file()
 	if file != "toontown_central.tscn" and file != "donalds_dock.tscn" and file != "daisy_gardens.tscn" and file != "minnies_melodyland.tscn" and file != "the_burrrgh.tscn" and file != "donalds_dreamland.tscn" and file != "goofy_speedway.tscn" and file != "acorn_acres.tscn":
 		return
-	var holidays := preload("res://scenes/shticker/calendar_holidays.gd")
 	var show := ""
-	if bool(holidays.call("running", 2)):
+	if _HOLIDAYS.running(2):
 		show = "newyear"
-	elif bool(holidays.call("running", 1)):
+	elif _HOLIDAYS.running(1):
 		show = "summer"
 	if show == "":
 		return
@@ -247,9 +247,9 @@ func _follow_cog_sky(camera: Camera3D) -> void:
 
 
 func _ready_music() -> void:
-	if music_path.is_empty() or not FileAccess.file_exists(music_path):
+	if music_path.is_empty():
 		return
-	var stream := AudioStreamOggVorbis.load_from_file(music_path)
+	var stream := ToonAudio.stream(music_path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true

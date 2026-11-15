@@ -101,9 +101,7 @@ func _face(actor: Node3D, origin: Node3D) -> void:
 
 
 func _play_music() -> void:
-	if not FileAccess.file_exists(_MUSIC):
-		return
-	var stream := AudioStreamMP3.load_from_file(_MUSIC)
+	var stream := ToonAudio.stream(_MUSIC) as AudioStreamMP3
 	if stream == null:
 		return
 	stream.loop = true

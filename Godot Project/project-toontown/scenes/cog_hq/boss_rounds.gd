@@ -3483,7 +3483,7 @@ func _ride_camera(body: CharacterBody3D, ahead: Vector3) -> void:
 
 func _loop_jury() -> void:
 	var path := "res://assets/cog_hq/audio/LB_jury_moves.ogg"
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -5080,7 +5080,7 @@ func _move_sound(path: String) -> void:
 
 
 func _play_held(path: String, looped: bool, volume: float) -> AudioStreamPlayer:
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return null
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -5138,7 +5138,7 @@ func play_cj_sfx(path: String) -> void:
 
 func _play_hardball() -> void:
 	var path := "res://assets/audio/battle/SA_hardball.ogg"
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -5180,7 +5180,7 @@ func _fade_ball(node: Node) -> void:
 
 
 func _sfx(path: String) -> void:
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -5993,7 +5993,7 @@ func _belt_sound(playing: bool) -> void:
 		return
 	if _belt_loop == null or not is_instance_valid(_belt_loop):
 		var path := "res://assets/cog_hq/audio/CHQ_FACT_conveyor_belt.ogg"
-		if not FileAccess.file_exists(path):
+		if not ToonAudio.present(path):
 			return
 		var stream := load(path) as AudioStream
 		if stream == null:
@@ -8668,7 +8668,7 @@ func play_music(which: String) -> void:
 
 
 func _play_music_file(path: String, which: String) -> void:
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -8818,7 +8818,7 @@ func _tick_birds(dizzy: bool) -> void:
 	if _birds != null and is_instance_valid(_birds) and _birds.playing:
 		return
 	var path := "res://assets/cogs/bosses/audio/SZ_TC_bird1.ogg"
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:

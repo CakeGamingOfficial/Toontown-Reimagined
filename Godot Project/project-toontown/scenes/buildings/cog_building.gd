@@ -1345,7 +1345,7 @@ func _play_music(path: String, volume: float) -> void:
 	if _tune == path and _music != null and _music.playing:
 		return
 	_tune = path
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true
@@ -1404,7 +1404,7 @@ func _once(token: String, path: String) -> void:
 	if _cue == token:
 		return
 	_cue = token
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path)
 	if stream == null:
 		return
 	var player := ToonAudio.effect_player()

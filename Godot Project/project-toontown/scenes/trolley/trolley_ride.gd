@@ -557,9 +557,9 @@ func _rules_open() -> bool:
 
 func _play_song(at_play: bool) -> void:
 	var path := String(_choice.get("music", ""))
-	if path.is_empty() or not FileAccess.file_exists(path):
+	if path.is_empty():
 		return
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	var looping := bool(_choice.get("loop", true))

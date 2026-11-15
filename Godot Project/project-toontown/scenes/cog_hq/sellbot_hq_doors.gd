@@ -303,10 +303,7 @@ func _hide(node: Node) -> void:
 
 
 func _sound(path: String) -> void:
-	var bytes := FileAccess.get_file_as_bytes(path)
-	if bytes.is_empty():
-		return
-	var stream := AudioStreamOggVorbis.load_from_buffer(bytes)
+	var stream := ToonAudio.stream(path)
 	if stream == null:
 		return
 	var speaker := ToonAudio.effect_player()

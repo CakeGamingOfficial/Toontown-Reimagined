@@ -9,7 +9,7 @@ const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _MOTION := preload("res://scenes/interiors/door_motion.gd")
-const _FLAT := preload("res://assets/neighborhoods/toontown_central/ttc_import.gd")
+const _FLAT := preload("res://assets/neighborhoods/toontown_central/ttc_paint.gd")
 const _BLDG := preload("res://scenes/interiors/shop_door.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _ChatSettings := preload("res://scenes/shticker/chat_settings.gd")
@@ -1799,9 +1799,7 @@ func _place_control(control: Control, world: Vector3, nudge: Vector2) -> void:
 
 
 func _ready_music() -> void:
-	if not FileAccess.file_exists(MUSIC_PATH):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(MUSIC_PATH)
+	var stream := ToonAudio.stream(MUSIC_PATH) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true

@@ -1998,7 +1998,7 @@ func _open_thanks() -> void:
 func _victory_dance() -> void:
 	# MovieToonVictory. The gag points already came from the cog fights.
 	var path := "res://assets/audio/sfx/ENC_Win.mp3"
-	if FileAccess.file_exists(path):
+	if ToonAudio.present(path):
 		var stream := load(path) as AudioStream
 		if stream != null:
 			if _win == null:
@@ -2186,7 +2186,7 @@ func _wear_one(anchor: Node3D, spec: Dictionary) -> void:
 	_suits.append(suit)
 	var board := _tags()
 	if board != null and board.has_method("dress_suit"):
-		var toon_name := actor.name if actor.name != "Toon" else "Toon"
+		var toon_name := String(actor.name) if actor.name != "Toon" else "Toon"
 		var card := "%s\n%s\nLevel %d" % [toon_name, String(spec["name"]), int(spec["level"])]
 		board.call("dress_suit", actor, card, float(spec["height"]) + 1.3)
 
@@ -2483,7 +2483,7 @@ func music(which: String) -> void:
 	if file == "":
 		return
 	var path := "res://assets/cogs/bosses/audio/" + file
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -2507,7 +2507,7 @@ func music(which: String) -> void:
 
 func sfx(file: String) -> void:
 	var path := "res://assets/cogs/bosses/audio/" + file
-	if not FileAccess.file_exists(path):
+	if not ToonAudio.present(path):
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:

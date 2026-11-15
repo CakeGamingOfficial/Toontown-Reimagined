@@ -105,7 +105,8 @@ func setup(show_name: String, at: int, delay: float) -> void:
 
 func takeover() -> void:
 	_replaced = true
-	free()
+	name = "FireworkShowDone"
+	queue_free()
 
 
 func _exit_tree() -> void:

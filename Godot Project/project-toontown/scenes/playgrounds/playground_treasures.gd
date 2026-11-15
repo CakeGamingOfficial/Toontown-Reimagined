@@ -71,8 +71,8 @@ func _ready() -> void:
 	var packed := load(_scene) as PackedScene
 	if packed == null:
 		return
-	_grab = AudioStreamOggVorbis.load_from_file(GRAB_SOUND)
-	_reject = AudioStreamOggVorbis.load_from_file(REJECT_SOUND)
+	_grab = ToonAudio.stream(GRAB_SOUND)
+	_reject = ToonAudio.stream(REJECT_SOUND)
 	_build(packed)
 	for _n in _max:
 		_place_one()

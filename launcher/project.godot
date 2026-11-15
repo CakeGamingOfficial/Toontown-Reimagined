@@ -1,5 +1,10 @@
-; Toontown playtest launcher. Edit this file with the Godot editor UI
-; if you change display settings. The game itself lives in the sibling project.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 

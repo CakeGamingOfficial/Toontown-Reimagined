@@ -49,9 +49,7 @@ func _process(_delta: float) -> void:
 func _ready_music() -> void:
 	# Street.enter loops TownLoader.music at 0.8. Donald's Dock streets all
 	# use DD_SZ ("Donald's Dock Street").
-	if not FileAccess.file_exists(MUSIC_PATH):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(MUSIC_PATH)
+	var stream := ToonAudio.stream(MUSIC_PATH) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true

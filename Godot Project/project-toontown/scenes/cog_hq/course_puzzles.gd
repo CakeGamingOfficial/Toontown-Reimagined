@@ -800,10 +800,11 @@ func _hurt(amount: int) -> void:
 
 
 func _once(path: String) -> void:
-	if not FileAccess.file_exists(path):
+	var stream := ToonAudio.stream(path)
+	if stream == null:
 		return
 	var player := AudioStreamPlayer.new()
-	player.stream = AudioStreamOggVorbis.load_from_file(path)
+	player.stream = stream
 	add_child(player)
 	player.finished.connect(player.queue_free)
 	player.play()

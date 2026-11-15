@@ -54,8 +54,8 @@ static func place(host: Node) -> void:
 
 
 func _ready() -> void:
-	var pass_sfx := AudioStreamOggVorbis.load_from_file(_PASS)
-	var stop_sfx := AudioStreamOggVorbis.load_from_file(_STOP)
+	var pass_sfx := ToonAudio.stream(_PASS) as AudioStreamOggVorbis
+	var stop_sfx := ToonAudio.stream(_STOP) as AudioStreamOggVorbis
 	var loco_scene := load(_LOCO) as PackedScene
 	var car_scenes: Array[PackedScene] = []
 	for path in _CARS:

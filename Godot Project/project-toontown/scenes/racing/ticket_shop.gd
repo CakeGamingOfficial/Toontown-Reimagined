@@ -423,6 +423,7 @@ func _build_view() -> void:
 	add_child(_cream)
 	_view = SubViewport.new()
 	_view.transparent_bg = true
+	_view.own_world_3d = true
 	_view.size = Vector2i(512, 360)
 	_holder = SubViewportContainer.new()
 	_holder.stretch = true
@@ -438,8 +439,15 @@ func _build_view() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-35, 25, 0)
 	_world.add_child(sun)
-	var fill := AmbientLight3D.new()
-	fill.light_color = Color(0.55, 0.55, 0.55)
+	var fill := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0, 0, 0, 0)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.55, 0.55, 0.55)
+	env.ambient_light_energy = 1.0
+	env.ambient_light_sky_contribution = 0.0
+	fill.environment = env
 	_world.add_child(fill)
 
 

@@ -55,27 +55,10 @@ func _ready() -> void:
 		multiplayer.connection_failed.connect(_launch_failed)
 	if not multiplayer.connected_to_server.is_connected(_launch_arrived):
 		multiplayer.connected_to_server.connect(_launch_arrived)
-	# The head shader compiles on the first draw. Welcome buttons stay hidden
-	# until that draw is done, so Single Player, Host, Connect, and Quit are
-	# not the frame that stalls.
-	await _warm_portraits()
 	_offer_server()
 	if arrive_from_black:
 		arrive_from_black = false
 		_fade_in()
-
-
-func _warm_portraits() -> void:
-	var blocker := ColorRect.new()
-	blocker.color = Color(0, 0, 0, 0)
-	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
-	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
-	blocker.z_index = 70
-	add_child(blocker)
-	await get_tree().process_frame
-	if DisplayServer.get_name() != "headless":
-		RenderingServer.force_draw()
-	blocker.queue_free()
 
 
 func _show_dedicated() -> void:
@@ -104,20 +87,14 @@ func _server_closed() -> void:
 
 
 func _offer_server() -> void:
+	# The launcher already chose solo, host, or join. This screen does not ask.
 	if ToonNet.launch_waiting():
 		_show_launch_wait()
 		return
-	if ToonNet.door_skipped() or ToonNet.networked() or get_node_or_null("ServerDoor") != null:
-		return
-	var door := (load("res://scenes/net/server_door.gd") as GDScript).new() as Control
-	door.name = "ServerDoor"
-	door.set_anchors_preset(Control.PRESET_FULL_RECT)
-	door.offset_left = 0.0
-	door.offset_top = 0.0
-	door.offset_right = 0.0
-	door.offset_bottom = 0.0
-	add_child(door)
-	_refresh_shield()
+	var problem := ToonNet.launch_error()
+	if problem != "":
+		ToonNet.clear_launch_error()
+		_show_launch_problem(problem)
 
 
 func _show_launch_wait() -> void:
@@ -142,17 +119,53 @@ func _show_launch_wait() -> void:
 
 
 func _launch_arrived() -> void:
-	var wait := get_node_or_null("LaunchWait")
-	if wait != null:
-		wait.queue_free()
+	_drop_launch_wait()
 	_refresh_shield()
 
 
 func _launch_failed() -> void:
+	_drop_launch_wait()
+	_offer_server()
+
+
+## queue_free still leaves the cover in the tree for this frame. The shield
+## would stay up, and a failed join would never show its message.
+func _drop_launch_wait() -> void:
 	var wait := get_node_or_null("LaunchWait")
 	if wait != null:
-		wait.queue_free()
-	_offer_server()
+		wait.free()
+
+
+func _show_launch_problem(problem: String) -> void:
+	if get_node_or_null("LaunchWait") != null:
+		return
+	var wait := ColorRect.new()
+	wait.name = "LaunchWait"
+	wait.color = Color(0.05, 0.08, 0.16, 0.72)
+	wait.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wait.mouse_filter = Control.MOUSE_FILTER_STOP
+	wait.z_index = 80
+	add_child(wait)
+	var label := Label.new()
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_bottom = -80
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.text = problem
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wait.add_child(label)
+	ToonGui.style_label(label, Color(1.0, 0.95, 0.7), 36, Color(0.05, 0.1, 0.2), 6)
+	var quit := Button.new()
+	quit.text = "Quit"
+	quit.set_anchors_preset(Control.PRESET_CENTER)
+	quit.offset_left = -80
+	quit.offset_top = 40
+	quit.offset_right = 80
+	quit.offset_bottom = 88
+	quit.pressed.connect(func() -> void: get_tree().quit())
+	wait.add_child(quit)
+	_refresh_shield()
 
 
 func _play_theme() -> void:
@@ -462,6 +475,8 @@ func _add_head(parent: Control, style: ToonStyle) -> void:
 	var viewport := SubViewport.new()
 	viewport.transparent_bg = true
 	viewport.own_world_3d = true
+	viewport.gui_disable_input = true
+	viewport.handle_input_locally = false
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.size = Vector2i(320, 280)
 	box.add_child(viewport)
@@ -530,7 +545,7 @@ func _process(_delta: float) -> void:
 func _refresh_shield() -> void:
 	if _shield == null or not is_instance_valid(_shield):
 		return
-	var covered := _guard_left > 0 or _confirm != null or get_node_or_null("ServerDoor") != null or get_node_or_null("OptionsPanel") != null or get_node_or_null("LaunchWait") != null
+	var covered := _guard_left > 0 or _confirm != null or get_node_or_null("OptionsPanel") != null or get_node_or_null("LaunchWait") != null
 	_shield.mouse_filter = Control.MOUSE_FILTER_STOP if covered else Control.MOUSE_FILTER_IGNORE
 
 

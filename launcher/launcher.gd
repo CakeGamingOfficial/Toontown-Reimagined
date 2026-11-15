@@ -1,58 +1,52 @@
 extends Control
 
-## Playtest window for multiplayer-test. The first Play clones that branch
-## when this computer does not have the game yet. Later plays fast-forward
-## a clean copy. A dirty tree is left alone. The address field is how
-## someone joins a friend who clicked Host.
+## Playtest window. Play asks GitHub for the latest release tag. A newer tag
+## downloads that release's Toontown.pck and Toontown-clips.pck into game/
+## beside Launcher.exe and replaces the previous packs. Toontown.exe is left
+## as it is. The address field is how someone joins a friend who clicked Host.
 
-const _BRANCH := "multiplayer-test"
-const _REMOTE := "https://github.com/CakeGamingOfficial/Toontown-Reimagined.git"
+const _RELEASES := "https://api.github.com/repos/CakeGamingOfficial/Toontown-Reimagined/releases/latest"
+const _PACK_NAME := "Toontown.pck"
+const _CLIPS_NAME := "Toontown-clips.pck"
+const _EXE_NAME := "Toontown.exe"
 const _CONFIG := "user://launcher.json"
-const _FALLBACK_GODOT := "C:/Users/fukuy/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64.exe"
-const _PROJECT := "Godot Project/project-toontown/"
-# Pictures, sounds, models, and fonts. project.godot covers importer defaults.
-const _IMPORTED := {
-	".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true,
-	".bmp": true, ".tga": true, ".exr": true, ".hdr": true,
-	".ogg": true, ".wav": true, ".mp3": true,
-	".glb": true, ".gltf": true, ".fbx": true, ".obj": true, ".dae": true,
-	".ttf": true, ".otf": true, ".import": true, ".godot": true,
-}
+var _release_headers := PackedStringArray([
+	"User-Agent: ToontownLauncher",
+	"Accept: application/vnd.github+json",
+])
+var _pack_headers := PackedStringArray([
+	"User-Agent: ToontownLauncher",
+	"Accept: application/octet-stream",
+])
 
-var _font: Font
-var _logo: Texture2D
-var _sky: Texture2D
-var _scroll: Texture2D
-var _button_up: Texture2D
-var _button_down: Texture2D
-var _button_hover: Texture2D
+enum _Step { IDLE, RELEASE, PACK }
+
+const _font := preload("res://assets/ImpressBT.ttf")
+const _logo := preload("res://assets/logo.png")
+const _sky := preload("res://assets/sky.png")
+const _scroll := preload("res://assets/scroll.png")
+const _button_up := preload("res://assets/button_up.png")
+const _button_down := preload("res://assets/button_down.png")
+const _button_hover := preload("res://assets/button_hover.png")
 
 const _INK := Color(0.33, 0.2, 0.08)
 const _INK_SOFT := Color(0.48, 0.32, 0.16)
 
 var _config: Dictionary = {}
-var _repo := ""
-var _git_path := ""
 var _mode := ""
 var _busy := false
 var _play_local := false
-var _worker: Thread
-var _lock := Mutex.new()
-var _phase_text := ""
-var _sync_done := false
-var _outcome: Dictionary = {}
-var _meter_key := ""
-var _meter_at := 0
-var _meter_percent := 0
-var _needs_import := false
-var _asked_exclusion := false
-var _history_next := false
-var _launch_project := ""
+var _closing := false
+var _step := _Step.IDLE
+var _latest_tag := ""
+var _fetch_name := ""
+var _queue: Array[Dictionary] = []
+var _shown_percent := -1
+var _http: HTTPRequest
 
 var _menu: Control
 var _host_card: Control
 var _status: Label
-var _godot_label: Label
 var _address_edit: LineEdit
 var _port_edit: LineEdit
 var _host_body: Label
@@ -61,40 +55,43 @@ var _buttons: Array[Button] = []
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	_load_art()
 	_load_config()
-	_repo = _find_repo()
+	_http = HTTPRequest.new()
+	_http.name = "UpdateRequest"
+	_http.use_threads = true
+	_http.accept_gzip = true
+	_http.body_size_limit = -1
+	_http.max_redirects = 8
+	_http.timeout = 30.0
+	_http.request_completed.connect(_on_request_completed)
+	add_child(_http)
+	_delete_partial()
 	_build()
-	_show_local_rev()
+	_show_installed()
 
 
 func _exit_tree() -> void:
-	if _worker != null:
-		_worker.wait_to_finish()
-		_worker = null
+	_closing = true
+	if _http != null:
+		_http.cancel_request()
+	_delete_partial()
 
 
 func _process(_delta: float) -> void:
-	if _worker == null:
+	if _step != _Step.PACK or _http == null or _status == null:
 		return
-	var done := false
-	var phase := ""
-	_lock.lock()
-	done = _sync_done
-	phase = _phase_text
-	_lock.unlock()
-	if phase != "":
-		_status.text = phase
-	if not done:
+	var got := _http.get_downloaded_bytes()
+	var total := _http.get_body_size()
+	if total > 0:
+		var percent := int((float(got) * 100.0) / float(total))
+		if percent == _shown_percent:
+			return
+		_shown_percent = percent
+		_status.text = "Downloading %s... %d%%." % [_fetch_name, percent]
 		return
-	_worker.wait_to_finish()
-	_worker = null
-	var outcome: Dictionary = {}
-	_lock.lock()
-	outcome = _outcome.duplicate()
-	_sync_done = false
-	_lock.unlock()
-	_finish_sync(outcome)
+	if got <= 0:
+		return
+	_status.text = "Downloading %s... %s." % [_fetch_name, _size_phrase(got)]
 
 
 func _play(mode: String) -> void:
@@ -108,11 +105,12 @@ func _play(mode: String) -> void:
 		_play_local = false
 		_continue_after_sync()
 		return
+	if not FileAccess.file_exists(_game_exe()):
+		_status.text = "game/Toontown.exe was not found. Play does not download or replace that file."
+		return
 	_busy = true
 	_set_buttons_disabled(true)
-	_set_phase("Checking %s..." % _BRANCH)
-	_worker = Thread.new()
-	_worker.start(_sync_thread)
+	_check_release()
 
 
 func _confirm_host() -> void:
@@ -128,7 +126,7 @@ func _back_from_host() -> void:
 	_play_local = false
 	_host_card.visible = false
 	_menu.visible = true
-	_status.text = "Play checks the %s branch on GitHub before the game starts." % _BRANCH
+	_show_installed()
 
 
 func _fields_ok(mode: String) -> bool:
@@ -150,120 +148,189 @@ func _continue_after_sync() -> void:
 	_start_game()
 
 
-func _finish_sync(outcome: Dictionary) -> void:
-	if bool(outcome.get("imported", false)):
-		if not bool(outcome.get("ok", false)):
-			_busy = false
-			_set_buttons_disabled(false)
-			_status.text = String(outcome.get("error", "The game could not be prepared."))
-			return
-		_needs_import = false
-		_launch_game()
+func _check_release() -> void:
+	_step = _Step.RELEASE
+	_shown_percent = -1
+	_http.download_file = ""
+	_http.accept_gzip = true
+	_http.timeout = 30.0
+	_status.text = "Checking GitHub for a newer release..."
+	var err := _http.request(_RELEASES, _release_headers)
+	if err != OK:
+		_step = _Step.IDLE
+		_fail("Could not reach GitHub.")
+
+
+func _on_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if _closing:
 		return
-	var installed := String(outcome.get("repo", ""))
-	if installed != "":
-		_repo = installed
-		_config["repo"] = installed
+	var step := _step
+	_step = _Step.IDLE
+	if step == _Step.RELEASE:
+		_apply_release(result, response_code, body)
+	elif step == _Step.PACK:
+		_apply_pack(result, response_code)
+
+
+func _apply_release(result: int, response_code: int, body: PackedByteArray) -> void:
+	if result != HTTPRequest.RESULT_SUCCESS:
+		_fail(_http_problem(result, response_code))
+		return
+	if response_code == 404:
+		_fail("GitHub has no release yet.")
+		return
+	if response_code != 200:
+		_fail("GitHub returned an error (%d)." % response_code)
+		return
+	var parsed: Variant = JSON.parse_string(body.get_string_from_utf8())
+	if not (parsed is Dictionary):
+		_fail("GitHub did not return a release.")
+		return
+	var tag := String(parsed.get("tag_name", "")).strip_edges()
+	if tag == "":
+		_fail("GitHub did not return a release.")
+		return
+	var pack_url := _asset_url(parsed.get("assets", []), _PACK_NAME)
+	var clips_url := _asset_url(parsed.get("assets", []), _CLIPS_NAME)
+	if pack_url == "" or clips_url == "":
+		_fail("The latest release (%s) needs Toontown.pck and Toontown-clips.pck." % tag)
+		return
+	var installed := String(_config.get("release", "")).strip_edges()
+	var same := installed == tag
+	_queue.clear()
+	if not same or not FileAccess.file_exists(_pack_path()):
+		_queue.append({"name": _PACK_NAME, "url": pack_url})
+	if not same or not FileAccess.file_exists(_clips_path()):
+		_queue.append({"name": _CLIPS_NAME, "url": clips_url})
+	if _queue.is_empty():
+		_status.text = "Up to date (%s)." % tag
+		_continue_after_sync()
+		return
+	_latest_tag = tag
+	_start_next_download()
+
+
+func _asset_url(assets: Variant, file_name: String) -> String:
+	if not (assets is Array):
+		return ""
+	for asset in assets:
+		if not (asset is Dictionary):
+			continue
+		if String(asset.get("name", "")) != file_name:
+			continue
+		return String(asset.get("browser_download_url", "")).strip_edges()
+	return ""
+
+
+func _start_next_download() -> void:
+	if _queue.is_empty():
+		_config["release"] = _latest_tag
 		_save_config()
+		_status.text = "Updated to %s." % _latest_tag
+		_continue_after_sync()
+		return
+	var job: Dictionary = _queue.pop_front()
+	_fetch_name = String(job["name"])
+	var url := String(job["url"])
+	_delete_partial()
+	_shown_percent = -1
+	_http.accept_gzip = false
+	_http.timeout = 0.0
+	_http.download_file = _partial_path()
+	_step = _Step.PACK
+	_status.text = "Downloading %s..." % _fetch_name
+	var err := _http.request(url, _pack_headers)
+	if err != OK:
+		_step = _Step.IDLE
+		_http.download_file = ""
+		_delete_partial()
+		_fail("Could not start the %s download." % _fetch_name)
+
+
+func _apply_pack(result: int, response_code: int) -> void:
+	_http.download_file = ""
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		_delete_partial()
+		if result != HTTPRequest.RESULT_SUCCESS:
+			_fail(_http_problem(result, response_code))
+		else:
+			_fail("GitHub returned an error (%d) for %s." % [response_code, _fetch_name])
+		return
+	if not _replace_pack():
+		_delete_partial()
+		_fail("The new %s could not replace the old one." % _fetch_name)
+		return
+	_start_next_download()
+
+
+## Downloads land in a .partial file, then the old pack is moved aside.
+## Toontown.exe is never opened here.
+func _replace_pack() -> bool:
+	var dir := DirAccess.open(_install_dir())
+	if dir == null or _fetch_name == "":
+		return false
+	var partial := _fetch_name + ".partial"
+	if not dir.file_exists(partial):
+		return false
+	if not dir.file_exists(_fetch_name):
+		return dir.rename(partial, _fetch_name) == OK
+	var backup := _fetch_name + ".previous"
+	if dir.file_exists(backup):
+		dir.remove(backup)
+	if dir.rename(_fetch_name, backup) != OK:
+		return false
+	if dir.rename(partial, _fetch_name) != OK:
+		dir.rename(backup, _fetch_name)
+		return false
+	dir.remove(backup)
+	return true
+
+
+func _fail(message: String) -> void:
+	_http.download_file = ""
+	if _can_play_local():
+		_play_local = true
+		_stop(message + " Click again to play this copy.")
+		return
+	_stop(message)
+
+
+func _stop(message: String) -> void:
 	_busy = false
 	_set_buttons_disabled(false)
-	if bool(outcome.get("local", false)):
-		_play_local = true
-		_status.text = String(outcome.get("note", ""))
-		return
-	if not bool(outcome.get("ok", false)):
-		_status.text = String(outcome.get("error", "The update did not finish."))
-		return
-	var note := String(outcome.get("note", ""))
-	if note != "":
-		_status.text = note
-	_history_next = bool(outcome.get("history_next", false))
-	_continue_after_sync()
+	_status.text = message
+
+
+func _http_problem(result: int, response_code: int) -> String:
+	if result == HTTPRequest.RESULT_DOWNLOAD_FILE_CANT_OPEN or result == HTTPRequest.RESULT_DOWNLOAD_FILE_WRITE_ERROR:
+		return "Could not write %s in the game folder." % _fetch_name
+	if result == HTTPRequest.RESULT_BODY_SIZE_LIMIT_EXCEEDED:
+		return "%s is larger than this launcher can download." % _fetch_name
+	if result == HTTPRequest.RESULT_CANT_RESOLVE or result == HTTPRequest.RESULT_CANT_CONNECT or result == HTTPRequest.RESULT_CONNECTION_ERROR or result == HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR or result == HTTPRequest.RESULT_NO_RESPONSE or result == HTTPRequest.RESULT_TIMEOUT:
+		return "Could not reach GitHub."
+	if response_code > 0 and response_code != 200:
+		return "GitHub returned an error (%d)." % response_code
+	return "The download did not finish."
 
 
 func _start_game() -> void:
 	_busy = true
 	_set_buttons_disabled(true)
-	var exe := _godot_exe()
-	if exe == "":
-		_busy = false
-		_set_buttons_disabled(false)
-		_status.text = "Locate the Godot 4.7 exe. It can also be copied to launcher/Godot.exe."
-		_locate_godot()
-		return
-	var project := _repo.path_join("Godot Project/project-toontown")
-	if not FileAccess.file_exists(project.path_join("project.godot")):
-		_busy = false
-		_set_buttons_disabled(false)
-		_status.text = "The game project is not in this repository."
-		return
-	_launch_project = project
-	if _import_needed(project):
-		if _shipped_cache_ready() and not FileAccess.file_exists(project.path_join(".godot/uid_cache.bin")):
-			_set_phase("Installing the prepared game...")
-		else:
-			_set_phase("Preparing the game. The first time takes a while.")
-		_worker = Thread.new()
-		_worker.start(_import_thread)
-		return
 	_launch_game()
 
 
-func _import_needed(project: String) -> bool:
-	if _needs_import:
-		return true
-	return not FileAccess.file_exists(project.path_join(".godot/uid_cache.bin"))
-
-
-func _shipped_cache_ready() -> bool:
-	return FileAccess.file_exists(_repo.path_join("Godot Project/import-cache/uid_cache.bin"))
-
-
-func _install_shipped_cache() -> bool:
-	var source := _repo.path_join("Godot Project/import-cache")
-	var dest := _launch_project.path_join(".godot")
-	if not FileAccess.file_exists(source.path_join("uid_cache.bin")):
-		return false
-	_set_phase("Installing the prepared game...")
-	var exe := "C:/Windows/System32/robocopy.exe"
-	if not FileAccess.file_exists(exe):
-		exe = "robocopy"
-	# Robocopy uses 0-7 for a finished copy. 1 means files were copied.
-	var result := _run_watched(exe, PackedStringArray([
-		source, dest, "/E", "/MT:8", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/nc", "/ns", "/np",
-	]), "the prepared game", false)
-	var code := int(result.get("code", 16))
-	return code >= 0 and code < 8 and FileAccess.file_exists(dest.path_join("uid_cache.bin"))
-
-
-func _import_thread() -> void:
-	_allow_game_folder()
-	var uid := _launch_project.path_join(".godot/uid_cache.bin")
-	if not FileAccess.file_exists(uid) and _install_shipped_cache():
-		_lock.lock()
-		_outcome = {"imported": true, "ok": true, "error": ""}
-		_sync_done = true
-		_lock.unlock()
-		return
-	var exe := _godot_exe()
-	var result := _run_watched(exe, PackedStringArray([
-		"--headless", "--path", _launch_project, "--import", "--quit",
-	]), "the game", false)
-	var ready := FileAccess.file_exists(_launch_project.path_join(".godot/uid_cache.bin"))
-	_lock.lock()
-	_outcome = {
-		"imported": true,
-		"ok": int(result.get("code", 1)) == 0 and ready,
-		"error": _git_error(result, "The game could not be prepared."),
-	}
-	_sync_done = true
-	_lock.unlock()
-
-
 func _launch_game() -> void:
-	var exe := _godot_exe()
-	var project := _launch_project
-	var args := PackedStringArray(["--path", project, "--"])
+	var exe := _game_exe()
+	if not FileAccess.file_exists(exe):
+		_stop("game/Toontown.exe was not found. Play does not download or replace that file.")
+		return
+	if not FileAccess.file_exists(_pack_path()):
+		_stop("game/Toontown.pck was not found.")
+		return
+	if not FileAccess.file_exists(_clips_path()):
+		_stop("game/Toontown-clips.pck was not found.")
+		return
+	var args := PackedStringArray(["--"])
 	if _mode == "solo":
 		args.append("--solo")
 	elif _mode == "host":
@@ -273,16 +340,54 @@ func _launch_game() -> void:
 		args.append("--join")
 		args.append(_address())
 		args.append(str(_port()))
-	var pid := OS.create_process(exe, args)
-	if pid <= 0:
-		_busy = false
-		_set_buttons_disabled(false)
-		_status.text = "The game did not start."
+	# A Godot window started by this one never receives mouse clicks.
+	# The helper waits until this process is gone, then opens Toontown.exe.
+	var folder := _install_dir().replace("/", "\\")
+	var exe_path := exe.replace("/", "\\")
+	var bat_path := _write_play_bat(folder, exe_path, args)
+	if bat_path == "":
+		_stop("The game did not start.")
 		return
-	if _history_next and _repo != "":
-		_config["history_after"] = _history_key(_repo)
-		_save_config()
+	var output: Array = []
+	OS.execute("cmd.exe", PackedStringArray([
+		"/C", "start", "Toontown Game", "/MIN", bat_path,
+	]), output, true)
 	get_tree().quit()
+
+
+func _write_play_bat(folder: String, exe_path: String, args: PackedStringArray) -> String:
+	var temp := OS.get_environment("TEMP").replace("/", "\\").trim_suffix("\\")
+	if temp == "":
+		temp = folder
+	var path := temp + "\\toontown_play.bat"
+	var arg_line := ""
+	for arg in args:
+		arg_line += " " + _cmd_quote(arg)
+	var pid := OS.get_process_id()
+	var lines := PackedStringArray([
+		"@echo off",
+		"set /a N=0",
+		":wait",
+		"set /a N+=1",
+		"if %N% GEQ 20 goto launch",
+		"tasklist /FI \"PID eq %d\" 2>nul | find \"%d\" >nul" % [pid, pid],
+		"if errorlevel 1 goto launch",
+		"ping 127.0.0.1 -n 2 >nul",
+		"goto wait",
+		":launch",
+		"cd /d %s" % _cmd_quote(folder),
+		"start \"\" %s%s" % [_cmd_quote(exe_path), arg_line],
+	])
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return ""
+	file.store_buffer(("\r\n".join(lines) + "\r\n").to_utf8_buffer())
+	file.close()
+	return path
+
+
+func _cmd_quote(text: String) -> String:
+	return "\"" + text.replace("\"", "") + "\""
 
 
 func _show_host_card() -> void:
@@ -296,572 +401,62 @@ func _show_host_card() -> void:
 	_host_card.visible = true
 
 
-func _update_needs_import(before: String, after: String) -> bool:
-	if before == "" or after == "" or before == after:
-		return false
-	var diff := _git(["diff", "--name-only", "--no-renames", before, after])
-	if int(diff.get("code", 1)) != 0:
-		return true
-	for line in String(diff.get("text", "")).split("\n"):
-		var path := line.strip_edges().replace("\\", "/")
-		if path.begins_with("\"") and path.ends_with("\"") and path.length() >= 2:
-			path = path.substr(1, path.length() - 2)
-		if not path.begins_with(_PROJECT):
-			continue
-		var ext := "." + path.get_extension().to_lower()
-		if ext == "." or bool(_IMPORTED.get(ext, false)):
-			return true
-	return false
-
-
-func _sync_thread() -> void:
-	var outcome := _sync()
-	if _repo != "" and not outcome.has("repo"):
-		outcome["repo"] = _repo
-	_lock.lock()
-	_outcome = outcome
-	_sync_done = true
-	_lock.unlock()
-
-
-func _sync() -> Dictionary:
-	_allow_game_folder()
-	if _repo != "" and _has_project(_repo) and not _has_commits() and not _history_is_due():
-		return {
-			"ok": true,
-			"repo": _repo,
-			"history_next": true,
-			"note": "Starting this downloaded folder. The next Play downloads update history, about 1.6 GB.",
-		}
-	var git_ready := _ensure_git()
-	if not bool(git_ready.get("ok", false)):
-		return git_ready
-	if _repo != "" and _has_project(_repo) and not _has_commits():
-		var attached := _attach_history()
-		if not bool(attached.get("ok", false)):
-			return attached
-	var ready := _ensure_repo()
-	if not bool(ready.get("ok", false)):
-		return ready
-	_set_phase("Checking %s..." % _BRANCH)
-	var branch := _git(["rev-parse", "--abbrev-ref", "HEAD"])
-	if int(branch.get("code", -1)) < 0:
-		return {"ok": false, "error": "Git for Windows did not install."}
-	if int(branch.get("code", 1)) != 0:
-		return {"ok": false, "error": _git_error(branch, "Git could not read this repository.")}
-	var name := String(branch.get("text", "")).strip_edges()
-	var dirty := String(_git(["status", "--porcelain"]).get("text", "")).strip_edges() != ""
-	_set_phase("Checking %s on GitHub..." % _BRANCH)
-	var fetched := _git_transfer(["fetch", "--progress", "origin", _BRANCH], "the update")
-	if int(fetched.get("code", 1)) != 0:
-		return {
-			"ok": false,
-			"local": true,
-			"note": "Could not reach GitHub. Click again to play this copy.",
-		}
-	if name != _BRANCH:
-		if dirty:
-			return {"ok": false, "error": "This copy is on %s and has local changes, so it was not switched to %s." % [name, _BRANCH]}
-		var before_switch := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
-		var switched := _git(["checkout", _BRANCH])
-		if int(switched.get("code", 1)) != 0:
-			return {"ok": false, "error": _git_error(switched, "Could not switch to %s." % _BRANCH)}
-		dirty = String(_git(["status", "--porcelain"]).get("text", "")).strip_edges() != ""
-		var after_switch := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
-		if _update_needs_import(before_switch, after_switch):
-			_needs_import = true
-	var local := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
-	var remote := String(_git(["rev-parse", "origin/%s" % _BRANCH]).get("text", "")).strip_edges()
-	if local == "" or remote == "":
-		return {"ok": false, "error": "GitHub has no %s branch." % _BRANCH}
-	if local == remote:
-		return {"ok": true, "note": "Up to date with %s (%s)." % [_BRANCH, local.substr(0, 7)]}
-	var ahead := _git(["merge-base", "--is-ancestor", remote, "HEAD"])
-	if int(ahead.get("code", 1)) == 0:
-		return {"ok": true, "note": "This copy is ahead of %s on GitHub. Starting this copy." % _BRANCH}
-	var behind := _git(["merge-base", "--is-ancestor", "HEAD", remote])
-	if int(behind.get("code", 1)) != 0:
-		return {"ok": false, "error": "This copy and %s have different commits, so it was not updated." % _BRANCH}
-	if dirty:
-		return {
-			"ok": false,
-			"local": true,
-			"note": "%s has new commits, and this copy has local changes, so it was not updated. Click again to play this copy." % _BRANCH,
-		}
-	_set_phase("Downloading the update...")
-	var pulled := _git_transfer(["pull", "--progress", "--ff-only", "origin", _BRANCH], "the update")
-	if int(pulled.get("code", 1)) != 0:
-		return {"ok": false, "error": _git_error(pulled, "Could not update %s." % _BRANCH)}
-	var now := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
-	if _update_needs_import(local, now):
-		_needs_import = true
-	return {"ok": true, "note": "Updated to %s (%s)." % [_BRANCH, now.substr(0, 7)]}
-
-
-func _git(args: PackedStringArray) -> Dictionary:
-	var exe := _git_exe()
-	if exe == "":
-		return {"code": -1, "text": ""}
-	var output: Array = []
-	var full := PackedStringArray(["-C", _repo])
-	full.append_array(args)
-	var code := OS.execute(exe, full, output, true)
-	var text := ""
-	for line in output:
-		text += String(line)
-	return {"code": code, "text": text}
-
-
-func _git_error(result: Dictionary, fallback: String) -> String:
-	var text := String(result.get("text", "")).strip_edges()
-	if text == "":
-		return fallback
-	return text
-
-
-func _git_transfer(args: PackedStringArray, what: String) -> Dictionary:
-	var exe := _git_exe()
-	if exe == "":
-		return {"code": -1, "text": ""}
-	var full := PackedStringArray(["-C", _repo])
-	full.append_array(args)
-	return _run_watched(exe, full, what)
-
-
-## Git writes percentages to stderr with a carriage return, and only when
-## --progress is set, because a pipe is not a console. The download scripts
-## print a whole sentence of their own.
-func _run_watched(exe: String, args: PackedStringArray, what: String, keep_plain: bool = true) -> Dictionary:
-	_meter_key = ""
-	_meter_at = 0
-	_meter_percent = 0
-	var info: Dictionary = OS.execute_with_pipe(exe, args)
-	var pid := int(info.get("pid", -1))
-	if pid <= 0:
-		return {"code": -1, "text": ""}
-	var stdio := info.get("stdio") as FileAccess
-	var stderr_pipe := info.get("stderr") as FileAccess
-	var pending := ""
-	var errors: Array[String] = []
-	while true:
-		var chunk := _read_pipe(stdio) + _read_pipe(stderr_pipe)
-		if chunk != "":
-			pending += chunk
-			pending = _consume_progress(pending, what, errors, keep_plain)
-			continue
-		if not OS.is_process_running(pid):
-			break
-		OS.delay_msec(100)
-	if pending.strip_edges() != "":
-		if not _apply_progress_line(pending, what) and (keep_plain or _problem_line(pending)):
-			errors.append(pending.strip_edges())
-	if stdio != null:
-		stdio.close()
-	if stderr_pipe != null:
-		stderr_pipe.close()
-	return {"code": OS.get_process_exit_code(pid), "text": "\n".join(PackedStringArray(errors))}
-
-
-func _read_pipe(pipe: FileAccess) -> String:
-	if pipe == null:
-		return ""
-	var available := mini(int(pipe.get_length()), 65536)
-	if available <= 0:
-		return ""
-	return pipe.get_buffer(available).get_string_from_utf8()
-
-
-func _consume_progress(buffer: String, what: String, errors: Array[String], keep_plain: bool) -> String:
-	var start := 0
-	var index := 0
-	while index < buffer.length():
-		var ch := buffer.unicode_at(index)
-		if ch != 10 and ch != 13:
-			index += 1
-			continue
-		if index > start:
-			var line := buffer.substr(start, index - start)
-			if not _apply_progress_line(line, what) and (keep_plain or _problem_line(line)):
-				errors.append(line.strip_edges())
-		start = index + 1
-		index += 1
-	return buffer.substr(start)
-
-
-func _problem_line(line: String) -> bool:
-	var lower := line.to_lower()
-	return lower.contains("error") or lower.contains("fatal") or lower.contains("failed")
-
-
-func _apply_progress_line(line: String, what: String) -> bool:
-	var cleaned := line.strip_edges()
-	if cleaned == "":
-		return false
-	if cleaned.begins_with("["):
-		var import_mark := _percent_mark(cleaned)
-		if import_mark < 0:
-			return false
-		var import_percent := _percent_value(cleaned, import_mark)
-		if import_percent < 0:
-			return false
-		var import_eta := _eta_phrase("Preparing the game", import_percent)
-		if import_eta == "":
-			_set_phase("Preparing the game... %d%%" % import_percent)
-		else:
-			_set_phase("Preparing the game... %d%%, %s" % [import_percent, import_eta])
-		return true
-	if cleaned.begins_with("Downloading ") or cleaned.begins_with("Unpacking ") or cleaned.begins_with("Installing ") or cleaned.begins_with("Preparing "):
-		_set_phase(cleaned)
-		return true
-	var mark := _percent_mark(cleaned)
-	if mark < 0:
-		return false
-	var percent := _percent_value(cleaned, mark)
-	if percent < 0:
-		return false
-	var label := _friendly_phase(_percent_label(cleaned, mark), what)
-	var phrase := _eta_phrase(label, percent)
-	if phrase == "":
-		_set_phase("%s... %d%%" % [label, percent])
-	else:
-		_set_phase("%s... %d%%, %s" % [label, percent, phrase])
-	return true
-
-
-func _percent_mark(line: String) -> int:
-	var at := line.find("%")
-	while at >= 0:
-		if _percent_value(line, at) >= 0:
-			return at
-		at = line.find("%", at + 1)
-	return -1
-
-
-func _percent_value(line: String, mark: int) -> int:
-	var index := mark - 1
-	while index >= 0 and line.unicode_at(index) == 32:
-		index -= 1
-	var end := index
-	while index >= 0 and line.unicode_at(index) >= 48 and line.unicode_at(index) <= 57:
-		index -= 1
-	if end < 0 or line.unicode_at(end) < 48 or line.unicode_at(end) > 57:
-		return -1
-	return int(line.substr(index + 1, end - index))
-
-
-func _percent_label(line: String, mark: int) -> String:
-	var index := mark - 1
-	while index >= 0 and line.unicode_at(index) == 32:
-		index -= 1
-	while index >= 0 and line.unicode_at(index) >= 48 and line.unicode_at(index) <= 57:
-		index -= 1
-	return line.substr(0, index + 1).strip_edges().trim_suffix(":")
-
-
-func _friendly_phase(raw: String, what: String) -> String:
-	var lower := raw.to_lower()
-	if lower.contains("receiving"):
-		return "Downloading %s" % what
-	if lower.contains("resolving"):
-		return "Unpacking %s" % what
-	if lower.contains("updating files"):
-		return "Installing %s" % what
-	if lower.contains("counting") or lower.contains("enumerating") or lower.contains("compressing"):
-		return "Preparing %s" % what
-	if raw == "":
-		return "Downloading %s" % what
-	return raw
-
-
-func _eta_phrase(label: String, percent: int) -> String:
-	if percent <= 0 or percent >= 100:
-		_meter_key = label
-		_meter_percent = percent
-		_meter_at = Time.get_ticks_msec()
-		return ""
-	if label != _meter_key or percent < _meter_percent:
-		_meter_key = label
-		_meter_percent = percent
-		_meter_at = Time.get_ticks_msec()
-		return ""
-	_meter_percent = percent
-	var elapsed := float(Time.get_ticks_msec() - _meter_at) / 1000.0
-	if elapsed < 1.0:
-		return ""
-	var seconds := int(round(elapsed * float(100 - percent) / float(percent)))
-	return _format_left(seconds)
-
-
-func _format_left(seconds: int) -> String:
-	if seconds <= 1:
-		return "about a second left"
-	if seconds < 60:
-		return "about %d seconds left" % seconds
-	var minutes := int(round(float(seconds) / 60.0))
-	if minutes <= 1:
-		return "about a minute left"
-	if minutes < 60:
-		return "about %d minutes left" % minutes
-	var hours := int(round(float(minutes) / 60.0))
-	if hours <= 1:
-		return "about an hour left"
-	return "about %d hours left" % hours
-
-
-func _set_phase(text: String) -> void:
-	_lock.lock()
-	_phase_text = text
-	_lock.unlock()
-
-
-func _show_local_rev() -> void:
-	if _repo == "":
-		_status.text = "The game is not installed yet. Play downloads Git for Windows if it is needed, then the game from %s." % _BRANCH
+func _show_installed() -> void:
+	if not FileAccess.file_exists(_game_exe()):
+		_status.text = "game/Toontown.exe was not found. Play checks GitHub, then downloads the two pack files. That exe is left as it is."
 		return
-	if not _has_git(_repo):
-		if _history_is_due():
-			_status.text = "The next Play downloads update history once, about 1.6 GB, then checks for updates."
-		else:
-			_status.text = "This downloaded folder has the game. Play installs it and starts. The following Play downloads update history, about 1.6 GB."
+	var tag := String(_config.get("release", "")).strip_edges()
+	if tag == "":
+		_status.text = "Play checks GitHub for the latest release, then downloads Toontown.pck and Toontown-clips.pck when a newer one is available."
 		return
-	var branch := _git(["rev-parse", "--abbrev-ref", "HEAD"])
-	if int(branch.get("code", -1)) < 0:
-		_status.text = "Play downloads Git for Windows, then checks %s." % _BRANCH
-		return
-	if int(branch.get("code", 1)) != 0:
-		_status.text = "Play checks the %s branch on GitHub before the game starts." % _BRANCH
-		return
-	var name := String(branch.get("text", "")).strip_edges()
-	var local := String(_git(["rev-parse", "HEAD"]).get("text", "")).strip_edges()
-	var short := local.substr(0, 7) if local.length() >= 7 else local
-	if name == _BRANCH:
-		_status.text = "This copy is on %s (%s). Play checks GitHub before the game starts." % [_BRANCH, short]
-	else:
-		_status.text = "This copy is on %s. A clean copy switches to %s when you play." % [name, _BRANCH]
+	_status.text = "This copy is %s. Play checks GitHub before the game starts." % tag
 
 
-func _find_repo() -> String:
-	var found := _walk_for_game(true)
-	if found != "":
-		return found
-	var saved := String(_config.get("repo", ""))
-	if _is_game_repo(saved):
-		return saved
-	if _is_game_repo(_install_dir()):
-		return _install_dir()
-	found = _walk_for_game(false)
-	if found != "":
-		return found
-	if _has_project(saved):
-		return saved
-	return ""
-
-
-func _walk_for_game(require_git: bool) -> String:
-	var here := _launcher_dir()
-	for _step in 6:
-		var matched := _is_game_repo(here) if require_git else _has_project(here)
-		if matched:
-			return here
-		var parent := here.get_base_dir()
-		if parent == here:
-			break
-		here = parent
-	return ""
+func _size_phrase(bytes: int) -> String:
+	var mb := float(bytes) / 1048576.0
+	if mb < 10.0:
+		return "%.1f MB" % mb
+	return "%d MB" % int(round(mb))
 
 
 func _install_dir() -> String:
-	return _launcher_dir().get_base_dir().path_join("game")
+	# Exported Launcher.exe looks beside itself. In the editor, the running
+	# executable is Godot, so keep using the project folder's parent.
+	var root := OS.get_executable_path().get_base_dir()
+	if OS.has_feature("editor"):
+		root = _launcher_dir().get_base_dir()
+	return root.path_join("game")
 
 
-## One Windows prompt. A missing script or a cancelled prompt still plays.
-func _allow_game_folder() -> void:
-	if _asked_exclusion:
-		return
-	var script := _launcher_dir().path_join("exclude_game.ps1")
-	if not FileAccess.file_exists(script):
-		return
-	var folder := _repo if _repo != "" else _install_dir()
-	folder = folder.replace("/", "\\").trim_suffix("\\")
-	if folder == "":
-		return
-	_asked_exclusion = true
-	if _folder_is_excluded(script, folder):
-		return
-	_set_phase("Allowing the game folder through Windows Security. Approve the Windows prompt.")
-	var output: Array = []
-	OS.execute("powershell.exe", PackedStringArray([
-		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Folder", folder,
-	]), output, true)
+func _game_exe() -> String:
+	return _install_dir().path_join(_EXE_NAME)
 
 
-func _folder_is_excluded(script: String, folder: String) -> bool:
-	var output: Array = []
-	var code := OS.execute("powershell.exe", PackedStringArray([
-		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-		"-Folder", folder, "-Query",
-	]), output, true)
-	return code == 0
+func _pack_path() -> String:
+	return _install_dir().path_join(_PACK_NAME)
 
 
-func _has_project(folder: String) -> bool:
-	if folder == "":
-		return false
-	return FileAccess.file_exists(folder.path_join("Godot Project/project-toontown/project.godot"))
+func _clips_path() -> String:
+	return _install_dir().path_join(_CLIPS_NAME)
 
 
-func _has_commits() -> bool:
-	if not _has_git(_repo):
-		return false
-	return int(_git(["rev-parse", "--verify", "HEAD"]).get("code", 1)) == 0
+func _partial_path() -> String:
+	return _install_dir().path_join(_fetch_name + ".partial")
 
 
-func _history_key(folder: String) -> String:
-	return folder.replace("\\", "/").trim_suffix("/").to_lower()
+func _delete_partial() -> void:
+	for file_name in [_PACK_NAME, _CLIPS_NAME]:
+		var path := _install_dir().path_join(file_name + ".partial")
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path)
 
 
-func _history_is_due() -> bool:
-	return String(_config.get("history_after", "")) == _history_key(_repo)
-
-
-## Records the downloaded folder as multiplayer-test without rewriting its files.
-func _attach_history() -> Dictionary:
-	_set_phase("Preparing this folder for updates...")
-	if not _has_git(_repo):
-		var init := _git(["init", "-b", _BRANCH])
-		if int(init.get("code", 1)) != 0:
-			var plain := _git(["init"])
-			if int(plain.get("code", 1)) != 0:
-				return {"ok": false, "error": _git_error(plain, "Could not prepare this folder for updates.")}
-			var link := _git(["symbolic-ref", "HEAD", "refs/heads/" + _BRANCH])
-			if int(link.get("code", 1)) != 0:
-				return {"ok": false, "error": _git_error(link, "Could not prepare this folder for updates.")}
-	var origin := _git(["remote", "get-url", "origin"])
-	if int(origin.get("code", 1)) != 0:
-		var added := _git(["remote", "add", "origin", _REMOTE])
-		if int(added.get("code", 1)) != 0:
-			return {"ok": false, "error": _git_error(added, "Could not prepare this folder for updates.")}
-	elif String(origin.get("text", "")).strip_edges() != _REMOTE:
-		var changed := _git(["remote", "set-url", "origin", _REMOTE])
-		if int(changed.get("code", 1)) != 0:
-			return {"ok": false, "error": _git_error(changed, "Could not prepare this folder for updates.")}
-	_set_phase("Downloading update history. This is about 1.6 GB, once.")
-	var fetched := _git_transfer(["fetch", "--progress", "origin", _BRANCH], "the update history")
-	if int(fetched.get("code", 1)) != 0:
-		return {"ok": false, "error": _git_error(fetched, "Could not download update history.")}
-	var indexed := _git(["read-tree", "FETCH_HEAD"])
-	if int(indexed.get("code", 1)) != 0:
-		return {"ok": false, "error": _git_error(indexed, "Could not record this folder for updates.")}
-	var head := _git(["update-ref", "HEAD", "FETCH_HEAD"])
-	if int(head.get("code", 1)) != 0:
-		return {"ok": false, "error": _git_error(head, "Could not record this folder for updates.")}
-	return {"ok": true}
-
-
-func _has_git(folder: String) -> bool:
-	if folder == "":
-		return false
-	var git_dir := folder.path_join(".git")
-	return FileAccess.file_exists(git_dir) or DirAccess.dir_exists_absolute(git_dir)
-
-
-func _is_game_repo(folder: String) -> bool:
-	return _has_project(folder) and _has_git(folder)
-
-
-func _ensure_git() -> Dictionary:
-	if _git_exe() != "":
-		return {"ok": true}
-	_set_phase("Downloading Git for Windows...")
-	var script := _launcher_dir().path_join("download_git.ps1")
-	var downloaded := _run_watched("powershell.exe", PackedStringArray([
-		"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-	]), "Git for Windows")
-	if _git_exe() == "":
-		return {"ok": false, "error": _git_error(downloaded, "Git for Windows did not install.")}
-	return {"ok": true}
-
-
-func _git_exe() -> String:
-	if _git_path == "git" or (_git_path != "" and FileAccess.file_exists(_git_path)):
-		return _git_path
-	var output: Array = []
-	if OS.execute("git", PackedStringArray(["--version"]), output, true) == 0:
-		_git_path = "git"
-		return _git_path
-	var bundled := _launcher_dir().path_join("git/cmd/git.exe")
-	if FileAccess.file_exists(bundled):
-		_git_path = bundled
-		return _git_path
-	_git_path = ""
-	return ""
-
-
-func _ensure_repo() -> Dictionary:
-	if _repo != "":
-		return {"ok": true, "repo": _repo}
-	var exe := _git_exe()
-	if exe == "":
-		return {"ok": false, "error": "Git for Windows did not install."}
-	var dest := _install_dir()
-	if DirAccess.dir_exists_absolute(dest):
-		if _is_game_repo(dest):
-			_repo = dest
-			return {"ok": true, "repo": dest}
-		return {"ok": false, "error": "A folder named game is already next to the launcher, and it is not the game. Move that folder aside and try again."}
-	_set_phase("Downloading the game... This is a few gigabytes.")
-	var cloned := _run_watched(exe, PackedStringArray([
-		"clone", "--progress", "--branch", _BRANCH, "--single-branch", _REMOTE, dest,
-	]), "the game")
-	if int(cloned.get("code", 1)) != 0:
-		return {"ok": false, "error": _git_error(cloned, "The game download did not finish.")}
-	if not _is_game_repo(dest):
-		return {"ok": false, "error": "The download finished, but the game project was not in it."}
-	_repo = dest
-	_needs_import = true
-	return {"ok": true, "repo": dest}
-
-
-func _godot_exe() -> String:
-	var env := OS.get_environment("TOONTOWN_GODOT")
-	if env != "" and FileAccess.file_exists(env):
-		return env
-	var saved := String(_config.get("godot", ""))
-	if saved != "" and FileAccess.file_exists(saved):
-		return saved
-	var beside := _launcher_dir().path_join("Godot.exe")
-	if FileAccess.file_exists(beside):
-		return beside
-	if FileAccess.file_exists(_FALLBACK_GODOT):
-		return _FALLBACK_GODOT
-	return ""
+func _can_play_local() -> bool:
+	return FileAccess.file_exists(_game_exe()) and FileAccess.file_exists(_pack_path()) and FileAccess.file_exists(_clips_path())
 
 
 func _launcher_dir() -> String:
 	return ProjectSettings.globalize_path("res://").simplify_path()
-
-
-func _locate_godot() -> void:
-	var dialog := get_node_or_null("GodotDialog") as FileDialog
-	if dialog == null:
-		dialog = FileDialog.new()
-		dialog.name = "GodotDialog"
-		dialog.access = FileDialog.ACCESS_FILESYSTEM
-		dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-		dialog.filters = PackedStringArray(["*.exe ; Godot"])
-		dialog.title = "Locate Godot 4.7"
-		dialog.file_selected.connect(_on_godot_picked)
-		add_child(dialog)
-	dialog.popup_centered(Vector2i(900, 600))
-
-
-func _on_godot_picked(path: String) -> void:
-	_config["godot"] = path
-	_save_config()
-	_refresh_godot_label()
-	if _mode == "":
-		return
-	_start_game()
 
 
 func _lan_lines() -> PackedStringArray:
@@ -889,7 +484,7 @@ func _port() -> int:
 
 
 func _load_config() -> void:
-	_config = {"address": "", "port": 4343, "godot": ""}
+	_config = {"address": "", "port": 4343}
 	if not FileAccess.file_exists(_CONFIG):
 		return
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_CONFIG))
@@ -910,51 +505,10 @@ func _save_config() -> void:
 	file.store_string(JSON.stringify(_config))
 
 
-func _refresh_godot_label() -> void:
-	if _godot_label == null:
-		return
-	var exe := _godot_exe()
-	if exe == "":
-		_godot_label.text = "Godot 4.7 was not found."
-		return
-	_godot_label.text = "Godot: %s" % exe.get_file()
-
-
 func _set_buttons_disabled(disabled: bool) -> void:
 	for button in _buttons:
 		if is_instance_valid(button):
 			button.disabled = disabled
-
-
-func _load_art() -> void:
-	# A new download has the pictures, but not Godot's import cache. Reading
-	# the files directly lets the window open before that cache exists.
-	_font = _read_font("res://assets/ImpressBT.ttf")
-	_logo = _read_png("res://assets/logo.png")
-	_sky = _read_png("res://assets/sky.png")
-	_scroll = _read_png("res://assets/scroll.png")
-	_button_up = _read_png("res://assets/button_up.png")
-	_button_down = _read_png("res://assets/button_down.png")
-	_button_hover = _read_png("res://assets/button_hover.png")
-
-
-func _read_png(path: String) -> Texture2D:
-	var bytes := FileAccess.get_file_as_bytes(path)
-	if bytes.is_empty():
-		return null
-	var image := Image.new()
-	if image.load_png_from_buffer(bytes) != OK:
-		return null
-	return ImageTexture.create_from_image(image)
-
-
-func _read_font(path: String) -> Font:
-	var bytes := FileAccess.get_file_as_bytes(path)
-	if bytes.is_empty():
-		return null
-	var font := FontFile.new()
-	font.data = bytes
-	return font
 
 
 func _build() -> void:
@@ -1029,19 +583,6 @@ func _build() -> void:
 	_host_card.add_child(_host_body)
 	_host_card.add_child(_button("Play", _confirm_host))
 	_host_card.add_child(_button("Back", _back_from_host))
-	var godot_row := HBoxContainer.new()
-	godot_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	godot_row.add_theme_constant_override("separation", 12)
-	stack.add_child(godot_row)
-	_godot_label = Label.new()
-	_godot_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint(_godot_label, 15, _INK_SOFT)
-	godot_row.add_child(_godot_label)
-	var locate := _button("Locate Godot", _locate_godot)
-	locate.custom_minimum_size = Vector2(210, 40)
-	locate.add_theme_font_size_override("font_size", 16)
-	godot_row.add_child(locate)
-	_refresh_godot_label()
 
 
 func _logo_texture() -> Texture2D:

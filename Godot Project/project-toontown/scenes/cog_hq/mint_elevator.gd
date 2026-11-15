@@ -465,7 +465,7 @@ func _place_hop() -> void:
 
 
 func _play_music() -> void:
-	var stream := AudioStreamOggVorbis.load_from_file(_MUSIC)
+	var stream := ToonAudio.stream(_MUSIC)
 	if stream == null:
 		return
 	if _music == null:
@@ -486,7 +486,7 @@ func _once(token: String, path: String) -> void:
 	if _cue == token:
 		return
 	_cue = token
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path)
 	if stream == null:
 		return
 	var player := ToonAudio.effect_player()

@@ -439,7 +439,7 @@ func _once(token: String, path: String) -> void:
 	if _cue == token:
 		return
 	_cue = token
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	var player := ToonAudio.effect_player()

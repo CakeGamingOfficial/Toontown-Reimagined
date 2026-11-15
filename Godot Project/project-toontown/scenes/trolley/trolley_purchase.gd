@@ -1121,9 +1121,7 @@ func _tick(over_max: bool) -> void:
 
 func _play_music() -> void:
 	var path := "res://assets/audio/bgm/FF_safezone.ogg"
-	if not FileAccess.file_exists(path):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true
@@ -1136,9 +1134,7 @@ func _play_music() -> void:
 
 func _effect(name: String) -> void:
 	var path := "res://assets/audio/sfx/%s.ogg" % name
-	if not FileAccess.file_exists(path):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	var player := ToonAudio.effect_player()

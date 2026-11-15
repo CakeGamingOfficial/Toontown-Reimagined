@@ -9,8 +9,8 @@ class_name ToonNet
 ## A headless launch, or --server after --, is a dedicated district. It listens
 ## on UDP and does not take a player slot. Windows clients use Connect.
 ##
-## The playtest launcher passes --solo, --host, or --join. Those skip the
-## welcome door. The editor passes none of them, so the door still appears.
+## The launcher passes --solo, --host, or --join. With none of those, play
+## stays on this computer. The game does not ask again.
 ##
 ## districts.json is the list of AI processes this server stands in for.
 ## Welcome Valley is district 0, inside whichever shard you entered it from.
@@ -154,12 +154,6 @@ static func is_authority() -> bool:
 static func networked() -> bool:
 	var net := live()
 	return net != null and net._role != "offline"
-
-
-## The launcher already chose single player, host, or join.
-static func door_skipped() -> bool:
-	var net := live()
-	return net != null and net._launch != ""
 
 
 ## Join has been requested and the server has not answered yet.
@@ -677,6 +671,7 @@ func _apply_launch_args() -> void:
 				address = text
 		index += 1
 	if mode == "":
+		_launch = "solo"
 		return
 	if port < 1 or port > 65535:
 		_launch_error = "Type a port from 1 to 65535."

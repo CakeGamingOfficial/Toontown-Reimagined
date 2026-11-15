@@ -366,11 +366,10 @@ func _play(prop: Prop, info: Dictionary) -> void:
 		prop.sound.stop()
 	if bool(info.get("sound", false)):
 		var heard := "res://assets/streets/props/%s/%s.ogg" % [prop.key, file_name]
-		if FileAccess.file_exists(heard):
-			var stream := AudioStreamOggVorbis.load_from_file(heard)
-			if stream != null:
-				prop.sound.stream = stream
-				prop.sound.play()
+		var stream := ToonAudio.stream(heard)
+		if stream != null:
+			prop.sound.stream = stream
+			prop.sound.play()
 
 
 func _advance(prop: Prop, delta: float) -> void:

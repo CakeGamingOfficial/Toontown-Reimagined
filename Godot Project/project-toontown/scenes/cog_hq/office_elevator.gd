@@ -507,9 +507,7 @@ func _place_hop() -> void:
 
 
 func _play_music() -> void:
-	if not FileAccess.file_exists(_MUSIC):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(_MUSIC)
+	var stream := ToonAudio.stream(_MUSIC) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	if _music == null:
@@ -521,10 +519,11 @@ func _play_music() -> void:
 
 
 func _once(path: String) -> void:
-	if not FileAccess.file_exists(path):
+	var stream := ToonAudio.stream(path)
+	if stream == null:
 		return
 	var player := AudioStreamPlayer.new()
-	player.stream = AudioStreamOggVorbis.load_from_file(path)
+	player.stream = stream
 	add_child(player)
 	player.finished.connect(player.queue_free)
 	player.play()

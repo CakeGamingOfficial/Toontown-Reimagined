@@ -653,9 +653,7 @@ func _paint_hud() -> void:
 
 func _play_music() -> void:
 	var path := "res://assets/racing/audio/" + _RULES.music_file(track_id)
-	if not FileAccess.file_exists(path):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true

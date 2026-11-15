@@ -467,13 +467,10 @@ func _tint(root: Node, color: Color) -> void:
 
 
 func _load_sfx(file_name: String) -> AudioStream:
-	var ogg := "res://assets/audio/sfx/%s.ogg" % file_name
-	if FileAccess.file_exists(ogg):
-		return AudioStreamOggVorbis.load_from_file(ogg)
-	var mp3 := "res://assets/audio/sfx/%s.mp3" % file_name
-	if FileAccess.file_exists(mp3):
-		return AudioStreamMP3.load_from_file(mp3)
-	return null
+	var ogg := ToonAudio.stream("res://assets/audio/sfx/%s.ogg" % file_name)
+	if ogg != null:
+		return ogg
+	return ToonAudio.stream("res://assets/audio/sfx/%s.mp3" % file_name)
 
 
 func _sfx(file_name: String, volume: float = 1.0) -> void:

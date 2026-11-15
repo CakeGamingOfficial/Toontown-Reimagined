@@ -49,9 +49,7 @@ func _process(delta: float) -> void:
 
 func _ready_music() -> void:
 	# Playground.enter loops loader.music at 0.8. Acorn Acres uses OZ_SZ.
-	if not FileAccess.file_exists(MUSIC_PATH):
-		return
-	var stream := AudioStreamOggVorbis.load_from_file(MUSIC_PATH)
+	var stream := ToonAudio.stream(MUSIC_PATH) as AudioStreamOggVorbis
 	if stream == null:
 		return
 	stream.loop = true

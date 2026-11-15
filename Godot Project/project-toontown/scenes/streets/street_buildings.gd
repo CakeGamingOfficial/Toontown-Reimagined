@@ -15,6 +15,10 @@ const _ELEVATOR := preload("res://assets/buildings/cog/elevator.glb")
 const _SIGN := preload("res://assets/buildings/cog/suit_sign.glb")
 const _WALLS := preload("res://assets/buildings/cog/suit_walls.glb")
 const _SUIT_DOOR := preload("res://assets/buildings/cog/suit_door.glb")
+const _FIELD := preload("res://assets/buildings/field_office/office.glb")
+const _FIELD_SIGN := preload("res://assets/buildings/field_office/sign.glb")
+const _FIELD_ELEVATOR := preload("res://assets/buildings/field_office/elevator.glb")
+const _COGDO_WALLS := preload("res://assets/buildings/field_office/walls.glb")
 const _CORP_ICON := preload("res://assets/gui/cogs/CorpIcon.png")
 const _LEGAL_ICON := preload("res://assets/gui/cogs/LegalIcon.png")
 const _MONEY_ICON := preload("res://assets/gui/cogs/MoneyIcon.png")
@@ -52,6 +56,7 @@ const _INIT_HEIGHT := 125.0
 
 static var _wall_source: Node3D
 static var _door_source: Node3D
+static var _cogdo_source: Node3D
 
 var json_path := ""
 var street_slug := ""
@@ -94,8 +99,9 @@ static func target_count(block_count: int, bmin: int, bmax: int) -> int:
 
 
 ## assignInitialSuitBuildings. int(wanted * CogdoRatio) of the quota are field offices.
-static func cogdo_quota(total: int) -> int:
-	return int(float(maxi(total, 0)) * 0.5)
+## That half stays at zero until the cogdominium is finished.
+static func cogdo_quota(_total: int) -> int:
+	return 0
 
 
 ## One newSuitShouldAttemptTakeover building. The level fits the floor span.
@@ -483,20 +489,23 @@ func _face_track(row: Dictionary) -> String:
 
 func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	var block := int(row.get("block", 0))
+	var office := bool(row.get("cogdo", false))
 	var track := _face_track(row)
+	# A field office is tt_m_ara_cbe_fieldOfficeMoverShaker, not a department tower.
+	var kind := "field" if office else track
 	var have: Variant = _actors.get(block)
-	if have is Node3D and is_instance_valid(have) and String((have as Node).get_meta("dept", "")) == track:
+	if have is Node3D and is_instance_valid(have) and String((have as Node).get_meta("dept", "")) == kind:
 		return have
 	if have != null:
 		_drop_actor(block)
-	var model := _model(track)
+	var model: PackedScene = _FIELD if office else _model(track)
 	if model == null:
 		return null
 	var building := model.instantiate() as Node3D
 	if building == null:
 		return null
 	var holder := _holder()
-	building.name = "CogBuilding%d" % block
+	building.name = ("FieldOffice%d" if office else "CogBuilding%d") % block
 	holder.add_child(building)
 	# setupSuitBuilding copies the sb slot, whose width is the lot (about
 	# 0.54 to 0.83). The tb landmark is scale 1, which stretches the tower.
@@ -509,18 +518,24 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 		var squeezed := building.scale
 		squeezed.x = 0.543667
 		building.scale = squeezed
+	if office:
+		# setupCogdo places the office 15.463 along the slot, then darkens it.
+		building.global_position += building.global_basis * Vector3(15.463, 0.0, 0.0)
 	building.set_meta("rest", building.global_transform)
 	building.set_meta("rest_scale", building.scale)
-	building.set_meta("dept", track)
+	building.set_meta("dept", kind)
 	var faced := row.duplicate()
 	faced["track"] = track
+	faced["cogdo"] = office
 	_dress(building, faced)
 	_use_vertex_colors(building)
 	_quiet(building)
 	# One surface per texture. The elevator alone was a dozen separate draws,
 	# and every taken block on the street paid that cost.
 	preload("res://scenes/playgrounds/street_batch.gd").flatten_prop(building)
-	_suit_flats(landmark, building)
+	_suit_flats(landmark, building, office)
+	if office:
+		_tint(building, Color(0.6, 0.6, 0.6))
 	_actors[block] = building
 	return building
 
@@ -528,12 +543,17 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 ## DNAFlatBuilding.setup_suit_flat_building. Each toon wall becomes the suit
 ## wall of that story, and a wall that had a joke door gets suit_door centered
 ## on it. The pieces ride down with the tower. The toon flat hides when it lands.
-func _suit_flats(landmark: Node3D, tower: Node3D) -> void:
+func _suit_flats(landmark: Node3D, tower: Node3D, office: bool = false) -> void:
 	_remember_block(landmark)
 	if not landmark.has_meta("block_nodes"):
 		return
 	_sources()
-	if _wall_source == null:
+	if office:
+		if _cogdo_source == null:
+			_cogdo_source = _COGDO_WALLS.instantiate() as Node3D
+		if _cogdo_source == null:
+			return
+	elif _wall_source == null:
 		return
 	var rows: Array = landmark.get_meta("block_nodes")
 	for item in rows:
@@ -542,11 +562,17 @@ func _suit_flats(landmark: Node3D, tower: Node3D) -> void:
 		var slots: Array = (item as Node).get_meta("cog_walls")
 		for slot in slots:
 			if slot is Dictionary:
-				_place_slot(tower, slot)
+				_place_slot(tower, slot, office)
 
 
-func _place_slot(tower: Node3D, slot: Dictionary) -> void:
-	var source := _find_static(_wall_source, String(slot.get("wall", "")))
+func _place_slot(tower: Node3D, slot: Dictionary, office: bool = false) -> void:
+	var wanted := String(slot.get("wall", ""))
+	var library := _wall_source
+	if office:
+		# DNA stores these as wall_cogdo_build, beside the suit wall of that story.
+		wanted = wanted.replace("wall_suit_build", "wall_cogdo_build")
+		library = _cogdo_source
+	var source := _find_static(library, wanted)
 	if source == null:
 		return
 	var piece := source.duplicate() as Node3D
@@ -559,7 +585,8 @@ func _place_slot(tower: Node3D, slot: Dictionary) -> void:
 	_quiet(piece)
 	_front_piece(piece, 1)
 	_wall_solid(piece)
-	if not slot.has("door") or _door_source == null:
+	# The field office flats are the cogdo walls. The suit door stays on a cog building.
+	if office or not slot.has("door") or _door_source == null:
 		return
 	var door_source := _find_static(_door_source, "g1")
 	if door_source == null:
@@ -980,9 +1007,11 @@ func _model(track: String) -> PackedScene:
 
 func _dress(building: Node3D, row: Dictionary) -> void:
 	var track := String(row.get("track", "c"))
+	var office := bool(row.get("cogdo", false))
 	var door := _find(building, "door_origin")
 	if door != null:
-		var elevator := _ELEVATOR.instantiate() as Node3D
+		var car: PackedScene = _FIELD_ELEVATOR if office else _ELEVATOR
+		var elevator := car.instantiate() as Node3D
 		if elevator != null:
 			door.add_child(elevator)
 			elevator.transform = Transform3D.IDENTITY
@@ -991,33 +1020,43 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 			# squeezes the tower, not the doors.
 			var spun := elevator.global_basis.orthonormalized()
 			elevator.global_transform = Transform3D(spun, elevator.global_position)
-			_floors(elevator, int(row.get("floors", 1)))
 			building.set_meta("elevator", elevator)
-			_show_story(elevator, int(row.get("story", -1)))
-			_medallion(elevator, track)
+			# loadElevator(cogdo=True) has no floor bulbs and no department medallion.
+			if not office:
+				_floors(elevator, int(row.get("floors", 1)))
+				_show_story(elevator, int(row.get("story", -1)))
+				_medallion(elevator, track)
 			frame_solid(elevator)
 	var origin := _find(building, "sign_origin")
 	if origin == null:
 		return
-	var sign := _SIGN.instantiate() as Node3D
+	var plaque: PackedScene = _FIELD_SIGN if office else _SIGN
+	var sign := plaque.instantiate() as Node3D
 	if sign == null:
 		return
 	origin.add_child(sign)
 	_drop_import_spin(sign)
 	_sign_material(sign)
-	var caption := _caption(String(row.get("title", "")), track)
-	if bool(row.get("cogdo", false)):
-		caption = "Mover & Shaker\nField Office"
-	var metrics := _sign_metrics(caption)
+	var wrap := 12
+	var caption := _field_caption(String(row.get("title", "")))
+	if not office:
+		wrap = 17
+		caption = _caption(String(row.get("title", "")), track)
+	var metrics := _sign_metrics(caption, wrap)
 	var text_height := metrics.x
 	var z_scale := metrics.y
 	# setupSuitBuilding: pos (0, 0, textHeight * 0.8 / zScale), scale (8, 8, 8 * zScale).
+	# setupCogdo: pos (0, 0, -1.2 + that), scale (20, 8, 8 * zScale).
 	# Local +Y points into the tower. A step the other way keeps the plaque off
 	# the front card. Panda draws it there with a decal; without one the wall wins.
 	var lift := text_height * 0.8 / z_scale
 	sign.transform = Transform3D.IDENTITY
-	sign.position = Vector3(0.0, -0.35, lift)
-	sign.scale = Vector3(8.0, 8.0, 8.0 * z_scale)
+	if office:
+		sign.position = Vector3(0.0, -0.35, -1.2 + lift)
+		sign.scale = Vector3(20.0, 8.0, 8.0 * z_scale)
+	else:
+		sign.position = Vector3(0.0, -0.35, lift)
+		sign.scale = Vector3(8.0, 8.0, 8.0 * z_scale)
 	var label := Label3D.new()
 	label.text = caption
 	label.font = ToonGui.suit_font()
@@ -1030,14 +1069,20 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	# Label3D width is pixels. 20px is narrower than one suit glyph, so the title stacked down the plaque.
-	var cell := label.font.get_string_size("00000000000000000", HORIZONTAL_ALIGNMENT_LEFT, -1, label.font_size)
-	label.width = maxf(cell.x, 17.0 * label.font_size)
-	label.position = Vector3(0.0, -0.04, -0.21 + text_height * 0.1 / z_scale)
+	var sample := "0".repeat(wrap)
+	var cell := label.font.get_string_size(sample, HORIZONTAL_ALIGNMENT_LEFT, -1, label.font_size)
+	label.width = maxf(cell.x, float(wrap) * label.font_size)
+	var text_z := -0.13 if office else -0.21
+	label.position = Vector3(0.0, -0.04, text_z + text_height * 0.1 / z_scale)
 	_aim_title(sign, label, origin)
 	# The lot squeezes the plaque on X and the sign grows on Z, so a square
 	# glyph scale comes out tall and narrow. Widen the line so it fills the frame.
+	# The field office plaque is 20 wide instead of 8, and its text scale is 8/20 of that.
 	var glyph := 0.082
-	label.scale = Vector3(glyph * 1.45, glyph / z_scale, glyph)
+	var wide := 1.45
+	if office:
+		wide *= 8.0 / 20.0
+	label.scale = Vector3(glyph * wide, glyph / z_scale, glyph)
 	sign.add_child(label)
 
 
@@ -1056,8 +1101,10 @@ func _drop_import_spin(root: Node3D) -> void:
 
 
 ## TextNode.getHeight for a two-or-three line plaque, then (height + 2) / 3.
-func _sign_metrics(caption: String) -> Vector2:
+## A cog building wraps at 17. A field office wraps at 12.
+func _sign_metrics(caption: String, wrap: int = 17) -> Vector2:
 	var height := 0.0
+	var limit := maxi(wrap, 1)
 	for line in caption.split("\n"):
 		var remain := line
 		if remain.is_empty():
@@ -1065,15 +1112,41 @@ func _sign_metrics(caption: String) -> Vector2:
 			continue
 		while not remain.is_empty():
 			height += 1.0
-			if remain.length() <= 17:
+			if remain.length() <= limit:
 				break
-			var window := remain.substr(0, 18)
+			var window := remain.substr(0, limit + 1)
 			var space := window.rfind(" ")
-			var cut := 17
+			var cut := limit
 			if space > 0:
 				cut = space + 1
 			remain = remain.substr(cut)
 	return Vector2(height, (height + 2.0) / 3.0)
+
+
+func _field_caption(title: String) -> String:
+	var line := title.strip_edges()
+	if line == "":
+		return "Cog Field Office"
+	return line + " Field Office"
+
+
+## setupCogdo setColorScale(0.6) on the office, its sign, and its walls.
+func _tint(node: Node, color: Color) -> void:
+	if node is Label3D:
+		(node as Label3D).modulate = color
+	elif node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		if mesh.mesh != null:
+			for index in mesh.mesh.get_surface_count():
+				var mat := mesh.get_active_material(index) as StandardMaterial3D
+				if mat == null:
+					continue
+				var copy := mat.duplicate() as StandardMaterial3D
+				var albedo := mat.albedo_color
+				copy.albedo_color = Color(albedo.r * color.r, albedo.g * color.g, albedo.b * color.b, albedo.a)
+				mesh.set_surface_override_material(index, copy)
+	for child in node.get_children():
+		_tint(child, color)
 
 
 func _caption(title: String, track: String) -> String:

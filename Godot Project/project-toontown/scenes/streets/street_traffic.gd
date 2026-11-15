@@ -274,8 +274,9 @@ func building_rows(district: int, slug: String) -> Array:
 
 func keep_buildings(district: int, slug: String, rows: Array) -> void:
 	var key := _key(district, slug)
-	_blocks[key] = rows
-	ToonNet.publish("buildings:" + key, {"rows": rows})
+	var kept := _without_field_offices(rows)
+	_blocks[key] = kept
+	ToonNet.publish("buildings:" + key, {"rows": kept})
 	if district != 0:
 		_touch()
 
@@ -439,14 +440,43 @@ func _replace_cog_building(district: int, slug: String, block: int) -> void:
 	keep_buildings(district, slug, rows)
 
 
+func _publish_buildings() -> void:
+	var keys: Array = _blocks.keys()
+	for key in keys:
+		var name := String(key)
+		if name.begins_with("0:"):
+			continue
+		var at := name.find(":")
+		if at < 1:
+			continue
+		var rows: Variant = _blocks.get(name, [])
+		if rows is Array:
+			keep_buildings(int(name.substr(0, at)), name.substr(at + 1), rows)
+
+
+func _without_field_offices(rows: Array) -> Array:
+	var kept: Array = []
+	for item in rows:
+		if not (item is Dictionary):
+			kept.append(item)
+			continue
+		var row: Dictionary = item
+		if bool(row.get("cogdo", false)):
+			row = row.duplicate()
+			row["cogdo"] = false
+		kept.append(row)
+	return kept
+
+
 func _maybe_field_office(district: int, slug: String, picked: Dictionary) -> void:
 	# CogdoRatio 0.5 of the street's building quota. The taking cog is a Sellbot.
 	# FieldOfficeNumFloors is 1 game floor; CogdoLayout adds the executive battle.
+	# cogdo_quota is 0 until the cogdominium is finished, so this picks a cog building.
 	var plan: Dictionary = _plans.get(_key(district, slug), {})
 	var target := int(plan.get("target", 0))
 	if target <= 0:
 		return
-	var cogdo_target := int(plan.get("cogdo_target", _BUILDINGS.cogdo_quota(target)))
+	var cogdo_target := _BUILDINGS.cogdo_quota(target)
 	var have_cogdo := 0
 	var have_suit := 0
 	for item in building_rows(district, slug):
@@ -1482,6 +1512,7 @@ func restore_spawns(saved: Dictionary) -> void:
 	_live.clear()
 	_remembered = true
 	_keep_spawns = true
+	_publish_buildings()
 
 
 func release_spawns() -> void:
@@ -1549,6 +1580,7 @@ func _load_state() -> void:
 			var rows: Variant = (buildings as Dictionary)[key]
 			if rows is Array:
 				_blocks[name] = rows
+	_publish_buildings()
 
 
 func _write_state() -> void:

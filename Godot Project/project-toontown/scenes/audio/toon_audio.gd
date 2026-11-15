@@ -43,6 +43,31 @@ static func effect_3d() -> AudioStreamPlayer3D:
 	return player
 
 
+## An exported game stores the imported sound, not the source file. Callers
+## that still read the .ogg or .mp3 bytes get silence.
+static func stream(path: String) -> AudioStream:
+	if path == "":
+		return null
+	if ResourceLoader.exists(path):
+		var loaded := load(path) as AudioStream
+		if loaded != null:
+			var copy := loaded.duplicate() as AudioStream
+			if copy != null:
+				return copy
+			return loaded
+	if not FileAccess.file_exists(path):
+		return null
+	if path.ends_with(".mp3"):
+		return AudioStreamMP3.load_from_file(path)
+	if path.ends_with(".ogg"):
+		return AudioStreamOggVorbis.load_from_file(path)
+	return load(path) as AudioStream
+
+
+static func present(path: String) -> bool:
+	return path != "" and (ResourceLoader.exists(path) or FileAccess.file_exists(path))
+
+
 static func music_on() -> bool:
 	return _music_on
 

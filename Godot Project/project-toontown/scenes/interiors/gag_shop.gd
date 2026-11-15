@@ -142,13 +142,9 @@ func _face(actor: Node3D, origin: Node3D) -> void:
 
 func _play_music() -> void:
 	var path := String(_MUSIC.get(_DOOR.hood, ""))
-	if path.is_empty() or not FileAccess.file_exists(path):
+	if path.is_empty():
 		return
-	var stream: AudioStream = null
-	if path.ends_with(".mp3"):
-		stream = load(path) as AudioStreamMP3
-	else:
-		stream = AudioStreamOggVorbis.load_from_file(path)
+	var stream := ToonAudio.stream(path)
 	if stream == null:
 		return
 	var copy: AudioStream = stream.duplicate() as AudioStream

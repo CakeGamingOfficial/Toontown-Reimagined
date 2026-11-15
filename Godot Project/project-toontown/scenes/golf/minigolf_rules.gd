@@ -255,7 +255,9 @@ static func _collect(node: Node, parent: Transform3D, built: Dictionary) -> void
 	if node is MeshInstance3D:
 		var kind := _kind(node)
 		var mesh := (node as MeshInstance3D).mesh
-		if kind != "" and mesh != null:
+		# Hole 4's flyover exported as thirty vertices on one point. Jolt
+		# refuses that mesh, and a flat point would not stop the ball anyway.
+		if kind != "" and mesh != null and _has_area(mesh):
 			var shape := mesh.create_trimesh_shape() as ConcavePolygonShape3D
 			if shape != null:
 				# The green is a thin card. A one-sided face lets the ball drop through it.
@@ -269,6 +271,39 @@ static func _collect(node: Node, parent: Transform3D, built: Dictionary) -> void
 				(built["kind"] as Dictionary)[body] = kind
 	for child in node.get_children():
 		_collect(child, here, built)
+
+
+static func _has_area(mesh: Mesh) -> bool:
+	for surface in mesh.get_surface_count():
+		var arrays: Array = mesh.surface_get_arrays(surface)
+		var source: Variant = arrays[Mesh.ARRAY_VERTEX]
+		if not (source is PackedVector3Array):
+			continue
+		var verts := source as PackedVector3Array
+		var ids := PackedInt32Array()
+		if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
+			ids = arrays[Mesh.ARRAY_INDEX]
+		var limit := verts.size()
+		if ids.size() >= 3:
+			limit = ids.size()
+		var cursor := 0
+		while cursor + 2 < limit:
+			var i0 := cursor
+			var i1 := cursor + 1
+			var i2 := cursor + 2
+			if ids.size() >= 3:
+				i0 = ids[cursor]
+				i1 = ids[cursor + 1]
+				i2 = ids[cursor + 2]
+			cursor += 3
+			if i0 < 0 or i1 < 0 or i2 < 0 or i0 >= verts.size() or i1 >= verts.size() or i2 >= verts.size():
+				continue
+			var a := verts[i0]
+			var b := verts[i1]
+			var c := verts[i2]
+			if (b - a).cross(c - a).length_squared() > 0.000001:
+				return true
+	return false
 
 
 static func _kind(node: Node) -> String:
