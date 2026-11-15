@@ -66,12 +66,42 @@ const _FAN_CENTER := Vector3(-2.33, 0.04, 4.74)
 const _FAN_SIZE := Vector3(0.4, 9.44, 9.31)
 const _BASE_CENTER := Vector3(-0.7, 0.0, 2.94)
 const _BASE_SIZE := Vector3(3.01, 4.87, 5.86)
+## GolfGlobals HoleInfo blockers, after the lone numbers are turned into tuples.
+## The same green is reused, and each hole id keeps a different set of locators.
+const _BARRIERS := {
+	9: [2],
+	18: [1, 2],
+	19: [2, 5],
+	20: [1, 3],
+	21: [1, 2, 3],
+	22: [2],
+	23: [3, 4],
+	24: [1],
+	25: [3],
+	30: [1, 2, 3],
+	31: [3, 4],
+	32: [1],
+	33: [1, 2, 3],
+	34: [1, 2, 5, 6],
+	35: [3, 4, 5],
+}
 
 
 static func course_title(course: int) -> String:
 	if course < 0 or course >= COURSE_TITLES.size():
 		return ""
 	return COURSE_TITLES[course]
+
+
+static func blockers(hole_id: int) -> Array:
+	if not _BARRIERS.has(hole_id):
+		return []
+	var slots: Array = []
+	var raw: Variant = _BARRIERS[hole_id]
+	if raw is Array:
+		for slot in raw:
+			slots.append(int(slot))
+	return slots
 
 
 static func hole_title(hole_id: int) -> String:
@@ -141,6 +171,7 @@ static func roll(hole_id: int, origin: Vector3, aim: float, hold: float, when :=
 	var elapsed := 0.0
 	var world: Dictionary = _world(info)
 	var bodies := _spawn_movers(world, hole_id, when)
+	bodies.append_array(_spawn_barriers(world, hole_id))
 	_refresh_space(world)
 	var state: PhysicsDirectSpaceState3D = world.get("state")
 	if state == null:
@@ -225,6 +256,7 @@ static func _world(info: Dictionary) -> Dictionary:
 		"sphere": SphereShape3D.new(),
 		"shapes": [],
 		"kind": {},
+		"barriers": {},
 	}
 	(built["sphere"] as SphereShape3D).radius = BALL_RADIUS
 	if model == "":
@@ -255,20 +287,30 @@ static func _collect(node: Node, parent: Transform3D, built: Dictionary) -> void
 	if node is MeshInstance3D:
 		var kind := _kind(node)
 		var mesh := (node as MeshInstance3D).mesh
+		var slot := _barrier_slot(node)
 		# Hole 4's flyover exported as thirty vertices on one point. Jolt
 		# refuses that mesh, and a flat point would not stop the ball anyway.
-		if kind != "" and mesh != null and _has_area(mesh):
-			var shape := mesh.create_trimesh_shape() as ConcavePolygonShape3D
-			if shape != null:
-				# The green is a thin card. A one-sided face lets the ball drop through it.
-				shape.backface_collision = true
-				(built["shapes"] as Array).append(shape)
-				var body := PhysicsServer3D.body_create()
-				PhysicsServer3D.body_set_space(body, built["space"])
-				PhysicsServer3D.body_set_mode(body, PhysicsServer3D.BODY_MODE_STATIC)
-				PhysicsServer3D.body_add_shape(body, shape.get_rid())
-				PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, here)
-				(built["kind"] as Dictionary)[body] = kind
+		var shape: ConcavePolygonShape3D = null
+		if mesh != null and _has_area(mesh) and (slot > 0 or kind != ""):
+			shape = mesh.create_trimesh_shape() as ConcavePolygonShape3D
+		if shape != null and slot > 0:
+			shape.backface_collision = true
+			(built["shapes"] as Array).append(shape)
+			var held: Dictionary = built["barriers"]
+			if not held.has(slot):
+				held[slot] = []
+			var pile: Array = held[slot]
+			pile.append({"shape": shape, "xform": here})
+		elif shape != null:
+			# The green is a thin card. A one-sided face lets the ball drop through it.
+			shape.backface_collision = true
+			(built["shapes"] as Array).append(shape)
+			var body := PhysicsServer3D.body_create()
+			PhysicsServer3D.body_set_space(body, built["space"])
+			PhysicsServer3D.body_set_mode(body, PhysicsServer3D.BODY_MODE_STATIC)
+			PhysicsServer3D.body_add_shape(body, shape.get_rid())
+			PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, here)
+			(built["kind"] as Dictionary)[body] = kind
 	for child in node.get_children():
 		_collect(child, here, built)
 
@@ -504,6 +546,48 @@ static func _ensure_movers() -> void:
 			_movers[key] = (parsed as Dictionary)[key]
 
 
+static func _barrier_slot(node: Node) -> int:
+	var slot := -1
+	var barrier := false
+	var current: Node = node
+	while current != null:
+		var name := String(current.name).to_lower()
+		if name.contains("tree") or name.contains("flower") or name.contains("background") or name.contains("drop_shadow"):
+			return -1
+		if name.contains("blocker"):
+			barrier = true
+		if name.begins_with("locator"):
+			var digits := name.trim_prefix("locator")
+			if digits.is_valid_int():
+				slot = digits.to_int()
+		current = current.get_parent()
+	if barrier:
+		return slot
+	return -1
+
+
+static func _spawn_barriers(world: Dictionary, hole_id: int) -> Array:
+	var made: Array = []
+	var space: RID = world.get("space", RID())
+	if not space.is_valid():
+		return made
+	var held: Dictionary = world.get("barriers", {})
+	for slot in blockers(hole_id):
+		var pile: Variant = held.get(int(slot), [])
+		if not (pile is Array):
+			continue
+		for piece in pile:
+			if typeof(piece) != TYPE_DICTIONARY:
+				continue
+			var record: Dictionary = piece
+			var shape: ConcavePolygonShape3D = record.get("shape")
+			if shape == null:
+				continue
+			var xform: Transform3D = record.get("xform", Transform3D.IDENTITY)
+			made.append({"body": _mesh_body(world, shape, xform)})
+	return made
+
+
 static func _spawn_movers(world: Dictionary, hole_id: int, when: float) -> Array:
 	var space: RID = world.get("space", RID())
 	if not space.is_valid():
@@ -559,6 +643,16 @@ static func _move_bodies(bodies: Array, when: float) -> void:
 		else:
 			continue
 		PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+
+
+static func _mesh_body(world: Dictionary, shape: ConcavePolygonShape3D, xform: Transform3D) -> RID:
+	var body := PhysicsServer3D.body_create()
+	PhysicsServer3D.body_set_space(body, world["space"])
+	PhysicsServer3D.body_set_mode(body, PhysicsServer3D.BODY_MODE_STATIC)
+	PhysicsServer3D.body_add_shape(body, shape.get_rid())
+	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+	(world["kind"] as Dictionary)[body] = "hard"
+	return body
 
 
 static func _box_body(world: Dictionary, shape: BoxShape3D, xform: Transform3D) -> RID:

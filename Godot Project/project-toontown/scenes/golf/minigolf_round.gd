@@ -346,6 +346,7 @@ func _build_hole(info: Dictionary) -> void:
 	var hole := packed.instantiate()
 	hole.name = "Hole"
 	_world.add_child(hole)
+	_show_barriers(hole, _hole_id)
 	for record in MiniGolfRules.movers(_hole_id):
 		if typeof(record) != TYPE_DICTIONARY:
 			continue
@@ -371,6 +372,33 @@ func _build_hole(info: Dictionary) -> void:
 			anchor.add_child(board)
 		_world.add_child(anchor)
 		_movers.append(anchor)
+
+
+func _show_barriers(hole: Node, hole_id: int) -> void:
+	var slots: Array = MiniGolfRules.blockers(hole_id)
+	var pending: Array[Node] = [hole]
+	while not pending.is_empty():
+		var node: Node = pending.pop_back()
+		for child in node.get_children():
+			pending.append(child)
+		var name := String(node.name).to_lower()
+		if not name.begins_with("locator"):
+			continue
+		var digits := name.trim_prefix("locator")
+		if not digits.is_valid_int():
+			continue
+		var barrier := false
+		for piece in node.get_children():
+			if String(piece.name).to_lower().contains("blocker"):
+				barrier = true
+		if not barrier or not (node is Node3D):
+			continue
+		var keep := false
+		var slot := digits.to_int()
+		for listed in slots:
+			if int(listed) == slot:
+				keep = true
+		(node as Node3D).visible = keep
 
 
 func _move_obstacles(when: float) -> void:
