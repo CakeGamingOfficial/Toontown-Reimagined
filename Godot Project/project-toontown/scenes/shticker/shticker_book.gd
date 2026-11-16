@@ -187,6 +187,8 @@ var _totals: Label
 var _beans: Label
 var _saved: Label
 var _gag_title: Label
+var _gag_hover := Vector2i(-1, -1)
+var _totals_px := 12
 var _trash: TextureButton
 var _trash_caption: Label
 var _deleting := false
@@ -622,12 +624,15 @@ func _build_gags() -> Control:
 			_gag_counts.append(count)
 	_detail = _cream_label()
 	_detail.name = "Detail"
+	_detail.visible = false
 	_totals = _cream_label()
 	_totals.name = "Totals"
+	_totals.clip_text = true
 	# The plate cannot share the label's name. Godot renames the second sibling,
 	# and the layout then never finds the plate, so the hotkey text floats.
 	var detail_plate := _dialog_plate()
 	detail_plate.name = "DetailPlate"
+	detail_plate.visible = false
 	var totals_plate := _dialog_plate()
 	totals_plate.name = "TotalsPlate"
 	sheet.add_child(detail_plate)
@@ -968,7 +973,8 @@ func _refresh_gags() -> void:
 	if _loadout != null:
 		carried = _loadout.gag_count()
 		limit = _loadout.max_carry
-	_totals.text = "Total gags\n%d / %d\n\nDamage Rate: 100%%" % [carried, limit]
+	if _gag_hover.x < 0:
+		_show_carry(carried, limit)
 	if _loadout == null:
 		return
 	for track in ToonLoadout.TRACK_COUNT:
@@ -1025,11 +1031,12 @@ func _on_gag(track: int, level: int) -> void:
 	if _loadout == null or not _loadout.unlocked(track, level):
 		_clear_gag()
 		return
+	_gag_hover = Vector2i(track, level)
 	if _deleting:
 		if _loadout.count_of(track, level) <= 0:
-			_detail.text = "Click on a gag to DELETE it."
+			_show_on_totals("Click on a gag to DELETE it.", true)
 		else:
-			_detail.text = "%s\n\nClick to delete." % _loadout.gag_name(track, level)
+			_show_on_totals("%s\n\nClick to delete." % _loadout.gag_name(track, level), true)
 		return
 	var grown := _loadout.is_organic(track, level)
 	var damage := ToonLoadout.gag_damage(track, level, _loadout.experience_of(track))
@@ -1037,20 +1044,48 @@ func _on_gag(track: int, level: int) -> void:
 	var bonus := " (+%d)" % extra if extra > 0 else ""
 	var accuracy := ToonLoadout.accuracy_label(track, level, grown)
 	var credit := _HOLIDAYS.gag_credit(ToonNet.district_id(), false, 0)
-	_detail.text = "%s\n\nDamage: %d%s\nAccuracy: %s\n%s\n%s" % [
+	_show_on_totals("%s\n\nDamage: %d%s\nAccuracy: %s\n%s\n%s" % [
 		_loadout.gag_name(track, level),
 		damage,
 		bonus,
 		accuracy,
 		ToonLoadout.affects_label(track),
 		ToonLoadout.experience_line(level, credit),
-	]
+	], true)
 
 
 func _clear_gag() -> void:
-	if _detail == null:
+	_gag_hover = Vector2i(-1, -1)
+	if _totals == null:
 		return
-	_detail.text = "Click on a gag to DELETE it." if _deleting else ""
+	var carried := 0
+	var limit := ToonLoadout.CARRY
+	if _loadout != null:
+		carried = _loadout.gag_count()
+		limit = _loadout.max_carry
+	_show_carry(carried, limit)
+
+
+func _show_carry(carried: int, limit: int) -> void:
+	_show_on_totals("Total gags\n%d / %d\n\nDamage Rate: 100%%" % [carried, limit], false)
+
+
+## InventoryNew.showDetail hides the carry line and uses that same card.
+## The words stay inside the dialog plate.
+func _show_on_totals(text: String, detail: bool) -> void:
+	if _totals == null:
+		return
+	_totals.text = text
+	_totals.clip_text = true
+	_totals.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_totals.vertical_alignment = VERTICAL_ALIGNMENT_TOP if detail else VERTICAL_ALIGNMENT_CENTER
+	var px := _totals_px
+	if detail and _totals.size.y > 8.0:
+		var lines := maxi(text.split("\n").size(), 1)
+		var fit := int(_totals.size.y / float(lines) * 0.78)
+		px = clampi(fit, 10, _totals_px)
+	ToonGui.style_label(_totals, Color(0.05, 0.14, 0.4), px, Color(0, 0, 0, 0), 0)
 
 
 func _toggle_delete() -> void:
@@ -1540,8 +1575,12 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 			ToonGui.style_label(count, Color.WHITE, count_px, Color(0.05, 0.12, 0.28), 2)
 	var footer_y := first_center + float(ToonLoadout.TRACK_COUNT - 1) * pitch + row_h * 0.5 + 4.0
 	var box := Vector2(page_size.x * 0.24, maxf(page_size.y - footer_y - 4.0, row_h))
-	_place_cream(sheet, _detail, "DetailPlate", Vector2(page_size.x * 0.02, footer_y), box, body_px)
-	_place_cream(sheet, _totals, "TotalsPlate", Vector2(page_size.x * 0.27, footer_y), box, body_px)
+	_totals_px = maxi(body_px - 1, 12)
+	_place_cream(sheet, _totals, "TotalsPlate", Vector2(page_size.x * 0.27, footer_y), box, _totals_px)
+	if _gag_hover.x >= 0:
+		_on_gag(_gag_hover.x, _gag_hover.y)
+	else:
+		_clear_gag()
 	var can := minf(box.y * 0.92, page_size.x * 0.14)
 	_trash.position = Vector2(page_size.x * 0.53, footer_y + (box.y - can) * 0.5)
 	_trash.size = Vector2(can, can)

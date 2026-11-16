@@ -53,7 +53,12 @@ var _card: TextureRect
 var _headline: Label
 var _caption: Label
 var _where: Label
+var _bar: Panel
+var _bar_fill: ColorRect
+var _bar_box: StyleBoxFlat
 var _progress: Label
+var _bar_on := false
+var _bar_value := 0.0
 var _reward: Label
 var _quest_id: Label
 var _reward_text := ""
@@ -158,7 +163,25 @@ func _init() -> void:
 	_headline = _label()
 	_caption = _label()
 	_where = _label()
-	_progress = _label()
+	_bar = Panel.new()
+	_bar.mouse_filter = MOUSE_FILTER_IGNORE
+	_bar.visible = false
+	_bar_box = StyleBoxFlat.new()
+	_bar_box.bg_color = Color(0.945, 0.875, 0.706)
+	_bar_box.border_color = Color(0.55, 0.4, 0.22)
+	_bar_box.set_border_width_all(1)
+	_bar.add_theme_stylebox_override("panel", _bar_box)
+	add_child(_bar)
+	_bar_fill = ColorRect.new()
+	_bar_fill.color = Color(0.5, 0.7, 0.5)
+	_bar_fill.mouse_filter = MOUSE_FILTER_IGNORE
+	_bar.add_child(_bar_fill)
+	_progress = Label.new()
+	_progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_progress.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_progress.clip_text = true
+	_progress.mouse_filter = MOUSE_FILTER_IGNORE
+	_bar.add_child(_progress)
 	_reward = _label()
 	_reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_reward.vertical_alignment = VERTICAL_ALIGNMENT_TOP
@@ -198,19 +221,18 @@ func layout(card: Vector2) -> void:
 		_place_line(_caption, -0.18, 0.02, 0.0325, card, false)
 		_place_line(_right_name, 0.18, 0.02, 0.0325, card, false)
 		_place_line(_aux, 0.0, 0.12, 0.04, card, false)
-		_place_line(_where, 0.0, -0.075, 0.045, card, true)
-		_progress.visible = false
+		_place_line(_where, 0.0, _where_z(), 0.045, card, true)
 	else:
 		# An open poster keeps the picture centered. The headline sits at z 0.23,
-		# the caption under the frame, and the location at z -0.075.
+		# the caption under the frame, and the location under that.
 		_place_sign(_headline, 0.23, 0.05, card)
 		_place_line(_caption, 0.0, 0.02, 0.045, card, false)
-		_place_line(_where, 0.0, -0.075, 0.045, card, true)
-		_progress.visible = false
+		_place_line(_where, 0.0, _where_z(), 0.045, card, true)
 	# The reward stays on the scroll, at the choice-card height, so the journal
 	# does not have to grow the card before the line can be read.
 	_place_reward(-0.205, card)
 	_reward.visible = not _reward_text.is_empty()
+	_place_bar(card)
 	# The picture square is image_scale 0.15. Open tasks center it at z 0.13.
 	# A finished task, and an open recover task, shift it to x -0.18.
 	var frame := card * Vector2(0.15 / 0.8, 0.15 / 0.58)
@@ -265,6 +287,15 @@ func show_task(task: Dictionary, choosing := false) -> void:
 	_reward.text = _reward_text
 	_complete = bool(task.get("ready", false))
 	var goal := int(task.get("goal", 1))
+	var done := mini(maxi(int(task.get("progress", 0)), 0), goal)
+	# QuestPoster.questProgress. A counted task fills the bar; a choice card hides it.
+	_bar_on = not _complete and not _choosing and goal > 1
+	_bar_value = 0.0
+	if _bar_on and goal > 0:
+		_bar_value = clampf(float(done) / float(goal), 0.0, 1.0)
+		_progress.text = "%d of %d %s" % [done, goal, _progress_word(String(task.get("kind", "")))]
+	else:
+		_progress.text = ""
 	var task_number := int(task.get("task_number", 0))
 	if task_number > 0:
 		_badge.visible = true
@@ -287,15 +318,12 @@ func show_task(task: Dictionary, choosing := false) -> void:
 		_left_name.text = String(task.get("caption", ""))
 		_right_name.text = "HQ Officer"
 		_where.text = "Toon HQ\nAny Street\nAny Neighborhood"
+		_bar_on = false
 		_progress.text = ""
-		_progress.visible = false
 	else:
 		_headline.text = String(task.get("headline", ""))
 		_caption.text = String(task.get("caption", ""))
 		_where.text = String(task.get("where", ""))
-		# A single-step task hides the progress bar and drops the location down.
-		_progress.visible = false
-		_progress.text = ""
 	_show_activity(task)
 	if _complete:
 		var return_name := String(task.get("return_name", ""))
@@ -844,6 +872,56 @@ func _label() -> Label:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(label)
 	return label
+
+
+## A finished task, a one-step task, and a choice card drop the location.
+## A counted task keeps it just above the progress bar.
+func _where_z() -> float:
+	return -0.0625 if _bar_on else -0.075
+
+
+## QuestPoster.questProgress sits at z -0.195. The journal keeps the reward on
+## the scroll, so a counted task lifts the bar just above that line.
+func _place_bar(card: Vector2) -> void:
+	_bar.visible = _bar_on
+	if not _bar_on or card.y < 2.0:
+		return
+	var bar_size := Vector2(card.x * (0.38 / 0.8), card.y * (0.044 / 0.58))
+	var center_y := card.y * ((0.29 + 0.195) / 0.58)
+	if _reward.visible:
+		var reward_px := maxi(int(card.y * 0.0425 / 0.58), 8)
+		var reward_top := card.y * ((0.29 + 0.205) / 0.58) - float(reward_px)
+		center_y = reward_top - card.y * 0.012 - bar_size.y * 0.5
+	var center := Vector2(card.x * 0.5, center_y)
+	_bar.position = center - bar_size * 0.5
+	_bar.size = bar_size
+	var rim := maxi(int(bar_size.y * (0.005 / 0.044)), 1)
+	_bar_box.set_border_width_all(rim)
+	var inner := bar_size - Vector2(float(rim), float(rim)) * 2.0
+	_bar_fill.position = Vector2(float(rim), float(rim))
+	_bar_fill.size = Vector2(maxf(inner.x * _bar_value, 0.0), maxf(inner.y, 0.0))
+	_progress.position = Vector2.ZERO
+	_progress.size = bar_size
+	var px := mini(maxi(int(card.y * 0.032 / 0.58), 8), maxi(int(bar_size.y * 0.72), 8))
+	ToonGui.style_label(_progress, Color(0.05, 0.14, 0.4), px, Color(0, 0, 0, 0), 0)
+	_progress.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_progress.clip_text = true
+
+
+## QuestsCogQuestProgress and the other counted-task lines.
+func _progress_word(kind: String) -> String:
+	if kind == "recover":
+		return "recovered"
+	if kind == "rescue":
+		return "rescued"
+	if kind == "cogpart":
+		return "retrieved"
+	if kind == "gag":
+		return "delivered"
+	if kind == "friend":
+		return "made"
+	return "defeated"
 
 
 ## A quest-card z, on the 0.8 by 0.58 poster, measured from the card center.
