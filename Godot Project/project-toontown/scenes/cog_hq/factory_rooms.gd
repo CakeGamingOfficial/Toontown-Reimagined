@@ -21,6 +21,7 @@ var _vis: Dictionary = {}
 var _bodies: Dictionary = {}
 var _shown: Dictionary = {}
 var _zone := -1
+var _stood := -1
 
 
 static func place(host: Node) -> void:
@@ -77,7 +78,13 @@ func visible_at(at: Vector3) -> bool:
 	return _shown.has(zone)
 
 
+## The room under the toon. SpeedChat's factory lines use this.
+func stood_zone() -> int:
+	return _stood
+
+
 func _apply(zone: int, stood: int) -> void:
+	_stood = stood
 	var shown := {}
 	shown[zone] = true
 	shown[stood] = true

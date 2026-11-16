@@ -20,6 +20,7 @@ const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _Style := preload("res://scenes/chat/speed_chat_style.gd")
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
+const _PLACES := preload("res://scenes/chat/speed_chat_places.gd")
 const _CLICK := "res://assets/gui/speedchat/GUI_quicktalker.mp3"
 var _FRAME := Color(220.0 / 255.0, 195.0 / 255.0, 229.0 / 255.0, 0.95)
 var _HOVER_ROW := Color(0.53, 0.9, 0.53, 0.95)
@@ -267,6 +268,8 @@ func present_chat_button() -> void:
 
 func _process(delta: float) -> void:
 	_poll_alerts(delta)
+	if _panel != null and _PLACES.place_key(self) != _place_key:
+		_open_menu()
 	if _flying or _speed_btn == null:
 		return
 	_layout_buttons()
@@ -318,6 +321,8 @@ func _press_chat() -> void:
 func _open_menu() -> void:
 	_apply_holiday_menus()
 	_apply_boarding_menu()
+	_apply_place_menus()
+	_place_key = _PLACES.place_key(self)
 	_close_menu()
 	_blocker.visible = not _pinned
 	var shown := _items.duplicate()
@@ -1884,13 +1889,17 @@ func _apply_ceo_menu() -> void:
 const _HOLIDAY_TITLES: Array[String] = [
 	"HALLOWEEN", "WINTER", "APRIL TOONS'", "VICTORY PARTIES", "STORM SELLBOT", "JELLYBEAN WEEK", "GREEN",
 ]
+const _PLACE_TITLES: Array[String] = ["RACING", "GOLF", "FACTORY", "ELECTION"]
+var _place_key := ""
 
 
 func _apply_boarding_menu() -> void:
 	for index in range(_items.size() - 1, -1, -1):
 		var group: Variant = _items[index]
-		if group is Dictionary and String((group as Dictionary).get("title", "")) == "GROUP":
-			_items.remove_at(index)
+		if group is Dictionary:
+			var title := String((group as Dictionary).get("title", ""))
+			if title == "GROUP" or title == "BOARDING":
+				_items.remove_at(index)
 	var lines := BoardingParty.phrases()
 	if lines.is_empty():
 		return
@@ -1901,7 +1910,27 @@ func _apply_boarding_menu() -> void:
 	]
 	rows.append_array(_lines(_phrase_list(lines, "ready")))
 	var at := 1 if _items.size() > 1 else _items.size()
-	_items.insert(at, {"title": "GROUP", "items": rows})
+	_items.insert(at, {"title": "BOARDING", "items": rows})
+
+
+func _apply_place_menus() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and _PLACE_TITLES.has(String((group as Dictionary).get("title", ""))):
+			_items.remove_at(index)
+	var location: Array = []
+	var election: Dictionary = {}
+	for menu in _PLACES.menus(self):
+		var row: Dictionary = menu
+		if String(row.get("title", "")) == "ELECTION":
+			election = row
+		else:
+			location.append(row)
+	var at := 1 if _items.size() > 1 else _items.size()
+	for index in range(location.size() - 1, -1, -1):
+		_items.insert(at, location[index])
+	if not election.is_empty():
+		_items.insert(0, election)
 
 
 func _phrase_list(lines: Dictionary, key: String) -> Array:
