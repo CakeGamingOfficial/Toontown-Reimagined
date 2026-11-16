@@ -1,10 +1,13 @@
 extends RefCounted
 
-## DistributedHouseInterior.__colorWalls. The newest wallpaper, moulding,
-## flooring, and wainscoting this toon has accepted are painted on the
-## matching wall pieces. The ceiling takes the wallpaper color, darkened.
+## DistributedHouseInterior.__colorWalls. The wallpaper, moulding, flooring,
+## and wainscoting chosen from the attic are painted on the matching wall
+## pieces. Until one is chosen, the newest accepted item of that kind is
+## used. The ceiling takes the wallpaper color, darkened.
 
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
+const _LAYOUT := preload("res://scenes/interiors/house_layout.gd")
+const _FURNITURE := preload("res://scenes/interiors/house_furniture.gd")
 const _FILE := "res://assets/catalog/surfaces.json"
 
 static var _loaded := false
@@ -15,12 +18,13 @@ static var _textures: Dictionary = {}
 static func apply(host: Node) -> void:
 	if host == null:
 		return
+	_FURNITURE.settle()
 	_load()
 	var tokens := _CLOSET.catalog_tokens()
-	var paper := _row("wallpaper", _last(tokens, "wallpaper"))
-	var mould := _row("moulding", _last(tokens, "moulding"))
-	var floor := _row("flooring", _last(tokens, "flooring"))
-	var wain := _row("wainscoting", _last(tokens, "wainscoting"))
+	var paper := _row("wallpaper", _pick(tokens, "wallpaper"))
+	var mould := _row("moulding", _pick(tokens, "moulding"))
+	var floor := _row("flooring", _pick(tokens, "flooring"))
+	var wain := _row("wainscoting", _pick(tokens, "wainscoting"))
 	if paper.is_empty() and mould.is_empty() and floor.is_empty() and wain.is_empty():
 		return
 	var shared: Dictionary = {}
@@ -132,6 +136,14 @@ static func _row(kind: String, item_id: int) -> Dictionary:
 		if row is Dictionary:
 			return row
 	return {}
+
+
+static func _pick(tokens: PackedStringArray, kind: String) -> int:
+	var chosen := _LAYOUT.surface(kind)
+	var bits := chosen.split(":")
+	if bits.size() >= 2 and bits[0] == kind:
+		return int(bits[1])
+	return _last(tokens, kind)
 
 
 static func _last(tokens: PackedStringArray, kind: String) -> int:

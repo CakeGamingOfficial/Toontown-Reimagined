@@ -353,6 +353,22 @@ static func catalog_tokens() -> PackedStringArray:
 	return tokens
 
 
+## A trashed item that aged out, or was pushed out by a newer one, is gone.
+static func drop_catalog(token: String) -> void:
+	var row := _row()
+	var kept: Array = []
+	var changed := false
+	for item in _list(row, "catalog"):
+		if String(item) == token:
+			changed = true
+			continue
+		kept.append(item)
+	if not changed:
+		return
+	row["catalog"] = kept
+	_write()
+
+
 static func _token(item: Dictionary) -> String:
 	return "%s:%d:%d" % [String(item.get("kind", "")), int(item.get("id", -1)), int(item.get("color_index", 0))]
 

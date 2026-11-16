@@ -36,6 +36,7 @@ const _CATALOG := preload("res://scenes/catalog/catalog_book.gd")
 const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _MAILBOX := preload("res://scenes/estate/mailbox.gd")
 const _SURFACES := preload("res://scenes/interiors/house_surfaces.gd")
+const _HOUSE_EDIT := preload("res://scenes/interiors/house_editor.gd")
 const _FLAT := preload("res://assets/neighborhoods/toontown_central/ttc_paint.gd")
 const _SHOP_GUI := preload("res://scenes/interiors/gag_shop_gui.gd")
 const _QUEST_CHOICE := preload("res://scenes/quests/quest_choice.gd")
@@ -167,6 +168,7 @@ var _eye_height := 3.0
 var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
+var _furniture_layer := 1
 var _through_door := false
 var _quest_wait := false
 var _quest_advance := false
@@ -473,6 +475,10 @@ func _ready() -> void:
 	if _PLACES.is_house(_scene_path()):
 		_SURFACES.apply(get_parent())
 		preload("res://scenes/interiors/house_furniture.gd").place(get_parent())
+		var editor := _HOUSE_EDIT.new()
+		editor.name = "HouseEditor"
+		add_child(editor)
+		editor.open_house(self)
 	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	_paint_interior()
@@ -668,6 +674,8 @@ func _process(delta: float) -> void:
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
 	elif _door_cam:
+		pass
+	elif _furniture_cam():
 		pass
 	elif _quest_npc != null and is_instance_valid(_quest_npc):
 		_aim_quest_camera(delta)
@@ -5481,6 +5489,27 @@ func _dock_laff() -> void:
 	if _meter == null:
 		return
 	_meter.dock(get_viewport().get_visible_rect().size)
+
+
+func furniture_lock(holding: bool) -> void:
+	_locked = holding
+	if _body != null:
+		_body.velocity = Vector3.ZERO
+		if holding:
+			_furniture_layer = _body.collision_layer
+			_body.collision_layer = 0
+		else:
+			_body.collision_layer = _furniture_layer
+	if _player != null:
+		_player.visible = not holding
+
+
+func _furniture_cam() -> bool:
+	var editor := get_node_or_null("HouseEditor")
+	if editor == null or not editor.has_method("holds_camera") or not bool(editor.call("holds_camera")):
+		return false
+	editor.call("aim", _camera)
+	return true
 
 
 func _hud() -> CanvasLayer:
