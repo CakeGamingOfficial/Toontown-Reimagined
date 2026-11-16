@@ -2,11 +2,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -18,12 +20,18 @@ namespace ToontownLauncher
         public string Address;
         public int Port;
         public string Release;
+        public string WindowMode;
+        public int Width;
+        public int Height;
 
         public LauncherConfig()
         {
             Address = "";
             Port = 4343;
             Release = "";
+            WindowMode = "windowed";
+            Width = 0;
+            Height = 0;
         }
 
         public static LauncherConfig Load(string path)
@@ -43,12 +51,29 @@ namespace ToontownLauncher
                     config.Port = Convert.ToInt32(root["port"]);
                 if (root.ContainsKey("release") && root["release"] != null)
                     config.Release = root["release"].ToString();
+                if (root.ContainsKey("window") && root["window"] != null)
+                {
+                    var mode = root["window"].ToString();
+                    if (mode == "windowed" || mode == "borderless" || mode == "fullscreen")
+                        config.WindowMode = mode;
+                }
+                if (root.ContainsKey("width") && root["width"] != null)
+                    config.Width = Convert.ToInt32(root["width"]);
+                if (root.ContainsKey("height") && root["height"] != null)
+                    config.Height = Convert.ToInt32(root["height"]);
             }
             catch (Exception)
             {
             }
             if (config.Port < 1 || config.Port > 65535)
                 config.Port = 4343;
+            if (config.WindowMode != "windowed" && config.WindowMode != "borderless" && config.WindowMode != "fullscreen")
+                config.WindowMode = "windowed";
+            if (config.Width < 640 || config.Height < 480)
+            {
+                config.Width = 0;
+                config.Height = 0;
+            }
             return config;
         }
 
@@ -58,8 +83,139 @@ namespace ToontownLauncher
             root["address"] = Address ?? "";
             root["port"] = Port;
             root["release"] = Release ?? "";
+            root["window"] = WindowMode ?? "windowed";
+            root["width"] = Width;
+            root["height"] = Height;
             var serializer = new JavaScriptSerializer();
             File.WriteAllText(path, serializer.Serialize(root));
+        }
+    }
+
+    static class DisplayFile
+    {
+        public static string PathForGame()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", "Toontown-Reimagined", "display.cfg");
+        }
+
+        public static void ReadInto(LauncherConfig config)
+        {
+            var path = PathForGame();
+            if (!File.Exists(path))
+                return;
+            try
+            {
+                var lines = File.ReadAllLines(path);
+                var mode = config.WindowMode;
+                var width = config.Width;
+                var height = config.Height;
+                foreach (var raw in lines)
+                {
+                    string value;
+                    if (Take(raw, "mode", out value))
+                    {
+                        if (value == "windowed" || value == "borderless" || value == "fullscreen")
+                            mode = value;
+                    }
+                    else if (Take(raw, "width", out value))
+                    {
+                        int parsed;
+                        if (int.TryParse(value, out parsed) && parsed >= 0)
+                            width = parsed;
+                    }
+                    else if (Take(raw, "height", out value))
+                    {
+                        int parsed;
+                        if (int.TryParse(value, out parsed) && parsed >= 0)
+                            height = parsed;
+                    }
+                }
+                config.WindowMode = mode;
+                if (width < 640 || height < 480)
+                {
+                    config.Width = 0;
+                    config.Height = 0;
+                }
+                else
+                {
+                    config.Width = width;
+                    config.Height = height;
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        public static void Write(LauncherConfig config)
+        {
+            var path = PathForGame();
+            var vsync = "true";
+            var extra = new List<string>();
+            if (File.Exists(path))
+            {
+                var lines = File.ReadAllLines(path);
+                foreach (var raw in lines)
+                {
+                    string value;
+                    if (Take(raw, "vsync", out value))
+                        vsync = value == "false" ? "false" : "true";
+                    else if (Take(raw, "mode", out value) || Take(raw, "fullscreen", out value) || Take(raw, "width", out value) || Take(raw, "height", out value))
+                        continue;
+                    else if (raw.Trim().Length == 0 || raw.Trim().StartsWith("[") || raw.Trim().StartsWith(";"))
+                        continue;
+                    else
+                        extra.Add(raw.Trim());
+                }
+            }
+            var mode = config.WindowMode;
+            if (mode != "windowed" && mode != "borderless" && mode != "fullscreen")
+                mode = "windowed";
+            var width = config.Width;
+            var height = config.Height;
+            if (width < 640 || height < 480)
+            {
+                width = 0;
+                height = 0;
+            }
+            var text = new StringBuilder();
+            text.Append("[display]\n\n");
+            text.Append("mode=\"");
+            text.Append(mode);
+            text.Append("\"\nfullscreen=");
+            text.Append(mode == "windowed" ? "false" : "true");
+            text.Append("\nvsync=");
+            text.Append(vsync);
+            text.Append("\nwidth=");
+            text.Append(width);
+            text.Append("\nheight=");
+            text.Append(height);
+            text.Append("\n");
+            foreach (var line in extra)
+            {
+                text.Append(line);
+                text.Append("\n");
+            }
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(path, text.ToString());
+        }
+
+        static bool Take(string raw, string key, out string value)
+        {
+            value = "";
+            var line = raw.Trim();
+            if (!line.StartsWith(key))
+                return false;
+            var rest = line.Substring(key.Length).Trim();
+            if (!rest.StartsWith("="))
+                return false;
+            rest = rest.Substring(1).Trim();
+            if (rest.Length >= 2 && rest[0] == '"' && rest[rest.Length - 1] == '"')
+                rest = rest.Substring(1, rest.Length - 2);
+            value = rest;
+            return true;
         }
     }
 
@@ -72,6 +228,9 @@ namespace ToontownLauncher
     sealed class ReleaseInfo
     {
         public string Tag;
+        public string Name;
+        public string Page;
+        public string Body;
         public List<ReleasePack> Packs;
 
         public ReleaseInfo()
@@ -82,7 +241,7 @@ namespace ToontownLauncher
 
     static class ReleaseClient
     {
-        const string LatestUrl = "https://api.github.com/repos/CakeGamingOfficial/Toontown-Reimagined/releases/latest";
+        const string ReleasesUrl = "https://api.github.com/repos/CakeGamingOfficial/Toontown-Reimagined/releases?per_page=20";
 
         public static async Task<ReleaseInfo> GetLatestAsync(CancellationToken cancel)
         {
@@ -90,7 +249,7 @@ namespace ToontownLauncher
             using (var http = new HttpClient())
             {
                 http.Timeout = TimeSpan.FromSeconds(30);
-                var request = new HttpRequestMessage(HttpMethod.Get, LatestUrl);
+                var request = new HttpRequestMessage(HttpMethod.Get, ReleasesUrl);
                 request.Headers.TryAddWithoutValidation("User-Agent", "ToontownLauncher");
                 request.Headers.TryAddWithoutValidation("Accept", "application/vnd.github+json");
                 using (var response = await http.SendAsync(request, cancel))
@@ -100,22 +259,71 @@ namespace ToontownLauncher
                     if (!response.IsSuccessStatusCode)
                         throw new InvalidOperationException("GitHub returned an error (" + (int)response.StatusCode + ").");
                     var json = await response.Content.ReadAsStringAsync();
-                    return Parse(json);
+                    return ParseList(json);
                 }
             }
         }
 
-        static ReleaseInfo Parse(string json)
+        static ReleaseInfo ParseList(string json)
         {
             var serializer = new JavaScriptSerializer();
-            var root = serializer.DeserializeObject(json) as Dictionary<string, object>;
+            serializer.MaxJsonLength = int.MaxValue;
+            var list = serializer.DeserializeObject(json) as IList;
+            if (list == null || list.Count == 0)
+                throw new InvalidOperationException("GitHub has no release yet.");
+            Dictionary<string, object> newest = null;
+            var newestAt = DateTime.MinValue;
+            foreach (var item in list)
+            {
+                var row = item as Dictionary<string, object>;
+                if (row == null || IsTrue(row, "draft"))
+                    continue;
+                var published = PublishedAt(row);
+                if (newest == null || published > newestAt)
+                {
+                    newest = row;
+                    newestAt = published;
+                }
+            }
+            if (newest == null)
+                throw new InvalidOperationException("GitHub has no release yet.");
+            return ParseRelease(newest);
+        }
+
+        static bool IsTrue(Dictionary<string, object> root, string key)
+        {
+            if (!root.ContainsKey(key) || root[key] == null)
+                return false;
+            if (root[key] is bool)
+                return (bool)root[key];
+            return string.Equals(root[key].ToString(), "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        static DateTime PublishedAt(Dictionary<string, object> root)
+        {
+            if (!root.ContainsKey("published_at") || root["published_at"] == null)
+                return DateTime.MinValue;
+            DateTime published;
+            if (!DateTime.TryParse(root["published_at"].ToString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out published))
+                return DateTime.MinValue;
+            return published;
+        }
+
+        static ReleaseInfo ParseRelease(Dictionary<string, object> root)
+        {
             if (root == null || !root.ContainsKey("tag_name") || root["tag_name"] == null)
                 throw new InvalidOperationException("GitHub did not return a release.");
             var info = new ReleaseInfo();
             info.Tag = root["tag_name"].ToString().Trim();
             if (info.Tag.Length == 0)
                 throw new InvalidOperationException("GitHub did not return a release.");
-            var assets = root.ContainsKey("assets") ? root["assets"] as ArrayList : null;
+            if (root.ContainsKey("name") && root["name"] != null)
+                info.Name = root["name"].ToString().Trim();
+            if (root.ContainsKey("html_url") && root["html_url"] != null)
+                info.Page = root["html_url"].ToString().Trim();
+            if (root.ContainsKey("body") && root["body"] != null)
+                info.Body = root["body"].ToString().Trim();
+            var assets = root.ContainsKey("assets") ? root["assets"] as IList : null;
             var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             if (assets != null)
             {
@@ -347,6 +555,27 @@ namespace ToontownLauncher
         {
             AllowSetForegroundWindow(-1);
             SetForegroundWindow(gameWindow);
+        }
+
+        public static int WindowProcessId(IntPtr hwnd)
+        {
+            uint processId;
+            GetWindowThreadProcessId(hwnd, out processId);
+            return (int)processId;
+        }
+
+        public static void ReopenWhenGameExits(int gamePid, string launcherExe)
+        {
+            if (gamePid <= 0 || string.IsNullOrEmpty(launcherExe))
+                return;
+            var script = "Wait-Process -Id " + gamePid + " -ErrorAction SilentlyContinue; Start-Process -FilePath '" + launcherExe.Replace("'", "''") + "'";
+            var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+            var info = new ProcessStartInfo();
+            info.FileName = "powershell.exe";
+            info.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + encoded;
+            info.UseShellExecute = false;
+            info.CreateNoWindow = true;
+            Process.Start(info);
         }
 
         static void WriteShortcut(string link, string exe, string arguments, string directory)

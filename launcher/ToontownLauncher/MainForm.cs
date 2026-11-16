@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -17,47 +19,86 @@ namespace ToontownLauncher
 {
     sealed class MainForm : Form
     {
-        static readonly Color Ink = Color.FromArgb(84, 51, 20);
-        static readonly Color InkSoft = Color.FromArgb(122, 82, 41);
-        static readonly Color FieldBg = Color.FromArgb(255, 247, 224);
-        static readonly Color FieldBorder = Color.FromArgb(140, 82, 20);
-        static readonly Color FieldFocus = Color.FromArgb(217, 115, 20);
-        static readonly Color ButtonText = Color.FromArgb(41, 26, 5);
-        static readonly Color SkyFallback = Color.FromArgb(20, 89, 212);
+        static readonly Color Outline = Color.FromArgb(18, 38, 74);
+        static readonly Color Yellow = Color.FromArgb(255, 208, 0);
+        static readonly Color Green = Color.FromArgb(40, 209, 56);
+        static readonly Color GreenDark = Color.FromArgb(14, 120, 30);
+        static readonly Color Blue = Color.FromArgb(30, 144, 255);
+        static readonly Color Red = Color.FromArgb(240, 45, 45);
+        static readonly Color DockBlue = Color.FromArgb(20, 90, 176);
+        static readonly Color Inset = Color.FromArgb(234, 246, 255);
+        static readonly Color SkyTop = Color.FromArgb(124, 224, 255);
+        static readonly Color SkyMid = Color.FromArgb(42, 164, 244);
+        static readonly Color SkyBot = Color.FromArgb(13, 75, 156);
 
         readonly string _baseDir;
         readonly string _gameDir;
         readonly string _configPath;
         readonly LauncherConfig _config;
-        readonly Image _sky;
         readonly Image _logo;
-        readonly Image _scroll;
-        readonly Image _buttonUp;
-        readonly Image _buttonDown;
-        readonly Image _buttonHover;
-        readonly Font _font16;
-        readonly Font _font18;
-        readonly Font _font22;
-        readonly ScrollPanel _panel;
-        readonly Label _status;
-        readonly Label _addressLabel;
-        readonly FieldBox _addressBox;
-        readonly Label _portLabel;
-        readonly FieldBox _portBox;
-        readonly PillButton _solo;
-        readonly PillButton _host;
-        readonly PillButton _join;
-        readonly PillButton _quit;
-        readonly Label _hostBody;
-        readonly PillButton _hostPlay;
-        readonly PillButton _hostBack;
-        readonly Control[] _menu;
-        readonly Control[] _hostCard;
+        readonly Font _display;
+        readonly Font _ui;
+        readonly Font _uiBold;
+        readonly Font _uiSm;
+        readonly string[] _badges;
+        readonly string[] _dates;
+        readonly string[] _titles;
+        readonly string[] _subs;
+        readonly Color[] _bannerTop;
+        readonly Color[] _bannerBot;
+        readonly ToonButton[] _dots;
+
+        Label _synced;
+        Label _releaseName;
+        Label _badge;
+        Label _date;
+        Banner _banner;
+        ToonButton _prev;
+        ToonButton _next;
+        Label _modeBody;
+        Label _addressLabel;
+        TextBox _addressBox;
+        Label _portLabel;
+        TextBox _portBox;
+        ToonButton _soloTab;
+        ToonButton _hostTab;
+        ToonButton _joinTab;
+        Label _patchStatus;
+        Label _patchPercent;
+        PatchBar _bar;
+        ToonButton _play;
+        ToonButton[] _lock;
+        Panel _dim;
+        RoundPanel _settings;
+        TextBox _settingsPort;
+        Label _settingsNote;
+        ToonButton _winWindowed;
+        ToonButton _winBorder;
+        ToonButton _winFull;
+        ToonButton _resPrev;
+        ToonButton _resNext;
+        Label _resValue;
+        string _windowMode = "windowed";
+        List<Size> _resolutions;
+        int _resIndex;
+        RoundPanel _credits;
+        RoundPanel _notesCard;
+        Label _notesTitle;
+        TextBox _notesBox;
+        string _mode = "solo";
+        string _remoteTag;
+        string _remoteName;
+        string _remotePage;
+        string _remoteNotes;
         bool _busy;
         bool _playLocal;
-        bool _hosting;
+        bool _dragging;
+        Point _drag;
+        int _slide;
         CancellationTokenSource _cancel;
         System.Windows.Forms.Timer _handOff;
+        System.Windows.Forms.Timer _slides;
+        System.Windows.Forms.Timer _stripes;
         int _handOffTries;
         int _seenAt;
         static PrivateFontCollection _fonts;
@@ -70,103 +111,75 @@ namespace ToontownLauncher
             _gameDir = Path.Combine(_baseDir, "game");
             _configPath = Path.Combine(_baseDir, "launcher.json");
             _config = LauncherConfig.Load(_configPath);
-            _sky = LoadImage("sky.png");
+            DisplayFile.ReadInto(_config);
             _logo = CropLogo(LoadImage("logo.png"));
-            _scroll = LoadImage("scroll.png");
-            _buttonUp = LoadImage("button_up.png");
-            _buttonDown = LoadImage("button_down.png");
-            _buttonHover = LoadImage("button_hover.png");
             var family = LoadFamily();
-            _font16 = new Font(family, 16f, FontStyle.Regular, GraphicsUnit.Pixel);
-            _font18 = new Font(family, 18f, FontStyle.Regular, GraphicsUnit.Pixel);
-            _font22 = new Font(family, 22f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _display = new Font(family, 22f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _ui = new Font("Segoe UI", 14f, FontStyle.Regular, GraphicsUnit.Pixel);
+            _uiBold = new Font("Segoe UI", 14f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _uiSm = new Font("Segoe UI", 12f, FontStyle.Bold, GraphicsUnit.Pixel);
+            _badges = new[] { "Release", "Play Together", "Packs" };
+            _dates = new[] { "This computer", "Host and Join", "game folder" };
+            _titles = new[] { "Toontown Reimagined", "Host a game, then your friend joins.", "Every .pck in the game folder is loaded." };
+            _subs = new[] {
+                "Play checks GitHub, then starts Toontown.exe.",
+                "Your friend types one of your addresses and the same port. 127.0.0.1 is this computer only.",
+                "Toontown.pck is required. Toontown.exe is never replaced."
+            };
+            _bannerTop = new[] { Color.FromArgb(40, 168, 255), Color.FromArgb(107, 70, 193), Color.FromArgb(13, 148, 136) };
+            _bannerBot = new[] { Color.FromArgb(184, 240, 255), Color.FromArgb(233, 216, 253), Color.FromArgb(204, 251, 241) };
+            _dots = new ToonButton[3];
 
-            Text = "Toontown Launcher";
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            MaximizeBox = false;
+            Text = "Toontown Reimagined";
+            FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(960, 960);
-            BackColor = SkyFallback;
+            ClientSize = new Size(1024, 760);
+            BackColor = SkyMid;
+            Font = _ui;
             DoubleBuffered = true;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
-            _panel = new ScrollPanel(_scroll);
-            _panel.Parent = this;
-
-            _status = MakeLabel(_font18, ContentAlignment.TopCenter);
-            _status.Height = 72;
-            _addressLabel = MakeLabel(_font16, ContentAlignment.MiddleLeft);
-            _addressLabel.Text = "Address";
-            _addressLabel.Height = 24;
-            _addressBox = new FieldBox(_font18, Ink, InkSoft, FieldBg, FieldBorder, FieldFocus);
-            _addressBox.Text = _config.Address;
-            _addressBox.Placeholder = "192.168.1.20";
-            _portLabel = MakeLabel(_font16, ContentAlignment.MiddleLeft);
-            _portLabel.Text = "Port";
-            _portLabel.Height = 24;
-            _portBox = new FieldBox(_font18, Ink, InkSoft, FieldBg, FieldBorder, FieldFocus);
-            _portBox.Text = _config.Port.ToString();
-            _portBox.Placeholder = "4343";
-            _solo = MakeButton("Single Player");
-            _host = MakeButton("Host");
-            _join = MakeButton("Join");
-            _quit = MakeButton("Quit");
-            _hostBody = MakeLabel(_font18, ContentAlignment.TopCenter);
-            _hostBody.Height = 180;
-            _hostPlay = MakeButton("Play");
-            _hostBack = MakeButton("Back");
-
-            _menu = new Control[] { _addressLabel, _addressBox, _portLabel, _portBox, _solo, _host, _join, _quit };
-            _hostCard = new Control[] { _hostBody, _hostPlay, _hostBack };
-            foreach (var control in _menu)
-                control.Parent = _panel;
-            foreach (var control in _hostCard)
-            {
-                control.Parent = _panel;
-                control.Visible = false;
-            }
-            _status.Parent = _panel;
-
-            _solo.Click += delegate { Play("solo"); };
-            _host.Click += delegate { Play("host"); };
-            _join.Click += delegate { Play("join"); };
-            _quit.Click += delegate { Close(); };
-            _hostPlay.Click += delegate { Launch("host"); };
-            _hostBack.Click += delegate { ShowMenu(); };
-
+            Build();
             ClearPartials();
-            ShowInstalled();
-            LayoutUi();
+            ApplyMode();
+            ApplySlide();
+            ShowVersion();
+            _slides = new System.Windows.Forms.Timer();
+            _slides.Interval = 7000;
+            _slides.Tick += delegate { SetSlide(_slide + 1); };
+            _slides.Start();
+            _stripes = new System.Windows.Forms.Timer();
+            _stripes.Interval = 40;
+            _stripes.Tick += delegate { if (_bar != null) _bar.Nudge(); };
+            _stripes.Start();
         }
 
-        Label MakeLabel(Font font, ContentAlignment align)
+        protected override void OnShown(EventArgs e)
         {
-            var label = new Label();
-            label.Font = font;
-            label.ForeColor = Ink;
-            label.BackColor = Color.Transparent;
-            label.TextAlign = align;
-            label.AutoSize = false;
-            return label;
-        }
-
-        PillButton MakeButton(string caption)
-        {
-            var button = new PillButton(_buttonUp, _buttonDown, _buttonHover, _font22, ButtonText);
-            button.Text = caption;
-            button.Height = 46;
-            return button;
+            base.OnShown(e);
+            BeginCheckVersion();
         }
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            if (_sky == null)
+            var rect = ClientRectangle;
+            using (var brush = new LinearGradientBrush(rect, SkyTop, SkyBot, 90f))
             {
-                e.Graphics.Clear(SkyFallback);
-                return;
+                var blend = new ColorBlend();
+                blend.Colors = new[] { SkyTop, SkyMid, SkyBot };
+                blend.Positions = new[] { 0f, 0.45f, 1f };
+                brush.InterpolationColors = blend;
+                e.Graphics.FillRectangle(brush, rect);
             }
-            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            e.Graphics.DrawImage(_sky, ClientRectangle);
+            using (var cloud = new SolidBrush(Color.FromArgb(210, 255, 255, 255)))
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.FillEllipse(cloud, 28, 18, 150, 58);
+                e.Graphics.FillEllipse(cloud, 70, 4, 120, 70);
+                e.Graphics.FillEllipse(cloud, 130, 22, 100, 50);
+                e.Graphics.FillEllipse(cloud, 760, 680, 180, 64);
+                e.Graphics.FillEllipse(cloud, 820, 660, 140, 78);
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -174,129 +187,621 @@ namespace ToontownLauncher
             base.OnPaint(e);
             if (_logo == null)
                 return;
-            var top = _panel.Top - 230;
-            var rect = new Rectangle((ClientSize.Width - 520) / 2, top, 520, 230);
-            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            e.Graphics.DrawImage(_logo, rect);
-        }
-
-        void LayoutUi()
-        {
-            var inner = 560 - 96;
-            var y = 58;
-            _status.SetBounds(48, y, inner, 78);
-            y += 86;
-            if (!_hosting)
+            var g = e.Graphics;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            var dest = new Rectangle(48, 52, 320, 256);
+            var shadow = new Rectangle(dest.X + 8, dest.Y + 12, dest.Width, dest.Height);
+            using (var attributes = new ImageAttributes())
             {
-                _addressLabel.SetBounds(48, y, inner, 24);
-                y += 26;
-                _addressBox.SetBounds(48, y, inner, 40);
-                y += 48;
-                _portLabel.SetBounds(48, y, inner, 24);
-                y += 26;
-                _portBox.SetBounds(48, y, inner, 40);
-                y += 50;
-                y = PlaceButton(_solo, y, inner);
-                y = PlaceButton(_host, y, inner);
-                y = PlaceButton(_join, y, inner);
-                y = PlaceButton(_quit, y, inner);
+                var matrix = new ColorMatrix();
+                matrix.Matrix00 = 0f;
+                matrix.Matrix11 = 0f;
+                matrix.Matrix22 = 0f;
+                matrix.Matrix33 = 0.28f;
+                attributes.SetColorMatrix(matrix);
+                g.DrawImage(_logo, shadow, 0, 0, _logo.Width, _logo.Height, GraphicsUnit.Pixel, attributes);
             }
-            else
+            g.DrawImage(_logo, dest);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left && !_dim.Visible && e.Y < 320 && e.X < 400)
             {
-                _hostBody.SetBounds(48, y, inner, 200);
-                y += 208;
-                y = PlaceButton(_hostPlay, y, inner);
-                y = PlaceButton(_hostBack, y, inner);
+                _dragging = true;
+                _drag = e.Location;
             }
-            y += 56;
-            var panelHeight = y;
-            var block = 230 + panelHeight;
-            var top = Math.Max(12, (ClientSize.Height - block) / 2);
-            _panel.SetBounds((ClientSize.Width - 560) / 2, top + 230, 560, panelHeight);
-            Invalidate();
+            base.OnMouseDown(e);
         }
 
-        int PlaceButton(Control button, int y, int inner)
+        protected override void OnMouseMove(MouseEventArgs e)
         {
-            button.SetBounds(48, y, inner, 46);
-            return y + 54;
-        }
-
-        void ShowMenu()
-        {
-            _hosting = false;
-            foreach (var control in _hostCard)
-                control.Visible = false;
-            foreach (var control in _menu)
-                control.Visible = true;
-            ShowInstalled();
-            LayoutUi();
-        }
-
-        void ShowHost()
-        {
-            var listed = "No local address was found. On this computer, use 127.0.0.1.";
-            var lines = LanLines();
-            if (lines.Length > 0)
-                listed = string.Join("\n", lines);
-            _hostBody.Text = "The game will open this computer on UDP port " + Port() + ".\n\nOther players type one of these addresses, and the same port.\n\n" + listed + "\n\nOn this same computer, the address is 127.0.0.1.";
-            foreach (var control in _menu)
-                control.Visible = false;
-            foreach (var control in _hostCard)
-                control.Visible = true;
-            _hosting = true;
-            _busy = false;
-            SetBusy(false);
-            LayoutUi();
-        }
-
-        void ShowInstalled()
-        {
-            if (!File.Exists(GameExe()))
+            if (_dragging && e.Button == MouseButtons.Left)
             {
-                _status.Text = "game/Toontown.exe was not found beside this launcher.\nPlay checks GitHub and downloads every .pck on the release.\nToontown.exe is left as it is.";
-                return;
+                var cursor = PointToScreen(e.Location);
+                Location = new Point(cursor.X - _drag.X, cursor.Y - _drag.Y);
             }
-            if (string.IsNullOrEmpty(_config.Release))
-            {
-                _status.Text = "Play checks GitHub for the latest release, then downloads each .pck when a newer one is available.";
-                return;
-            }
-            _status.Text = "This copy is " + _config.Release + ". Play checks GitHub before the game starts.";
+            base.OnMouseMove(e);
         }
 
-        async void Play(string mode)
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            _dragging = false;
+            base.OnMouseUp(e);
+        }
+
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            using (var path = Shape.Round(new Rectangle(0, 0, Width, Height), 28))
+                Region = new Region(path);
+        }
+
+        void Build()
+        {
+            var min = new ToonButton(_uiBold, Yellow, Outline);
+            min.Text = "–";
+            min.Radius = 14;
+            min.SetBounds(948, 10, 28, 28);
+            min.Click += delegate { WindowState = FormWindowState.Minimized; };
+            var close = new ToonButton(_uiBold, Red, Color.White);
+            close.Text = "×";
+            close.Radius = 14;
+            close.SetBounds(982, 10, 28, 28);
+            close.Click += delegate { Close(); };
+
+            var sync = new RoundPanel();
+            sync.Fill = Outline;
+            sync.Radius = 14;
+            sync.SetBounds(16, 12, 280, 28);
+            _synced = MakeLabel(_uiSm, Yellow, Outline, ContentAlignment.MiddleLeft);
+            _synced.SetBounds(12, 2, 256, 24);
+            _synced.Parent = sync;
+
+            var releaseCard = new RoundPanel();
+            releaseCard.Fill = Color.White;
+            releaseCard.Radius = 16;
+            releaseCard.SetBounds(744, 144, 248, 72);
+            var releaseCaption = MakeLabel(_uiSm, Color.FromArgb(100, 116, 139), Color.White, ContentAlignment.MiddleLeft);
+            releaseCaption.Text = "RELEASE";
+            releaseCaption.SetBounds(16, 8, 216, 18);
+            releaseCaption.Parent = releaseCard;
+            _releaseName = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleLeft);
+            _releaseName.SetBounds(16, 28, 216, 32);
+            _releaseName.Parent = releaseCard;
+
+            var news = new RoundPanel();
+            news.Fill = Color.White;
+            news.Radius = 24;
+            news.SetBounds(16, 324, 600, 252);
+            _badge = MakeLabel(_uiSm, Color.White, Red, ContentAlignment.MiddleCenter);
+            _badge.SetBounds(16, 14, 150, 24);
+            _badge.Parent = news;
+            _date = MakeLabel(_uiSm, Color.FromArgb(100, 116, 139), Color.White, ContentAlignment.MiddleLeft);
+            _date.SetBounds(174, 14, 220, 24);
+            _date.Parent = news;
+            for (var i = 0; i < 3; i++)
+            {
+                var index = i;
+                var dot = new ToonButton(_uiSm, Color.FromArgb(203, 213, 225), Outline);
+                dot.Text = "";
+                dot.Radius = 6;
+                dot.Edge = 0f;
+                dot.Click += delegate { SetSlide(index); };
+                dot.Parent = news;
+                _dots[i] = dot;
+            }
+            _banner = new Banner(_display, _uiBold);
+            _banner.Radius = 16;
+            _banner.SetBounds(16, 48, 568, 148);
+            _banner.Parent = news;
+            _prev = new ToonButton(_uiBold, Color.White, Outline);
+            _prev.Text = "<";
+            _prev.Radius = 14;
+            _prev.SetBounds(8, 60, 28, 28);
+            _prev.Parent = _banner;
+            _prev.Click += delegate { SetSlide(_slide - 1); };
+            _next = new ToonButton(_uiBold, Color.White, Outline);
+            _next.Text = ">";
+            _next.Radius = 14;
+            _next.SetBounds(532, 60, 28, 28);
+            _next.Parent = _banner;
+            _next.Click += delegate { SetSlide(_slide + 1); };
+            var newsFoot = MakeLabel(_uiSm, Outline, Color.White, ContentAlignment.MiddleLeft);
+            newsFoot.Text = "Packs download from the newest GitHub release, including prereleases.";
+            newsFoot.SetBounds(16, 206, 568, 36);
+            newsFoot.Parent = news;
+
+            var mode = new RoundPanel();
+            mode.Fill = Color.White;
+            mode.Radius = 24;
+            mode.SetBounds(628, 324, 380, 252);
+            var modeTitle = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleLeft);
+            modeTitle.Text = "Session";
+            modeTitle.SetBounds(16, 10, 200, 32);
+            modeTitle.Parent = mode;
+            _soloTab = MakeTab("Solo");
+            _hostTab = MakeTab("Host");
+            _joinTab = MakeTab("Join");
+            _soloTab.SetBounds(16, 48, 110, 34);
+            _hostTab.SetBounds(134, 48, 110, 34);
+            _joinTab.SetBounds(252, 48, 110, 34);
+            _soloTab.Parent = mode;
+            _hostTab.Parent = mode;
+            _joinTab.Parent = mode;
+            _soloTab.Click += delegate { Choose("solo"); };
+            _hostTab.Click += delegate { Choose("host"); };
+            _joinTab.Click += delegate { Choose("join"); };
+            var details = new RoundPanel();
+            details.Fill = Inset;
+            details.Radius = 14;
+            details.SetBounds(16, 94, 348, 146);
+            details.Parent = mode;
+            _modeBody = MakeLabel(_uiBold, Outline, Inset, ContentAlignment.TopLeft);
+            _modeBody.SetBounds(12, 10, 324, 160);
+            _modeBody.Parent = details;
+            _addressLabel = MakeLabel(_uiSm, Outline, Inset, ContentAlignment.MiddleLeft);
+            _addressLabel.Text = "Address";
+            _addressLabel.Parent = details;
+            _addressBox = MakeBox();
+            _addressBox.Text = _config.Address;
+            _addressBox.Parent = details;
+            _portLabel = MakeLabel(_uiSm, Outline, Inset, ContentAlignment.MiddleLeft);
+            _portLabel.Text = "Port";
+            _portLabel.Parent = details;
+            _portBox = MakeBox();
+            _portBox.Text = _config.Port.ToString();
+            _portBox.Parent = details;
+
+            var dock = new RoundPanel();
+            dock.Fill = DockBlue;
+            dock.Radius = 24;
+            dock.SetBounds(16, 592, 992, 104);
+            _patchStatus = MakeLabel(_uiBold, Color.White, DockBlue, ContentAlignment.MiddleLeft);
+            _patchStatus.SetBounds(18, 12, 680, 24);
+            _patchStatus.Parent = dock;
+            _patchPercent = MakeLabel(_display, Yellow, DockBlue, ContentAlignment.MiddleRight);
+            _patchPercent.SetBounds(620, 8, 90, 30);
+            _patchPercent.Parent = dock;
+            _bar = new PatchBar(_uiSm);
+            _bar.SetBounds(18, 44, 690, 28);
+            _bar.Parent = dock;
+            _play = new ToonButton(_display, Green, Color.White);
+            _play.Text = "PLAY!";
+            _play.Radius = 16;
+            _play.Edge = 3f;
+            _play.SetBounds(748, 18, 224, 68);
+            _play.Parent = dock;
+            _play.Click += delegate { PlayCurrent(); };
+
+            var notes = MakeLink("Patch Notes", Color.White, Outline);
+            notes.SetBounds(16, 708, 130, 36);
+            notes.Click += delegate { ShowNotes(); };
+            var check = MakeLink("Check Updates", Color.White, Outline);
+            check.SetBounds(154, 708, 146, 36);
+            check.Click += delegate { CheckForUpdates(); };
+            var github = MakeLink("GitHub", Color.FromArgb(30, 41, 59), Color.White);
+            github.SetBounds(308, 708, 100, 36);
+            github.Click += delegate { OpenPage("https://github.com/CakeGamingOfficial/Toontown-Reimagined/releases"); };
+            var settings = MakeLink("Settings", Yellow, Outline);
+            settings.SetBounds(760, 708, 110, 36);
+            settings.Click += delegate { ShowSettings(); };
+            var credits = MakeLink("Credits", Color.White, Outline);
+            credits.SetBounds(878, 708, 110, 36);
+            credits.Click += delegate { ShowCredits(); };
+
+            _lock = new[] { _soloTab, _hostTab, _joinTab, _play, notes, check, github, settings, credits, _prev, _next };
+
+            _dim = new Panel();
+            _dim.BackColor = Color.FromArgb(18, 38, 74);
+            _dim.SetBounds(0, 0, 1024, 760);
+            _dim.Visible = false;
+            _settings = BuildSettings();
+            _credits = BuildCredits();
+            _notesCard = BuildNotes();
+            _settings.Parent = _dim;
+            _credits.Parent = _dim;
+            _notesCard.Parent = _dim;
+            _notesCard.Visible = false;
+
+            sync.Parent = this;
+            releaseCard.Parent = this;
+            news.Parent = this;
+            mode.Parent = this;
+            dock.Parent = this;
+            notes.Parent = this;
+            check.Parent = this;
+            github.Parent = this;
+            settings.Parent = this;
+            credits.Parent = this;
+            min.Parent = this;
+            close.Parent = this;
+            _dim.Parent = this;
+        }
+
+        RoundPanel BuildSettings()
+        {
+            var card = new RoundPanel();
+            card.Fill = Color.White;
+            card.Radius = 22;
+            card.SetBounds(232, 168, 560, 424);
+            var title = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleLeft);
+            title.Text = "Settings";
+            title.SetBounds(24, 18, 400, 34);
+            title.Parent = card;
+            var close = new ToonButton(_uiBold, Red, Color.White);
+            close.Text = "×";
+            close.Radius = 14;
+            close.SetBounds(508, 18, 28, 28);
+            close.Parent = card;
+            close.Click += delegate { HideOverlays(); };
+            var windowLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
+            windowLabel.Text = "Window";
+            windowLabel.SetBounds(24, 64, 200, 22);
+            windowLabel.Parent = card;
+            _winWindowed = MakeTab("Windowed");
+            _winBorder = MakeTab("Borderless");
+            _winFull = MakeTab("Fullscreen");
+            _winWindowed.SetBounds(24, 90, 163, 36);
+            _winBorder.SetBounds(199, 90, 163, 36);
+            _winFull.SetBounds(374, 90, 163, 36);
+            _winWindowed.Parent = card;
+            _winBorder.Parent = card;
+            _winFull.Parent = card;
+            _winWindowed.Click += delegate { ChooseWindow("windowed"); };
+            _winBorder.Click += delegate { ChooseWindow("borderless"); };
+            _winFull.Click += delegate { ChooseWindow("fullscreen"); };
+            var sizeLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
+            sizeLabel.Text = "Resolution";
+            sizeLabel.SetBounds(24, 142, 200, 22);
+            sizeLabel.Parent = card;
+            _resPrev = new ToonButton(_uiBold, Color.White, Outline);
+            _resPrev.Text = "<";
+            _resPrev.Radius = 14;
+            _resPrev.SetBounds(24, 168, 36, 36);
+            _resPrev.Parent = card;
+            _resPrev.Click += delegate { StepResolution(-1); };
+            _resValue = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleCenter);
+            _resValue.Text = "Current window";
+            _resValue.SetBounds(68, 168, 424, 36);
+            _resValue.Parent = card;
+            _resNext = new ToonButton(_uiBold, Color.White, Outline);
+            _resNext.Text = ">";
+            _resNext.Radius = 14;
+            _resNext.SetBounds(500, 168, 36, 36);
+            _resNext.Parent = card;
+            _resNext.Click += delegate { StepResolution(1); };
+            var portLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
+            portLabel.Text = "Port";
+            portLabel.SetBounds(24, 220, 200, 22);
+            portLabel.Parent = card;
+            _settingsPort = MakeBox();
+            _settingsPort.SetBounds(24, 246, 160, 32);
+            _settingsPort.Parent = card;
+            _settingsNote = MakeLabel(_ui, Outline, Color.White, ContentAlignment.TopLeft);
+            _settingsNote.Text = "Play opens the game in this window. Host and Join use this UDP port. The game default is 4343.";
+            _settingsNote.SetBounds(24, 292, 512, 56);
+            _settingsNote.Parent = card;
+            var cancel = MakeLink("Cancel", Color.FromArgb(226, 232, 240), Outline);
+            cancel.SetBounds(304, 360, 110, 36);
+            cancel.Parent = card;
+            cancel.Click += delegate { HideOverlays(); };
+            var save = MakeLink("Save", Green, Color.White);
+            save.SetBounds(426, 360, 110, 36);
+            save.Parent = card;
+            save.Click += delegate { SaveSettings(); };
+            return card;
+        }
+
+        RoundPanel BuildCredits()
+        {
+            var card = new RoundPanel();
+            card.Fill = Color.White;
+            card.Radius = 22;
+            card.SetBounds(262, 220, 500, 300);
+            var title = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleCenter);
+            title.Text = "Toontown Reimagined";
+            title.SetBounds(20, 18, 460, 36);
+            title.Parent = card;
+            var body = MakeLabel(_ui, Outline, Color.White, ContentAlignment.TopCenter);
+            body.Text = "Built in Godot.\nPacks come from GitHub Releases.\n\nA fan-made tribute inspired by Disney's Toontown Online.\nNot affiliated with The Walt Disney Company.";
+            body.SetBounds(24, 70, 452, 150);
+            body.Parent = card;
+            var done = MakeLink("Close", Green, Color.White);
+            done.SetBounds(190, 236, 120, 40);
+            done.Parent = card;
+            done.Click += delegate { HideOverlays(); };
+            return card;
+        }
+
+        RoundPanel BuildNotes()
+        {
+            var card = new RoundPanel();
+            card.Fill = Color.White;
+            card.Radius = 22;
+            card.SetBounds(192, 130, 640, 480);
+            _notesTitle = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleLeft);
+            _notesTitle.Text = "Patch Notes";
+            _notesTitle.SetBounds(20, 16, 520, 36);
+            _notesTitle.Parent = card;
+            var close = new ToonButton(_uiBold, Red, Color.White);
+            close.Text = "×";
+            close.Radius = 14;
+            close.SetBounds(592, 16, 28, 28);
+            close.Parent = card;
+            close.Click += delegate { HideOverlays(); };
+            _notesBox = new TextBox();
+            _notesBox.Multiline = true;
+            _notesBox.ReadOnly = true;
+            _notesBox.ScrollBars = ScrollBars.Vertical;
+            _notesBox.BorderStyle = BorderStyle.None;
+            _notesBox.Font = _ui;
+            _notesBox.ForeColor = Outline;
+            _notesBox.BackColor = Inset;
+            _notesBox.SetBounds(24, 64, 592, 340);
+            _notesBox.Parent = card;
+            var github = MakeLink("GitHub", Color.FromArgb(30, 41, 59), Color.White);
+            github.SetBounds(380, 420, 110, 36);
+            github.Parent = card;
+            github.Click += delegate { OpenReleasePage(); };
+            var done = MakeLink("Close", Green, Color.White);
+            done.SetBounds(502, 420, 110, 36);
+            done.Parent = card;
+            done.Click += delegate { HideOverlays(); };
+            return card;
+        }
+
+        ToonButton MakeTab(string caption)
+        {
+            var button = new ToonButton(_uiBold, Color.FromArgb(226, 232, 240), Outline);
+            button.Text = caption;
+            button.Radius = 12;
+            return button;
+        }
+
+        ToonButton MakeLink(string caption, Color fill, Color text)
+        {
+            var button = new ToonButton(_uiBold, fill, text);
+            button.Text = caption;
+            button.Radius = 12;
+            return button;
+        }
+
+        Label MakeLabel(Font font, Color color, Color back, ContentAlignment align)
+        {
+            var label = new Label();
+            label.Font = font;
+            label.ForeColor = color;
+            label.BackColor = back;
+            label.TextAlign = align;
+            label.AutoSize = false;
+            return label;
+        }
+
+        TextBox MakeBox()
+        {
+            var box = new TextBox();
+            box.Font = _uiBold;
+            box.ForeColor = Outline;
+            box.BackColor = Color.White;
+            box.BorderStyle = BorderStyle.FixedSingle;
+            return box;
+        }
+
+        void Choose(string mode)
         {
             if (_busy)
                 return;
-            if (!FieldsOk(mode))
+            _mode = mode;
+            ApplyMode();
+        }
+
+        void ApplyMode()
+        {
+            PaintTab(_soloTab, _mode == "solo");
+            PaintTab(_hostTab, _mode == "host");
+            PaintTab(_joinTab, _mode == "join");
+            _modeBody.Visible = _mode != "join";
+            _addressLabel.Visible = _mode == "join";
+            _addressBox.Visible = _mode == "join";
+            _portLabel.Visible = _mode != "solo";
+            _portBox.Visible = _mode != "solo";
+            if (_mode == "solo")
+            {
+                _modeBody.Text = "Play on this computer.";
+                _modeBody.SetBounds(12, 16, 324, 114);
+            }
+            else if (_mode == "host")
+            {
+                var lines = LanLines();
+                var listed = lines.Length == 0 ? "No local address was found." : string.Join("\n", lines);
+                _modeBody.Text = "Friends join one of these addresses.\n" + listed + "\nOn this computer, use 127.0.0.1.";
+                _modeBody.SetBounds(12, 8, 324, 88);
+                _portLabel.SetBounds(12, 102, 70, 28);
+                _portBox.SetBounds(84, 102, 120, 28);
+            }
+            else
+            {
+                _addressLabel.SetBounds(12, 12, 320, 20);
+                _addressBox.SetBounds(12, 34, 320, 28);
+                _portLabel.SetBounds(12, 78, 70, 28);
+                _portBox.SetBounds(84, 76, 120, 28);
+            }
+        }
+
+        void PaintTab(ToonButton button, bool on)
+        {
+            button.Fill = on ? Blue : Color.FromArgb(226, 232, 240);
+            button.ForeColor = on ? Color.White : Outline;
+            button.Invalidate();
+        }
+
+        void SetSlide(int index)
+        {
+            var count = _titles.Length;
+            _slide = ((index % count) + count) % count;
+            ApplySlide();
+        }
+
+        void ApplySlide()
+        {
+            _badge.Text = _badges[_slide];
+            _badge.BackColor = _slide == 1 ? Color.FromArgb(147, 51, 234) : _slide == 2 ? GreenDark : Red;
+            _date.Text = _dates[_slide];
+            _banner.Title = _titles[_slide];
+            _banner.Subtitle = _subs[_slide];
+            _banner.Fill = _bannerTop[_slide];
+            _banner.Fill2 = _bannerBot[_slide];
+            _banner.Invalidate();
+            var x = 568;
+            for (var i = 2; i >= 0; i--)
+            {
+                var w = i == _slide ? 22 : 12;
+                x -= w;
+                _dots[i].Fill = i == _slide ? Blue : Color.FromArgb(203, 213, 225);
+                _dots[i].SetBounds(x, 20, w, 12);
+                _dots[i].Invalidate();
+                x -= 8;
+            }
+        }
+
+        void RefreshReleaseSlide()
+        {
+            var tag = CurrentTag();
+            if (string.IsNullOrEmpty(_remoteName))
+                _titles[0] = string.IsNullOrEmpty(tag) ? "Toontown Reimagined" : "Release " + tag;
+            else
+                _titles[0] = _remoteName;
+            if (!string.IsNullOrEmpty(_remoteNotes))
+                _subs[0] = FirstLine(_remoteNotes);
+            else if (string.IsNullOrEmpty(tag))
+                _subs[0] = "Play uses the packs already in the game folder.";
+            else
+                _subs[0] = "GitHub release " + tag + ". Play downloads new packs before the game starts.";
+            _dates[0] = string.IsNullOrEmpty(tag) ? "This computer" : tag;
+            if (_slide == 0)
+                ApplySlide();
+        }
+
+        async void BeginCheckVersion()
+        {
+            try
+            {
+                var info = await ReleaseClient.GetLatestAsync(CancellationToken.None);
+                if (IsDisposed || info == null || string.IsNullOrEmpty(info.Tag))
+                    return;
+                Action apply = delegate
+                {
+                    if (IsDisposed)
+                        return;
+                    Remember(info);
+                    ShowVersion();
+                };
+                if (InvokeRequired)
+                    BeginInvoke(apply);
+                else
+                    apply();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        void ShowVersion()
+        {
+            var tag = CurrentTag();
+            _synced.Text = string.IsNullOrEmpty(tag) ? "Synced: local copy" : "Synced: " + tag;
+            _releaseName.Text = string.IsNullOrEmpty(tag) ? "Local copy" : tag;
+            RefreshReleaseSlide();
+            if (!_busy)
+                ShowReady();
+        }
+
+        string CurrentTag()
+        {
+            if (!string.IsNullOrEmpty(_remoteTag))
+                return _remoteTag;
+            return _config.Release;
+        }
+
+        void ShowReady()
+        {
+            var tag = CurrentTag();
+            if (!File.Exists(GameExe()) || !File.Exists(PackPath()))
+            {
+                SetPatch("Add game/Toontown.exe and game/Toontown.pck beside this launcher.", 0, "Toontown.exe is never replaced.");
+                return;
+            }
+            if (string.IsNullOrEmpty(tag))
+                SetPatch("Ready. This copy has no GitHub release recorded yet.", 100, "Toontown.pck is in the game folder.");
+            else
+                SetPatch("Ready. Release " + tag + ".", 100, "Toontown.pck is in the game folder.");
+        }
+
+        void SetPatch(string status, int percent, string detail)
+        {
+            if (percent < 0)
+                percent = 0;
+            if (percent > 100)
+                percent = 100;
+            _patchStatus.Text = status;
+            _patchPercent.Text = percent + "%";
+            _bar.Value = percent;
+            _bar.Caption = detail ?? "";
+        }
+
+        void CheckForUpdates()
+        {
+            RunUpdate(false);
+        }
+
+        void PlayCurrent()
+        {
+            if (!FieldsOk(_mode))
                 return;
             SaveFields();
+            RunUpdate(true);
+        }
+
+        async void RunUpdate(bool launch)
+        {
+            if (_busy)
+                return;
+            var mode = _mode;
+            if (launch && !FieldsOk(mode))
+                return;
+            if (launch)
+                SaveFields();
             if (_playLocal)
             {
                 _playLocal = false;
-                Continue(mode);
+                if (launch)
+                    Launch(mode);
                 return;
             }
             if (!File.Exists(GameExe()))
             {
-                _status.Text = "game/Toontown.exe was not found. Play does not download or replace that file.";
+                SetPatch("game/Toontown.exe was not found. Play does not download or replace that file.", 0, "");
                 return;
             }
             _busy = true;
             SetBusy(true);
+            SetPlayBusy(true);
             if (_cancel != null)
                 _cancel.Dispose();
             _cancel = new CancellationTokenSource();
             try
             {
-                _status.Text = "Checking GitHub for a newer release...";
+                SetPatch("Checking GitHub for a newer release...", 8, "");
                 var info = await ReleaseClient.GetLatestAsync(_cancel.Token);
+                Remember(info);
+                ShowVersion();
                 var needed = PacksToDownload(info);
                 if (needed.Count == 0)
                 {
-                    _status.Text = "Up to date (" + info.Tag + ").";
-                    Continue(mode);
+                    SetPatch("Up to date (" + info.Tag + ").", 100, "Toontown.pck matches this release.");
+                    FinishUpdate(launch, mode);
                     return;
                 }
                 for (var i = 0; i < needed.Count; i++)
@@ -311,36 +816,44 @@ namespace ToontownLauncher
                         label = pack.Name + " (" + (i + 1) + " of " + needed.Count + ")";
                     var progress = new Progress<int>(delegate (int pct)
                     {
-                        _status.Text = "Downloading " + label + "... " + pct + "%.";
+                        SetPatch("Downloading " + label + "...", pct, label);
                     });
                     await ReleaseClient.DownloadAsync(pack.Url, partial, pack.Name, progress, _cancel.Token);
                     PackFile.Replace(partial, dest);
                 }
                 _config.Release = info.Tag;
                 _config.Save(_configPath);
-                _status.Text = "Updated to " + info.Tag + ".";
-                Continue(mode);
+                ShowVersion();
+                SetPatch("Updated to " + info.Tag + ".", 100, "Packs are in the game folder.");
+                FinishUpdate(launch, mode);
             }
             catch (OperationCanceledException)
             {
                 _busy = false;
+                SetPlayBusy(false);
                 SetBusy(false);
             }
             catch (Exception ex)
             {
                 TryDeletePartial();
+                if (NoRelease(ex) && File.Exists(GameExe()) && File.Exists(PackPath()))
+                {
+                    SetPatch("Up to date.", 100, "Toontown.pck is in the game folder.");
+                    ShowVersion();
+                    FinishUpdate(launch, mode);
+                    return;
+                }
                 Fail(Friendly(ex));
             }
         }
 
-        void Continue(string mode)
+        void FinishUpdate(bool launch, string mode)
         {
-            if (mode == "host")
-            {
-                ShowHost();
-                return;
-            }
-            Launch(mode);
+            _busy = false;
+            SetPlayBusy(false);
+            SetBusy(false);
+            if (launch)
+                Launch(mode);
         }
 
         void Launch(string mode)
@@ -358,19 +871,20 @@ namespace ToontownLauncher
             }
             var arguments = "";
             if (mode == "host")
-                arguments = "-- --host " + Port();
+                arguments = "-- --host " + _config.Port;
             else if (mode == "join")
-                arguments = "-- --join " + QuoteArg(Address()) + " " + Port();
+                arguments = "-- --join " + QuoteArg(_config.Address) + " " + _config.Port;
+            try { DisplayFile.Write(_config); }
+            catch (Exception) { }
             if (!GameStart.Open(exe, arguments, _gameDir))
             {
                 _busy = false;
+                SetPlayBusy(false);
                 SetBusy(false);
-                _status.Text = "The game did not start.";
+                SetPatch("The game did not start.", 0, "");
                 return;
             }
-            _status.Text = "The game is open.";
-            _busy = false;
-            SetBusy(false);
+            SetPatch("The game is open.", 100, "");
             BeginHandOff();
         }
 
@@ -399,6 +913,7 @@ namespace ToontownLauncher
                     return;
                 GameStart.HandToGame(hwnd);
                 _handOff.Stop();
+                GameStart.ReopenWhenGameExits(GameStart.WindowProcessId(hwnd), Application.ExecutablePath);
                 Close();
                 return;
             }
@@ -409,14 +924,21 @@ namespace ToontownLauncher
         void Fail(string message)
         {
             _busy = false;
+            SetPlayBusy(false);
             SetBusy(false);
             if (File.Exists(GameExe()) && File.Exists(PackPath()))
             {
                 _playLocal = true;
-                _status.Text = message + " Click again to play this copy.";
+                SetPatch(message + " Play again to launch this copy.", 100, "Toontown.pck is already installed.");
                 return;
             }
-            _status.Text = message;
+            SetPatch(message, 0, "");
+        }
+
+        static bool NoRelease(Exception ex)
+        {
+            var invalid = ex as InvalidOperationException;
+            return invalid != null && invalid.Message == "GitHub has no release yet.";
         }
 
         static string Friendly(Exception ex)
@@ -436,12 +958,12 @@ namespace ToontownLauncher
             var port = Port();
             if (port < 1 || port > 65535)
             {
-                _status.Text = "Type a port from 1 to 65535.";
+                SetPatch("Type a port from 1 to 65535.", 0, "");
                 return false;
             }
             if (mode == "join" && Address().Length == 0)
             {
-                _status.Text = "Type the host computer's address.";
+                SetPatch("Type the host computer's address.", 0, "");
                 return false;
             }
             return true;
@@ -470,11 +992,260 @@ namespace ToontownLauncher
 
         void SetBusy(bool busy)
         {
-            _solo.Enabled = !busy;
-            _host.Enabled = !busy;
-            _join.Enabled = !busy;
-            _hostPlay.Enabled = !busy;
-            _hostBack.Enabled = !busy;
+            foreach (var button in _lock)
+                button.Enabled = !busy;
+        }
+
+        void SetPlayBusy(bool busy)
+        {
+            _play.Text = busy ? "UPDATING" : "PLAY!";
+            _play.Fill = busy ? Yellow : Green;
+            _play.ForeColor = busy ? Outline : Color.White;
+            _play.Invalidate();
+        }
+
+        void ShowSettings()
+        {
+            _windowMode = _config.WindowMode;
+            if (_windowMode != "windowed" && _windowMode != "borderless" && _windowMode != "fullscreen")
+                _windowMode = "windowed";
+            _resolutions = BuildResolutions();
+            _resIndex = 0;
+            for (var i = 0; i < _resolutions.Count; i++)
+            {
+                if (_resolutions[i].Width == _config.Width && _resolutions[i].Height == _config.Height)
+                {
+                    _resIndex = i;
+                    break;
+                }
+            }
+            ApplyWindowChoice();
+            ShowResolution();
+            _settingsPort.Text = _portBox.Text;
+            _settingsNote.Text = "Play opens the game in this window. Host and Join use this UDP port. The game default is 4343.";
+            _credits.Visible = false;
+            _notesCard.Visible = false;
+            _settings.Visible = true;
+            _dim.Visible = true;
+            _dim.BringToFront();
+        }
+
+        void ChooseWindow(string mode)
+        {
+            _windowMode = mode;
+            ApplyWindowChoice();
+            ShowResolution();
+        }
+
+        void ApplyWindowChoice()
+        {
+            PaintTab(_winWindowed, _windowMode == "windowed");
+            PaintTab(_winBorder, _windowMode == "borderless");
+            PaintTab(_winFull, _windowMode == "fullscreen");
+        }
+
+        void StepResolution(int delta)
+        {
+            if (_resolutions == null || _resolutions.Count == 0)
+                return;
+            _resIndex = _resIndex + delta;
+            if (_resIndex < 0)
+                _resIndex = _resolutions.Count - 1;
+            else if (_resIndex >= _resolutions.Count)
+                _resIndex = 0;
+            ShowResolution();
+        }
+
+        void ShowResolution()
+        {
+            var size = Size.Empty;
+            if (_resolutions != null && _resIndex >= 0 && _resIndex < _resolutions.Count)
+                size = _resolutions[_resIndex];
+            if (size.Width < 640 || size.Height < 480)
+                _resValue.Text = _windowMode == "windowed" ? "Current window" : "This screen";
+            else
+                _resValue.Text = size.Width + " x " + size.Height;
+        }
+
+        List<Size> BuildResolutions()
+        {
+            var list = new List<Size>();
+            list.Add(Size.Empty);
+            var screen = ScreenSize();
+            var widths = new[] { 640, 800, 1024, 1280, 1280, 1366, 1440, 1600, 1680, 1920, 1920, 2560, 2560, 3440, 3840 };
+            var heights = new[] { 480, 600, 768, 720, 800, 768, 900, 900, 1050, 1080, 1200, 1080, 1440, 1440, 2160 };
+            for (var i = 0; i < widths.Length; i++)
+            {
+                if (widths[i] <= screen.Width && heights[i] <= screen.Height)
+                    list.Add(new Size(widths[i], heights[i]));
+            }
+            if (screen.Width >= 640 && screen.Height >= 480 && !HasSize(list, screen))
+                list.Add(screen);
+            var saved = new Size(_config.Width, _config.Height);
+            if (saved.Width >= 640 && saved.Height >= 480 && !HasSize(list, saved))
+                list.Add(saved);
+            return list;
+        }
+
+        static bool HasSize(List<Size> list, Size size)
+        {
+            foreach (var item in list)
+            {
+                if (item.Width == size.Width && item.Height == size.Height)
+                    return true;
+            }
+            return false;
+        }
+
+        Size ScreenSize()
+        {
+            var screen = IsHandleCreated ? Screen.FromControl(this) : Screen.PrimaryScreen;
+            if (screen == null)
+                return new Size(1920, 1080);
+            return screen.Bounds.Size;
+        }
+
+        void SaveSettings()
+        {
+            _portBox.Text = _settingsPort.Text.Trim();
+            if (Port() < 1 || Port() > 65535)
+            {
+                _settingsNote.Text = "Type a port from 1 to 65535.";
+                return;
+            }
+            var size = Size.Empty;
+            if (_resolutions != null && _resIndex >= 0 && _resIndex < _resolutions.Count)
+                size = _resolutions[_resIndex];
+            _config.WindowMode = _windowMode;
+            _config.Width = size.Width < 640 || size.Height < 480 ? 0 : size.Width;
+            _config.Height = size.Width < 640 || size.Height < 480 ? 0 : size.Height;
+            SaveFields();
+            try
+            {
+                DisplayFile.Write(_config);
+            }
+            catch (Exception)
+            {
+                _settingsNote.Text = "The window settings could not be saved.";
+                return;
+            }
+            HideOverlays();
+            if (!_busy)
+                ShowReady();
+        }
+
+        void ShowCredits()
+        {
+            _settings.Visible = false;
+            _notesCard.Visible = false;
+            _credits.Visible = true;
+            _dim.Visible = true;
+            _dim.BringToFront();
+        }
+
+        void HideOverlays()
+        {
+            _dim.Visible = false;
+        }
+
+        void ShowNotes()
+        {
+            _settings.Visible = false;
+            _credits.Visible = false;
+            _notesCard.Visible = true;
+            _dim.Visible = true;
+            _dim.BringToFront();
+            if (string.IsNullOrEmpty(_remoteNotes))
+            {
+                _notesTitle.Text = "Patch Notes";
+                _notesBox.Text = "Loading patch notes...";
+                LoadNotes();
+                return;
+            }
+            FillNotes();
+        }
+
+        async void LoadNotes()
+        {
+            try
+            {
+                var info = await ReleaseClient.GetLatestAsync(CancellationToken.None);
+                if (IsDisposed || info == null)
+                    return;
+                Action apply = delegate
+                {
+                    if (IsDisposed)
+                        return;
+                    Remember(info);
+                    ShowVersion();
+                    FillNotes();
+                };
+                if (InvokeRequired)
+                    BeginInvoke(apply);
+                else
+                    apply();
+            }
+            catch (Exception)
+            {
+                Action apply = delegate
+                {
+                    if (!IsDisposed)
+                        _notesBox.Text = "Patch notes could not be loaded.";
+                };
+                if (InvokeRequired)
+                    BeginInvoke(apply);
+                else
+                    apply();
+            }
+        }
+
+        void FillNotes()
+        {
+            var tag = CurrentTag();
+            var name = _remoteName;
+            if (string.IsNullOrEmpty(name))
+                _notesTitle.Text = string.IsNullOrEmpty(tag) ? "Patch Notes" : "Patch Notes — " + tag;
+            else
+                _notesTitle.Text = name;
+            if (string.IsNullOrEmpty(_remoteNotes))
+                _notesBox.Text = "This release has no patch notes yet.";
+            else
+                _notesBox.Text = _remoteNotes;
+        }
+
+        void Remember(ReleaseInfo info)
+        {
+            if (info == null)
+                return;
+            _remoteTag = info.Tag;
+            _remoteName = info.Name;
+            _remotePage = info.Page;
+            _remoteNotes = info.Body;
+        }
+
+        static string FirstLine(string text)
+        {
+            var line = text.Replace("\r", "");
+            var cut = line.IndexOf('\n');
+            if (cut >= 0)
+                line = line.Substring(0, cut);
+            line = line.Trim();
+            if (line.Length > 140)
+                line = line.Substring(0, 137) + "...";
+            return line;
+        }
+
+        void OpenReleasePage()
+        {
+            if (!string.IsNullOrEmpty(_remotePage))
+                OpenPage(_remotePage);
+            else
+                OpenPage("https://github.com/CakeGamingOfficial/Toontown-Reimagined/releases");
+        }
+
+        static void OpenPage(string url)
+        {
+            Process.Start(url);
         }
 
         string GameExe()
@@ -552,6 +1323,10 @@ namespace ToontownLauncher
                 _cancel.Cancel();
             if (_handOff != null)
                 _handOff.Stop();
+            if (_slides != null)
+                _slides.Stop();
+            if (_stripes != null)
+                _stripes.Stop();
             base.OnFormClosing(e);
         }
 
@@ -600,147 +1375,252 @@ namespace ToontownLauncher
         }
     }
 
-    sealed class ScrollPanel : Panel
+    static class Shape
     {
-        readonly Image _scroll;
-        Bitmap _slice;
-        bool _building;
-
-        public ScrollPanel(Image scroll)
+        public static GraphicsPath Round(Rectangle bounds, int radius)
         {
-            _scroll = scroll;
+            var path = new GraphicsPath();
+            var limit = Math.Min(bounds.Width, bounds.Height) / 2;
+            var r = radius;
+            if (r > limit)
+                r = limit;
+            var d = r * 2;
+            if (d < 2)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+            path.AddArc(bounds.Left, bounds.Top, d, d, 180, 90);
+            path.AddArc(bounds.Right - d, bounds.Top, d, d, 270, 90);
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+            path.AddArc(bounds.Left, bounds.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+    }
+
+    class RoundPanel : Panel
+    {
+        public Color Fill = Color.White;
+        public Color Fill2;
+        public Color Edge = Color.FromArgb(18, 38, 74);
+        public int Radius = 18;
+        public int Border = 3;
+
+        public RoundPanel()
+        {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            BackColor = Color.FromArgb(237, 230, 204);
+            BackColor = Color.White;
         }
 
         protected override void OnSizeChanged(EventArgs e)
         {
             base.OnSizeChanged(e);
-            if (_building || Width < 80 || Height < 80 || _scroll == null)
+            if (Width < 2 || Height < 2)
                 return;
-            _building = true;
-            var next = NineSlice.Render(_scroll, new Size(Width, Height), 32, 32, 46, 52);
-            var previous = _slice;
-            _slice = next;
-            BackgroundImage = _slice;
-            if (previous != null)
-                previous.Dispose();
-            _building = false;
-        }
-    }
-
-    sealed class FieldBox : Control
-    {
-        readonly TextBox _edit;
-        readonly Color _border;
-        readonly Color _focus;
-        bool _focused;
-
-        public string Placeholder;
-
-        public override string Text
-        {
-            get { return _edit.Text; }
-            set { _edit.Text = value; }
+            using (var path = Shape.Round(new Rectangle(0, 0, Width, Height), Radius))
+                Region = new Region(path);
         }
 
-        public FieldBox(Font font, Color ink, Color placeholder, Color background, Color border, Color focus)
+        protected override void OnPaintBackground(PaintEventArgs e)
         {
-            _border = border;
-            _focus = focus;
-            Placeholder = "";
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            _edit = new TextBox();
-            _edit.BorderStyle = BorderStyle.None;
-            _edit.Font = font;
-            _edit.ForeColor = ink;
-            _edit.BackColor = background;
-            _edit.Parent = this;
-            _edit.GotFocus += delegate { _focused = true; Invalidate(); };
-            _edit.LostFocus += delegate { _focused = false; Invalidate(); };
-            BackColor = background;
-            Height = 40;
         }
 
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
-
-        protected override void OnHandleCreated(EventArgs e)
+        public void PaintSurface(Graphics g)
         {
-            base.OnHandleCreated(e);
-            if (!string.IsNullOrEmpty(Placeholder))
-                SendMessage(_edit.Handle, 0x1501, new IntPtr(1), Placeholder);
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            if (_edit == null)
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            if (rect.Width < 2 || rect.Height < 2)
                 return;
-            _edit.SetBounds(10, (Height - _edit.PreferredHeight) / 2, Math.Max(10, Width - 20), _edit.PreferredHeight);
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            var rect = new Rectangle(1, 1, Width - 3, Height - 3);
-            using (var pen = new Pen(_focused ? _focus : _border, 3f))
-                NineSlice.DrawRound(e.Graphics, pen, rect, 8);
-        }
-    }
-
-    sealed class PillButton : Control
-    {
-        readonly Image _up;
-        readonly Image _down;
-        readonly Image _hover;
-        readonly Color _text;
-        bool _pressed;
-        bool _hovering;
-
-        public PillButton(Image up, Image down, Image hover, Font font, Color text)
-        {
-            _up = up;
-            _down = down;
-            _hover = hover;
-            _text = text;
-            Font = font;
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            SetStyle(ControlStyles.StandardClick, false);
-            SetStyle(ControlStyles.StandardDoubleClick, false);
-            Cursor = Cursors.Hand;
-            Height = 46;
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var image = _up;
-            if (Enabled && _pressed && _down != null)
-                image = _down;
-            else if (Enabled && _hovering && _hover != null)
-                image = _hover;
-            if (image != null)
+            var previous = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var path = Shape.Round(rect, Radius))
+            using (var pen = new Pen(Edge, Border))
             {
-                if (Enabled)
-                    NineSlice.Draw(e.Graphics, image, ClientRectangle, 18, 18, 10, 10);
+                pen.Alignment = PenAlignment.Inset;
+                Brush brush;
+                if (Fill2.IsEmpty)
+                    brush = new SolidBrush(Fill);
                 else
-                    NineSlice.DrawFaded(e.Graphics, image, ClientRectangle, 18, 18, 10, 10);
+                    brush = new LinearGradientBrush(rect, Fill, Fill2, 90f);
+                using (brush)
+                    g.FillPath(brush, path);
+                g.DrawPath(pen, path);
             }
-            var color = Enabled ? _text : Color.FromArgb(160, 71, 61, 41);
-            TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            g.SmoothingMode = previous;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            PaintSurface(e.Graphics);
+        }
+    }
+
+    sealed class Banner : RoundPanel
+    {
+        readonly Font _titleFont;
+        readonly Font _subFont;
+        public string Title = "";
+        public string Subtitle = "";
+
+        public Banner(Font titleFont, Font subFont)
+        {
+            _titleFont = titleFont;
+            _subFont = subFont;
+            Border = 3;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            var g = e.Graphics;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            var title = new Rectangle(44, 16, Width - 88, 52);
+            TextRenderer.DrawText(g, Title, _titleFont, title, Color.White, TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            var sub = new Rectangle(44, 74, Width - 88, 58);
+            using (var path = Shape.Round(sub, 12))
+            using (var brush = new SolidBrush(Color.FromArgb(230, 255, 255, 255)))
+                g.FillPath(brush, path);
+            TextRenderer.DrawText(g, Subtitle, _subFont, new Rectangle(sub.X + 8, sub.Y + 6, sub.Width - 16, sub.Height - 12), Color.FromArgb(18, 38, 74), TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+        }
+    }
+
+    sealed class ToonButton : Control
+    {
+        readonly Font _font;
+        public Color Fill;
+        public int Radius = 12;
+        public float Edge = 2f;
+        bool _hot;
+        bool _down;
+
+        public ToonButton(Font font, Color fill, Color text)
+        {
+            _font = font;
+            Fill = fill;
+            ForeColor = text;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Opaque, true);
+            Cursor = Cursors.Hand;
+            Font = font;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+        }
+
+        void PaintBackdrop(Graphics g)
+        {
+            var parent = Parent;
+            if (parent == null)
+            {
+                g.Clear(SystemColors.Control);
+                return;
+            }
+            g.Clear(parent.BackColor);
+            var state = g.Save();
+            g.TranslateTransform(-Left, -Top);
+            var panel = parent as RoundPanel;
+            if (panel != null)
+                panel.PaintSurface(g);
+            else
+            {
+                var args = new PaintEventArgs(g, new Rectangle(Left, Top, Width, Height));
+                InvokePaintBackground(parent, args);
+            }
+            g.Restore(state);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            PaintBackdrop(g);
+            var fill = Fill;
+            if (!Enabled)
+                fill = Color.FromArgb(186, 196, 208);
+            else if (_hot && !_down)
+                fill = ControlPaint.Light(Fill, 0.12f);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            var shift = _down ? 1 : 0;
+            var pad = Edge > 0f ? (int)Math.Ceiling(Edge / 2f) : 1;
+            var rect = new Rectangle(pad, pad + shift, Math.Max(2, Width - pad * 2), Math.Max(2, Height - pad * 2 - shift));
+            using (var path = Shape.Round(rect, Radius))
+            using (var brush = new SolidBrush(fill))
+            {
+                g.FillPath(brush, path);
+                if (Edge > 0f)
+                {
+                    using (var pen = new Pen(Color.FromArgb(18, 38, 74), Edge))
+                    {
+                        pen.LineJoin = LineJoin.Round;
+                        g.DrawPath(pen, path);
+                    }
+                }
+                if (rect.Width > 48 && rect.Height > 28 && Edge > 0f)
+                {
+                    var band = Math.Max(6, rect.Height / 3);
+                    var gloss = new Rectangle(rect.X + 5, rect.Y + 3, Math.Max(2, rect.Width - 10), band);
+                    var light = ControlPaint.Light(fill, 0.35f);
+                    var saved = g.Save();
+                    g.SetClip(path, CombineMode.Intersect);
+                    using (var shine = Shape.Round(gloss, Math.Min(Radius, band / 2)))
+                    using (var shineBrush = new LinearGradientBrush(gloss, light, fill, LinearGradientMode.Vertical))
+                        g.FillPath(shineBrush, shine);
+                    g.Restore(saved);
+                }
+            }
+            var color = Enabled ? ForeColor : Color.FromArgb(90, 98, 112);
+            if (!DrawMark(g, rect, color))
+                TextRenderer.DrawText(g, Text, _font, rect, color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+
+        bool DrawMark(Graphics g, Rectangle rect, Color color)
+        {
+            var mark = Text;
+            var chevron = mark == "<" || mark == ">";
+            var dash = mark == "–" || mark == "-";
+            var cross = mark == "×";
+            if (!chevron && !dash && !cross)
+                return false;
+            var cx = rect.Left + rect.Width / 2f;
+            var cy = rect.Top + rect.Height / 2f;
+            using (var pen = new Pen(color, 2.25f))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                pen.LineJoin = LineJoin.Round;
+                if (chevron)
+                {
+                    var dir = mark == "<" ? 1f : -1f;
+                    g.DrawLines(pen, new[]
+                    {
+                        new PointF(cx + dir * 3.5f, cy - 5f),
+                        new PointF(cx - dir * 3.5f, cy),
+                        new PointF(cx + dir * 3.5f, cy + 5f)
+                    });
+                }
+                else if (dash)
+                    g.DrawLine(pen, cx - 5f, cy, cx + 5f, cy);
+                else
+                {
+                    g.DrawLine(pen, cx - 4.5f, cy - 4.5f, cx + 4.5f, cy + 4.5f);
+                    g.DrawLine(pen, cx + 4.5f, cy - 4.5f, cx - 4.5f, cy + 4.5f);
+                }
+            }
+            return true;
         }
 
         protected override void OnMouseEnter(EventArgs e)
         {
-            _hovering = true;
+            _hot = true;
             Invalidate();
             base.OnMouseEnter(e);
         }
 
         protected override void OnMouseLeave(EventArgs e)
         {
-            _hovering = false;
-            _pressed = false;
+            _hot = false;
+            _down = false;
             Invalidate();
             base.OnMouseLeave(e);
         }
@@ -749,7 +1629,7 @@ namespace ToontownLauncher
         {
             if (e.Button == MouseButtons.Left)
             {
-                _pressed = true;
+                _down = true;
                 Invalidate();
             }
             base.OnMouseDown(e);
@@ -757,103 +1637,96 @@ namespace ToontownLauncher
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
-            var fire = _pressed && e.Button == MouseButtons.Left && ClientRectangle.Contains(e.Location);
-            _pressed = false;
+            _down = false;
             Invalidate();
             base.OnMouseUp(e);
-            if (fire)
-                OnClick(EventArgs.Empty);
         }
     }
 
-    static class NineSlice
+    sealed class PatchBar : Control
     {
-        public static void Draw(Graphics graphics, Image image, Rectangle dest, int left, int right, int top, int bottom)
+        readonly Font _font;
+        int _value;
+        int _shift;
+        string _caption = "";
+
+        public PatchBar(Font font)
         {
-            Draw(graphics, image, dest, left, right, top, bottom, null);
+            _font = font;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            Font = font;
         }
 
-        public static void DrawFaded(Graphics graphics, Image image, Rectangle dest, int left, int right, int top, int bottom)
+        protected override void OnSizeChanged(EventArgs e)
         {
-            using (var attributes = new ImageAttributes())
-            {
-                var matrix = new ColorMatrix();
-                matrix.Matrix00 = 0.6f;
-                matrix.Matrix11 = 0.6f;
-                matrix.Matrix22 = 0.6f;
-                matrix.Matrix33 = 1f;
-                attributes.SetColorMatrix(matrix);
-                Draw(graphics, image, dest, left, right, top, bottom, attributes);
-            }
-        }
-
-        static void Draw(Graphics graphics, Image image, Rectangle dest, int left, int right, int top, int bottom, ImageAttributes attributes)
-        {
-            if (dest.Width <= 0 || dest.Height <= 0)
+            base.OnSizeChanged(e);
+            if (Width < 2 || Height < 2)
                 return;
-            var dl = Math.Min(left, dest.Width / 2);
-            var dr = Math.Min(right, dest.Width - dl);
-            var dt = Math.Min(top, dest.Height / 2);
-            var db = Math.Min(bottom, dest.Height - dt);
-            var sw = image.Width;
-            var sh = image.Height;
-            var sl = Math.Min(left, sw / 2);
-            var sr = Math.Min(right, sw - sl);
-            var st = Math.Min(top, sh / 2);
-            var sb = Math.Min(bottom, sh - st);
-            var cells = new int[,]
+            var radius = Height / 2;
+            using (var path = Shape.Round(new Rectangle(0, 0, Width, Height), radius))
+                Region = new Region(path);
+        }
+
+        public int Value
+        {
+            get { return _value; }
+            set
             {
-                { 0, 0, sl, st, dest.X, dest.Y, dl, dt },
-                { sl, 0, sw - sl - sr, st, dest.X + dl, dest.Y, dest.Width - dl - dr, dt },
-                { sw - sr, 0, sr, st, dest.Right - dr, dest.Y, dr, dt },
-                { 0, st, sl, sh - st - sb, dest.X, dest.Y + dt, dl, dest.Height - dt - db },
-                { sl, st, sw - sl - sr, sh - st - sb, dest.X + dl, dest.Y + dt, dest.Width - dl - dr, dest.Height - dt - db },
-                { sw - sr, st, sr, sh - st - sb, dest.Right - dr, dest.Y + dt, dr, dest.Height - dt - db },
-                { 0, sh - sb, sl, sb, dest.X, dest.Bottom - db, dl, db },
-                { sl, sh - sb, sw - sl - sr, sb, dest.X + dl, dest.Bottom - db, dest.Width - dl - dr, db },
-                { sw - sr, sh - sb, sr, sb, dest.Right - dr, dest.Bottom - db, dr, db }
-            };
-            for (var i = 0; i < 9; i++)
-            {
-                if (cells[i, 2] <= 0 || cells[i, 3] <= 0 || cells[i, 6] <= 0 || cells[i, 7] <= 0)
-                    continue;
-                var src = new Rectangle(cells[i, 0], cells[i, 1], cells[i, 2], cells[i, 3]);
-                var dst = new Rectangle(cells[i, 4], cells[i, 5], cells[i, 6], cells[i, 7]);
-                if (attributes == null)
-                    graphics.DrawImage(image, dst, src, GraphicsUnit.Pixel);
-                else
-                    graphics.DrawImage(image, dst, src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, attributes);
+                _value = value;
+                Invalidate();
             }
         }
 
-        public static Bitmap Render(Image image, Size size, int left, int right, int top, int bottom)
+        public string Caption
         {
-            var bitmap = new Bitmap(Math.Max(1, size.Width), Math.Max(1, size.Height));
-            using (var graphics = Graphics.FromImage(bitmap))
+            get { return _caption; }
+            set
             {
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                Draw(graphics, image, new Rectangle(0, 0, bitmap.Width, bitmap.Height), left, right, top, bottom);
+                _caption = value ?? "";
+                Invalidate();
             }
-            return bitmap;
         }
 
-        public static void DrawRound(Graphics graphics, Pen pen, Rectangle rect, int radius)
+        public void Nudge()
         {
-            using (var path = Round(rect, radius))
-                graphics.DrawPath(pen, path);
+            _shift = (_shift + 3) % 36;
+            Invalidate();
         }
 
-        static GraphicsPath Round(Rectangle rect, int radius)
+        protected override void OnPaintBackground(PaintEventArgs e)
         {
-            var path = new GraphicsPath();
-            var d = radius * 2;
-            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-            path.CloseFigure();
-            return path;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (var path = Shape.Round(rect, Height / 2))
+            {
+                using (var track = new SolidBrush(Color.FromArgb(18, 38, 74)))
+                    g.FillPath(track, path);
+                var inner = new Rectangle(3, 3, Width - 7, Height - 7);
+                var fillWidth = (inner.Width * _value) / 100;
+                if (fillWidth > 0)
+                {
+                    var fill = new Rectangle(inner.X, inner.Y, Math.Max(fillWidth, inner.Height), inner.Height);
+                    if (fill.Right > inner.Right)
+                        fill.Width = inner.Width;
+                    g.SetClip(path);
+                    using (var bar = Shape.Round(fill, Math.Max(1, inner.Height / 2)))
+                    using (var brush = new SolidBrush(Color.FromArgb(40, 209, 56)))
+                        g.FillPath(brush, bar);
+                    using (var pen = new Pen(Color.FromArgb(90, 255, 255, 255), 4f))
+                    {
+                        for (var x = -36 + _shift; x < fill.Right; x += 16)
+                            g.DrawLine(pen, x, fill.Bottom, x + fill.Height, fill.Top);
+                    }
+                    g.ResetClip();
+                }
+            }
+            TextRenderer.DrawText(g, _caption, _font, rect, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
     }
 }
