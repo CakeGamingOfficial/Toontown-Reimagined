@@ -190,9 +190,19 @@ func is_open() -> bool:
 
 
 func speed_center() -> Vector2:
-	if _speed_btn == null:
-		return Vector2.ZERO
-	return _speed_btn.get_global_rect().get_center()
+	return speed_rect().get_center()
+
+
+func speed_rect() -> Rect2:
+	if _speed_btn == null or not is_instance_valid(_speed_btn):
+		return Rect2()
+	return _speed_btn.get_global_rect()
+
+
+func entry_rect() -> Rect2:
+	if _entry == null or not _entry.is_visible_in_tree():
+		return speed_rect()
+	return _entry.get_global_rect()
 
 
 func set_chat_live(live: bool) -> void:

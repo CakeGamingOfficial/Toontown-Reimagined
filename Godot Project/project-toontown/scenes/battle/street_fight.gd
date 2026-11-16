@@ -60,6 +60,9 @@ var _in_it := false
 var _clock_key := ""
 var _clock_left := 0.0
 var _clock_age := 0.0
+var _line_key := ""
+var _line_left := 0.0
+var _line_age := 0.0
 var _ask_wait := 0.0
 var _saved_fov := -1.0
 var _reward_seq := -1
@@ -1313,14 +1316,32 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 	elif faceoff:
 		_walk_toons(fight, toon, delta)
 	else:
+		var along := _lineup_along(fight, delta)
 		for member in fight.get("toons", []):
 			var row: Dictionary = member
-			var spot := _vec(row.get("slot", []))
-			var facing := _line_heading(row, spot, cog_center)
-			if int(row.get("id", 0)) == ToonNet.peer_id():
+			if bool(row.get("running", false)):
+				continue
+			var slot := _vec(row.get("slot", []))
+			var start := slot
+			if row.has("from"):
+				start = _vec(row.get("from"))
+			var spot := start.lerp(slot, along)
+			var moving := along < 1.0 and Vector2(slot.x - start.x, slot.z - start.z).length() > 0.08
+			var facing := _yaw(start, slot) if moving else _line_heading(row, spot, cog_center)
+			var peer := int(row.get("id", 0))
+			var actor: ToonActor = null
+			if peer == ToonNet.peer_id():
 				toon.call("place_for_battle", spot, facing)
+				actor = toon.call("battle_actor")
 			else:
-				toon.call("pin_remote", int(row.get("id", 0)), spot, facing)
+				toon.call("pin_remote", peer, spot, facing)
+				actor = toon.call("remote_actor", peer)
+			if actor == null:
+				continue
+			if moving:
+				actor.set_locomotion(9.0, false, false, delta)
+			elif row.has("from"):
+				actor.set_locomotion(0.0, false, false, delta)
 	for suit_row in fight.get("cogs", []):
 		var suit: Dictionary = suit_row
 		var stand := _vec(suit.get("slot", []))
@@ -1675,9 +1696,27 @@ func fight_rows_for(track: int, level: int) -> Array:
 	return _fight.get("cogs", [])
 
 
+func _lineup_along(fight: Dictionary, delta: float) -> float:
+	var total := float(fight.get("adjust_for", 0.0))
+	if total <= 0.05:
+		return 1.0
+	var posted := float(fight.get("adjust", 0.0))
+	var key := "%s:%s" % [fight.get("id", 0), fight.get("adjust_id", 0)]
+	if key != _line_key:
+		_line_key = key
+		_line_left = posted
+		_line_age = 0.0
+	elif absf(posted - (_line_left - _line_age)) > 0.35:
+		_line_left = posted
+		_line_age = 0.0
+	else:
+		_line_age += delta
+	return clampf(1.0 - maxf(_line_left - _line_age, 0.0) / total, 0.0, 1.0)
+
+
 func _seconds(fight: Dictionary, delta: float) -> int:
 	var state := String(fight.get("state", ""))
-	if state != "input":
+	if state != "input" or float(fight.get("adjust", 0.0)) > 0.0:
 		return -1
 	var key := "%s:%s" % [fight.get("id", 0), fight.get("seq", 0)]
 	var posted := float(fight.get("left", 0.0))

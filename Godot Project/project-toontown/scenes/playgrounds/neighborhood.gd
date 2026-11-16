@@ -8,6 +8,7 @@ extends Node3D
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
 const _FIREWORK_SHOW := preload("res://scenes/effects/firework_show.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
+const _DRESSING := preload("res://scenes/playgrounds/holiday_dressing.gd")
 const _BACKDROP := preload("res://scenes/sky/cog_backdrop.gdshader")
 const _DOORS := preload("res://scenes/interiors/house_door.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
@@ -147,6 +148,8 @@ func _process(_delta: float) -> void:
 		return
 	_process_billboards(camera)
 	_watch_fireworks()
+	if _DRESSING.follow(self):
+		_ready_billboards()
 
 
 func show_fireworks(show_name: String, at: int = -1, delay: float = 0.0) -> void:
@@ -438,6 +441,7 @@ func _polygon_area(polygon: PackedVector2Array) -> float:
 
 
 func _ready_billboards() -> void:
+	_billboards.clear()
 	_collect_billboards(self)
 
 

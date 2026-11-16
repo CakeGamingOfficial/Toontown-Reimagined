@@ -547,15 +547,18 @@ func _place_camera() -> void:
 	var pitch := deg_to_rad(_cam_pitch)
 	var horizontal := distance * cos(pitch)
 	var cam := target - forward * horizontal + Vector3(0.0, distance * sin(pitch), 0.0)
-	# Behind the toon here is the shop wall. Stay on the sidewalk and keep the
-	# toon in the middle of the picture.
+	# Behind the toon here is the shop wall. Shorten that line until the camera
+	# clears the wall, so it stays behind them instead of swinging to their side.
 	if not _in_toms_shop() and not _plaza and cam.x > -20.6:
-		cam.x = -20.6
-		var dx := cam.x - target.x
-		var spare := horizontal * horizontal - dx * dx
-		if spare < 1.0:
-			spare = 1.0
-		cam.z = target.z - sqrt(spare)
+		var wall_x := -20.6
+		if absf(forward.x) > 0.05:
+			var pull := clampf((target.x - wall_x) / forward.x, 1.5, horizontal)
+			var lift := 0.0
+			if horizontal > 0.01:
+				lift = distance * sin(pitch) * (pull / horizontal)
+			cam = target - forward * pull + Vector3(0.0, lift, 0.0)
+		if cam.x > wall_x:
+			cam.x = wall_x
 	_camera.global_position = cam
 	if cam.distance_squared_to(target) > 0.04:
 		_camera.look_at(target, Vector3.UP)
@@ -1377,14 +1380,12 @@ func _exterior_shop_door() -> Node3D:
 	return _find(_shop, "door_double_round_ur")
 
 
-## One still frame in front of the face. The distance matches the player camera,
-## and the point is taken from the sidewalk spot, not the moving head.
+## avatarExitTrack. The camera sits five units back through the doorway at eye
+## height, heading out, so the toon walks away from it onto the sidewalk.
 func _hold_shop_exit(stand: Vector3) -> void:
-	var distance := 9.0 * (_eye_height / 3.0)
-	if distance < 8.0:
-		distance = 8.0
+	var outward := Vector3(-1.0, 0.0, 0.0)
 	_exit_shot_look = stand + Vector3(0.0, _eye_height, 0.0)
-	_exit_shot_pos = _exit_shot_look + Vector3(-distance, 0.0, 0.0)
+	_exit_shot_pos = _exit_shot_look - outward * 5.0
 	_exit_cam = true
 	_frame_shop_exit()
 

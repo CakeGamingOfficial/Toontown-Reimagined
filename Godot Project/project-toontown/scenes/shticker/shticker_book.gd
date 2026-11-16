@@ -325,8 +325,20 @@ func button_center() -> Vector2:
 	return _button.get_global_rect().get_center()
 
 
+func button_rect() -> Rect2:
+	if _button == null:
+		return Rect2()
+	return _button.get_global_rect()
+
+
 func turn_center() -> Vector2:
 	return _next.get_global_rect().get_center()
+
+
+func turn_rect() -> Rect2:
+	if _next == null:
+		return Rect2()
+	return _next.get_global_rect()
 
 
 func cover_rect() -> Rect2:

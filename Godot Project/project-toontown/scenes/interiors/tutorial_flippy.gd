@@ -55,8 +55,6 @@ func play(host: Node, flippy: ToonActor) -> void:
 	if host.has_method("hold_camera"):
 		host.call("hold_camera", true)
 	_duck_music()
-	if _camera:
-		_camera.keep_aspect = Camera3D.KEEP_HEIGHT
 	_aim_close()
 	var toon := _toon()
 	if toon:
@@ -201,25 +199,25 @@ func _place_player() -> void:
 func _aim_close() -> void:
 	if _camera == null or not is_instance_valid(_flippy):
 		return
-	var eyes := _flippy.global_position + Vector3(0.0, 3.15, 0.0)
-	var head := _find(_flippy, "def_head")
-	if head:
-		eyes = head.global_position + Vector3(0.0, 0.12, 0.0)
+	# tutorial_blocker: camera on Flippy at (0, 6, 4), HPR (180, 0, 0).
 	var forward := _basis(FLIPPY_HEADING) * Vector3(0, 1, 0)
-	_camera.global_position = eyes + forward * 2.45
-	_camera.look_at(eyes, Vector3.UP)
+	var cam := _flippy.global_position + forward * 6.0 + Vector3(0.0, 4.0, 0.0)
+	_camera.global_position = cam
+	_camera.look_at(cam - forward, Vector3.UP)
 
 
 func _aim_wide() -> void:
-	if _camera == null or not is_instance_valid(_flippy) or _host == null:
+	if _camera == null or not is_instance_valid(_flippy):
 		return
-	var body := _host.get_node_or_null("Player") as Node3D
-	var feet := _flippy.global_position
-	if body:
-		feet = (body.global_position + _flippy.global_position) * 0.5
-	var side := _basis(FLIPPY_HEADING) * Vector3(1, 0, 0)
-	_camera.global_position = feet + side * 8.0 + Vector3(0.0, 3.4, 0.0)
-	_camera.look_at(feet + Vector3(0.0, 2.1, 0.0), Vector3.UP)
+	# Same movie, still on Flippy: (-5, -9, 6), HPR (-25, -10, 0).
+	var right := _basis(FLIPPY_HEADING) * Vector3(1, 0, 0)
+	var forward := _basis(FLIPPY_HEADING) * Vector3(0, 1, 0)
+	var cam := _flippy.global_position + right * -5.0 + forward * -9.0 + Vector3(0.0, 6.0, 0.0)
+	var face := _basis(FLIPPY_HEADING - 25.0) * Vector3(0, 1, 0)
+	var pitch := deg_to_rad(10.0)
+	var look := face * cos(pitch) - Vector3.UP * sin(pitch)
+	_camera.global_position = cam
+	_camera.look_at(cam + look, Vector3.UP)
 
 
 func _run_off() -> void:
@@ -261,9 +259,10 @@ func _aim_button() -> void:
 	if chat == null:
 		return
 	# tutorial_blocker: ARROWS_ON -0.92 0.91 180  -1.12 0.74 -90, from the
-	# SpeedChat button at (-1.129, 0.928). Roll 180 points left, -90 points up.
+	# SpeedChat button at (-1.129, 0.928). That button is 0.15 aspect units.
+	# Roll 180 points left, -90 points up.
 	_arrow_mode = "button"
-	_place_arrows(chat.speed_center())
+	_place_arrows(chat.speed_rect(), 0.15)
 
 
 func _aim_entry() -> void:
@@ -271,7 +270,10 @@ func _aim_entry() -> void:
 	if chat == null:
 		return
 	_arrow_mode = "entry"
-	_place_arrows(chat.entry_center())
+	var rect := chat.entry_rect()
+	var side := rect.size.y
+	var at := Rect2(rect.position.x, rect.position.y, side, side)
+	_place_arrows(at, 0.15)
 
 
 func _arrows_off() -> void:
@@ -300,15 +302,20 @@ func _make_arrow() -> TextureRect:
 	return arrow
 
 
-## offsets are aspect2d (x, z) from the target. Positive z is up the screen.
-func _place_arrows(at: Vector2) -> void:
-	if _host == null:
+## offsets are aspect2d (x, z) from the original 0.15 button. card is that size.
+func _place_arrows(rect: Rect2, card: float) -> void:
+	if _host == null or card <= 0.0:
 		return
 	_ensure_arrows()
 	if _arrows.size() < 2:
 		return
+	var side := minf(rect.size.x, rect.size.y)
+	if side < 1.0:
+		return
 	var unit := _host.get_viewport().get_visible_rect().size.y * 0.5
-	var pixels := _ARROW_SCALE * unit
+	var fit := side / (card * unit)
+	var pixels := _ARROW_SCALE * unit * fit
+	var at := rect.get_center()
 	var alpha := _blink_alpha()
 	var offsets: Array[Vector2] = [Vector2(0.209, -0.018), Vector2(0.009, -0.188)]
 	var rolls: Array[float] = [180.0, -90.0]
@@ -319,7 +326,7 @@ func _place_arrows(at: Vector2) -> void:
 		arrow.size = Vector2(pixels, pixels)
 		arrow.pivot_offset = arrow.size * 0.5
 		arrow.rotation_degrees = rolls[index]
-		arrow.global_position = at + Vector2(shift.x * unit, -shift.y * unit) - arrow.pivot_offset
+		arrow.global_position = at + Vector2(shift.x, -shift.y) * unit * fit - arrow.pivot_offset
 		arrow.modulate = Color(1, 1, 1, alpha)
 
 

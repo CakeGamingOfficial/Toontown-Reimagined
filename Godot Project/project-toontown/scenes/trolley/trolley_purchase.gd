@@ -332,6 +332,7 @@ func _build_party_cards() -> void:
 		beans.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		beans.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		beans.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		beans.z_index = 1
 		_gui.add_child(beans)
 		_party_beans.append(beans)
 
@@ -578,6 +579,8 @@ func _place_rows() -> void:
 func _animate(delta: float) -> void:
 	_age += delta
 	_read_scores()
+	if _local_slot >= 0 and _local_slot < _party_reward.size():
+		_party_reward[_local_slot] = reward
 	var up_end := _WAIT + _COUNT
 	var hold_end := up_end + _HOLD
 	var down_end := hold_end + _COUNT
@@ -615,15 +618,17 @@ func _animate(delta: float) -> void:
 		_cheered = true
 		_grant()
 		_jar_shown = _BEANS.pouch()
-		if _local_slot < _party_beans.size():
-			_party_beans[_local_slot].text = str(_jar_shown)
-			_paint_one(_party_beans[_local_slot], _jar_shown, _party_limit[_local_slot])
 		_effect("MG_win")
 	elif changed and _age >= _WAIT:
 		var limit := _BEANS.pouch_limit()
 		if _local_slot < _party_limit.size():
 			limit = _party_limit[_local_slot]
 		_tick(_age >= hold_end and local_jar >= limit)
+	if _cheered and _local_slot >= 0 and _local_slot < _party_beans.size():
+		_party_beans[_local_slot].text = str(_jar_shown)
+		var shown_cap := _party_limit[_local_slot] if _local_slot < _party_limit.size() else _BEANS.pouch_limit()
+		_paint_one(_party_beans[_local_slot], _jar_shown, shown_cap)
+	_beans.text = str(_jar_shown)
 
 
 func _counter_at(age: float, beans: int) -> int:
@@ -645,9 +650,16 @@ func _jar_at(age: float, index: int, counter: int) -> int:
 	var hold_end := _WAIT + _COUNT + _HOLD
 	var start := _party_pouch[index]
 	var cap := _party_limit[index]
+	if cap < 1:
+		cap = 1
+	# Purchase._changeCounterDown. The score that leaves the card is the same
+	# number that lands in the jar, and a full jar stops at its limit.
 	if age < hold_end:
-		return start
-	return mini(start + (_party_reward[index] - counter), cap)
+		return mini(start, cap)
+	var earned := _party_reward[index] - counter
+	if earned < 0:
+		earned = 0
+	return mini(start + earned, cap)
 
 
 func _read_scores() -> void:
@@ -665,8 +677,10 @@ func _read_scores() -> void:
 		var info: Dictionary = row
 		if not info.has("beans"):
 			continue
-		_party_reward[index] = int(info["beans"])
-		_party_pouch[index] = int(info.get("pouch", _party_pouch[index]))
+		var pouring := _age >= _WAIT + _COUNT + _HOLD
+		if not pouring:
+			_party_reward[index] = int(info["beans"])
+			_party_pouch[index] = int(info.get("pouch", _party_pouch[index]))
 		_party_limit[index] = maxi(int(info.get("limit", _party_limit[index])), 1)
 
 
@@ -763,7 +777,6 @@ func _toggle_delete() -> void:
 
 func _refresh() -> void:
 	_jar_shown = _BEANS.pouch()
-	_beans.text = str(_jar_shown)
 	_paint_jar()
 	_paint_pouch()
 	for track in ToonLoadout.TRACK_COUNT:
@@ -818,6 +831,9 @@ func _paint_pouch() -> void:
 
 
 func _paint_jar() -> void:
+	if _beans == null:
+		return
+	_beans.text = str(_jar_shown)
 	var full := _jar_shown >= _BEANS.pouch_limit()
 	ToonGui.style_title(_beans, Color(1, 0, 0) if full else Color(0.95, 0.95, 0.0), _px_of(0.2 if _shopping else 0.1))
 

@@ -16,6 +16,8 @@ const REWARD_TIME := 120.0
 const FLOOR_REWARD_TIME := 4.0
 const FACEOFF_TAUNT_T := 3.5
 const SUIT_SPEED := 4.8
+## BattleBase.toonSpeed. createAdjustInterval runs the remaining toons at this.
+const TOON_SPEED := 8.0
 const MAX_TOONS := 4
 const MAX_COGS := 4
 const NEAR_COG := 15.0
@@ -430,7 +432,8 @@ func _begin_run(fight: Dictionary, peer: int) -> void:
 	toon["running"] = true
 	toon["run_left"] = 3.3
 	_clear_redo(fight, peer)
-	_place(fight)
+	# enterAdjusting. The lineup walks. The choice clock stays down until it arrives.
+	_lineup(fight)
 	_mark(fight)
 
 
@@ -518,6 +521,64 @@ func _has_standing(fight: Dictionary) -> bool:
 	return false
 
 
+func _lineup(fight: Dictionary) -> void:
+	var along := 1.0
+	var total := float(fight.get("adjust_for", 0.0))
+	if total > 0.05:
+		along = clampf(1.0 - float(fight.get("adjust", 0.0)) / total, 0.0, 1.0)
+	var starts: Dictionary = {}
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var body: Dictionary = item
+		var slot := _point(body.get("slot", []))
+		var origin := slot
+		if body.has("from"):
+			origin = _point(body.get("from")).lerp(slot, along)
+		starts[int(body.get("id", 0))] = origin
+	_place(fight)
+	var longest := 0.0
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var body: Dictionary = item
+		var who := int(body.get("id", 0))
+		if bool(body.get("running", false)):
+			body.erase("from")
+			continue
+		var origin: Vector3 = starts.get(who, _point(body.get("slot", [])))
+		var dest := _point(body.get("slot", []))
+		var dist := Vector2(dest.x - origin.x, dest.z - origin.z).length()
+		if dist < 0.05:
+			body.erase("from")
+			continue
+		body["from"] = [origin.x, origin.y, origin.z]
+		longest = maxf(longest, dist / TOON_SPEED)
+	fight["adjust"] = longest
+	fight["adjust_for"] = longest
+	fight["adjust_id"] = int(fight.get("adjust_id", 0)) + 1
+	# A toon who was already on their mark still gets a fresh clock, the way exitAdjusting calls startTimer.
+	if longest <= 0.0 and String(fight.get("state", "")) == "input":
+		fight["left"] = INPUT_TIME
+
+
+func _finish_adjust(fight: Dictionary) -> void:
+	fight["adjust"] = 0.0
+	for item in fight.get("toons", []):
+		if item is Dictionary:
+			(item as Dictionary).erase("from")
+	if String(fight.get("state", "")) == "input":
+		fight["left"] = INPUT_TIME
+	_mark(fight)
+
+
+func _any_running(fight: Dictionary) -> bool:
+	for item in fight.get("toons", []):
+		if item is Dictionary and bool((item as Dictionary).get("running", false)):
+			return true
+	return false
+
+
 func _tick(fight: Dictionary, delta: float) -> void:
 	var state := String(fight.get("state", ""))
 	if state == "gone" or state == "":
@@ -525,7 +586,14 @@ func _tick(fight: Dictionary, delta: float) -> void:
 	_age_runs(fight, delta)
 	if String(fight.get("state", "")) == "gone":
 		return
-	fight["left"] = maxf(float(fight.get("left", 0.0)) - delta, 0.0)
+	# exitAdjusting restarts the choice clock once the lineup has arrived.
+	# __serverRunDone waits out the hole before the next movie can start.
+	if float(fight.get("adjust", 0.0)) > 0.0:
+		fight["adjust"] = maxf(float(fight.get("adjust", 0.0)) - delta, 0.0)
+		if float(fight.get("adjust", 0.0)) <= 0.0:
+			_finish_adjust(fight)
+	else:
+		fight["left"] = maxf(float(fight.get("left", 0.0)) - delta, 0.0)
 	if state == "faceoff" or state == "input":
 		fight["pulse"] = float(fight.get("pulse", 0.0)) + delta
 		if float(fight["pulse"]) >= 0.5:
@@ -544,6 +612,8 @@ func _tick(fight: Dictionary, delta: float) -> void:
 			return
 		# Everyone still here is in the hole. Wait out TOON_RUN_T, then end the fight.
 		if not _has_standing(fight):
+			return
+		if float(fight.get("adjust", 0.0)) > 0.0 or _any_running(fight):
 			return
 		if float(fight["left"]) <= 0.0 or _all_chosen(fight):
 			_resolve(fight)

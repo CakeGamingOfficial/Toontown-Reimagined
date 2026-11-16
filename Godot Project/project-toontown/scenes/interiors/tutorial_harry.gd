@@ -547,19 +547,32 @@ func _aim_button() -> void:
 	if book == null:
 		return
 	book.arm_open()
-	# quest_assign_110: ARROWS_ON 0.92 -0.89 0  1.22 -0.64 90, measured from the
-	# book button at (1.175, -0.83). Roll 0 points right, roll 90 points down.
+	# quest_assign_110: ARROWS_ON 0.92 -0.89 0  1.22 -0.64 90, from the
+	# book button at (1.175, -0.83). That button is a 0.305 card. Roll 0
+	# points right, roll 90 points down.
+	var rect := book.button_rect()
+	if not book.is_open():
+		rect = _closed_art(rect)
 	_arrow_mode = "button"
-	_place_arrows(book.button_center(), [Vector2(-0.255, -0.06), Vector2(0.045, 0.19)], [0.0, 90.0])
+	_place_arrows(rect, 0.305, [Vector2(-0.255, -0.06), Vector2(0.045, 0.19)], [0.0, 90.0])
+
+
+## BookIcon_CLSD is 102 by 72, and the drawn book sits in the lower right.
+func _closed_art(rect: Rect2) -> Rect2:
+	var tex := Vector2(102.0, 72.0)
+	var art := Rect2(41.0, 26.0, 59.0, 46.0)
+	var origin := rect.position + Vector2(art.position.x / tex.x, art.position.y / tex.y) * rect.size
+	var size := Vector2(art.size.x / tex.x, art.size.y / tex.y) * rect.size
+	return Rect2(origin, size)
 
 
 func _aim_page() -> void:
 	var book := _book()
 	if book == null:
 		return
-	# Both arrows sit on the next-page button (0.838, -0.661) at roll -90, so they point up.
+	# Both arrows sit on the next-page button (0.838, -0.661), a 0.1 card, at roll -90.
 	_arrow_mode = "page"
-	_place_arrows(book.turn_center(), [Vector2(0.012, -0.089), Vector2(0.012, -0.089)], [-90.0, -90.0])
+	_place_arrows(book.turn_rect(), 0.1, [Vector2(0.012, -0.089), Vector2(0.012, -0.089)], [-90.0, -90.0])
 
 
 func _arrows_off() -> void:
@@ -588,16 +601,22 @@ func _make_arrow(book: ShtickerBook) -> TextureRect:
 	return arrow
 
 
-## offsets are aspect2d (x, z) from the target's center. Positive z is up the screen.
-func _place_arrows(at: Vector2, offsets: Array, rolls: Array) -> void:
+## offsets are aspect2d (x, z) from the original card. card is that card's size.
+## The same fraction of the rect on screen keeps the tips on the button.
+func _place_arrows(rect: Rect2, card: float, offsets: Array, rolls: Array) -> void:
 	var book := _book()
-	if book == null or _host == null:
+	if book == null or _host == null or card <= 0.0:
 		return
 	_ensure_arrows(book)
 	if _arrows.size() < 2:
 		return
+	var side := minf(rect.size.x, rect.size.y)
+	if side < 1.0:
+		return
 	var unit := _host.get_viewport().get_visible_rect().size.y * 0.5
-	var pixels := _ARROW_SCALE * unit
+	var fit := side / (card * unit)
+	var pixels := _ARROW_SCALE * unit * fit
+	var at := rect.get_center()
 	var alpha := _blink_alpha()
 	for index in 2:
 		var arrow := _arrows[index]
@@ -606,7 +625,7 @@ func _place_arrows(at: Vector2, offsets: Array, rolls: Array) -> void:
 		arrow.size = Vector2(pixels, pixels)
 		arrow.pivot_offset = arrow.size * 0.5
 		arrow.rotation_degrees = float(rolls[index])
-		arrow.global_position = at + Vector2(shift.x * unit, -shift.y * unit) - arrow.pivot_offset
+		arrow.global_position = at + Vector2(shift.x, -shift.y) * unit * fit - arrow.pivot_offset
 		arrow.modulate = Color(1, 1, 1, alpha)
 
 
