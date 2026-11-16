@@ -34,6 +34,7 @@ const _TROLLEY_MANY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 const _CONFIG := "res://scenes/net/districts.json"
 const _TOON := preload("res://scenes/playgrounds/playground_toon.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
+const _PICNIC := preload("res://scenes/playgrounds/picnic_match.gd")
 
 var _districts: Array[Dictionary] = []
 var _here := 1
@@ -257,6 +258,22 @@ static func peer_id() -> int:
 	if net == null or net._role == "offline":
 		return 1
 	return net.multiplayer.get_unique_id()
+
+
+static func online() -> bool:
+	var net := live()
+	return net != null and net._role != "offline"
+
+
+static func picnic_act(table: int, action: String, payload: Dictionary) -> void:
+	var net := live()
+	if net == null or net._role == "offline":
+		return
+	if is_authority():
+		net._picnic(net._self_peer(), table, action, payload)
+		return
+	if net._role == "client":
+		net._picnic_act.rpc_id(1, table, action, payload)
 
 
 static func publish(channel: String, state: Dictionary) -> void:
@@ -738,6 +755,7 @@ func _process(delta: float) -> void:
 		_tick_vp_district(delta)
 		_tick_cfo_district(delta)
 		_tick_cj_district(delta)
+		_tick_picnic()
 	_tick_clock(delta)
 	if _stop_file == "" or _shutdown_started:
 		return
@@ -1933,6 +1951,52 @@ func _trolley_seat_owner(place: String, index: int) -> int:
 	return int(row[index])
 
 
+func _picnic(peer: int, table: int, action: String, payload: Dictionary) -> void:
+	if not is_authority() or table < 0 or table > 2 or peer <= 0:
+		return
+	var district := district_id()
+	if peer != _self_peer() and _peers.has(peer):
+		district = int(_peers[peer])
+	var channel := "picnic:%d:%d" % [district, table]
+	var now := int(Time.get_unix_time_from_system() * 1000.0)
+	var next: Dictionary = _PICNIC.act(latest(channel), peer, action, payload, now)
+	if next.is_empty():
+		return
+	_store(channel, next)
+
+
+func _tick_picnic() -> void:
+	if not is_authority():
+		return
+	var now := int(Time.get_unix_time_from_system() * 1000.0)
+	var channels: Array[String] = []
+	for key in _states.keys():
+		var channel := String(key)
+		if channel.begins_with("picnic:"):
+			channels.append(channel)
+	for channel in channels:
+		var state: Dictionary = _states.get(channel, {})
+		var next: Dictionary = _PICNIC.tick(state, now)
+		if not next.is_empty():
+			_store(channel, next)
+
+
+func _clear_picnic_peer(peer: int) -> void:
+	if not is_authority():
+		return
+	var now := int(Time.get_unix_time_from_system() * 1000.0)
+	var channels: Array[String] = []
+	for key in _states.keys():
+		var channel := String(key)
+		if channel.begins_with("picnic:"):
+			channels.append(channel)
+	for channel in channels:
+		var state: Dictionary = _states.get(channel, {})
+		var next: Dictionary = _PICNIC.act(state, peer, "leave", {}, now)
+		if not next.is_empty():
+			_store(channel, next)
+
+
 func _clear_trolley_peer(peer: int) -> void:
 	if not is_authority():
 		return
@@ -2578,6 +2642,7 @@ func _on_peer_gone(id: int) -> void:
 	MiniGolf.drop_peer(id)
 	_tell_race(id, "drop", {})
 	_clear_trolley_peer(id)
+	_clear_picnic_peer(id)
 	var factory := get_node_or_null("/root/StreetTraffic/FactoryBoard")
 	if factory != null and factory.has_method("drop"):
 		factory.call("drop", id)
@@ -2925,6 +2990,13 @@ func _clock_sample(sent: float, server_unix: float, zone: float) -> void:
 func _set_trolley(game_id: int) -> void:
 	if is_authority():
 		_keep_trolley(multiplayer.get_remote_sender_id(), game_id)
+
+
+@rpc("any_peer", "reliable")
+func _picnic_act(table: int, action: String, payload: Dictionary) -> void:
+	if not is_authority():
+		return
+	_picnic(multiplayer.get_remote_sender_id(), table, action, payload)
 
 
 @rpc("any_peer", "reliable")

@@ -63,6 +63,7 @@ func _ready() -> void:
 		preload("res://scenes/parties/toon_party.gd").place_grounds(self)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
 	preload("res://scenes/playgrounds/fishing_spots.gd").place(self)
+	preload("res://scenes/playgrounds/picnic_tables.gd").place(self)
 	if scene_file_path.ends_with("goofy_speedway.tscn"):
 		preload("res://scenes/racing/speedway_racing.gd").place(self)
 	preload("res://scenes/parties/toon_party.gd").place_gate(self)

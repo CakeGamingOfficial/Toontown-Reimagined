@@ -1,0 +1,152 @@
+{
+ "picnic_game_menu": [
+  {
+   "name": "Btn3_findfourBtnUp",
+   "file": "picnic_game_menu_Btn3_findfourBtnUp_0.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn3_findfourBtnHi",
+   "file": "picnic_game_menu_Btn3_findfourBtnHi_1.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn3_findfourBtnDn",
+   "file": "picnic_game_menu_Btn3_findfourBtnDn_2.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn2_regular_checkersBtnUp",
+   "file": "picnic_game_menu_Btn2_regular_checkersBtnUp_3.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn2_regular_checkersBtnHi",
+   "file": "picnic_game_menu_Btn2_regular_checkersBtnHi_4.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn2_regular_checkersBtnDn",
+   "file": "picnic_game_menu_Btn2_regular_checkersBtnDn_5.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn1_checkersBtnUp",
+   "file": "picnic_game_menu_Btn1_checkersBtnUp_6.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn1_checkersBtnHi",
+   "file": "picnic_game_menu_Btn1_checkersBtnHi_7.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  },
+  {
+   "name": "Btn1_checkersBtnDn",
+   "file": "picnic_game_menu_Btn1_checkersBtnDn_8.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9685,
+   "h": 1.9685
+  }
+ ],
+ "checker_tutorial": [
+  {
+   "name": "tutorialPage1_highlight",
+   "file": "checker_tutorial_tutorialPage1_highlight_0.png",
+   "x": 0.0,
+   "z": 0.0187,
+   "w": 0.0174,
+   "h": 0.0174
+  },
+  {
+   "name": "tutorialPage3_part1",
+   "file": "checker_tutorial_tutorialPage3_part1_1.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 0.0656,
+   "h": 0.0656
+  },
+  {
+   "name": "tutorialPage1_part1",
+   "file": "checker_tutorial_tutorialPage1_part1_2.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 0.0656,
+   "h": 0.0656
+  },
+  {
+   "name": "tutorialPage2_part1",
+   "file": "checker_tutorial_tutorialPage2_part1_3.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 0.0656,
+   "h": 0.0656
+  }
+ ],
+ "regularchecker_tutorial": [
+  {
+   "name": "tutorialPage3_king",
+   "file": "regularchecker_tutorial_tutorialPage3_king_0.png",
+   "x": 0.3302,
+   "z": 0.8189,
+   "w": 0.2428,
+   "h": 0.3301
+  },
+  {
+   "name": "tutorialPage4_part1",
+   "file": "regularchecker_tutorial_tutorialPage4_part1_1.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9963,
+   "h": 1.9963
+  },
+  {
+   "name": "tutorialPage3_part1",
+   "file": "regularchecker_tutorial_tutorialPage3_part1_2.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9963,
+   "h": 1.9963
+  },
+  {
+   "name": "tutorialPage1_part1",
+   "file": "regularchecker_tutorial_tutorialPage1_part1_3.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9963,
+   "h": 1.9963
+  },
+  {
+   "name": "tutorialPage2_part1",
+   "file": "regularchecker_tutorial_tutorialPage2_part1_4.png",
+   "x": 0.0,
+   "z": 0.0,
+   "w": 1.9963,
+   "h": 1.9963
+  }
+ ]
+}

@@ -169,6 +169,7 @@ var _jumping := false
 var _jump_lock := 0.0
 var _locked := true
 var _furniture_layer := 1
+var _table_layer := 1
 var _through_door := false
 var _quest_wait := false
 var _quest_advance := false
@@ -674,6 +675,8 @@ func _process(delta: float) -> void:
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
 	elif _door_cam:
+		pass
+	elif _table_cam():
 		pass
 	elif _furniture_cam():
 		pass
@@ -5489,6 +5492,28 @@ func _dock_laff() -> void:
 	if _meter == null:
 		return
 	_meter.dock(get_viewport().get_visible_rect().size)
+
+
+func table_lock(holding: bool) -> void:
+	_locked = holding
+	if _body == null:
+		return
+	_body.velocity = Vector3.ZERO
+	if holding:
+		_table_layer = _body.collision_layer
+		_body.collision_layer = 0
+	else:
+		_body.collision_layer = _table_layer
+
+
+func _table_cam() -> bool:
+	var tables := get_parent().get_node_or_null("PicnicTables")
+	if tables == null or not tables.has_method("holds_camera"):
+		return false
+	if not bool(tables.call("holds_camera")):
+		return false
+	tables.call("aim", _camera)
+	return true
 
 
 func furniture_lock(holding: bool) -> void:
