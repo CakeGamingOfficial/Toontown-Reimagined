@@ -1,9 +1,10 @@
 extends Node3D
 ## The three Acorn Acres game tables. outdoor_zone_sz.dna places them, and the
 ## first toon to sit picks Chinese Checkers, Checkers, or Find Four.
-## With other toons connected, the first two seats play their own colors and a
-## 20 second countdown starts the game. Alone on one computer, one toon still
-## plays both colors. There is no computer opponent.
+## With other toons connected, Checkers and Find Four use the first two seats.
+## Chinese Checkers uses every seated toon, up to six. A third toon greys out
+## Checkers and Find Four. Alone on one computer, one toon still plays both
+## colors of the two-player game. There is no computer opponent.
 
 const _TABLES := preload("res://assets/neighborhoods/acorn_acres/picnic_tables.glb")
 const _CHECKERS := preload("res://assets/neighborhoods/acorn_acres/regular_checker_game.glb")
@@ -20,7 +21,11 @@ const _REACH := 2.0
 const _TURN := 40.0
 const _LAFF := 20
 const _GREEN := Color(0.0, 0.9, 0.0, 1.0)
+const _YELLOW := Color(0.9, 0.9, 0.0, 1.0)
+const _PURPLE := Color(0.45, 0.0, 0.45, 1.0)
 const _BLUE := Color(0.2, 0.4, 0.8, 1.0)
+const _PINK := Color(1.0, 0.45, 1.0, 1.0)
+const _RED := Color(0.8, 0.0, 0.0, 1.0)
 const _CREAM := Color(1.0, 1.0, 0.75, 1.0)
 const _INK := Color(1.0, 1.0, 0.65, 1.0)
 const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
@@ -123,6 +128,10 @@ var _held := false
 var _cancelled := false
 var _pulse := 0.0
 var _seat_index := 0
+var _line: Array[int] = []
+var _aimed := false
+var _board_basis := Basis()
+var _tag_marbles: Array[Node3D] = []
 var _sit_from := Vector3.ZERO
 var _sit_time := -1.0
 var _dance := -1.0
@@ -328,12 +337,15 @@ func _process(delta: float) -> void:
 			_clock = maxf(float(_start_until - int(Time.get_unix_time_from_system() * 1000.0)) / 1000.0, 0.0)
 			_paint_clock()
 		_blink_selected()
+		_blink_line(delta)
 		if ToonNet.online() and not _busy:
 			_pull()
 	elif _mode != "learn" and _mode != "study" and _mode != "watch":
 		_offer_seat()
 		if ToonNet.online() and _mode == "near":
 			_refresh_near()
+	elif _mode == "over":
+		_blink_line(delta)
 	if _mode == "study":
 		_pulse += delta
 		var shown := 0.5 + 0.5 * sin(_pulse * TAU)
@@ -505,6 +517,7 @@ func _begin() -> void:
 		for index in _homes[3]:
 			_squares[int(index)] = 4
 		_show_chinese()
+		_aim_board(1)
 	else:
 		_grid.clear()
 		for _row_index in 6:
@@ -592,6 +605,9 @@ func _close_board() -> void:
 	_pieces.clear()
 	_four_red.clear()
 	_four_yellow.clear()
+	_clear_tags()
+	_line.clear()
+	_aimed = false
 	_selected = -1
 	_chain = -1
 
@@ -721,7 +737,8 @@ func _land_chinese(source: int, dest: int, hopped: bool) -> void:
 		if _mode != "play":
 			return
 		if _chinese_won():
-			_finish("Green" if _player == 1 else "Blue", "Chinese Checkers")
+			_capture_line()
+			_finish(_color_name(_player), "Chinese Checkers")
 		elif hopped and _chinese_more(dest):
 			_selected = dest
 			_chain = dest
@@ -754,6 +771,7 @@ func _drop(column: int) -> void:
 	if settled == null:
 		_move()
 		if _four_won(row, column):
+			_capture_line()
 			_finish("Red" if _player == 1 else "Yellow", "Find Four")
 		else:
 			_end_turn()
@@ -782,9 +800,11 @@ func _drop(column: int) -> void:
 		if _mode != "play":
 			return
 		if won:
+			_capture_line()
 			_finish("Red" if _player == 1 else "Yellow", "Find Four")
 		elif not open:
 			_over = "This Find Four game has resulted in a Tie!"
+			_capture_line()
 			_set_mode("over")
 			_status.text = _over
 		else:
@@ -823,7 +843,10 @@ func _end_turn() -> void:
 	if _mode != "play":
 		return
 	var previous := _player
-	_player = 2 if _player == 1 else 1
+	if _kind == "chinese":
+		_player = _next_chinese(previous)
+	else:
+		_player = 2 if _player == 1 else 1
 	_selected = -1
 	_chain = -1
 	_clock = _TURN
@@ -831,7 +854,7 @@ func _end_turn() -> void:
 		_finish("White" if previous == 1 else "Black", "Checkers")
 		return
 	if _kind == "chinese" and not _chinese_has_play():
-		_finish("Green" if previous == 1 else "Blue", "Chinese Checkers")
+		_finish(_color_name(previous), "Chinese Checkers")
 		return
 	_paint_turn()
 
@@ -863,7 +886,10 @@ func _turn_sentence() -> String:
 	if _kind == "checkers" and _player == 2:
 		who = "It's Black's Turn"
 	elif _kind == "chinese":
-		who = "It's Green's Turn" if _player == 1 else "It's Blue's Turn"
+		if ToonNet.online() and _peer_color(ToonNet.peer_id()) == _player:
+			who = "It's Your Turn"
+		else:
+			who = "It's " + _color_name(_player) + "'s Turn"
 	elif _kind == "findfour":
 		who = "It's Red's Turn" if _player == 1 else "It's Yellow's Turn"
 	if _chain >= 0 and _kind == "chinese":
@@ -898,10 +924,8 @@ func _show_chinese() -> void:
 		var state := int(_squares[index])
 		var marble := _pieces[index]
 		marble.visible = state != 0
-		if state == 1:
-			_tint(marble, _GREEN)
-		elif state == 4:
-			_tint(marble, _BLUE)
+		if state >= 1 and state <= 6:
+			_tint(marble, _marble_color(state))
 
 
 func _show_four() -> void:
@@ -967,11 +991,15 @@ func _has_play() -> bool:
 
 
 func _chinese_walk(source: int, dest: int) -> bool:
-	return int(_squares[dest]) == 0 and _link(_chinese_adj, source, dest) >= 0
+	if source < 0 or dest < 0 or source >= _squares.size() or dest >= _squares.size():
+		return false
+	return int(_squares[dest]) == 0 and _link(_chinese_adj, source, dest) >= 0 and _triangle_open(int(_squares[source]), dest)
 
 
 func _chinese_hop(source: int, dest: int) -> bool:
-	if int(_squares[dest]) != 0:
+	if source < 0 or dest < 0 or source >= _squares.size() or dest >= _squares.size():
+		return false
+	if int(_squares[dest]) != 0 or not _triangle_open(int(_squares[source]), dest):
 		return false
 	var row: Array = _chinese_adj[source]
 	for slot in row.size():
@@ -1003,7 +1031,9 @@ func _chinese_has_play() -> bool:
 
 func _chinese_won() -> bool:
 	var color := _chinese_color()
-	var goal: Array = _homes[3] if _player == 1 else _homes[0]
+	if color < 1 or color > 6 or _homes.size() < 6:
+		return false
+	var goal: Array = _homes[(color - 1 + 3) % 6]
 	var mine: Array = []
 	for index in _squares.size():
 		if int(_squares[index]) == color:
@@ -1048,7 +1078,7 @@ func _side(state: int) -> int:
 
 
 func _chinese_color() -> int:
-	return 1 if _player == 1 else 4
+	return _player
 
 
 func _link(grid: Array, source: int, dest: int) -> int:
@@ -1190,7 +1220,7 @@ func _blink_selected() -> void:
 	if node != _blink_node:
 		_restore_blink()
 		_blink_node = node
-		_blink_base = _GREEN if _kind == "chinese" and _player == 1 else (_BLUE if _kind == "chinese" else Color.WHITE)
+		_blink_base = _marble_color(_player) if _kind == "chinese" else Color.WHITE
 	if node == null or not node.visible:
 		return
 	var weight := 0.5 + 0.5 * sin(_pulse * TAU / 1.4)
@@ -1379,6 +1409,8 @@ func _set_mode(mode: String) -> void:
 				_show_nodes([_observe, _howto, _cancel])
 			else:
 				_show_nodes([_join_btn, _howto, _cancel])
+		elif mode == "menu":
+			_tint_games()
 		return
 	_mode = mode
 	_hide_chrome()
@@ -1394,6 +1426,7 @@ func _set_mode(mode: String) -> void:
 			_cancel.visible = true
 		if mode == "menu":
 			_getup.visible = true
+		_tint_games()
 	elif mode == "study":
 		_show_study()
 	elif mode == "ready":
@@ -1469,6 +1502,8 @@ func _pick_art(kind: String) -> void:
 		_page = 0
 		_pulse = 0.0
 		_set_mode("study")
+		return
+	if kind != "chinese" and _crowd() > 2:
 		return
 	_choose(kind)
 
@@ -1647,6 +1682,8 @@ func _ingest(state: Dictionary) -> void:
 		_glide(move, state)
 		return
 	_present(state)
+	if changed or (_kind == "chinese" and _tag_marbles.is_empty()):
+		_place_tags(state)
 	_apply_phase(state, changed)
 
 
@@ -1769,6 +1806,9 @@ func _apply_phase(state: Dictionary, changed: bool) -> void:
 			_status.text = _turn_sentence()
 		return
 	if phase == "play":
+		if _kind == "chinese" and not _aimed:
+			var mine := _peer_color(ToonNet.peer_id()) if ToonNet.online() else _player
+			_aim_board(mine if mine > 0 else 1)
 		_clock = maxf(float(_turn_until - now) / 1000.0, 0.0)
 		if _mode != "play":
 			_set_mode("play")
@@ -1788,12 +1828,13 @@ func _apply_phase(state: Dictionary, changed: bool) -> void:
 		_paint_clock()
 	elif phase == "over":
 		_over = _win_line(state)
+		_capture_line()
 		if _mode != "over":
 			_set_mode("over")
 		elif _status != null:
 			_status.text = _over
 		var seq := int(state.get("seq", 0))
-		if _healed != seq:
+		if int(state.get("winner", 0)) != 0 and _healed != seq:
 			_healed = seq
 			if _listed(state):
 				var toon := _toon()
@@ -1804,6 +1845,8 @@ func _apply_phase(state: Dictionary, changed: bool) -> void:
 	elif _seated and kind == "":
 		if _mode != "menu" and _mode != "learn" and _mode != "study":
 			_set_mode("menu")
+		elif _mode == "menu":
+			_tint_games()
 
 
 func _flush_pending() -> void:
@@ -1819,6 +1862,8 @@ func _win_line(state: Dictionary) -> String:
 	if bool(state.get("tie", false)):
 		return "This Find Four game has resulted in a Tie!"
 	var winner := int(state.get("winner", 0))
+	if winner == 0:
+		return ""
 	if winner == ToonNet.peer_id():
 		if kind == "findfour":
 			return "You won a game of Find Four!"
@@ -1874,8 +1919,244 @@ func _shared() -> bool:
 	return ToonNet.online() and _seated and _index >= 0
 
 
+func _marble_color(color: int) -> Color:
+	match color:
+		1:
+			return _GREEN
+		2:
+			return _YELLOW
+		3:
+			return _PURPLE
+		4:
+			return _BLUE
+		5:
+			return _PINK
+		6:
+			return _RED
+		_:
+			return _GREEN
+
+
+func _color_name(color: int) -> String:
+	match color:
+		1:
+			return "Green"
+		2:
+			return "Yellow"
+		3:
+			return "Purple"
+		4:
+			return "Blue"
+		5:
+			return "Pink"
+		6:
+			return "Red"
+		_:
+			return "Green"
+
+
+func _next_chinese(current: int) -> int:
+	var active: Array[int] = [1, 4]
+	if ToonNet.online() and _index >= 0:
+		active.clear()
+		var colors: Array = ToonNet.latest(_channel(_index)).get("colors", [])
+		for index in colors.size():
+			if int(colors[index]) != 0:
+				active.append(index + 1)
+		if active.is_empty():
+			active.append(1)
+			active.append(4)
+	var at: int = active.find(current)
+	if at < 0:
+		return active[0]
+	return active[(at + 1) % active.size()]
+
+
+func _triangle_open(color: int, square: int) -> bool:
+	if color < 1 or color > 6:
+		return true
+	var own := color - 1
+	var goal := (color - 1 + 3) % 6
+	for home in _homes.size():
+		if home == own or home == goal:
+			continue
+		for index in _homes[home]:
+			if int(index) == square:
+				return false
+	return true
+
+
+func _crowd() -> int:
+	if not ToonNet.online() or _index < 0:
+		return 1
+	var count := 0
+	for seat in ToonNet.latest(_channel(_index)).get("seats", []):
+		if int(seat) != 0:
+			count += 1
+	return count
+
+
+func _tint_games() -> void:
+	if _ck_art == null or _ff_art == null:
+		return
+	var crowded := _mode == "menu" and _crowd() > 2
+	var dim := Color(0.7, 0.7, 0.7, 0.7) if crowded else Color(1, 1, 1, 1)
+	_ck_art.self_modulate = dim
+	_ff_art.self_modulate = dim
+	_ck_art.disabled = crowded
+	_ff_art.disabled = crowded
+	if _ck_name != null:
+		_ck_name.modulate = dim
+	if _ff_name != null:
+		_ff_name.modulate = dim
+
+
+func _heading_for(color: int, seat_index: int) -> float:
+	var far := seat_index > 2
+	if far:
+		match color:
+			1:
+				return 180.0
+			2:
+				return -120.0
+			3:
+				return -60.0
+			4:
+				return 0.0
+			5:
+				return 60.0
+			6:
+				return 120.0
+	match color:
+		2:
+			return 60.0
+		3:
+			return 120.0
+		4:
+			return 180.0
+		5:
+			return -120.0
+		6:
+			return -60.0
+	return 0.0
+
+
+func _aim_board(color: int) -> void:
+	if _board == null or _kind != "chinese" or color < 1:
+		return
+	if not _aimed:
+		_board_basis = _board.transform.basis
+	_board.transform.basis = _board_basis * Basis(Vector3.BACK, deg_to_rad(_heading_for(color, _seat_index)))
+	_aimed = true
+
+
+func _clear_tags() -> void:
+	for marble in _tag_marbles:
+		if is_instance_valid(marble):
+			marble.queue_free()
+	_tag_marbles.clear()
+
+
+func _place_tags(state: Dictionary) -> void:
+	_clear_tags()
+	if _kind != "chinese" or _table == null:
+		return
+	var colors: Array = state.get("colors", [])
+	var seats: Array = state.get("seats", [])
+	if colors.is_empty():
+		return
+	for seat in _table.find_children("seat*", "", true, false):
+		if not seat is Node3D:
+			continue
+		var tail := str(seat.name).trim_prefix("seat")
+		if not tail.is_valid_int():
+			continue
+		var seat_index := int(tail) - 1
+		if seat_index < 0 or seat_index >= seats.size() or int(seats[seat_index]) == 0:
+			continue
+		var color := 0
+		for index in colors.size():
+			if int(colors[index]) == int(seats[seat_index]):
+				color = index + 1
+		if color == 0:
+			continue
+		var marble := _MARBLE.instantiate()
+		(seat as Node3D).add_child(marble)
+		marble.position = Vector3(0.0, 3.3, 0.0)
+		var scale := 1.5
+		if seat_index == 1:
+			scale = 1.3
+		elif seat_index == 4:
+			scale = 1.45
+		marble.scale = Vector3.ONE * scale
+		_tint(marble, _marble_color(color))
+		_tag_marbles.append(marble)
+
+
+func _capture_line() -> void:
+	_line.clear()
+	if _kind != "findfour" or _grid.size() < 6:
+		return
+	var filled := true
+	for row in 6:
+		for column in 7:
+			if int(_grid[row][column]) == 0:
+				filled = false
+				continue
+			var found := _line_from(row, column)
+			if found.size() >= 4:
+				_line = found
+				return
+	if filled:
+		for cell in 42:
+			_line.append(cell)
+
+
+func _line_from(row: int, column: int) -> Array[int]:
+	var state := int(_grid[row][column])
+	var ways: Array[Vector2i] = [Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(1, -1)]
+	for way in ways:
+		var step_way := way as Vector2i
+		var cells: Array[int] = [row * 7 + column]
+		for sign_value in [-1, 1]:
+			var sign := int(sign_value)
+			var step := 1
+			while step < 4:
+				var next_row := row + step_way.y * sign * step
+				var next_col := column + step_way.x * sign * step
+				if next_row < 0 or next_row > 5 or next_col < 0 or next_col > 6:
+					break
+				if int(_grid[next_row][next_col]) != state:
+					break
+				cells.append(next_row * 7 + next_col)
+				step += 1
+		if cells.size() >= 4:
+			return cells
+	return []
+
+
+func _blink_line(delta: float) -> void:
+	if _mode != "over" or _kind != "findfour" or _line.is_empty():
+		return
+	_pulse += delta
+	var weight := 0.5 + 0.5 * sin(_pulse * TAU / 0.6)
+	var tint := Color(1, 1, 1, 1).lerp(Color(0.5, 0.5, 0.5, 1), weight)
+	for cell in _line:
+		if cell < 0 or cell >= _four_red.size():
+			continue
+		var piece := _four_red[cell] if _four_red[cell].visible else _four_yellow[cell]
+		if piece != null and piece.visible:
+			_set_albedo(piece, tint)
+
+
 func _peer_color(peer: int) -> int:
 	var state := ToonNet.latest(_channel(_index))
+	if String(state.get("kind", "")) == "chinese":
+		var colors: Array = state.get("colors", [])
+		for index in colors.size():
+			if int(colors[index]) == peer:
+				return index + 1
+		return 0
 	if peer == int(state.get("p1", 0)):
 		return 1
 	if peer == int(state.get("p2", 0)):

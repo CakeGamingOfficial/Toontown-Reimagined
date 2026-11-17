@@ -1,7 +1,8 @@
 extends RefCounted
-## The district's copy of one picnic table. Two seated toons play. The first
-## two occupied seats are the two colors. A countdown of 20 seconds starts the
-## game, and either toon can press Start once everyone seated has done it.
+## The district's copy of one picnic table. Checkers and Find Four use the first
+## two occupied seats. Chinese Checkers uses every seated toon, up to six, on
+## the original colors. A countdown of 20 seconds starts the game once two are
+## seated, and Start begins early when everyone seated has pressed it.
 
 const _RULES := "res://assets/neighborhoods/acorn_acres/picnic_rules.json"
 const _START := 20000
@@ -32,6 +33,8 @@ static func blank() -> Dictionary:
 		"winner": 0,
 		"tie": false,
 		"ready": [],
+		"colors": [0, 0, 0, 0, 0, 0],
+		"moves": 0,
 	}
 
 
@@ -113,6 +116,14 @@ static func _join(book: Dictionary, peer: int, seat: int, now: int) -> Dictionar
 	seats[seat] = peer
 	book["seats"] = seats
 	_assign(book)
+	if _occupied(book) > 2 and (String(book.get("kind", "")) == "checkers" or String(book.get("kind", "")) == "findfour"):
+		book["kind"] = ""
+		book["phase"] = ""
+		book["until"] = 0
+		book["squares"] = []
+		book["grid"] = []
+		book["ready"] = []
+		return book
 	if String(book.get("kind", "")) != "" and _occupied(book) >= 2 and int(book.get("until", 0)) == 0:
 		book["until"] = now + _START
 		book["phase"] = "ready"
@@ -129,6 +140,8 @@ static func _leave(book: Dictionary, peer: int, _now: int) -> Dictionary:
 	seats[seat] = 0
 	book["seats"] = seats
 	book["ready"] = _without(book.get("ready", []), peer)
+	if phase == "play" and String(book.get("kind", "")) == "chinese":
+		return _leave_chinese(book, peer, _now)
 	if phase == "play" and playing:
 		var other := int(book["p2"]) if peer == int(book["p1"]) else int(book["p1"])
 		if other != 0 and _holding(seats, other) >= 0:
@@ -159,6 +172,8 @@ static func _pick(book: Dictionary, peer: int, kind: String, now: int) -> Dictio
 		return {}
 	if kind != "chinese" and kind != "checkers" and kind != "findfour":
 		return {}
+	if kind != "chinese" and _occupied(book) > 2:
+		return {}
 	book["kind"] = kind
 	book["phase"] = "ready"
 	book["winner"] = 0
@@ -187,12 +202,24 @@ static func _press_start(book: Dictionary, peer: int, now: int) -> Dictionary:
 
 static func _begin(book: Dictionary, now: int) -> void:
 	_assign(book)
-	if int(book.get("p1", 0)) == 0 or int(book.get("p2", 0)) == 0:
+	var kind := String(book.get("kind", ""))
+	if kind == "checkers" or kind == "findfour":
+		if _occupied(book) > 2 or int(book.get("p1", 0)) == 0 or int(book.get("p2", 0)) == 0:
+			book["kind"] = ""
+			book["phase"] = ""
+			book["until"] = 0
+			return
+	elif kind == "chinese":
+		if _occupied(book) < 2:
+			return
+		_assign_colors(book)
+	else:
 		return
 	book["phase"] = "play"
 	book["until"] = 0
 	book["ready"] = []
-	book["turn"] = 1
+	book["turn"] = _first_color(book.get("colors", [])) if kind == "chinese" else 1
+	book["moves"] = 0
 	book["chain"] = -1
 	book["winner"] = 0
 	book["tie"] = false
@@ -276,7 +303,7 @@ static func _chinese(book: Dictionary, player: int, source: int, dest: int, now:
 	var squares: Array = book.get("squares", [])
 	if source < 0 or dest < 0 or source >= squares.size() or dest >= squares.size():
 		return false
-	var color := 1 if player == 1 else 4
+	var color := player
 	var chain := int(book.get("chain", -1))
 	if chain >= 0 and source != chain:
 		return false
@@ -294,7 +321,8 @@ static func _chinese(book: Dictionary, player: int, source: int, dest: int, now:
 	if _chinese_home(squares, player):
 		book["chain"] = -1
 		book["phase"] = "over"
-		book["winner"] = int(book["p1"]) if player == 1 else int(book["p2"])
+		var colors: Array = book.get("colors", [])
+		book["winner"] = int(colors[player - 1]) if player >= 1 and player <= colors.size() else 0
 		book["tie"] = false
 		book["turn_until"] = 0
 		return true
@@ -344,10 +372,13 @@ static func _finish_turn(book: Dictionary, now: int) -> void:
 	if String(book.get("phase", "")) != "play":
 		return
 	var previous := int(book.get("turn", 1))
+	var kind := String(book.get("kind", ""))
 	var nxt := 2 if previous == 1 else 1
+	if kind == "chinese":
+		book["moves"] = int(book.get("moves", 0)) + 1
+		nxt = _next_color(book.get("colors", []), previous)
 	book["turn"] = nxt
 	book["chain"] = -1
-	var kind := String(book.get("kind", ""))
 	var stuck := false
 	if kind == "checkers":
 		stuck = not _has_play(book["squares"], nxt)
@@ -355,7 +386,11 @@ static func _finish_turn(book: Dictionary, now: int) -> void:
 		stuck = not _chinese_has(book["squares"], nxt)
 	if stuck:
 		book["phase"] = "over"
-		book["winner"] = int(book["p1"]) if previous == 1 else int(book["p2"])
+		if kind == "chinese":
+			var colors: Array = book.get("colors", [])
+			book["winner"] = int(colors[previous - 1]) if previous >= 1 and previous <= colors.size() else 0
+		else:
+			book["winner"] = int(book["p1"]) if previous == 1 else int(book["p2"])
 		book["tie"] = false
 		book["turn_until"] = 0
 		return
@@ -378,7 +413,7 @@ static func _random_move(book: Dictionary, now: int) -> void:
 	if kind != "chinese":
 		return
 	var squares: Array = book.get("squares", [])
-	var color := 1 if player == 1 else 4
+	var color := player
 	var walks: Array[Vector2i] = []
 	for source in squares.size():
 		if int(squares[source]) != color:
@@ -411,11 +446,13 @@ static func _deal(book: Dictionary) -> void:
 		squares.resize(121)
 		for index in 121:
 			squares[index] = 0
-		if _homes.size() >= 4:
-			for index in _homes[0]:
-				squares[int(index)] = 1
-			for index in _homes[3]:
-				squares[int(index)] = 4
+		var colors: Array = book.get("colors", [])
+		if _homes.size() > 0:
+			for slot in colors.size():
+				if int(colors[slot]) == 0 or slot >= _homes.size():
+					continue
+				for index in _homes[slot]:
+					squares[int(index)] = slot + 1
 		book["squares"] = squares
 		book["grid"] = []
 	elif kind == "findfour":
@@ -425,6 +462,102 @@ static func _deal(book: Dictionary) -> void:
 			grid[index] = 0
 		book["grid"] = grid
 		book["squares"] = []
+
+
+static func _leave_chinese(book: Dictionary, peer: int, now: int) -> Dictionary:
+	var colors: Array = book.get("colors", [0, 0, 0, 0, 0, 0])
+	var slot := -1
+	for index in colors.size():
+		if int(colors[index]) == peer:
+			slot = index
+			break
+	if slot < 0:
+		return blank() if _occupied(book) == 0 else book
+	colors[slot] = 0
+	book["colors"] = colors
+	var squares: Array = book.get("squares", [])
+	var color := slot + 1
+	for index in squares.size():
+		if int(squares[index]) == color:
+			squares[index] = 0
+	book["squares"] = squares
+	book["seq"] = int(book.get("seq", 0)) + 1
+	book["chain"] = -1
+	_clear_move(book)
+	var remaining := 0
+	var last := 0
+	for seated in colors:
+		if int(seated) != 0:
+			remaining += 1
+			last = int(seated)
+	if remaining <= 1:
+		for index in squares.size():
+			squares[index] = 0
+		book["squares"] = squares
+		book["phase"] = "over"
+		book["tie"] = false
+		book["turn_until"] = 0
+		book["winner"] = last if remaining == 1 and int(book.get("moves", 0)) >= 10 else 0
+		return book
+	if int(book.get("turn", 1)) == color:
+		book["turn"] = _next_color(colors, color)
+		book["turn_until"] = now + _TURN
+	return book
+
+
+static func _assign_colors(book: Dictionary) -> void:
+	var colors: Array = [0, 0, 0, 0, 0, 0]
+	var people: Array[int] = []
+	for seat in book["seats"]:
+		var who := int(seat)
+		if who != 0:
+			people.append(who)
+	var palette := _palette(people.size())
+	for index in palette.size():
+		if index >= people.size():
+			break
+		var color := int(palette[index])
+		colors[color - 1] = people[index]
+	book["colors"] = colors
+
+
+static func _palette(count: int) -> Array:
+	if count == 3:
+		return [2, 4, 6]
+	if count == 4:
+		return [1, 4, 2, 5]
+	if count == 5:
+		return [1, 4, 2, 5, 3]
+	if count >= 6:
+		return [1, 4, 2, 5, 3, 6]
+	return [1, 4]
+
+
+static func _first_color(colors: Array) -> int:
+	return _next_color(colors, 6)
+
+
+static func _next_color(colors: Array, current: int) -> int:
+	var index := current - 1
+	for _step in 6:
+		index = (index + 1) % 6
+		if index >= 0 and index < colors.size() and int(colors[index]) != 0:
+			return index + 1
+	return current if current >= 1 and current <= 6 else 1
+
+
+static func _triangle_open(color: int, square: int) -> bool:
+	if color < 1 or color > 6:
+		return true
+	var own := color - 1
+	var goal := (color - 1 + 3) % 6
+	for home in _homes.size():
+		if home == own or home == goal:
+			continue
+		for index in _homes[home]:
+			if int(index) == square:
+				return false
+	return true
 
 
 static func _assign(book: Dictionary) -> void:
@@ -479,6 +612,12 @@ static func _clear_move(book: Dictionary) -> void:
 
 
 static func _color(book: Dictionary, peer: int) -> int:
+	if String(book.get("kind", "")) == "chinese":
+		var colors: Array = book.get("colors", [])
+		for index in colors.size():
+			if int(colors[index]) == peer:
+				return index + 1
+		return 0
 	if peer == int(book.get("p1", 0)):
 		return 1
 	if peer == int(book.get("p2", 0)):
@@ -566,11 +705,15 @@ static func _has_play(squares: Array, player: int) -> bool:
 
 
 static func _chinese_walk(squares: Array, source: int, dest: int) -> bool:
-	return int(squares[dest]) == 0 and _link(_chinese_adj, source, dest) >= 0
+	if source < 0 or source >= squares.size() or dest < 0 or dest >= squares.size():
+		return false
+	return int(squares[dest]) == 0 and _link(_chinese_adj, source, dest) >= 0 and _triangle_open(int(squares[source]), dest)
 
 
 static func _chinese_hop(squares: Array, source: int, dest: int) -> bool:
-	if int(squares[dest]) != 0 or source < 0 or source >= _chinese_adj.size():
+	if source < 0 or dest < 0 or source >= squares.size() or dest >= squares.size():
+		return false
+	if int(squares[dest]) != 0 or not _triangle_open(int(squares[source]), dest):
 		return false
 	var row: Array = _chinese_adj[source]
 	for slot in row.size():
@@ -590,9 +733,8 @@ static func _chinese_more(squares: Array, source: int) -> bool:
 
 
 static func _chinese_has(squares: Array, player: int) -> bool:
-	var color := 1 if player == 1 else 4
 	for index in squares.size():
-		if int(squares[index]) != color:
+		if int(squares[index]) != player:
 			continue
 		for dest in squares.size():
 			if _chinese_walk(squares, index, dest) or _chinese_hop(squares, index, dest):
@@ -601,16 +743,18 @@ static func _chinese_has(squares: Array, player: int) -> bool:
 
 
 static func _chinese_home(squares: Array, player: int) -> bool:
-	if _homes.size() < 4:
+	if player < 1 or player > 6:
 		return false
-	var color := 1 if player == 1 else 4
-	var goal: Array = _homes[3] if player == 1 else _homes[0]
+	var goal_index := (player - 1 + 3) % 6
+	if goal_index >= _homes.size():
+		return false
+	var goal: Array = _homes[goal_index]
 	for index in goal:
-		if int(index) < 0 or int(index) >= squares.size() or int(squares[int(index)]) != color:
+		if int(index) < 0 or int(index) >= squares.size() or int(squares[int(index)]) != player:
 			return false
 	var mine := 0
 	for state in squares:
-		if int(state) == color:
+		if int(state) == player:
 			mine += 1
 	return mine == goal.size()
 
