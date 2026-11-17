@@ -355,6 +355,10 @@ func hold_for_race(holding: bool) -> void:
 		_body.velocity = Vector3.ZERO
 
 
+func is_held() -> bool:
+	return _locked
+
+
 func heal(amount: int) -> void:
 	if _loadout == null or amount <= 0 or _loadout.hp >= _loadout.max_hp:
 		return
@@ -675,6 +679,8 @@ func _process(delta: float) -> void:
 	elif _closet_open:
 		_hold_closet_camera.call_deferred()
 	elif _door_cam:
+		pass
+	elif _cannon_cam():
 		pass
 	elif _table_cam():
 		pass
@@ -5504,6 +5510,16 @@ func table_lock(holding: bool) -> void:
 		_body.collision_layer = 0
 	else:
 		_body.collision_layer = _table_layer
+
+
+func _cannon_cam() -> bool:
+	var yard := get_parent().get_node_or_null("EstateCannons")
+	if yard == null or not yard.has_method("holds_camera"):
+		return false
+	if not bool(yard.call("holds_camera")):
+		return false
+	yard.call("aim", _camera)
+	return true
 
 
 func _table_cam() -> bool:

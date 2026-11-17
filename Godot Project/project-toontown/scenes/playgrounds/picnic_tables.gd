@@ -19,6 +19,7 @@ const _KNOCK := "res://assets/audio/sfx/GUI_knock_1.ogg"
 const _POP := "res://assets/audio/sfx/GUI_balloon_popup.ogg"
 const _REACH := 2.0
 const _TURN := 40.0
+const _SLEEP := 120.0
 const _LAFF := 20
 const _GREEN := Color(0.0, 0.9, 0.0, 1.0)
 const _YELLOW := Color(0.9, 0.9, 0.0, 1.0)
@@ -85,6 +86,7 @@ var _player := 1
 var _selected := -1
 var _chain := -1
 var _clock := 0.0
+var _awake := 0.0
 var _over := ""
 var _checkers_adj: Array = []
 var _checkers_jump: Array = []
@@ -346,6 +348,7 @@ func _process(delta: float) -> void:
 			_refresh_near()
 	elif _mode == "over":
 		_blink_line(delta)
+	_watch_sleep(delta)
 	if _mode == "study":
 		_pulse += delta
 		var shown := 0.5 + 0.5 * sin(_pulse * TAU)
@@ -353,6 +356,15 @@ func _process(delta: float) -> void:
 			_cn_mark.modulate = Color(0.5, 0.5, 0.0, shown)
 		if _study == "checkers" and _page == 2 and _ck_king != null:
 			_ck_king.modulate = Color(0.9, 0.9, 0.0, shown)
+
+
+func _input(event: InputEvent) -> void:
+	if not _asleep_watch():
+		return
+	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		_awake = 0.0
+	elif event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+		_awake = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -680,6 +692,7 @@ func _land_checkers(source: int, dest: int, jumped: bool) -> void:
 		else:
 			_selected = dest
 			_chain = dest
+			_ghost_landing(settled)
 	)
 
 
@@ -742,6 +755,7 @@ func _land_chinese(source: int, dest: int, hopped: bool) -> void:
 		elif hopped and _chinese_more(dest):
 			_selected = dest
 			_chain = dest
+			_ghost_landing(settled)
 			_paint_turn()
 		else:
 			_end_turn()
@@ -850,6 +864,10 @@ func _end_turn() -> void:
 	_selected = -1
 	_chain = -1
 	_clock = _TURN
+	if _kind == "checkers":
+		_show_checkers()
+	elif _kind == "chinese":
+		_show_chinese()
 	if _kind == "checkers" and not _has_play():
 		_finish("White" if previous == 1 else "Black", "Checkers")
 		return
@@ -917,6 +935,10 @@ func _show_checkers() -> void:
 		black.visible = state == 2 or state == 4
 		_crown(white, state == 3)
 		_crown(black, state == 4)
+		_solid(white)
+		_solid(black)
+	if _chain >= 0:
+		_ghost_landing(_piece_node(_chain))
 
 
 func _show_chinese() -> void:
@@ -926,6 +948,8 @@ func _show_chinese() -> void:
 		marble.visible = state != 0
 		if state >= 1 and state <= 6:
 			_tint(marble, _marble_color(state))
+	if _chain >= 0:
+		_ghost_landing(_piece_node(_chain))
 
 
 func _show_four() -> void:
@@ -1215,6 +1239,8 @@ func _fly_to(flyer: Node3D, dest: Vector3, seconds: float, done: Callable) -> vo
 
 
 func _blink_selected() -> void:
+	if _chain >= 0 and _selected == _chain:
+		return
 	_pulse += get_process_delta_time()
 	var node := _piece_node(_selected)
 	if node != _blink_node:
@@ -1243,6 +1269,62 @@ func _set_albedo(root: Node, color: Color) -> void:
 			mat.albedo_color = color
 	for child in root.get_children():
 		_set_albedo(child, color)
+
+
+func _solid(root: Node) -> void:
+	if root == null:
+		return
+	if root is GeometryInstance3D:
+		(root as GeometryInstance3D).material_override = null
+	for child in root.get_children():
+		_solid(child)
+
+
+func _ghost_landing(node: Node) -> void:
+	if node == null or _chain < 0:
+		return
+	var color := Color(0.5, 0.5, 0.5, 0.5)
+	if _kind == "chinese" and _chain < _squares.size():
+		var base := _marble_color(int(_squares[_chain]))
+		color = Color(maxf(base.r - 0.25, 0.0), maxf(base.g - 0.25, 0.0), maxf(base.b - 0.25, 0.0), 0.5)
+	_paint_ghost(node, color)
+
+
+func _paint_ghost(root: Node, color: Color) -> void:
+	if root is GeometryInstance3D:
+		var mesh := root as GeometryInstance3D
+		var mat := mesh.material_override as StandardMaterial3D
+		if mat == null:
+			_tint(mesh, color)
+			mat = mesh.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_color = color
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for child in root.get_children():
+		_paint_ghost(child, color)
+
+
+func _asleep_watch() -> bool:
+	return _mode == "near" or _mode == "learn" or _mode == "study" or _mode == "menu" or _mode == "ready" or _mode == "play" or _mode == "over" or _mode == "jump"
+
+
+func _watch_sleep(delta: float) -> void:
+	if not _asleep_watch():
+		_awake = 0.0
+		return
+	_awake += delta
+	if _awake < _SLEEP:
+		return
+	_awake = 0.0
+	var toon := _toon()
+	if toon != null and toon.has_method("say_line"):
+		toon.call("say_line", ". . . ZZZ . . .")
+	if _mode == "study":
+		_close_study()
+	elif _mode == "near" or _mode == "learn":
+		_cancel_choice()
+	elif _seated:
+		_stand()
 
 
 func _tint(root: Node, color: Color) -> void:
@@ -1412,6 +1494,7 @@ func _set_mode(mode: String) -> void:
 		elif mode == "menu":
 			_tint_games()
 		return
+	var fresh := not _asleep_watch()
 	_mode = mode
 	_hide_chrome()
 	if mode == "near":
@@ -1442,6 +1525,8 @@ func _set_mode(mode: String) -> void:
 	elif mode == "over":
 		_show_nodes([_quit_btn, _status])
 		_status.text = _over
+	if fresh and _asleep_watch():
+		_awake = 0.0
 	_layout()
 
 
@@ -1776,6 +1861,8 @@ func _glide(move: Dictionary, state: Dictionary) -> void:
 			settled.visible = true
 		_apply_phase(state, true)
 		_flush_pending()
+		if _chain == dest:
+			_ghost_landing(settled)
 	)
 
 

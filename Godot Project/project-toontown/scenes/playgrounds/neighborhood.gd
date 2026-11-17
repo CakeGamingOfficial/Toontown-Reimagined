@@ -59,6 +59,7 @@ func _ready() -> void:
 		preload("res://scenes/playgrounds/playground_butterflies.gd").place(self)
 	if estate_slot >= 0:
 		preload("res://scenes/estate/garden_plots.gd").place(self, estate_slot)
+		preload("res://scenes/estate/estate_cannon.gd").place(self)
 	if scene_file_path.ends_with("party_grounds.tscn"):
 		preload("res://scenes/parties/toon_party.gd").place_grounds(self)
 	preload("res://scenes/playgrounds/street_batch.gd").prepare(self, _zone_nodes, _zones)
