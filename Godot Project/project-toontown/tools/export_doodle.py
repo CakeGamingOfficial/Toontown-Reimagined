@@ -72,6 +72,11 @@ ANIM = {
     "speak": "phase_5/models/char/TT_pets-speak.bam",
     "eat": "phase_5.5/models/char/TT_pets-eat.bam",
     "swallow": "phase_5.5/models/char/TT_pets-swallow.bam",
+    "toDig": "phase_5/models/char/TT_pets-intoDig.bam",
+    "dig": "phase_5/models/char/TT_pets-dig.bam",
+    "fromDig": "phase_5/models/char/TT_pets-digToNeutral.bam",
+    "disappear": "phase_5/models/char/TT_pets-disappear.bam",
+    "reappear": "phase_5/models/char/TT_pets-reappear.bam",
 }
 # Idle and trick loops are long. Every other frame still reads as the original.
 STRIDE = {
@@ -80,6 +85,7 @@ STRIDE = {
     "jump": 1, "toBeg": 1, "beg": 2, "fromBeg": 1,
     "playDead": 2, "fromPlayDead": 1, "rollover": 2,
     "backflip": 2, "dance": 2, "speak": 1, "eat": 2, "swallow": 1,
+    "toDig": 1, "dig": 1, "fromDig": 1, "disappear": 1, "reappear": 1,
 }
 
 BODY_TYPES = ["dots", "threeStripe", "tigerStripe", "tummy", "turtle", "giraffe", "leopard"]
@@ -475,11 +481,63 @@ def export_cards() -> None:
     (GUI / "cards.json").write_text(json.dumps(cards, indent=1), encoding="utf-8")
 
 
-ShowBase()
-OUT.mkdir(parents=True, exist_ok=True)
-copy_named_maps()
-print("names", write_names())
-write_catalog()
-export_pet(base)
-export_cards()
-print("done")
+def append_clips(showbase: ShowBase, extra: dict) -> None:
+    """Bake clips that were not in the first pet export onto the existing bin."""
+    meta = json.loads((OUT / "doodle_parts.json").read_text(encoding="utf-8"))
+    blob = bytearray((OUT / "doodle_clips.bin").read_bytes())
+    actor = Actor("phase_4/models/char/TT_pets-mod.bam", extra)
+    found = []
+    for node_path in actor.findAllMatches("**"):
+        if not node_path.node().isOfType(GeomNode.getClassType()):
+            continue
+        name = part_name(node_path)
+        if "shadow" in name.lower():
+            continue
+        found.append((name, node_path))
+    parts = meta["parts"]
+    if len(found) != len(parts):
+        raise SystemExit("part count %s != %s" % (len(found), len(parts)))
+    for index, (name, _node) in enumerate(found):
+        if parts[index]["name"] != name:
+            raise SystemExit("part %s is %s, file has %s" % (index, name, parts[index]["name"]))
+    character = actor.find("**/+Character")
+    for clip, _path in extra.items():
+        control = actor.getAnimControl(clip)
+        frames = control.getNumFrames()
+        step = STRIDE[clip]
+        used = list(range(0, frames, step))
+        print(clip, "frames", len(used), "of", frames)
+        flats = [[] for _index in found]
+        for frame in used:
+            control.pose(frame)
+            character.node().forceUpdate()
+            for index, (name, node_path) in enumerate(found):
+                posed = skin_points(node_path.node())
+                verts = len(parts[index]["uv"]) // 2
+                if len(posed) != verts:
+                    raise SystemExit("%s %s verts %s != %s" % (clip, name, len(posed), verts))
+                for point, _uv in posed:
+                    flats[index].extend((round(point.x, 4), round(point.y, 4), round(point.z, 4)))
+        for index, flat in enumerate(flats):
+            entry = parts[index]
+            verts = len(entry["uv"]) // 2
+            entry["frames"][clip] = len(flat) // verts // 3
+            entry["offset"][clip] = len(blob) // 4
+            for value in flat:
+                blob.extend(struct.pack("<f", value))
+        if clip not in meta["clips"]:
+            meta["clips"].append(clip)
+    (OUT / "doodle_parts.json").write_text(json.dumps(meta), encoding="utf-8")
+    (OUT / "doodle_clips.bin").write_bytes(blob)
+    print("clips", len(blob))
+
+
+if __name__ == "__main__":
+    ShowBase()
+    OUT.mkdir(parents=True, exist_ok=True)
+    copy_named_maps()
+    print("names", write_names())
+    write_catalog()
+    export_pet(base)
+    export_cards()
+    print("done")

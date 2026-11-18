@@ -1,13 +1,21 @@
 extends Node3D
 
-## DistributedCannon and DistributedTarget. Six cannons sit on CannonGlobals.cannonDrops.
+## DistributedCannon and DistributedTarget. The 48 hour catalog rental generates
+## them. Six cannons sit on CannonGlobals.cannonDrops.
 ## Walking into the 1.5 sphere loads you. Arrows aim, Control fires, and twenty
 ## seconds without a shot puts you back beside the barrel. Flight is Trajectory
-## at 80 with gravity 32. The target is the original sphere at panda (0, 0, 40),
-## scale 3, radius 3.5. phase_5.5/models/estate/target was not exported, so that
-## sphere is what shows. A hit scores PinballTarget, 350, and adds 1 to the
-## multiplier. A floor ends the flight. A wall bounces like a house.
+## at 80 with gravity 32. The target model sits at panda (0, 0, 40), scale 3,
+## with the original sphere of radius 3.5. A hit scores PinballTarget, 350, and
+## adds 1 to the multiplier. Each cannon keeps a bumper cloud at panda
+## (0, -20, 40), scale 4. Delete or Insert, once above height 15, moves that
+## cloud to the toon and ignores it for a quarter second. A hit scores 100 and
+## bounces at 0.4. Three rings of bumper clouds sit on cloudOrigin at height 30:
+## twelve at radius 40 scoring 150, twelve at 60 scoring 200, and twelve at 20
+## scoring 250. startCloudPlatforms returns before the drift track, so the rings
+## stay put. The sky plane, 300 above that origin, scores 150. A floor ends the
+## flight. A wall bounces like a house.
 
+const _CLOSET := preload("res://scenes/catalog/catalog_closet.gd")
 const _SPEED := 80.0
 const _GRAVITY := 32.0
 const _TIMEOUT := 20.0
@@ -19,6 +27,16 @@ const _TURN := 15.0
 const _TARGET_RADIUS := 3.5 * 3.0
 const _HOUSE := 0.4
 const _TARGET_BOUNCE := 0.1
+const _BUMPER_BOUNCE := 0.4
+const _BUMPER_SCORE := 100
+const _LOW_SCORE := 150
+const _MED_SCORE := 200
+const _HIGH_SCORE := 250
+## loadSkyCollision. The plane sits 300 above cloudOrigin, which is at height 30.
+const _SKY := 330.0
+## bumper_cloud collision box, in the exported model's local space.
+const _BOX_LO := Vector3(-0.846157, -0.0071607, -0.848489)
+const _BOX_HI := Vector3(0.85082, 1.68982, 0.848489)
 const _DROPS: Array[Vector4] = [
 	Vector4(-110.0, -66.0, 0.025, -64.0),
 	Vector4(65.68, -71.1, 0.025, 24.0),
@@ -31,7 +49,11 @@ const _DROPS: Array[Vector4] = [
 var _rigs: Array[Node3D] = []
 var _barrels: Array[Node3D] = []
 var _heads: Array[float] = []
-var _target: MeshInstance3D
+var _bumpers: Array[Node3D] = []
+var _rings: Array[Node3D] = []
+var _ring_score: Array[int] = []
+var _ring_in: Array[bool] = []
+var _target: Node3D
 var _target_home := Vector3.ZERO
 var _occupied := -1
 var _aim_yaw := 0.0
@@ -51,10 +73,19 @@ var _fire_down := false
 var _adjust: AudioStreamPlayer
 var _bounce := 0.0
 var _bounce_from := Vector3.ZERO
+var _bumper_used := false
+var _bumper_wait := 0.0
+var _in_bumper := false
+var _in_sky := false
 
 
 static func place(host: Node) -> void:
-	if host.get_node_or_null("EstateCannons") != null:
+	var existing := host.get_node_or_null("EstateCannons")
+	if not _CLOSET.cannon_rental_active():
+		if existing != null:
+			existing.queue_free()
+		return
+	if existing != null:
 		return
 	var yard: Node = load("res://scenes/estate/estate_cannon.gd").new()
 	yard.name = "EstateCannons"
@@ -102,19 +133,22 @@ func _ready() -> void:
 		_rigs.append(rig)
 		_barrels.append(barrel)
 		_heads.append(drop.w)
-	_target = MeshInstance3D.new()
+		_bumpers.append(_bumper(rig))
+	_target = _prop("res://assets/estate/cannon/target.glb")
+	if _target == null:
+		var stand_in := MeshInstance3D.new()
+		var ball := SphereMesh.new()
+		ball.radius = _TARGET_RADIUS
+		ball.height = _TARGET_RADIUS * 2.0
+		stand_in.mesh = ball
+		_target = stand_in
+	else:
+		_target.scale = Vector3.ONE * 3.0
 	_target.name = "Target"
-	var ball := SphereMesh.new()
-	ball.radius = _TARGET_RADIUS
-	ball.height = _TARGET_RADIUS * 2.0
-	_target.mesh = ball
-	var shade := StandardMaterial3D.new()
-	shade.albedo_color = Color(0.85, 0.08, 0.08, 1.0)
-	shade.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_target.material_override = shade
 	_target_home = _panda(0.0, 0.0, 40.0)
 	_target.position = _target_home
 	add_child(_target)
+	_place_rings()
 	var layer := CanvasLayer.new()
 	layer.layer = 24
 	add_child(layer)
@@ -126,6 +160,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if not _CLOSET.cannon_rental_active():
+		_end_rental()
+		return
 	_spring_target(delta)
 	if _occupied < 0:
 		_watch_entry()
@@ -227,6 +264,10 @@ func _launch() -> void:
 	_loop_adjust(false)
 	_flying = true
 	_in_target = false
+	_in_bumper = false
+	_in_sky = false
+	_bumper_used = false
+	_bumper_wait = 0.0
 	var heading := deg_to_rad(_heads[_occupied] + _aim_yaw)
 	var angle := deg_to_rad(_pitch)
 	var horiz := _SPEED * cos(angle)
@@ -250,7 +291,12 @@ func _fly(delta: float) -> void:
 		return
 	_body.global_position = start + step
 	_body.velocity = Vector3.ZERO
+	_bumper_wait = maxf(_bumper_wait - delta, 0.0)
+	_move_bumper()
 	_touch_target()
+	_touch_bumper()
+	_touch_rings()
+	_touch_sky()
 	if _body.global_position.y < -20.0 or _body.global_position.y > 1000.0:
 		_exit_cannon()
 
@@ -329,6 +375,18 @@ func _finish_flight() -> void:
 	_release()
 
 
+func _end_rental() -> void:
+	if _occupied >= 0:
+		_exit_cannon()
+	var tree := get_tree()
+	if tree != null:
+		for node in tree.root.find_children("*", "SpeedChat", true, false):
+			if node.has_method("alert"):
+				node.call("alert", "The Cannon Game rental is over.")
+				break
+	queue_free()
+
+
 func _exit_cannon() -> void:
 	_loop_adjust(false)
 	if _occupied >= 0 and _body != null:
@@ -394,6 +452,165 @@ func _ground(at: Vector3) -> Vector3:
 	if hit.is_empty():
 		return Vector3(at.x, 0.2, at.z)
 	return hit.position
+
+
+func _bumper(rig: Node3D) -> Node3D:
+	var cloud := _prop("res://assets/estate/cannon/bumper_cloud.glb")
+	if cloud == null:
+		cloud = Node3D.new()
+	cloud.name = "Bumper"
+	cloud.scale = Vector3.ONE * 4.0
+	cloud.position = _panda(0.0, -20.0, 40.0)
+	_tint(cloud, Color(0.52, 0.8, 0.98, 1.0))
+	rig.add_child(cloud)
+	return cloud
+
+
+func _tint(root: Node, color: Color) -> void:
+	for mesh in root.find_children("*", "MeshInstance3D", true, false):
+		var inst := mesh as MeshInstance3D
+		var source := inst.get_active_material(0) as StandardMaterial3D
+		var shade := StandardMaterial3D.new()
+		if source != null:
+			shade.albedo_texture = source.albedo_texture
+		shade.albedo_color = color
+		inst.material_override = shade
+
+
+func _move_bumper() -> void:
+	if _bumper_used or _body == null or _occupied < 0:
+		return
+	if _body.global_position.y <= 15.0:
+		return
+	var pressed := Input.is_physical_key_pressed(KEY_DELETE) or Input.is_physical_key_pressed(KEY_INSERT)
+	if not pressed:
+		return
+	_bumper_used = true
+	_bumpers[_occupied].position = _rigs[_occupied].to_local(_body.global_position)
+	_bumper_wait = 0.25
+	_in_bumper = false
+
+
+func _touch_bumper() -> void:
+	if _body == null or _occupied < 0 or _bumper_wait > 0.0:
+		return
+	var cloud := _bumpers[_occupied]
+	var local := cloud.global_transform.affine_inverse() * _body.global_position
+	if local.x < _BOX_LO.x or local.x > _BOX_HI.x or local.y < _BOX_LO.y or local.y > _BOX_HI.y or local.z < _BOX_LO.z or local.z > _BOX_HI.z:
+		_in_bumper = false
+		return
+	if _in_bumper:
+		return
+	var faces: Array[Vector3] = [
+		Vector3(local.x - _BOX_LO.x, -1.0, 0.0),
+		Vector3(_BOX_HI.x - local.x, 1.0, 0.0),
+		Vector3(local.y - _BOX_LO.y, 0.0, -1.0),
+		Vector3(_BOX_HI.y - local.y, 0.0, 1.0),
+		Vector3(local.z - _BOX_LO.z, 0.0, 0.0),
+		Vector3(_BOX_HI.z - local.z, 0.0, 0.0),
+	]
+	var best := 0
+	for i in faces.size():
+		if faces[i].x < faces[best].x:
+			best = i
+	var normal := Vector3.ZERO
+	if best < 2:
+		normal = Vector3(faces[best].y, 0.0, 0.0)
+	elif best < 4:
+		normal = Vector3(0.0, faces[best].z, 0.0)
+	elif best == 4:
+		normal = Vector3(0.0, 0.0, -1.0)
+	else:
+		normal = Vector3(0.0, 0.0, 1.0)
+	normal = (cloud.global_transform.basis * normal).normalized()
+	if _vel.dot(normal) > 0.0:
+		return
+	_in_bumper = true
+	_bounce_off(normal, _BUMPER_BOUNCE, _BUMPER_SCORE)
+	_sfx("res://assets/audio/battle/AA_drop_sandbag.ogg")
+
+
+func _place_rings() -> void:
+	var origin := Node3D.new()
+	origin.name = "CloudOrigin"
+	origin.position = _panda(0.0, 0.0, 30.0)
+	add_child(origin)
+	_ring(origin, 40.0, 0.0, _LOW_SCORE)
+	_ring(origin, 60.0, 40.0, _MED_SCORE)
+	_ring(origin, 20.0, 80.0, _HIGH_SCORE)
+
+
+func _ring(origin: Node3D, radius: float, z_offset: float, score: int) -> void:
+	for i in 12:
+		var cloud := _prop("res://assets/estate/cannon/bumper_cloud.glb")
+		if cloud == null:
+			continue
+		cloud.name = "cloud-%d-1" % score
+		cloud.scale = Vector3.ONE * 4.0
+		var theta := TAU * float(i) / 12.0
+		cloud.position = _panda(radius * cos(theta), radius * sin(theta), randf() * 4.0 + z_offset)
+		origin.add_child(cloud)
+		_rings.append(cloud)
+		_ring_score.append(score)
+		_ring_in.append(false)
+
+
+func _touch_rings() -> void:
+	if _body == null:
+		return
+	for i in _rings.size():
+		var normal := _box_face(_rings[i])
+		if normal == Vector3.ZERO:
+			_ring_in[i] = false
+			continue
+		if _ring_in[i] or _vel.dot(normal) > 0.0:
+			continue
+		_ring_in[i] = true
+		_bounce_off(normal, _BUMPER_BOUNCE, _ring_score[i])
+		_sfx("res://assets/audio/battle/AA_drop_sandbag.ogg")
+		return
+
+
+func _touch_sky() -> void:
+	if _body == null:
+		return
+	if _body.global_position.y < _SKY:
+		_in_sky = false
+		return
+	if _in_sky or _vel.y <= 0.0:
+		return
+	_in_sky = true
+	_bounce_off(Vector3.DOWN, _BUMPER_BOUNCE, _LOW_SCORE)
+	_sfx("res://assets/audio/battle/AA_drop_sandbag.ogg")
+
+
+func _box_face(cloud: Node3D) -> Vector3:
+	var local := cloud.global_transform.affine_inverse() * _body.global_position
+	if local.x < _BOX_LO.x or local.x > _BOX_HI.x or local.y < _BOX_LO.y or local.y > _BOX_HI.y or local.z < _BOX_LO.z or local.z > _BOX_HI.z:
+		return Vector3.ZERO
+	var depth: Array[float] = [
+		local.x - _BOX_LO.x, _BOX_HI.x - local.x,
+		local.y - _BOX_LO.y, _BOX_HI.y - local.y,
+		local.z - _BOX_LO.z, _BOX_HI.z - local.z,
+	]
+	var best := 0
+	for i in depth.size():
+		if depth[i] < depth[best]:
+			best = i
+	var normal := Vector3.ZERO
+	if best == 0:
+		normal = Vector3.LEFT
+	elif best == 1:
+		normal = Vector3.RIGHT
+	elif best == 2:
+		normal = Vector3.DOWN
+	elif best == 3:
+		normal = Vector3.UP
+	elif best == 4:
+		normal = Vector3(0.0, 0.0, -1.0)
+	else:
+		normal = Vector3(0.0, 0.0, 1.0)
+	return (cloud.global_transform.basis * normal).normalized()
 
 
 func _panda(x: float, y: float, z: float) -> Vector3:

@@ -115,11 +115,18 @@ const _HEAL_TIME: Array[float] = [3.2, 3.6, 3.4, 6.4, 4.6, 7.7, 9.0]
 ## MovieNPCSOS teleportIn (hole plus jump, then the wave) and teleportOut (bow or curtsy, then the 3.4s teleport).
 const SOS_IN := 3.8
 const SOS_OUT := 5.4
-## MoviePetSOS: a short wait, the hole, the trick, the praise, then the hole out.
-const _PET_IN := 2.8
+## MoviePetSOS. Arrival is a one second wait, the hole opening, reappear, then the hole closing.
+## Leaving is a one second wait, intoDig, dig beside the opening hole, disappear, then the hole closing.
+const _PET_HOLE := 10.0 / 24.0
+const _PET_REAPPEAR := 32.0 / 24.0
+const _PET_TO_DIG := 26.0 / 24.0
+const _PET_DIG := 11.0 / 24.0
+const _PET_DISAPPEAR := 32.0 / 24.0
+const _PET_IN := 1.0 + _PET_HOLE + _PET_REAPPEAR + _PET_HOLE
 const _PET_WAIT := 0.5
 const _PET_CHAT := 2.0
-const _PET_OUT := 2.4
+const _PET_OUT := 1.0 + _PET_TO_DIG + _PET_DIG + _PET_DISAPPEAR + _PET_HOLE
+const _PET_TRICK_SFX: Array[String] = ["jump", "beg", "play_dead", "rollover", "backflip", "heal_dance", "speak_v1"]
 const _SOS_SMOOCH := 3.4
 const _SOS_SPRINKLE := 4.6
 const _SHOTS: Dictionary = {
@@ -1344,12 +1351,16 @@ func _play_pet(lead: Dictionary, actor: ToonActor, still: Callable, contact: Cal
 	await _run(_PET_IN, still, func(elapsed: float) -> void:
 		_pet_arrive(pet, portal, elapsed, gate)
 	)
+	if portal != null and is_instance_valid(portal):
+		portal.visible = false
 	if still.call():
 		await _run(_PET_WAIT, still, func(_elapsed: float) -> void:
 			if is_instance_valid(pet):
 				pet.visible = true
 				pet.call("hold_trick", "neutral", 0.0)
 		)
+	if still.call() and hit and trick >= 0 and trick < _PET_TRICK_SFX.size():
+		_pet_sound(_PET_TRICK_SFX[trick])
 	for step in _pet_steps(trick, hit):
 		if not still.call() or not is_instance_valid(pet):
 			break
@@ -1440,9 +1451,15 @@ func _pet_hole(pet: Node3D) -> Node:
 	portal.name = "PetHole"
 	portal.call("setup")
 	pet.add_child(portal)
-	portal.transform = Transform3D.IDENTITY
+	# The hole channel is still in Panda's Z-up space. This basis stands it on the ground, one unit behind the pet.
+	var upright := Basis()
+	upright.x = Vector3(1.0, 0.0, 0.0)
+	upright.y = Vector3(0.0, 0.0, -1.0)
+	upright.z = Vector3(0.0, 1.0, 0.0)
+	portal.transform = Transform3D(upright, Vector3(0.0, 0.0, 1.0))
 	portal.scale = Vector3(0.75, 0.75, 0.75)
-	portal.call("pose_at", 3.4)
+	portal.call("pose_at", 81.0 / 24.0)
+	portal.visible = false
 	return portal
 
 
@@ -1450,27 +1467,27 @@ func _pet_arrive(pet: Node3D, portal: Node, elapsed: float, gate: Dictionary) ->
 	if not is_instance_valid(pet):
 		return
 	if elapsed < 1.0:
-		pet.visible = false
-		return
-	var hole := elapsed - 1.0
-	if portal != null and is_instance_valid(portal):
-		var hole_time := 3.4
-		if hole < 0.3:
-			hole_time = lerpf(3.4, 3.1, hole / 0.3)
-		elif hole < 1.3:
-			hole_time = 3.1
-		else:
-			hole_time = lerpf(3.1, 3.4, clampf((hole - 1.3) / 0.3, 0.0, 1.0))
-		portal.call("pose_at", hole_time)
-		portal.visible = hole < 1.6
-	if hole < 0.3:
-		pet.visible = false
+		pet.visible = true
+		pet.call("hold_trick", "reappear", 0.0)
+		if portal != null and is_instance_valid(portal):
+			portal.visible = false
 		return
 	if not bool(gate["sound"]):
 		gate["sound"] = true
-		_run_sound()
+		_pet_sound("teleport_reappear")
+	var hole := elapsed - 1.0
 	pet.visible = true
-	pet.call("hold_trick", "neutral", 0.0)
+	if portal != null and is_instance_valid(portal):
+		portal.visible = true
+	if hole < _PET_HOLE:
+		_pet_hole_span(portal, 81.0, 71.0, hole)
+		pet.call("hold_trick", "reappear", 0.0)
+	elif hole < _PET_HOLE + _PET_REAPPEAR:
+		_pet_hole_span(portal, 71.0, 71.0, 0.0)
+		pet.call("hold_trick", "reappear", hole - _PET_HOLE)
+	else:
+		_pet_hole_span(portal, 71.0, 81.0, hole - _PET_HOLE - _PET_REAPPEAR)
+		pet.call("hold_trick", "reappear", _PET_REAPPEAR)
 
 
 func _pet_leave(pet: Node3D, still: Callable) -> void:
@@ -1485,22 +1502,51 @@ func _pet_leave(pet: Node3D, still: Callable) -> void:
 			if portal != null and is_instance_valid(portal):
 				portal.visible = false
 			return
-		var hole := elapsed - 1.0
-		if portal != null and is_instance_valid(portal):
-			var hole_time := 3.4
-			if hole < 0.3:
-				hole_time = lerpf(3.4, 3.1, hole / 0.3)
-			else:
-				hole_time = lerpf(3.1, 3.4, clampf((hole - 0.3) / 0.3, 0.0, 1.0))
-			portal.call("pose_at", hole_time)
-			portal.visible = hole < 0.6
-		if hole >= 0.3 and not bool(gate["sound"]):
+		if not bool(gate["sound"]):
 			gate["sound"] = true
-			_run_sound()
-		pet.visible = hole < 0.3
+			_pet_sound("teleport_disappear")
+		var hole := elapsed - 1.0
+		pet.visible = true
+		if hole < _PET_TO_DIG:
+			if portal != null and is_instance_valid(portal):
+				portal.visible = false
+			pet.call("hold_trick", "toDig", hole)
+			return
+		hole -= _PET_TO_DIG
+		if hole < _PET_DIG:
+			_pet_hole_span(portal, 81.0, 71.0, hole)
+			pet.call("hold_trick", "dig", hole)
+			return
+		hole -= _PET_DIG
+		if hole < _PET_DISAPPEAR:
+			_pet_hole_span(portal, 71.0, 71.0, 0.0)
+			pet.call("hold_trick", "disappear", hole)
+			return
+		hole -= _PET_DISAPPEAR
+		_pet_hole_span(portal, 71.0, 81.0, hole)
+		pet.call("hold_trick", "disappear", _PET_DISAPPEAR)
 	)
 	if portal != null and is_instance_valid(portal):
 		portal.queue_free()
+
+
+func _pet_hole_span(portal: Node, start_frame: float, end_frame: float, elapsed: float) -> void:
+	if portal == null or not is_instance_valid(portal):
+		return
+	var frame := lerpf(start_frame, end_frame, clampf(elapsed / _PET_HOLE, 0.0, 1.0))
+	portal.visible = true
+	portal.call("pose_at", frame / 24.0)
+
+
+func _pet_sound(clip: String) -> void:
+	var stream := ToonAudio.stream("res://assets/pets/sfx/%s.ogg" % clip)
+	if stream == null:
+		return
+	var player := ToonAudio.effect_player()
+	player.stream = stream
+	add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
 
 
 func _pet_praise(actor: ToonActor, look: Dictionary, hit: bool) -> void:
@@ -4067,7 +4113,7 @@ func _begin_camera(lead: Dictionary, actor: ToonActor, marks: Array) -> void:
 	_aim_open_on = "battle"
 	_aim_close_on = "battle"
 	if kind == "pet":
-		_aim_open = 2.8
+		_aim_open = _PET_IN
 		_aim_open_name = "toon_group"
 		_aim_close_name = "toon_group"
 		return

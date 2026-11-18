@@ -19,6 +19,8 @@ const _KNOCK := "res://assets/audio/sfx/GUI_knock_1.ogg"
 const _POP := "res://assets/audio/sfx/GUI_balloon_popup.ogg"
 const _REACH := 2.0
 const _TURN := 40.0
+const _FOUR_TURN := 25.0
+const _CHINESE_CLOCK := 60.0
 const _SLEEP := 120.0
 const _LAFF := 20
 const _GREEN := Color(0.0, 0.9, 0.0, 1.0)
@@ -87,6 +89,12 @@ var _selected := -1
 var _chain := -1
 var _clock := 0.0
 var _awake := 0.0
+var _stalls := 0
+var _stall_out := false
+var _cheer := -1.0
+var _hover := -1
+var _hover_piece: Node3D
+var _turn_wave := 0.0
 var _over := ""
 var _checkers_adj: Array = []
 var _checkers_jump: Array = []
@@ -95,6 +103,7 @@ var _homes: Array = []
 var _layer: CanvasLayer
 var _screen: Control
 var _status: Label
+var _who: Label
 var _banner: TextureRect
 var _title: Label
 var _study_card: TextureRect
@@ -335,11 +344,23 @@ func _process(delta: float) -> void:
 				_paint_turn()
 				if _clock <= 0.0:
 					_expire()
-		elif _mode == "ready" and ToonNet.online() and _start_until > 0:
-			_clock = maxf(float(_start_until - int(Time.get_unix_time_from_system() * 1000.0)) / 1000.0, 0.0)
-			_paint_clock()
+		elif _mode == "ready":
+			if ToonNet.online() and _start_until > 0:
+				_clock = maxf(float(_start_until - int(Time.get_unix_time_from_system() * 1000.0)) / 1000.0, 0.0)
+				_paint_clock()
+			elif not ToonNet.online():
+				_clock = maxf(_clock - delta, 0.0)
+				_paint_clock()
+				if _clock <= 0.0:
+					_begin()
 		_blink_selected()
 		_blink_line(delta)
+		_preview_column()
+		_pulse_turn(delta)
+		if _cheer >= 0.0:
+			_cheer -= delta
+			if _cheer < 0.0:
+				_play_win()
 		if ToonNet.online() and not _busy:
 			_pull()
 	elif _mode != "learn" and _mode != "study" and _mode != "watch":
@@ -379,9 +400,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	var origin := camera.project_ray_origin(click.position)
 	var direction := camera.project_ray_normal(click.position)
 	if _kind == "findfour":
-		var column := _pick_column(origin, direction)
-		if column >= 0:
-			_drop(column)
+		if _hover >= 0:
+			_drop(_hover)
+		else:
+			var column := _pick_column(origin, direction)
+			if column >= 0:
+				_drop(column)
 		return
 	var reach := 0.45 if _kind == "checkers" else 0.28
 	var index := _pick_spot(origin, direction, reach)
@@ -475,6 +499,8 @@ func _stand() -> void:
 	_flyer = null
 	_sit_time = -1.0
 	_dance = -1.0
+	_stalls = 0
+	_stall_out = false
 	_cam_armed = false
 	_restore_blink()
 	_close_board()
@@ -499,6 +525,7 @@ func _choose(kind: String) -> void:
 	_kind = kind
 	_close_board()
 	_open_board()
+	_clock = _start_seconds()
 	_set_mode("ready")
 
 
@@ -510,7 +537,7 @@ func _begin() -> void:
 	_selected = -1
 	_chain = -1
 	_over = ""
-	_clock = _TURN
+	_clock = _turn_seconds()
 	if _kind == "checkers":
 		_squares.clear()
 		for _index in 32:
@@ -613,6 +640,7 @@ func _close_board() -> void:
 		_board.queue_free()
 	_board = null
 	_spots.clear()
+	_clear_hover()
 	_starts.clear()
 	_pieces.clear()
 	_four_red.clear()
@@ -632,6 +660,12 @@ func _click_checkers(index: int) -> void:
 		return
 	var state := int(_squares[index])
 	if _chain >= 0:
+		if index == _chain:
+			if _shared():
+				ToonNet.picnic_act(_index, "stop", {})
+			else:
+				_end_turn()
+			return
 		if _legal_jump(_chain, index):
 			_land_checkers(_chain, index, true)
 		else:
@@ -759,12 +793,15 @@ func _land_chinese(source: int, dest: int, hopped: bool) -> void:
 			_paint_turn()
 		else:
 			_end_turn()
+			if _stall_out:
+				_stand()
 	)
 
 
 func _drop(column: int) -> void:
 	if _busy:
 		return
+	_clear_hover()
 	if ToonNet.online() and _peer_color(ToonNet.peer_id()) != _player:
 		_knock()
 		return
@@ -831,6 +868,9 @@ func _expire() -> void:
 	if _kind == "checkers":
 		return
 	if _kind == "findfour":
+		if _hover >= 0 and _hover < 7 and int(_grid[0][_hover]) == 0:
+			_drop(_hover)
+			return
 		var open: Array[int] = []
 		for column in 7:
 			if int(_grid[0][column]) == 0:
@@ -838,6 +878,11 @@ func _expire() -> void:
 		if not open.is_empty():
 			_drop(open[randi() % open.size()])
 		return
+	if _chain >= 0:
+		_end_turn()
+		return
+	_stalls += 1
+	_stall_out = _stalls >= 5
 	var walks: Array[Vector2i] = []
 	var color := _chinese_color()
 	for source in _squares.size():
@@ -848,6 +893,8 @@ func _expire() -> void:
 				walks.append(Vector2i(source, dest))
 	if walks.is_empty():
 		_end_turn()
+		if _stall_out:
+			_stand()
 		return
 	var pick: Vector2i = walks[randi() % walks.size()]
 	_land_chinese(pick.x, pick.y, false)
@@ -863,7 +910,7 @@ func _end_turn() -> void:
 		_player = 2 if _player == 1 else 1
 	_selected = -1
 	_chain = -1
-	_clock = _TURN
+	_clock = _turn_seconds()
 	if _kind == "checkers":
 		_show_checkers()
 	elif _kind == "chinese":
@@ -884,10 +931,25 @@ func _finish(color: String, game: String) -> void:
 	_set_mode("over")
 	_status.text = _over
 	_dance = 0.0
+	_cheer = 2.0
 	_restore_blink()
 	var toon := _toon()
 	if toon != null:
 		toon.call("heal", _LAFF)
+
+
+func _start_seconds() -> float:
+	if _kind == "chinese":
+		return _CHINESE_CLOCK
+	return 20.0
+
+
+func _turn_seconds() -> float:
+	if _kind == "chinese":
+		return _CHINESE_CLOCK
+	if _kind == "findfour":
+		return _FOUR_TURN
+	return _TURN
 
 
 func _paint_turn() -> void:
@@ -896,6 +958,7 @@ func _paint_turn() -> void:
 		return
 	var who := _turn_sentence()
 	_status.text = who
+	_paint_who()
 	_paint_clock()
 
 
@@ -924,6 +987,94 @@ func _paint_clock() -> void:
 	var view := get_viewport().get_visible_rect().size
 	var px := maxi(int(round((0.34 if str(whole).length() <= 1 else 0.27) * 0.3 * view.y * 0.5)), 10)
 	ToonGui.style_label(_clock_face, Color(1, 0, 0) if late else Color(0, 0, 0), px, Color(0, 0, 0, 0), 0)
+
+
+func _paint_who() -> void:
+	if _who == null:
+		return
+	_who.text = _who_sentence()
+
+
+func _who_sentence() -> String:
+	if _observing and not _seated:
+		return "You are Observing"
+	if _kind == "checkers":
+		return "You are White" if _mine() == 1 else "You are Black"
+	if _kind == "findfour":
+		return "You are Red" if _mine() == 1 else "You are Yellow"
+	return "You are " + _color_name(_mine())
+
+
+func _who_color() -> Color:
+	if _observing and not _seated:
+		return Color(0, 0, 0)
+	if _kind == "checkers":
+		return Color(1, 1, 1) if _mine() == 1 else Color(0, 0, 0)
+	if _kind == "findfour":
+		return Color(1, 0, 0) if _mine() == 1 else Color(1, 1, 0)
+	return _marble_color(_mine())
+
+
+func _mine() -> int:
+	if ToonNet.online():
+		return _peer_color(ToonNet.peer_id())
+	return _player
+
+
+func _my_turn() -> bool:
+	if _observing and not _seated:
+		return false
+	if not ToonNet.online():
+		return true
+	return _peer_color(ToonNet.peer_id()) == _player
+
+
+func _pulse_turn(delta: float) -> void:
+	if _status == null:
+		return
+	if _mode != "play" or not _my_turn():
+		_status.scale = Vector2.ONE
+		_status.pivot_offset = Vector2.ZERO
+		return
+	_turn_wave += delta
+	var wave := 0.5 + 0.5 * sin(_turn_wave * TAU / 1.2)
+	_status.pivot_offset = _status.size * 0.5
+	_status.scale = Vector2.ONE * (1.0 + 0.045 * wave)
+
+
+func _preview_column() -> void:
+	if _kind != "findfour" or _mode != "play" or _busy or not _my_turn():
+		_clear_hover()
+		return
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var mouse := get_viewport().get_mouse_position()
+	var column := _pick_column(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
+	if column == _hover:
+		return
+	_clear_hover()
+	if column < 0 or column >= 7 or _grid.is_empty() or int(_grid[0][column]) != 0:
+		return
+	if column >= _starts.size() or _starts[column] == null:
+		return
+	var source: Array[Node3D] = _four_red if _player == 1 else _four_yellow
+	if source.is_empty() or source[0] == null:
+		return
+	var piece := source[0].duplicate() as Node3D
+	if piece == null:
+		return
+	_starts[column].add_child(piece)
+	piece.visible = true
+	_hover = column
+	_hover_piece = piece
+
+
+func _clear_hover() -> void:
+	if _hover_piece != null and is_instance_valid(_hover_piece):
+		_hover_piece.queue_free()
+	_hover_piece = null
+	_hover = -1
 
 
 func _show_checkers() -> void:
@@ -1373,6 +1524,7 @@ func _build_ui() -> void:
 	_study_body = _words()
 	_study_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status = _words()
+	_who = _words()
 	_clock_art = _card(_CLOCK_ART)
 	_clock_face = _words()
 	_clock_art.add_child(_clock_face)
@@ -1514,13 +1666,14 @@ func _set_mode(mode: String) -> void:
 		_show_study()
 	elif mode == "ready":
 		_show_nodes([_start, _getup])
-		if _start_until > 0:
+		if _start_until > 0 or not ToonNet.online():
 			_clock_art.visible = true
 			_paint_clock()
 	elif mode == "watch":
-		_show_nodes([_stop_btn, _status])
+		_show_nodes([_stop_btn, _status, _who])
+		_paint_who()
 	elif mode == "play":
-		_show_nodes([_quit_btn, _status, _clock_art])
+		_show_nodes([_quit_btn, _status, _who, _clock_art])
 		_paint_turn()
 	elif mode == "over":
 		_show_nodes([_quit_btn, _status])
@@ -1680,6 +1833,12 @@ func _layout() -> void:
 	ToonGui.place(_status, view, -0.8, -0.5, 1.2, 0.16)
 	var turn_color := Color(0, 0, 0) if _mode == "over" else (Color(1, 1, 1) if _player == 1 else Color(0, 0, 0))
 	_fit(_status, view, -0.8, -0.5, 1.2, 0.2, 0.092, turn_color, false)
+	if _who != null:
+		var who_at := Vector2(-0.8, -0.4)
+		if _kind == "findfour":
+			who_at = Vector2(-0.7, -0.29)
+		_fit(_who, view, who_at.x, who_at.y, 1.2, 0.16, 0.1, _who_color(), false)
+		_who.text = _who_sentence()
 	var clock_at := Vector2(-0.74, -0.2)
 	if _mode == "ready":
 		clock_at = Vector2(1.16, -0.83)
@@ -1929,6 +2088,7 @@ func _apply_phase(state: Dictionary, changed: bool) -> void:
 					toon.call("heal", _LAFF)
 			if int(state.get("winner", 0)) == ToonNet.peer_id():
 				_dance = 0.0
+				_cheer = 2.0
 	elif _seated and kind == "":
 		if _mode != "menu" and _mode != "learn" and _mode != "study":
 			_set_mode("menu")
@@ -2291,6 +2451,16 @@ func _note_pose(anim: String) -> void:
 	var remotes := toon.get_node_or_null("RemoteToons")
 	if remotes != null and remotes.has_method("note_anim"):
 		remotes.call("note_anim", _heading, anim)
+
+
+func _play_win() -> void:
+	for path in ["res://assets/audio/sfx/KART_Applause_1.ogg", "res://assets/audio/battle/AA_heal_happydance.ogg"]:
+		var player := _sfx(path)
+		if player.stream == null:
+			player.queue_free()
+			continue
+		player.finished.connect(player.queue_free)
+		player.play()
 
 
 func _sfx(path: String) -> AudioStreamPlayer:

@@ -88,8 +88,9 @@ func _collide_mesh(mesh: MeshInstance3D) -> void:
 		return
 	# A flat-building wall is one quad. The concave triangle is thin enough
 	# that the toon walks through it. A box along that quad is the solid.
-	if not _on_street() and _flat_wall(mesh):
-		_thicken_wall(mesh)
+	# Estate walls are thicker than that quad, so a rejected box falls
+	# through and the wall mesh itself becomes the solid.
+	if not _on_street() and _flat_wall(mesh) and _thicken_wall(mesh):
 		return
 	# Fishing piers over the pond are open slats. The trimesh drops the toon
 	# through the deck, so the walkway gets the original floor polygon instead.
@@ -102,9 +103,21 @@ func _collide_mesh(mesh: MeshInstance3D) -> void:
 		cutout = (material as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 	# Party gates are masked cards. The tunnel, stairs, and signs still need to stop a toon.
 	# Lawbot floors are translucent so the reflection shows through. They are still the floor.
-	if cutout and not _party_piece(mesh) and not (_lawbot and _lawbot_floor(mesh)):
+	# The estate fence is an alpha card. The original collision_fence is a
+	# solid wall behind it, and that node was not exported.
+	if cutout and not _party_piece(mesh) and not _estate_fence(mesh) and not (_lawbot and _lawbot_floor(mesh)):
 		return
+	var both_sides := _flat_wall(mesh) or _estate_fence(mesh)
+	var before := mesh.get_child_count()
 	mesh.create_trimesh_collision()
+	if not both_sides:
+		return
+	for index in range(before, mesh.get_child_count()):
+		for child in mesh.get_child(index).get_children():
+			if child is CollisionShape3D:
+				var shape := (child as CollisionShape3D).shape
+				if shape is ConcavePolygonShape3D:
+					(shape as ConcavePolygonShape3D).backface_collision = true
 
 
 func _facade_piece(mesh: MeshInstance3D) -> bool:
@@ -664,9 +677,21 @@ func _flat_wall(mesh: MeshInstance3D) -> bool:
 	return low_name.begins_with("wall_") and low_name != "wall_1"
 
 
-func _thicken_wall(mesh: MeshInstance3D) -> void:
+func _estate_fence(mesh: MeshInstance3D) -> bool:
+	var current: Node = mesh
+	while current != null:
+		var leaf := String(current.name)
+		if leaf.begins_with("fence"):
+			var rest := leaf.substr("fence".length())
+			if rest == "" or rest.is_valid_int():
+				return true
+		current = current.get_parent()
+	return false
+
+
+func _thicken_wall(mesh: MeshInstance3D) -> bool:
 	if mesh.mesh == null or mesh.get_node_or_null("WallSolid") != null:
-		return
+		return mesh.get_node_or_null("WallSolid") != null
 	var low := Vector3(INF, INF, INF)
 	var high := Vector3(-INF, -INF, -INF)
 	var count := 0
@@ -679,7 +704,7 @@ func _thicken_wall(mesh: MeshInstance3D) -> void:
 			high = high.max(point)
 			count += 1
 	if count == 0:
-		return
+		return false
 	var span := high - low
 	var axis := 0
 	var thin := span.x
@@ -698,7 +723,7 @@ func _thicken_wall(mesh: MeshInstance3D) -> void:
 		wide_a = span.x
 		wide_b = span.y
 	if thin > 0.25 or wide_a > _WALL_SPAN or wide_b > _WALL_SPAN or wide_a < 0.4 or wide_b < 0.4:
-		return
+		return false
 	var size := span
 	if axis == 0:
 		size.x = _WALL_THICK
@@ -717,6 +742,7 @@ func _thicken_wall(mesh: MeshInstance3D) -> void:
 	collision.position = (low + high) * 0.5
 	body.add_child(collision)
 	mesh.add_child(body)
+	return true
 
 
 func _pier_board(mesh: MeshInstance3D) -> bool:

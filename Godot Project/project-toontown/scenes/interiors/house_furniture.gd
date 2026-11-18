@@ -15,6 +15,8 @@ const _SLOTS: PackedStringArray = [
 ]
 const _RUG := 4
 const _PAINTING := 8
+const _ON_TABLE := 16
+const _IS_TABLE := 32
 const _BANK := 1
 const _CLOSET_FLAG := 2
 const _PHONE := 64
@@ -47,6 +49,7 @@ static func place(host: Node) -> void:
 		model.set_meta("token", token)
 		model.position = Vector3(float(spot.get("x", 0.0)), float(spot.get("y", 0.02)), float(spot.get("z", 0.0)))
 		model.rotation.y = deg_to_rad(float(spot.get("h", 0.0)))
+		model.rotation.z = deg_to_rad(float(spot.get("r", 0.0)))
 		root.add_child(model)
 	var slots := PackedStringArray()
 	if _LAYOUT.has_windows():
@@ -94,6 +97,14 @@ static func is_painting(id: String) -> bool:
 
 static func is_rug(id: String) -> bool:
 	return int(_card(id).get("flags", 0)) & _RUG != 0
+
+
+static func on_table(id: String) -> bool:
+	return int(_card(id).get("flags", 0)) & _ON_TABLE != 0
+
+
+static func is_table(id: String) -> bool:
+	return int(_card(id).get("flags", 0)) & _IS_TABLE != 0
 
 
 static func fixed_line(id: String) -> String:

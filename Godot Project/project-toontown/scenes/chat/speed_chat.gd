@@ -73,6 +73,7 @@ var _pinned := false
 ## -2 hides the menu. -1 is the courtroom list. Zero and up adds the bonus-weight line.
 var _cj_bonus := -2
 var _ceo_menu := false
+var _cfo_menu := false
 const _CJ_LINES: PackedStringArray = [
 	"You need to hit the scale.",
 	"I will hit the scale.",
@@ -332,6 +333,7 @@ func _open_menu() -> void:
 	_apply_holiday_menus()
 	_apply_boarding_menu()
 	_apply_place_menus()
+	_apply_cog_menu()
 	_place_key = _PLACES.place_key(self)
 	_close_menu()
 	_blocker.visible = not _pinned
@@ -1882,6 +1884,27 @@ func set_ceo_menu(on: bool) -> void:
 	_apply_ceo_menu()
 
 
+func set_cfo_menu(on: bool) -> void:
+	_cfo_menu = on
+	_apply_cfo_menu()
+
+
+func _apply_cfo_menu() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and String((group as Dictionary).get("title", "")) == "C.F.O.":
+			_items.remove_at(index)
+	if not _cfo_menu:
+		return
+	var rows: Array = [
+		{"title": "CRANES", "items": _lines(_CFO_CRANES)},
+		{"title": "GOONS", "items": _lines(_CFO_GOONS)},
+	]
+	rows.append_array(_lines(_CFO_TOP))
+	var at := mini(2, _items.size())
+	_items.insert(at, {"title": "C.F.O.", "items": rows})
+
+
 func _apply_ceo_menu() -> void:
 	for index in range(_items.size() - 1, -1, -1):
 		var group: Variant = _items[index]
@@ -1897,9 +1920,39 @@ func _apply_ceo_menu() -> void:
 
 
 const _HOLIDAY_TITLES: Array[String] = [
-	"HALLOWEEN", "WINTER", "APRIL TOONS'", "VICTORY PARTIES", "STORM SELLBOT", "JELLYBEAN WEEK", "GREEN",
+	"HALLOWEEN", "WINTER", "APRIL TOONS'", "SILLY METER", "VICTORY PARTIES",
+	"STORM SELLBOT", "SELLBOT INVASION", "FIELD OFFICES", "JELLYBEAN WEEK", "GREEN",
 ]
-const _PLACE_TITLES: Array[String] = ["RACING", "GOLF", "FACTORY", "ELECTION"]
+const _PLACE_TITLES: Array[String] = ["RACING", "GOLF", "FACTORY", "ELECTION", "PARTIES"]
+const _CFO_CRANES: Array[String] = [
+	"Please operate the crane.",
+	"May I operate the crane?",
+	"I need practice operating the crane.",
+	"Pick up a disabled goon.",
+	"Throw the goon at the CFO.",
+	"Throw a safe now!",
+	"Don't throw a safe now!",
+	"A safe will knock off his helmet.",
+	"A safe will become his new helmet.",
+	"I can't reach any safes.",
+	"I can't reach any goons.",
+]
+const _CFO_GOONS: Array[String] = [
+	"Please disable the goons.",
+	"I would rather disable goons.",
+	"I need practice disabling goons.",
+	"Please stay nearby.",
+	"Keep moving.",
+	"I need to keep moving.",
+	"Look for someone who needs help.",
+]
+const _CFO_TOP: Array[String] = [
+	"Please save the treasures.",
+	"Take the treasures.",
+	"I need treasures!",
+	"Look out!",
+	"Help!",
+]
 var _place_key := ""
 
 
@@ -1908,7 +1961,7 @@ func _apply_boarding_menu() -> void:
 		var group: Variant = _items[index]
 		if group is Dictionary:
 			var title := String((group as Dictionary).get("title", ""))
-			if title == "GROUP" or title == "BOARDING":
+			if title == "GROUP" or title == "BOARDING" or title == "SINGING":
 				_items.remove_at(index)
 	var lines := BoardingParty.phrases()
 	if lines.is_empty():
@@ -1921,6 +1974,7 @@ func _apply_boarding_menu() -> void:
 	rows.append_array(_lines(_phrase_list(lines, "ready")))
 	var at := 1 if _items.size() > 1 else _items.size()
 	_items.insert(at, {"title": "BOARDING", "items": rows})
+	_items.insert(at, {"title": "SINGING", "items": _singing_lines()})
 
 
 func _apply_place_menus() -> void:
@@ -1941,6 +1995,31 @@ func _apply_place_menus() -> void:
 		_items.insert(at, location[index])
 	if not election.is_empty():
 		_items.insert(0, election)
+	var party := _party_menu()
+	if not party.is_empty():
+		var spot := 1 if _items.size() > 1 else _items.size()
+		_items.insert(spot, party)
+
+
+func _party_menu() -> Dictionary:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return {}
+	if tree.current_scene.scene_file_path.get_file() != "party_grounds.tscn":
+		return {}
+	var party := load("res://scenes/parties/toon_party.gd") as GDScript
+	if party == null or not party.has_method("inside_lines"):
+		return {}
+	var found: Variant = party.call("inside_lines")
+	var texts: Array = []
+	if found is PackedStringArray:
+		for line in found:
+			texts.append(String(line))
+	elif found is Array:
+		texts = found
+	if texts.is_empty():
+		return {}
+	return {"title": "PARTIES", "items": _lines(texts)}
 
 
 func _phrase_list(lines: Dictionary, key: String) -> Array:
@@ -1972,6 +2051,51 @@ func _apply_holiday_menus() -> void:
 			]})
 		winter.append_array(_lines(["Happy holidays!", "Season's greetings!", "Have a Wonderful Winter!"]))
 		menus.append({"title": "WINTER", "items": winter})
+	if on.has(67):
+		menus.append(_silly_menu([
+			"Things sure are getting silly around here!", "I saw a fire hydrant moving!",
+			"Toontown is coming to life!", "Have you been to Flippy's new office?",
+		], [
+			"I caused a Silly Surge in battle!", "Let's defeat some Cogs to make Toontown sillier!",
+		], [
+			"Have you seen the Silly Meter?", "The Silly Meter is in Toon Hall.",
+		]))
+	if on.has(68):
+		menus.append(_silly_menu([
+			"Lots of hydrants have come alive!", "I saw a mail box moving!",
+			"I watched a trash can wake up!", "How silly can it get?",
+			"What's going to happen next?", "Something silly, I bet!",
+		], [
+			"Have you caused a Silly Surge yet?", "Let's defeat some Cogs to make Toontown sillier!",
+		], [
+			"The Silly Meter is bigger and crazier than ever!",
+		]))
+	if on.has(69):
+		menus.append(_silly_menu([
+			"Toontown is sillier than ever now!", "Have you seen something come alive?",
+			"My favorites are the fire hydrants!", "My favorites are the mailboxes!",
+			"My favorites are the trash cans!",
+		], [
+			"Cog Invasion!", "Incoming!", "Let's stop those Cogs!",
+			"I miss the Silly Surges!", "Let's go stop an Invasion!",
+		], []))
+	if on.has(70):
+		menus.append(_silly_menu([
+			"My favorites are the fire hydrants!", "My favorites are the mailboxes!",
+			"My favorites are the trash cans!",
+		], [
+			"A hydrant helped me in battle!", "A hydrant boosted my Squirt Gags!",
+			"A trash can boosted my Toon-Up Gags!", "A mailbox helped my Throw Gags!",
+		], []))
+	if on.has(94):
+		menus.append(_silly_menu([
+			"My favorites are the fire hydrants!", "My favorites are the mailboxes!",
+			"My favorites are the trash cans!",
+		], [
+			"Hooray! We stopped the Cog invasions!", "A hydrant helped me in battle!",
+			"A hydrant boosted my Squirt Gags!", "A trash can boosted my Toon-Up Gags!",
+			"A mailbox helped my Throw Gags!",
+		], []))
 	if on.has(29):
 		menus.append({"title": "APRIL TOONS'", "items": [
 			{"title": "GREETINGS", "items": _lines(["Happy April Toons' Week!", "The Silly Meter is back in Toon Hall!"])},
@@ -2028,6 +2152,34 @@ func _apply_holiday_menus() -> void:
 				"I'll stun the VP from the front.", "I'll stun the VP from the back.", "Jump when the VP jumps!",
 			])},
 		]})
+	if on.has(102):
+		menus.append({"title": "SELLBOT INVASION", "items": _lines([
+			"The Sellbots are invading!",
+			"The V.P. was hopping mad about Operation: Storm Sellbot ...",
+			"He's sending the Sellbots in to invade Toontown!",
+			"Let's go fight some Sellbots!",
+		])})
+	if on.has(103):
+		var office: Array = _lines([
+			"There's a new kind of building in Toontown!",
+			"Have you seen the Mover & Shaker Field Offices?",
+			"The V.P. created them as a reward for the Movers & Shakers.",
+			"Let's go defeat a Field Office!",
+			"I got an SOS Card for defeating a Field Office!",
+		])
+		office.append({"title": "STRATEGY", "items": _lines([
+			"Clear the map by exploring the maze.",
+			"Destroy the Cogs by hitting them with water balloons!",
+			"Movers & Shakers take two balloons to destroy.",
+			"Look out for falling objects!",
+			"Watch out for the Cogs!",
+			"Collect Jokes to get a Toon-up at the end!",
+			"When the room shakes, a Mover & Shaker is nearby.",
+			"Defeat all four Movers & Shakers to open the exit!",
+			"The exit is open!",
+			"It's the Boss!",
+		])})
+		menus.append({"title": "FIELD OFFICES", "items": office})
 	if on.has(49) or on.has(97) or on.has(98) or on.has(99):
 		menus.append({"title": "JELLYBEAN WEEK", "items": [
 			{"title": "GET JELLYBEANS", "items": _lines([
@@ -2049,6 +2201,87 @@ func _apply_holiday_menus() -> void:
 	var at := mini(2, _items.size())
 	for index in range(menus.size() - 1, -1, -1):
 		_items.insert(at, menus[index])
+
+
+## TTSCSingingMenu links 9000-9007 to emotes 25-32. SpeedChatStaticText never
+## wrote those ids. EmoteFuncDict names the eight notes. Phrase 9008 has no note.
+func _singing_lines() -> Array:
+	var notes: Array[String] = [
+		"Sing Note G1", "Sing Note A", "Sing Note B", "Sing Note C",
+		"Sing Note D", "Sing Note E", "Sing Note F", "Sing Note G2",
+	]
+	var rows: Array = []
+	for index in notes.size():
+		var note := notes[index]
+		rows.append({"text": note, "say": note, "emote": 25 + index})
+	return rows
+
+
+## putOnSuit.addCogMenu. Five shared brush-offs, then that suit's faceoff lines.
+const _COG_COMMON: Array[String] = [
+	"It's my day off.",
+	"I believe you're in the wrong office.",
+	"Have your people call my people.",
+	"You're in no position to meet with me.",
+	"Talk to my assistant.",
+]
+const _COG_COUNT := {
+	"bf": 10, "nc": 10, "ym": 11, "ms": 11, "bc": 11, "cc": 13, "nd": 10, "ac": 12,
+	"tf": 11, "hh": 11, "le": 10, "bs": 11, "cr": 10, "tbc": 11, "ds": 8, "gh": 13,
+	"pp": 10, "b": 12, "f": 11, "mm": 14, "tw": 11, "mb": 10, "m": 9, "mh": 12,
+	"dt": 10, "p": 11, "tm": 11, "bw": 10, "ls": 11, "rb": 10, "sc": 2, "sd": 10,
+}
+const _TAUNTS := "res://assets/battle/faceoff_taunts.json"
+var _taunt_book: Dictionary = {}
+
+
+func _apply_cog_menu() -> void:
+	for index in range(_items.size() - 1, -1, -1):
+		var group: Variant = _items[index]
+		if group is Dictionary and String((group as Dictionary).get("title", "")) == "COG SPEAK":
+			_items.remove_at(index)
+	var code := _worn_suit()
+	if code == "":
+		return
+	var at := mini(2, _items.size())
+	_items.insert(at, {"title": "COG SPEAK", "items": _lines(_cog_lines(code))})
+
+
+func _worn_suit() -> String:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return ""
+	var toon := tree.current_scene.find_child("PlaygroundToon", true, false)
+	if toon == null:
+		return ""
+	var suit := toon.find_child("CogSuit", true, false)
+	if suit == null:
+		return ""
+	return String(suit.get("cog_code"))
+
+
+func _cog_lines(code: String) -> Array:
+	if _taunt_book.is_empty() and FileAccess.file_exists(_TAUNTS):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_TAUNTS))
+		if parsed is Dictionary:
+			_taunt_book = parsed
+	var lines: Array = []
+	lines.append_array(_COG_COMMON)
+	var found: Variant = _taunt_book.get(code, [])
+	if found is Array:
+		var count := mini(int(_COG_COUNT.get(code, 0)), (found as Array).size())
+		for index in count:
+			lines.append(String((found as Array)[index]))
+	return lines
+
+
+func _silly_menu(world: Array, battle: Array, top: Array) -> Dictionary:
+	var items: Array = [
+		{"title": "WORLD", "items": _lines(world)},
+		{"title": "BATTLE", "items": _lines(battle)},
+	]
+	items.append_array(_lines(top))
+	return {"title": "SILLY METER", "items": items}
 
 
 func _lines(texts: Array) -> Array:

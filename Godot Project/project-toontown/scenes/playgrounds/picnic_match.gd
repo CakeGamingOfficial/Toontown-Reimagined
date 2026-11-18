@@ -1,18 +1,32 @@
 extends RefCounted
 ## The district's copy of one picnic table. Checkers and Find Four use the first
 ## two occupied seats. Chinese Checkers uses every seated toon, up to six, on
-## the original colors. A countdown of 20 seconds starts the game once two are
-## seated, and Start begins early when everyone seated has pressed it.
+## the original colors. Once two are seated, the start clock runs and Start
+## begins early when everyone seated has pressed it.
+## Chinese Checkers counts 60 seconds to start and 60 on a turn. Checkers and
+## Find Four count 20 to start. A Checkers turn is 40. A Find Four turn is 25.
 
 const _RULES := "res://assets/neighborhoods/acorn_acres/picnic_rules.json"
-const _START := 20000
-const _TURN := 40000
 
 static var _ready_rules := false
 static var _checkers_adj: Array = []
 static var _checkers_jump: Array = []
 static var _chinese_adj: Array = []
 static var _homes: Array = []
+
+
+static func _start_ms(kind: String) -> int:
+	if kind == "chinese":
+		return 60000
+	return 20000
+
+
+static func _turn_ms(kind: String) -> int:
+	if kind == "chinese":
+		return 60000
+	if kind == "findfour":
+		return 25000
+	return 40000
 
 
 static func blank() -> Dictionary:
@@ -35,6 +49,7 @@ static func blank() -> Dictionary:
 		"ready": [],
 		"colors": [0, 0, 0, 0, 0, 0],
 		"moves": 0,
+		"stalls": 0,
 	}
 
 
@@ -81,8 +96,7 @@ static func tick(state: Dictionary, now: int) -> Dictionary:
 		if int(book.get("chain", -1)) >= 0:
 			_finish_turn(book, now)
 			return book
-		_random_move(book, now)
-		return book
+		return _random_move(book, now)
 	return {}
 
 
@@ -125,7 +139,7 @@ static func _join(book: Dictionary, peer: int, seat: int, now: int) -> Dictionar
 		book["ready"] = []
 		return book
 	if String(book.get("kind", "")) != "" and _occupied(book) >= 2 and int(book.get("until", 0)) == 0:
-		book["until"] = now + _START
+		book["until"] = now + _start_ms(String(book.get("kind", "")))
 		book["phase"] = "ready"
 	return book
 
@@ -184,7 +198,7 @@ static func _pick(book: Dictionary, peer: int, kind: String, now: int) -> Dictio
 	_deal(book)
 	_assign(book)
 	if _occupied(book) >= 2:
-		book["until"] = now + _START
+		book["until"] = now + _start_ms(String(book.get("kind", "")))
 	return book
 
 
@@ -223,7 +237,7 @@ static func _begin(book: Dictionary, now: int) -> void:
 	book["chain"] = -1
 	book["winner"] = 0
 	book["tie"] = false
-	book["turn_until"] = now + _TURN
+	book["turn_until"] = now + _turn_ms(String(book.get("kind", "")))
 	book["seq"] = int(book.get("seq", 0)) + 1
 	_clear_move(book)
 	_deal(book)
@@ -394,10 +408,10 @@ static func _finish_turn(book: Dictionary, now: int) -> void:
 		book["tie"] = false
 		book["turn_until"] = 0
 		return
-	book["turn_until"] = now + _TURN
+	book["turn_until"] = now + _turn_ms(String(book.get("kind", "")))
 
 
-static func _random_move(book: Dictionary, now: int) -> void:
+static func _random_move(book: Dictionary, now: int) -> Dictionary:
 	var player := int(book.get("turn", 1))
 	var kind := String(book.get("kind", ""))
 	if kind == "findfour":
@@ -407,11 +421,13 @@ static func _random_move(book: Dictionary, now: int) -> void:
 			if column < grid.size() and int(grid[column]) == 0:
 				open.append(column)
 		if open.is_empty():
-			return
+			return book
 		_drop(book, player, open[randi() % open.size()], now)
-		return
+		return book
 	if kind != "chinese":
-		return
+		return book
+	var stalls := int(book.get("stalls", 0)) + 1
+	book["stalls"] = stalls
 	var squares: Array = book.get("squares", [])
 	var color := player
 	var walks: Array[Vector2i] = []
@@ -423,9 +439,16 @@ static func _random_move(book: Dictionary, now: int) -> void:
 				walks.append(Vector2i(source, dest))
 	if walks.is_empty():
 		_finish_turn(book, now)
-		return
-	var pick: Vector2i = walks[randi() % walks.size()]
-	_chinese(book, player, pick.x, pick.y, now)
+	else:
+		var pick: Vector2i = walks[randi() % walks.size()]
+		_chinese(book, player, pick.x, pick.y, now)
+	if stalls < 5 or String(book.get("phase", "")) == "over":
+		return book
+	var colors: Array = book.get("colors", [])
+	var peer := int(colors[player - 1]) if player >= 1 and player <= colors.size() else 0
+	if peer == 0:
+		return book
+	return _leave(book, peer, now)
 
 
 static func _deal(book: Dictionary) -> void:
@@ -501,7 +524,7 @@ static func _leave_chinese(book: Dictionary, peer: int, now: int) -> Dictionary:
 		return book
 	if int(book.get("turn", 1)) == color:
 		book["turn"] = _next_color(colors, color)
-		book["turn_until"] = now + _TURN
+		book["turn_until"] = now + _turn_ms(String(book.get("kind", "")))
 	return book
 
 

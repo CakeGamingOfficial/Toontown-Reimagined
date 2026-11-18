@@ -102,7 +102,11 @@ var _ack_was_locked := false
 const FORWARD_SPEED := 20.0
 const REVERSE_SPEED := 10.0
 const TURN_SPEED := 100.0
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const GRAVITY := 64.348
+## Estate.startAprilFoolsControls. The walker is 32.174 * 2. April Toons and
+## the Silly Meter extension set 32.174 * 0.75, and only on the estate.
+const _APRIL_GRAVITY := 32.174 * 0.75
 const JUMP_FORCE := 24.0
 const JUMP_LOCK := 0.2
 const HARD_LAND := -30.0
@@ -480,10 +484,11 @@ func _ready() -> void:
 	if _PLACES.is_house(_scene_path()):
 		_SURFACES.apply(get_parent())
 		preload("res://scenes/interiors/house_furniture.gd").place(get_parent())
-		var editor := _HOUSE_EDIT.new()
-		editor.name = "HouseEditor"
-		add_child(editor)
-		editor.open_house(self)
+		if _own_home():
+			var editor := _HOUSE_EDIT.new()
+			editor.name = "HouseEditor"
+			add_child(editor)
+			editor.open_house(self)
 	_TELLER.prepare(get_parent())
 	_HQ.prepare(get_parent())
 	_paint_interior()
@@ -1197,6 +1202,11 @@ func _scene_path() -> String:
 	if get_parent() != null:
 		return get_parent().scene_file_path
 	return ""
+
+
+func _own_home() -> bool:
+	var slot := clampi(ToonRoster.selected_index(), 0, 5)
+	return _scene_path().ends_with("house_interior_%d.tscn" % slot)
 
 
 func _estate_slot() -> int:
@@ -4892,6 +4902,14 @@ func _leave_water() -> void:
 		_player.set_swimming(false)
 
 
+func _fall_gravity() -> float:
+	if _player != null and _player.under_water():
+		return GRAVITY
+	if _PLACES.is_estate(_scene_path()) and (_HOLIDAYS.running(29) or _HOLIDAYS.running(116)):
+		return _APRIL_GRAVITY
+	return GRAVITY
+
+
 func _walk(delta: float) -> void:
 	if _player == null or _body == null:
 		return
@@ -4963,7 +4981,7 @@ func _walk(delta: float) -> void:
 			_body.velocity.y = -2.0
 			_jumping = false
 	else:
-		_body.velocity.y -= GRAVITY * delta
+		_body.velocity.y -= _fall_gravity() * delta
 		impact = _body.velocity.y
 	if not jumped and (on_floor or (_body.is_on_wall() and _body.velocity.y <= 1.0)):
 		_raise_onto_step()
@@ -5549,6 +5567,9 @@ func _furniture_cam() -> bool:
 	var editor := get_node_or_null("HouseEditor")
 	if editor == null or not editor.has_method("holds_camera") or not bool(editor.call("holds_camera")):
 		return false
+	# The house scene camera stays current unless this one is claimed again.
+	if _camera != null:
+		_camera.current = true
 	editor.call("aim", _camera)
 	return true
 

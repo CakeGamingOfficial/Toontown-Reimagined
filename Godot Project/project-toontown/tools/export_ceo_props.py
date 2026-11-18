@@ -1,6 +1,7 @@
 """Export the C.E.O. banquet table, food, seltzer bottle, snacks, and sit clips.
 
-Sit clips are phase_12 suitA/suitC only. suitB has no sit reel.
+Phase 12 ships sit reels for suit A and suit C. Suit B only has the tray reels.
+Body B's sit clips are suit A's channels with the anim root renamed to suitB.
 """
 from __future__ import annotations
 
@@ -191,6 +192,74 @@ def bake_trays() -> None:
         model.removeNode()
 
 
+def _rename_part(part, old: str, new: str) -> None:
+    if part.getName() == old:
+        part.setName(new)
+    for index in range(part.getNumChildren()):
+        _rename_part(part.getChild(index), old, new)
+
+
+def bake_body_b_sits() -> None:
+    # Suit A is the nearer body height (6.06 against B's 5.29; C is 4.14).
+    # Renaming the anim root lets those channels pose suit B's matching joints.
+    import export_make_a_toon as toon_export
+    import export_toon_walk as walk_export
+
+    game = Path(r"G:\Toontown-Reimagined\Original Toontown Assets\Game Assets")
+    getModelPath().prependDirectory(Filename.from_os_specific(str(game)))
+
+    def load_game(relative: str):
+        path = game / relative
+        if not path.exists():
+            return None
+        node = Loader.getGlobalPtr().loadSync(Filename.from_os_specific(str(path)))
+        if node is None:
+            return None
+        return NodePath(node)
+
+    toon_export.load_model = load_game
+    street.ASSETS = game
+    street.load_model = load_game
+    body = "b"
+    mod, _heads, neutral, _phase = street.BODIES[body]
+    model = load_game(mod)
+    if model is None:
+        raise RuntimeError("missing " + mod)
+    saved, _control = street.pose_neutral(model, neutral)
+    street.BODIES_NEUTRAL[body] = _control
+    model.setTag("suit_body", body)
+    real_bind = walk_export.bind_anim
+
+    def bind_anim(root, relative: str):
+        anim = load_game(relative)
+        if anim is None:
+            raise RuntimeError("missing " + relative)
+        part = anim.find("**/+AnimBundleNode").node().getBundle()
+        _rename_part(part, "suitA", "suitB")
+        character = root.find("**/+Character")
+        control = character.node().getBundle(0).bindAnim(part, -1)
+        toon_export._KEEP.append(anim)
+        return control
+
+    walk_export.bind_anim = bind_anim
+    try:
+        for key, stem in SIT:
+            relative = "phase_12/models/char/suitA-%s.bam" % stem
+            dest = ANIMS / body / ("%s.walk" % key)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                dest.unlink()
+            print("bake", body, key, flush=True)
+            frames, rate = street.bake_clip(model, saved, relative, dest)
+            size = dest.stat().st_size if dest.exists() else 0
+            print("  ", frames, rate, size, flush=True)
+            if frames <= 0 or size <= 0:
+                raise RuntimeError("empty bake " + key)
+    finally:
+        walk_export.bind_anim = real_bind
+    model.removeNode()
+
+
 def main() -> None:
     for relative, name in PROPS:
         write(load(relative), name)
@@ -303,7 +372,9 @@ def export_icons() -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "clips":
+    if len(sys.argv) > 1 and sys.argv[1] == "sit-b":
+        bake_body_b_sits()
+    elif len(sys.argv) > 1 and sys.argv[1] == "clips":
         export_clips()
     elif len(sys.argv) > 1 and sys.argv[1] == "icons":
         export_icons()

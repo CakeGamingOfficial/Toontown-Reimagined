@@ -191,6 +191,66 @@ static func active() -> bool:
 	return float(_party.get("until", 0.0)) > now and float(_party.get("start", 0.0)) <= now
 
 
+## TTChatInputSpeedChat.addInsidePartiesMenu. The host line is first. Activity
+## lines follow ids 0 through 6, then decorations, then the cake line.
+static func inside_lines() -> PackedStringArray:
+	if not active() and not visiting():
+		return PackedStringArray()
+	var lines := PackedStringArray()
+	if hosting() and not visiting():
+		lines.append("Welcome to my party!")
+	lines.append("This party rules!")
+	lines.append("Your party is fun!")
+	lines.append("It's party time!")
+	lines.append("Time is running out!")
+	lines.append("No cogs allowed!")
+	var acts := {}
+	var decors := {}
+	var layout := String(_visit.get("layout", "")) if visiting() else ""
+	if layout == "":
+		_ensure()
+		layout = String(_party.get("layout", ""))
+	if layout != "":
+		for piece in layout.split(",", false):
+			var bits := piece.split(":")
+			if bits.size() < 2:
+				continue
+			if bits[0] == "a":
+				acts[int(bits[1])] = true
+			elif bits[0] == "d":
+				decors[int(bits[1])] = true
+	else:
+		_ensure()
+		var named := {"jukebox": 0, "cannon": 1, "trampoline": 2, "catch": 3, "dance": 4, "tug": 5, "fireworks": 6}
+		for id in _party.get("activities", []):
+			var key := String(id)
+			if named.has(key):
+				acts[int(named[key])] = true
+	if acts.has(0):
+		lines.append("I like this song!")
+		lines.append("This music is great!")
+	if acts.has(1):
+		lines.append("Cannons are a blast!")
+	if acts.has(2):
+		lines.append("Watch me jump!")
+		lines.append("Trampolines are fun!")
+	if acts.has(3):
+		lines.append("Let's play Catch!")
+	if acts.has(4):
+		lines.append("Let's dance!")
+		lines.append("To the dance floor!")
+	if acts.has(5):
+		lines.append("Let's play Tug of War!")
+	if acts.has(6):
+		lines.append("Start the fireworks!")
+		lines.append("These fireworks are beautiful!")
+	if not decors.is_empty():
+		lines.append("Nice decorations.")
+		if decors.has(3):
+			lines.append("I wish I could eat this cake!")
+	return lines
+
+
 static func hosting() -> bool:
 	_ensure()
 	return float(_party.get("until", 0.0)) > Time.get_unix_time_from_system()
@@ -513,7 +573,10 @@ func _spot_at(kind: String, id: int, at: Vector2i, size: Vector2i) -> void:
 	if model_path != "":
 		var packed = load(model_path)
 		if packed is PackedScene:
-			marker.add_child((packed as PackedScene).instantiate())
+			var placed := (packed as PackedScene).instantiate()
+			marker.add_child(placed)
+			if kind == "d":
+				preload("res://scenes/parties/party_decor.gd").dress(placed, id)
 			return
 	if kind != "d" or id < 0 or id >= _DECOR.size():
 		return

@@ -101,22 +101,50 @@ func open_screen(parent: Node) -> void:
 			if item is Dictionary:
 				lines.append(String((item as Dictionary).get("name", "Delivery")))
 		body.text = "\n".join(lines)
+	var rental := _has_rental(rows)
+	if rental:
+		body.text += "\n\nBegin rental? Cancel to save the rental for later"
 	var button := Button.new()
-	button.text = "OK" if rows.is_empty() else "Accept"
-	button.position = Vector2(card.size.x * 0.5 - 70.0, card.size.y - 64.0)
+	button.text = "OK" if rows.is_empty() or rental else "Accept"
+	button.position = Vector2(card.size.x * 0.5 - (150.0 if rental else 70.0), card.size.y - 64.0)
 	button.size = Vector2(140.0, 40.0)
 	card.add_child(button)
 	if rows.is_empty():
 		button.pressed.connect(_close)
 	else:
-		button.pressed.connect(_accept)
+		button.pressed.connect(_accept.bind(true))
+	if rental:
+		var cancel := Button.new()
+		cancel.text = "Cancel"
+		cancel.position = Vector2(card.size.x * 0.5 + 10.0, card.size.y - 64.0)
+		cancel.size = Vector2(140.0, 40.0)
+		card.add_child(cancel)
+		cancel.pressed.connect(_accept.bind(false))
 
 
-func _accept() -> void:
+func _has_rental(rows: Array) -> bool:
+	for item in rows:
+		if item is Dictionary and String((item as Dictionary).get("kind", "")) == "rental":
+			return true
+	return false
+
+
+func _accept(include_rentals: bool) -> void:
 	var style := ToonRoster.selected_style()
 	if style != null:
-		_CLOSET.take_mail(style)
+		_CLOSET.take_mail(style, include_rentals)
+	if include_rentals:
+		_show_cannons()
 	_close()
+
+
+func _show_cannons() -> void:
+	var host: Node = self
+	while host != null:
+		if "estate_slot" in host:
+			preload("res://scenes/estate/estate_cannon.gd").place(host)
+			return
+		host = host.get_parent()
 
 
 func _close() -> void:

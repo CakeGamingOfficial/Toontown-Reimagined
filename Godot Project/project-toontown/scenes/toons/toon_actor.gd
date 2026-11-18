@@ -678,6 +678,9 @@ func holding_emote() -> bool:
 func play_emote(index: int) -> void:
 	if _style == null or index < 0 or _swimming or _book_phase != "":
 		return
+	if index >= 25 and index <= 32:
+		_sing(index - 25)
+		return
 	_clear_emote()
 	_ensure_clips()
 	_emote = index
@@ -759,6 +762,37 @@ func play_emote(index: int) -> void:
 			_start_emote_clip("angry", 1.0, _EMOTE_AUDIO + "furious.ogg", 0.0)
 		_:
 			_emote = -1
+
+
+## TTEmote.singNote1 through singNote8. Phrase 9008 has no note function.
+## Short torsos start on octave 1, medium on 2, long on 3. The last note is one octave higher.
+const _SING_LETTERS: Array[String] = ["g", "a", "b", "c", "d", "e", "f", "g"]
+
+
+func _sing(step: int) -> void:
+	if step < 0 or step >= _SING_LETTERS.size():
+		return
+	var octave := 2
+	if not _style.torso.is_empty():
+		var size := _style.torso.substr(0, 1)
+		if size == "s":
+			octave = 1
+		elif size == "l":
+			octave = 3
+	if step == _SING_LETTERS.size() - 1:
+		octave += 1
+	var species := _style.species_name().to_lower()
+	var note := "%s%d" % [_SING_LETTERS[step], octave]
+	var root := ProjectSettings.globalize_path("res://")
+	var path := root.path_join("../../Original Toontown Assets/Game Assets/phase_3.5/audio/dial/tt_s_dlg_sng_%s_%s.ogg" % [species, note]).simplify_path()
+	var stream := ToonAudio.stream(path)
+	if stream == null:
+		return
+	var voice := ToonAudio.effect_3d()
+	add_child(voice)
+	voice.stream = stream
+	voice.finished.connect(voice.queue_free)
+	voice.play()
 
 
 func _start_emote_clip(suffix: String, rate: float, sound: String, sound_delay: float) -> void:

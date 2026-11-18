@@ -30,20 +30,21 @@ static func spot(token: String) -> Dictionary:
 	return {}
 
 
-static func remember(token: String, at: Vector3, heading: float) -> void:
+static func remember(token: String, at: Vector3, heading: float, roll: float = 0.0) -> void:
 	_ensure()
 	var record := _record()
 	var placed: Array = record.get("placed", [])
 	var kept: Array = []
 	var wrote := false
+	var row_data := {"token": token, "x": at.x, "y": at.y, "z": at.z, "h": heading, "r": roll}
 	for row in placed:
 		if String(row.get("token", "")) == token:
-			kept.append({"token": token, "x": at.x, "y": at.y, "z": at.z, "h": heading})
+			kept.append(row_data)
 			wrote = true
 		else:
 			kept.append(row)
 	if not wrote:
-		kept.append({"token": token, "x": at.x, "y": at.y, "z": at.z, "h": heading})
+		kept.append(row_data)
 	record["placed"] = kept
 	record["trash"] = _drop_row(_trash_rows(record), token)
 	_book[_key()] = record

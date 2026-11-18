@@ -442,6 +442,15 @@ func _issue(style: ToonStyle) -> Array[Dictionary]:
 	_take(rows, seen, _month(data.get("months", [])), style)
 	if index >= 0 and index < weeks.size() and weeks[index] is Array:
 		_take(rows, seen, weeks[index], style)
+	# CatalogGenerator's year-round list. 2880 minutes is 48 hours, at 1000 beans.
+	_take(rows, seen, [{
+		"kind": "rental",
+		"id": 1,
+		"name": "48 Hours Of Cannons!",
+		"price": 1000,
+		"gender": "",
+		"minutes": 2880,
+	}], style)
 	return rows
 
 
@@ -786,6 +795,8 @@ func _kind_name(kind: String) -> String:
 		return "Window"
 	if kind == "pole":
 		return "Fishing Rod"
+	if kind == "rental":
+		return "Rental Item"
 	if kind == "trick":
 		return "Doodle Training"
 	return ""

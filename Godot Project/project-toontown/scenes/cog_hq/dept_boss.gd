@@ -77,6 +77,7 @@ var _ceo_over_one := false
 var _ceo_over_two := false
 var _ceo_exp_before: Dictionary = {}
 var _ceo_chat := false
+var _cfo_chat := false
 var _holding := false
 var _note := ""
 var _note_left := 0.0
@@ -213,6 +214,8 @@ func _process(delta: float) -> void:
 		_sync_cj_chat()
 	if _kind == "ceo":
 		_sync_ceo_chat()
+	if _kind == "cfo":
+		_sync_cfo_chat()
 	if _fight_id != 0:
 		_watch_fight()
 		return
@@ -1108,6 +1111,25 @@ func _sync_ceo_chat() -> void:
 	chat.call("set_ceo_menu", true)
 
 
+func _sync_cfo_chat() -> void:
+	if _cfo_chat:
+		return
+	var chat := _speed_chat()
+	if chat == null or not chat.has_method("set_cfo_menu"):
+		return
+	_cfo_chat = true
+	chat.call("set_cfo_menu", true)
+
+
+func _clear_cfo_chat() -> void:
+	if not _cfo_chat:
+		return
+	_cfo_chat = false
+	var chat := _speed_chat()
+	if chat != null and chat.has_method("set_cfo_menu"):
+		chat.call("set_cfo_menu", false)
+
+
 func _clear_ceo_chat() -> void:
 	if not _ceo_chat:
 		return
@@ -1374,6 +1396,7 @@ func _leave() -> void:
 		toon.call("clear_disguise")
 	_clear_cj_chat()
 	_clear_ceo_chat()
+	_clear_cfo_chat()
 	_GATE.trip = "out"
 	ToonLoading.change_to(_lobby)
 

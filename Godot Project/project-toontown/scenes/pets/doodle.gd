@@ -11,9 +11,10 @@ const _CATALOG_PATH := "res://assets/pets/catalog.json"
 const _MAPS := "res://assets/pets/maps/"
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _LIFE := preload("res://scenes/pets/doodle_traits.gd")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _KENNEL := preload("res://scenes/pets/doodle_kennel.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
-const _FPS := {"happy": 12.0, "neutral": 12.0, "walk": 24.0, "run": 24.0, "sadwalk": 24.0, "walkHappy": 24.0, "jump": 24.0, "speak": 24.0, "toBeg": 24.0, "fromBeg": 24.0, "fromPlayDead": 24.0, "swallow": 24.0}
+const _FPS := {"happy": 12.0, "neutral": 12.0, "walk": 24.0, "run": 24.0, "sadwalk": 24.0, "walkHappy": 24.0, "jump": 24.0, "speak": 24.0, "toBeg": 24.0, "fromBeg": 24.0, "fromPlayDead": 24.0, "swallow": 24.0, "toDig": 24.0, "dig": 24.0, "fromDig": 24.0, "disappear": 24.0, "reappear": 24.0}
 const _PALETTE := "pets_palette_3cmla_1.png"
 const _PUPIL := "pets_palette_2tmla_1.png"
 
@@ -34,6 +35,7 @@ var _acts: Array = []
 var _act_left := 0.0
 var _act_heal := 0
 var _called := 0.0
+var _said := ""
 var _panel: CanvasLayer
 var _clip := "neutral"
 var _clock := 0.0
@@ -416,6 +418,7 @@ func _load_life() -> void:
 		var elapsed := clampf(Time.get_unix_time_from_system() - stamp, 0.0, 48.0 * 3600.0)
 		_mood = _LIFE.drift(_mood, _rows, elapsed)
 	_remember()
+	_mood_chat()
 
 
 func _live(delta: float) -> void:
@@ -428,12 +431,123 @@ func _live(delta: float) -> void:
 	if _save_left <= 0.0:
 		_save_left = 5.0
 		_remember()
+	_mood_chat()
 
 
 func _remember() -> void:
 	if remote or gui:
 		return
 	_KENNEL.update_life(_mood, _tricks)
+
+
+## Pet.showMood during April Toons or the Silly Meter extension. A mood other
+## than confusion is said out loud. Confusion keeps the icon, which this
+## doodle does not draw. Neutral clears the line.
+const _MOOD_LINES := {
+	"hunger": [
+		"I'm tired of JellyBeans! How'bout giving me a slice of pie?",
+		"How'bout a Red JellyBean? I'm tired of the Green ones!",
+		"Oh, those JellyBeans were for planting?!! But I'm hungry!",
+	],
+	"boredom": [
+		"I'm dying of boredom over here!",
+		"You didn't think I understood you, huh?",
+		"Could we, like, DO something already?",
+	],
+	"excitement": [
+		"Wow, it's you, it's you, it's you!",
+		"mmm, jellybeans, mmm!",
+		"Does it GET any better than this?",
+		"Happy April Toons' Week!",
+	],
+	"sadness": [
+		"Don't go, Don't go, Don't go, Don't go, Don't go, Don't go, Don't go, Don't go, Don't go, Don't go, Don't go...",
+		"I'll be good, I promise!",
+		"I don't know WHY I'm sad, I just am!!!",
+	],
+	"restlessness": ["I'm sooo restless!!!"],
+	"playfulness": [
+		"Let's play, Let's play, Let's play, Let's play, Let's play, Let's play, Let's play, Let's play, Let's play...",
+		"Play with me or I dig up some flowers!",
+		"Lets run around and  around and around and around and around and around...",
+	],
+	"loneliness": [
+		"Where have you been?",
+		"Wanna cuddle?",
+		"I want to go with you when you fight Cogs!",
+	],
+	"fatigue": [
+		"That swim in the pond really tired me out!",
+		"Being a Doodle is exhausting!",
+		"I gotta get to Dreamland!",
+	],
+	"anger": [
+		"... and you wonder why I never give you a Toon-up?!!!",
+		"You always leave me behind!",
+		"You love your gags more than you love me!",
+	],
+	"surprise": [
+		"Of course Doodles can talk!",
+		"Toons can talk?!!",
+		"Whoa, where did you come from?",
+	],
+	"affection": [
+		"You're the best Toon EVER!!!!!!!!!!",
+		"Do you even KNOW how great you are?!?",
+		"I am SO lucky to be with you!!!",
+	],
+}
+
+
+func _mood_chat() -> void:
+	if remote or gui:
+		return
+	var talking := _HOLIDAYS.running(29) or _HOLIDAYS.running(116)
+	var mood := "neutral"
+	if talking:
+		mood = _LIFE.dominant(_mood, _rows)
+	if not talking or mood == "neutral" or mood == "confusion":
+		if _said != "":
+			_said = ""
+			_clear_mood_chat()
+		return
+	if mood == _said:
+		return
+	var raw: Variant = _MOOD_LINES.get(mood, [])
+	if not raw is Array:
+		return
+	var lines := raw as Array
+	if lines.is_empty():
+		return
+	_said = mood
+	_show_mood_chat(String(lines[randi() % lines.size()]))
+
+
+func _show_mood_chat(text: String) -> void:
+	var label := get_node_or_null("MoodChat") as Label3D
+	if label == null:
+		label = Label3D.new()
+		label.name = "MoodChat"
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.position = Vector3(0.0, 2.7, 0.0)
+		label.pixel_size = 0.008
+		label.font = _GUI.font()
+		label.font_size = 48
+		label.modulate = Color(0, 0, 0, 1)
+		label.outline_modulate = Color(1, 1, 1, 1)
+		label.outline_size = 10
+		label.width = 420.0
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		add_child(label)
+	label.text = text
+	label.visible = true
+
+
+func _clear_mood_chat() -> void:
+	var label := get_node_or_null("MoodChat") as Label3D
+	if label != null:
+		label.visible = false
 
 
 func ask_trick(trick_id: int) -> void:

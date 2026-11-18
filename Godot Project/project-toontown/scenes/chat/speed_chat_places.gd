@@ -1,8 +1,9 @@
 extends RefCounted
 
 ## TTSCKartRacingMenu, TTSCGolfMenu, TTSCFactoryMenu, and TTSCPromotionalMenu.
-## Each menu is added in the same place the original adds it. Singing is left
-## out: phrase ids 9000-9008 are not in SpeedChatStaticTextToontown.
+## Each menu is added in the same place the original adds it. Singing lives
+## with the boarding menu: the localizer never wrote 9000-9008, so those
+## rows are the eight notes TTEmote.singNote1 through singNote8 already play.
 
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _ELECTION := 8

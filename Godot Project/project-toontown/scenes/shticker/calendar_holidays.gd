@@ -47,6 +47,11 @@ const _NAMES := {
 	56: "Downsizer Invasion",
 	57: "Caroling",
 	59: "ValenToon's Day",
+	60: "Silly Meter",
+	67: "Silly Chatter 1",
+	68: "Silly Chatter 2",
+	69: "Silly Chatter 3",
+	70: "Silly Chatter 4",
 	72: "Yes Men Invasion",
 	73: "Tightwad Invasion",
 	74: "Telemarketers Invasion",
@@ -69,13 +74,17 @@ const _NAMES := {
 	91: "Ambulance Chaser Invasion",
 	92: "Micro Manager Invasion",
 	93: "Number Cruncher Invasion",
+	94: "Silly Chatter 5",
 	95: "Victory Parties",
 	96: "Operation: Storm Sellbot",
 	97: "Double Bean Days - Trolley Games",
 	98: "Double Bean Days - Fishing",
 	99: "Jellybean Week",
 	101: "Top Toons New Year's Day Marathon",
+	102: "Sellbot Invasion",
+	103: "Sellbot Field Offices",
 	105: "Toons go GREEN!",
+	116: "Silly Meter Extended",
 	200: "Double Jellybeans",
 }
 
@@ -178,6 +187,7 @@ const _INVASION := {
 }
 
 static var _running: Dictionary = {}
+static var _begun: Dictionary = {}
 
 
 static func start(holiday_id: int) -> String:
@@ -185,6 +195,7 @@ static func start(holiday_id: int) -> String:
 		return "Could not start holiday ID: %d" % holiday_id
 	_adopt_net()
 	_running[holiday_id] = true
+	_begun[holiday_id] = Time.get_unix_time_from_system()
 	_publish()
 	return "Started holiday %d, %s." % [holiday_id, String(_NAMES[holiday_id])]
 
@@ -196,6 +207,7 @@ static func stop(holiday_id: int) -> String:
 	if not _running.has(holiday_id):
 		return "Could not end holiday ID: %d" % holiday_id
 	_running.erase(holiday_id)
+	_begun.erase(holiday_id)
 	_publish()
 	return "Ended holiday %d, %s." % [holiday_id, String(_NAMES[holiday_id])]
 
@@ -1305,6 +1317,11 @@ static func _adopt_net() -> void:
 
 static func running(holiday_id: int) -> bool:
 	return _on().has(holiday_id)
+
+
+static func begun(holiday_id: int) -> float:
+	_on()
+	return float(_begun.get(holiday_id, 0.0))
 
 
 static func _on() -> Dictionary:

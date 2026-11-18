@@ -83,7 +83,14 @@ static func mail_rows() -> Array:
 	return ready
 
 
-static func take_mail(style: ToonStyle) -> int:
+static func cannon_rental_active() -> bool:
+	var row := _row()
+	if int(row.get("rental_type", 0)) != 1:
+		return false
+	return int(row.get("rental_until", 0)) > int(Time.get_unix_time_from_system())
+
+
+static func take_mail(style: ToonStyle, include_rentals: bool = true) -> int:
 	var owner := _slot()
 	if owner <= 0:
 		return 0
@@ -91,7 +98,10 @@ static func take_mail(style: ToonStyle) -> int:
 	var taken: Array = []
 	for row in _slot_rows():
 		if row is Dictionary and _arrived(row):
-			taken.append(row)
+			if not include_rentals and String(row.get("kind", "")) == "rental":
+				kept.append(row)
+			else:
+				taken.append(row)
 		else:
 			kept.append(row)
 	_mail[str(owner)] = kept
@@ -145,6 +155,8 @@ static func buy(style: ToonStyle, item: Dictionary) -> void:
 		row["font"] = String(item.get("font", ""))
 	elif kind == "pole":
 		_TANK.set_rod(item_id)
+	elif kind == "rental" and item_id == 1:
+		_start_cannon_rental(int(item.get("minutes", 2880)))
 	elif _kept(kind):
 		var owned := _list(row, "catalog")
 		var token := _token(item)
@@ -307,7 +319,21 @@ static func _delivery_seconds(kind: String) -> int:
 		return 24 * 60 * 60
 	if kind == "emote" or kind == "phrase" or kind == "nametag":
 		return 0
+	# CatalogRentalItem.getDeliveryTime is one minute.
+	if kind == "rental":
+		return 60
 	return 60 * 60
+
+
+static func _start_cannon_rental(minutes: int) -> void:
+	var row := _row()
+	var now := int(Time.get_unix_time_from_system())
+	var until := now
+	if int(row.get("rental_type", 0)) == 1:
+		until = maxi(int(row.get("rental_until", 0)), now)
+	row["rental_type"] = 1
+	row["rental_until"] = until + maxi(minutes, 1) * 60
+	_write()
 
 
 static func _pending(item: Dictionary) -> bool:

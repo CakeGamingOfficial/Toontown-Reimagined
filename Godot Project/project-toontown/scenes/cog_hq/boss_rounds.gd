@@ -7,6 +7,13 @@ extends Node
 ## so a round that has locked the toon uses that key for the round.
 
 const _KEYS := preload("res://scenes/shticker/keybinds.gd")
+const _LEAVE_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _LEAVE_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _LEAVE_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
+# collision_table on BanquetTableChairs, in the model's panda axes.
+const _TABLE_MIN := Vector3(-6.1, -5.85, -0.41)
+const _TABLE_MAX := Vector3(6.1, 5.85, 4.45)
+const _CLOSE_RADIUS := 10.0
 
 var _boss: Node
 var _mode := ""
@@ -52,6 +59,7 @@ var _station_table := -1
 var _station_arm := false
 var _crushing := false
 var _crush_table := -1
+var _table_dest := -1
 var _crush_rider := false
 var _attack_now := false
 var _crush_to := Vector3.ZERO
@@ -224,6 +232,8 @@ var _music: AudioStreamPlayer
 var _belt_loop: AudioStreamPlayer
 var _power_root: Control
 var _power_fill: ColorRect
+var _leave_button: TextureButton
+var _leave_label: Label
 var _suit_at := -1.0
 var _strip_at := -1.0
 var _eyes_back := -1.0
@@ -319,6 +329,7 @@ func shutdown() -> void:
 	_belt_sound(false)
 	if _power_root != null:
 		_power_root.visible = false
+	_show_leave()
 	_restore_fov()
 	_drop_mata_suit()
 	_release_camera()
@@ -369,12 +380,14 @@ func start_vp(boss: Node) -> void:
 		_cage = pies.global_position
 	# The cage node's origin sits above the platform. The grab is on the floor under it.
 	_cage.y = _boss_pos.y
-	_vp_forward = _cage - _boss_pos
+	# Battle three heading is 180, already baked into the body. The cage stays behind the doors.
+	boss_node.rotation = Vector3.ZERO
+	_vp_forward = -boss_node.global_transform.basis.y
 	_vp_forward.y = 0.0
 	if _vp_forward.length_squared() < 0.01:
-		_vp_forward = Vector3(0, 0, -1)
-	_vp_forward = _vp_forward.normalized()
-	boss_node.look_at(boss_node.global_position + _vp_forward, Vector3.UP)
+		_vp_forward = Vector3(0, 0, 1)
+	else:
+		_vp_forward = _vp_forward.normalized()
 	_tell("The pie cage is behind him. Click throws. Doors open when he attacks and stay open while he is stunned. A pie in the doors stuns him. Pies on his body do 1 only then. Front is 3, directed is 3, strafe is 2, area is 10. At 100, one more pie in the doors ends it.")
 
 
@@ -1644,13 +1657,7 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 	if not _golf:
 		_mount_station(body)
 	elif _swing_age < 0.0 and _KEYS.use_held() and not _station_arm and _cool <= 0.0 and not _KEYS.held("jump"):
-		_golf = false
-		_spray = 0.0
-		_station_arm = true
-		_cool = 0.3
-		_hide_putter()
-		_release_board(body)
-		_free_toon()
+		_step_off()
 	elif _station == "bottle":
 		_tick_board(delta, body)
 		if _board_age >= _board_span:
@@ -1678,10 +1685,12 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 	if driving:
 		_tick_ceo_attack(delta, body, slowed)
 		_tick_crush(delta, slowed)
+		_tick_close_bubble()
 		_tick_unflatten()
 	else:
 		_apply_flats()
 		_apply_attacks()
+		_apply_ceo_roll(delta)
 		_tick_ceo_shots(delta, body)
 	_tick_fore(delta)
 	_tick_zap(delta, body)
@@ -1690,6 +1699,7 @@ func _tick_seltzer(delta: float, body: CharacterBody3D) -> void:
 	_tick_water(delta)
 	_tint_club()
 	_show_power(_golf and _KEYS.held("jump"))
+	_show_leave()
 	_publish_ceo_field(delta)
 	_publish_seat()
 	var charge := "Slow %d." % int(slowed)
@@ -1727,6 +1737,7 @@ func _begin(boss: Node) -> void:
 	_station_arm = false
 	_crushing = false
 	_crush_table = -1
+	_table_dest = -1
 	_crush_rider = false
 	_attack_now = false
 	_face_return = -1.0
@@ -5998,6 +6009,68 @@ func _show_power(charging: bool) -> void:
 		_power_fill.color = Color(0.95, 0.15, 0.15)
 
 
+func _input(event: InputEvent) -> void:
+	if _mode != "seltzer" or not _golf:
+		return
+	if not _KEYS.event_is_cancel(event):
+		return
+	_step_off()
+	get_viewport().set_input_as_handled()
+
+
+func _step_off() -> void:
+	if not _golf:
+		return
+	_golf = false
+	_spray = 0.0
+	_station_arm = true
+	_cool = 0.3
+	_hide_putter()
+	_release_board(_body())
+	_free_toon()
+
+
+func _show_leave() -> void:
+	var show := _mode == "seltzer" and _golf
+	if not is_inside_tree():
+		if _leave_button != null:
+			_leave_button.visible = false
+			_leave_label.visible = false
+		return
+	if _leave_button == null:
+		if not show:
+			return
+		if _power_root == null:
+			_show_power(false)
+		var layer := _power_root.get_parent()
+		_leave_button = TextureButton.new()
+		_leave_button.texture_normal = _LEAVE_UP
+		_leave_button.texture_pressed = _LEAVE_DOWN
+		_leave_button.texture_hover = _LEAVE_HOVER
+		_leave_button.ignore_texture_size = true
+		_leave_button.stretch_mode = TextureButton.STRETCH_SCALE
+		_leave_button.focus_mode = Control.FOCUS_NONE
+		_leave_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		_leave_button.pressed.connect(_step_off)
+		ToonGui.button_sounds(_leave_button)
+		layer.add_child(_leave_button)
+		_leave_label = Label.new()
+		_leave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_leave_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_leave_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(_leave_label)
+	var view := get_viewport().get_visible_rect().size
+	var unit := view.y * 0.5
+	# CloseBtn is 0.1125 across. scale 2 makes it 0.225. text_pos (0, -0.07) sits under it after that scale.
+	ToonGui.place(_leave_button, view, 1.05, -0.82, 0.225, 0.225)
+	var px := maxi(int(round(0.08 * unit)), 8)
+	ToonGui.style_label(_leave_label, Color.WHITE, px, Color(0, 0, 0, 0), 0)
+	_leave_label.text = "Leave Bottle" if _station == "bottle" else "Leave Golf Ball"
+	ToonGui.place(_leave_label, view, 1.05, -0.93, 0.9, 0.1)
+	_leave_button.visible = show
+	_leave_label.visible = show
+
+
 func _puff_dust(on: Node3D = null, spread: float = 1.0) -> void:
 	var body := on if on != null else _body()
 	if body == null:
@@ -8113,7 +8186,11 @@ func _banquet_by_index(index: int) -> Node3D:
 
 func _table_is_flat(index: int) -> bool:
 	var table := _banquet_by_index(index)
-	if table == null or not table.has_meta("flat_until"):
+	if table == null:
+		return false
+	if table.has_meta("flat_hold"):
+		return true
+	if not table.has_meta("flat_until"):
 		return false
 	return _clock < float(table.get_meta("flat_until"))
 
@@ -8122,6 +8199,7 @@ func _start_crush(index: int) -> void:
 	var table := _banquet_by_index(index)
 	if table == null or _table_is_flat(index):
 		return
+	_table_dest = index
 	_crushing = true
 	_crush_table = index
 	_crush_rider = _mounted_table() == index
@@ -8273,7 +8351,7 @@ func _flatten_table(index: int) -> void:
 		table.set_meta("saved_scale", table.scale)
 	var saved := table.get_meta("saved_scale") as Vector3
 	table.scale = Vector3(saved.x, saved.y, saved.z * 0.01)
-	table.set_meta("flat_until", _clock + _flat_for)
+	table.set_meta("flat_hold", true)
 	if _mounted_table() == index:
 		_flat_return = index
 		_golf = false
@@ -8286,6 +8364,34 @@ func _flatten_table(index: int) -> void:
 			_boss.call("note_crush")
 
 
+func _close_bubble_hits(ceo: Node3D, table: Node3D) -> bool:
+	var local := table.to_local(ceo.global_position)
+	var closest := Vector3(
+		clampf(local.x, _TABLE_MIN.x, _TABLE_MAX.x),
+		clampf(local.y, _TABLE_MIN.y, _TABLE_MAX.y),
+		clampf(local.z, _TABLE_MIN.z, _TABLE_MAX.z)
+	)
+	return table.to_global(closest).distance_squared_to(ceo.global_position) <= _CLOSE_RADIUS * _CLOSE_RADIUS
+
+
+func _tick_close_bubble() -> void:
+	if _root == null:
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null:
+		return
+	for table in _find_all("BanquetTable"):
+		var index := int(table.get_meta("table_index", -1))
+		var overlapping := _close_bubble_hits(ceo, table)
+		var was := bool(table.get_meta("bubble", false))
+		if overlapping and not was:
+			_flatten_table(index)
+		elif not overlapping and was and _table_dest != index and _table_is_flat(index):
+			table.remove_meta("flat_hold")
+			table.set_meta("flat_until", _clock + _flat_for)
+		table.set_meta("bubble", overlapping)
+
+
 func start_ceo_victory(boss: Node) -> void:
 	_boss = boss
 	_mode = "ceo_victory"
@@ -8296,6 +8402,7 @@ func start_ceo_victory(boss: Node) -> void:
 	_belt_sound(false)
 	if _power_root != null:
 		_power_root.visible = false
+	_show_leave()
 	_lock_toon()
 	_play_music_file("res://assets/cog_hq/audio/BossBot_CEO_v2.ogg", "ceo2")
 	_tell("No! The Chairman won't like this.")
@@ -8552,14 +8659,34 @@ func _publish_ceo_field(delta: float) -> void:
 	var state: Dictionary = _boss.call("world_state")
 	var flats: Array = []
 	for table in _find_all("BanquetTable"):
-		if not table.has_meta("flat_until"):
+		var held := table.has_meta("flat_hold")
+		var timing := table.has_meta("flat_until") and _clock < float(table.get_meta("flat_until"))
+		if not held and not timing:
 			continue
+		var left := -1.0
+		if timing:
+			left = float(table.get_meta("flat_until")) - _clock
 		flats.append({
 			"index": int(table.get_meta("table_index", -1)),
-			"left": float(table.get_meta("flat_until")) - _clock,
+			"left": left,
 		})
 	state["flats"] = flats
 	state["attacks"] = _attack_log
+	if _root != null:
+		var ceo := _root.get_node_or_null("CEO") as Node3D
+		if ceo != null and ceo.get_parent() == _root:
+			var quat := ceo.quaternion
+			state["roll"] = {
+				"x": ceo.position.x,
+				"y": ceo.position.y,
+				"z": ceo.position.z,
+				"qx": quat.x,
+				"qy": quat.y,
+				"qz": quat.z,
+				"qw": quat.w,
+				"lu": _ceo_left_u,
+				"ru": _ceo_right_u,
+			}
 	ToonNet.ceo_field(state)
 
 
@@ -8572,12 +8699,18 @@ func _apply_flats() -> void:
 			open[int(item.get("index", -1))] = float(item.get("left", 0.0))
 	for table in _find_all("BanquetTable"):
 		var index := int(table.get_meta("table_index", -1))
-		if open.has(index) and float(open[index]) > 0.0:
+		if open.has(index):
+			var left := float(open[index])
 			if not table.has_meta("saved_scale"):
 				table.set_meta("saved_scale", table.scale)
 			var saved := table.get_meta("saved_scale") as Vector3
 			table.scale = Vector3(saved.x, saved.y, saved.z * 0.01)
-			table.set_meta("flat_until", _clock + float(open[index]))
+			if left < 0.0:
+				table.set_meta("flat_hold", true)
+				table.remove_meta("flat_until")
+			else:
+				table.remove_meta("flat_hold")
+				table.set_meta("flat_until", _clock + left)
 			if _mounted_table() == index:
 				_flat_return = index
 				_golf = false
@@ -8588,11 +8721,12 @@ func _apply_flats() -> void:
 				_free_toon()
 				if _boss != null:
 					_boss.call("note_crush")
-		elif table.has_meta("flat_until"):
+		elif table.has_meta("flat_until") or table.has_meta("flat_hold"):
 			var saved_scale: Variant = table.get_meta("saved_scale")
 			if saved_scale is Vector3:
 				table.scale = saved_scale
 			table.remove_meta("flat_until")
+			table.remove_meta("flat_hold")
 			if _flat_return == index:
 				_return_to_bottle(index)
 
@@ -8607,8 +8741,43 @@ func _tick_unflatten() -> void:
 		if saved is Vector3:
 			table.scale = saved
 		table.remove_meta("flat_until")
+		table.remove_meta("flat_hold")
 		if _flat_return == int(table.get_meta("table_index", -1)):
 			_return_to_bottle(_flat_return)
+
+
+func _apply_ceo_roll(delta: float) -> void:
+	if _root == null:
+		return
+	var field := ToonNet.latest("ceo-field")
+	var roll: Variant = field.get("roll", null)
+	if not (roll is Dictionary):
+		return
+	var row: Dictionary = roll
+	if not row.has("x") or not row.has("qw"):
+		return
+	var ceo := _root.get_node_or_null("CEO") as Node3D
+	if ceo == null or ceo.get_parent() != _root:
+		return
+	var target_pos := Vector3(float(row["x"]), float(row["y"]), float(row["z"]))
+	var target_q := Quaternion(float(row["qx"]), float(row["qy"]), float(row["qz"]), float(row["qw"]))
+	if target_q.length_squared() < 0.5:
+		return
+	target_q = target_q.normalized()
+	var blend := 1.0
+	if ceo.position.distance_squared_to(target_pos) <= 625.0:
+		blend = clampf(delta * 8.0, 0.0, 1.0)
+	ceo.position = ceo.position.lerp(target_pos, blend)
+	ceo.quaternion = ceo.quaternion.slerp(target_q, blend)
+	if row.has("lu"):
+		_ceo_left_u = float(row["lu"])
+		_ceo_right_u = float(row.get("ru", 0.0))
+		var left := _ceo_tread("left_tread", true)
+		var right := _ceo_tread("right_tread", false)
+		if left != null:
+			left.uv1_offset.x = _ceo_left_u
+		if right != null:
+			right.uv1_offset.x = _ceo_right_u
 
 
 func _mount_station(body: CharacterBody3D) -> void:

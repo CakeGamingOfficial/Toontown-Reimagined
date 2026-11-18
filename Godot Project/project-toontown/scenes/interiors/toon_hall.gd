@@ -3,6 +3,7 @@ extends Node3D
 ## DistributedToonHallInterior for zone 2513. The room is the flat silly-meter
 ## state: ropes, the still meter, and the three scientist cards. Flippy stands
 ## on npc_origin_0, the first toon createNpcsInZone places in that zone.
+## Holiday 60 or 116 swaps in the live meter and the three scientists.
 
 const _DOOR := preload("res://scenes/interiors/toon_hall_door.gd")
 const _COLLISION := preload("res://scenes/playgrounds/playground_collision.gd")
@@ -19,6 +20,7 @@ const _FLIPPY: Array = ["Flippy", "dss", "ms", "m", "m", 17, 0, 17, 17, 3, 3, 7,
 func _ready() -> void:
 	_build_room()
 	_place_flippy()
+	preload("res://scenes/interiors/silly_meter.gd").attach(self)
 	_play_music()
 	_TOON.attach(self)
 

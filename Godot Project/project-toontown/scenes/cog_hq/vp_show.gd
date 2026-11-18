@@ -36,12 +36,17 @@ var _doobers: Array[Node3D] = []
 var _roll: Array[Vector3] = []
 var _roll_at := 0
 var _roll_faced := -1
-var _roll_yaw := 0.0
+var _roll_h := 0.0
+var _roll_back := false
 var _roll_turning := false
 var _roll_turn_from := 0.0
 var _roll_turn_to := 0.0
 var _roll_turn_left := 0.0
 var _roll_turn_span := 0.0
+var _damage_at := -1.0
+var _damage_stamp := 0.0
+var _damage_left := 0.0
+var _damage_right := 0.0
 var _door_u := 1.0
 var _door_goal := 1.0
 var _ramp_home: Dictionary = {}
@@ -159,7 +164,7 @@ func play(which: String) -> void:
 		_set_cage(4)
 		_epilogue = false
 		pose("fall")
-		_place_vp(Vector3(0, -175, -6.5), Vector3(0, 78, 18))
+		_stand(Vector3(0, -175, -6.5), 180.0)
 
 
 func pages(which: String, lines: PackedStringArray) -> void:
@@ -183,11 +188,11 @@ func pages(which: String, lines: PackedStringArray) -> void:
 		_collide_back = 0.5
 		_set_cage(3 if _solo() else 2)
 		pose("neutral")
-		_place_vp(Vector3(0, 60, 18), Vector3(0, 77, 18))
+		_stand(Vector3(0, 60, 18), -90.0)
 	elif which == "prepare3":
 		_set_cage(4)
 		pose("neutral")
-		_place_vp(Vector3(0, 60, 18), Vector3(0, 77, 18))
+		_stand(Vector3(0, 60, 18), 180.0)
 
 
 func next_page() -> void:
@@ -236,10 +241,38 @@ func holds_camera() -> bool:
 func place_damage(along: float) -> void:
 	if _movie != "" or _vp == null:
 		return
-	var path: Array[Vector3] = [Vector3(0, 60, 18), Vector3(0, -110, -6.5), Vector3(0, -175, -6.5)]
-	var spot := _along(path, clampf(along, 0.0, 1.0))
-	# Battle three keeps the door side toward the cage while he rolls backward.
-	_place_vp(spot, Vector3(0, 78, 18), true)
+	# __makeBossDamageMovie. Heading 180 faces down the ramp. resumeUntil plays
+	# forward; recovering damage scrubs the same movie backward.
+	var now := Time.get_ticks_msec() / 1000.0
+	var first := Vector3(0, 60, 18).distance_to(Vector3(0, -110, -6.5)) / _ROLL_SPEED
+	var second := Vector3(0, -110, -6.5).distance_to(Vector3(0, -175, -6.5)) / _ROLL_SPEED
+	var duration := first + second
+	var goal := clampf(along, 0.0, 1.0) * duration
+	if _damage_at < 0.0:
+		_damage_at = goal
+		_damage_left = _left_tread
+		_damage_right = _right_tread
+	else:
+		var delta := clampf(now - _damage_stamp, 0.0, 0.1)
+		if goal < _damage_at:
+			_damage_at = goal
+		else:
+			_damage_at = minf(_damage_at + delta, goal)
+	_damage_stamp = now
+	_roll_back = false
+	var spot := Vector3(0, -110, -6.5)
+	if _damage_at <= first:
+		spot = Vector3(0, 60, 18).lerp(Vector3(0, -110, -6.5), 0.0 if first <= 0.001 else _damage_at / first)
+	else:
+		var u := 0.0 if second <= 0.001 else (_damage_at - first) / second
+		spot = Vector3(0, -110, -6.5).lerp(Vector3(0, -175, -6.5), clampf(u, 0.0, 1.0))
+	_vp.position = spot
+	_face_h(180.0)
+	_stick_floor()
+	# reverse=1. Both belts use the negative tread speed for the whole movie.
+	_left_tread = _damage_left - 3.5 * _damage_at
+	_right_tread = _damage_right - 3.5 * _damage_at
+	_keep_treads()
 
 
 func _process(delta: float) -> void:
@@ -282,6 +315,8 @@ func _process(delta: float) -> void:
 	elif _movie == "roll":
 		_t += delta
 		if not _step_roll(delta):
+			_roll_back = false
+			_face_h(-90.0)
 			_set_cage(3 if _solo() else 2)
 			_collide_back = -1.0
 			_set_collisions(false)
@@ -404,10 +439,13 @@ func _step_roll(delta: float) -> bool:
 	if _roll_turning:
 		_roll_turn_left = maxf(_roll_turn_left - delta, 0.0)
 		var turned := 1.0 if _roll_turn_span <= 0.001 else 1.0 - _roll_turn_left / _roll_turn_span
-		_apply_roll_yaw(lerpf(_roll_turn_from, _roll_turn_to, turned), here)
-		var left_rate := 3.5 if _roll_turn_to >= _roll_turn_from else -3.5
-		_left_tread += left_rate * delta
-		_right_tread -= left_rate * delta
+		_face_h(lerpf(_roll_turn_from, _roll_turn_to, turned))
+		_vp.position = here
+		_stick_floor()
+		# toH below fromH runs treadsLeft forward. That node is right_tread.
+		var left_rate := 3.5 if _roll_turn_to < _roll_turn_from else -3.5
+		_right_tread += left_rate * delta
+		_left_tread -= left_rate * delta
 		_keep_treads()
 		if _roll_turn_left <= 0.0:
 			_roll_turning = false
@@ -415,7 +453,9 @@ func _step_roll(delta: float) -> bool:
 	var step := _ROLL_SPEED * delta
 	var next := _move_toward(here, there, step)
 	_roll[_roll_at] = next
-	_apply_roll_yaw(_roll_yaw, next)
+	_vp.position = next
+	_face_h(_roll_h)
+	_stick_floor()
 	_left_tread += 3.5 * delta
 	_right_tread += 3.5 * delta
 	_keep_treads()
@@ -1232,36 +1272,46 @@ func _load_rates() -> void:
 
 ## BossCogTurnSpeed is 20 degrees a second. fitDestAngle2Src keeps the short way.
 func _start_roll_turn(at: Vector3, look: Vector3) -> void:
-	var target := _yaw_toward(at, look)
-	var delta_h := wrapf(target - _roll_yaw, -PI, PI)
-	_roll_turn_from = _roll_yaw
-	_roll_turn_to = _roll_yaw + delta_h
-	_roll_turn_span = absf(rad_to_deg(delta_h)) / 20.0
+	var target := _segment_h(at, look)
+	var delta_h := _wrap_deg(target - _roll_h)
+	_roll_turn_from = _roll_h
+	_roll_turn_to = _roll_h + delta_h
+	_roll_turn_span = absf(delta_h) / 20.0
 	_roll_turn_left = _roll_turn_span
 	_roll_turning = _roll_turn_span > 0.05
 	if not _roll_turning:
-		_apply_roll_yaw(_roll_turn_to, at)
+		_face_h(_roll_turn_to)
+		_vp.position = at
+		_stick_floor()
 
 
-func _yaw_toward(at: Vector3, look: Vector3) -> float:
-	if _vp == null:
-		return _roll_yaw
-	var kept := _vp.global_transform
-	_vp.position = at
-	var focus := _world(look)
-	if _vp.global_position.distance_squared_to(focus) > 0.25:
-		_vp.look_at(focus, Vector3.UP)
-	var yaw := _vp.global_rotation.y
-	_vp.global_transform = kept
-	return yaw
+func _segment_h(at: Vector3, look: Vector3) -> float:
+	var dx := look.x - at.x
+	var dy := look.y - at.y
+	if dx * dx + dy * dy < 0.0001:
+		return _roll_h
+	return rad_to_deg(atan2(-dx, dy))
 
 
-func _apply_roll_yaw(yaw: float, at: Vector3) -> void:
+func _wrap_deg(angle: float) -> float:
+	return fposmod(angle + 180.0, 360.0) - 180.0
+
+
+## The exported body is already at heading 180. The roll movie adds geom H 180 on top, so the node heading is the extra spin. Everywhere else the geom is 0 and the extra spin is heading - 180.
+func _face_h(heading: float) -> void:
 	if _vp == null:
 		return
-	_roll_yaw = yaw
+	_roll_h = heading
+	var extra := heading if _roll_back else heading - 180.0
+	_vp.rotation = Vector3(_vp.rotation.x, 0.0, deg_to_rad(extra))
+
+
+func _stand(at: Vector3, heading: float) -> void:
+	if _vp == null:
+		return
+	_roll_back = false
 	_vp.position = at
-	_vp.global_rotation.y = yaw
+	_face_h(heading)
 	_stick_floor()
 
 
@@ -1834,9 +1884,13 @@ func _begin_roll() -> void:
 	_roll_at = 0
 	_roll_turning = false
 	# The first rollBossToPoint is passed fromHpr None, so that leg is already aimed.
-	_place_vp(_roll[0], _roll[1])
-	_roll_yaw = _vp.global_rotation.y if _vp != null else 0.0
+	# geom.setH(180) stays on for the whole roll, then returns to 0.
+	_roll_back = true
 	_roll_faced = 0
+	if _vp != null and _roll.size() >= 2:
+		_vp.position = _roll[0]
+		_face_h(_segment_h(_roll[0], _roll[1]))
+		_stick_floor()
 	_spawn_barrels()
 	_set_collisions(false)
 	_collide_back = 0.5
@@ -1850,7 +1904,7 @@ func _begin_prepare3() -> void:
 	_finish_as = "prepare3"
 	_set_cage(4)
 	pose("neutral")
-	_place_vp(Vector3(0, 60, 18), Vector3(0, 77, 18))
+	_stand(Vector3(0, 60, 18), 180.0)
 	_say(_pages[0] if _pages.size() > 0 else "")
 	if _boss != null and _boss.has_method("show_pages"):
 		_boss.call("show_pages")
@@ -2261,7 +2315,8 @@ func _stick_floor() -> void:
 	# stickBossToFloor. Rays ten units ahead, under him, and ten units behind.
 	if _vp == null:
 		return
-	var forward := -_vp.global_transform.basis.z
+	# The floor rays sit on the boss node, ten units along panda +Y.
+	var forward := _vp.global_transform.basis.y
 	forward.y = 0.0
 	if forward.length() < 0.001:
 		forward = Vector3(0, 0, -1)
@@ -2284,8 +2339,8 @@ func _stick_floor() -> void:
 			var span := Vector2(front.x - back.x, front.z - back.z).length()
 			tilt = atan2(front.y - back.y, maxf(span, 0.01))
 	_set_world_y(center.y)
-	var yaw := _vp.global_rotation.y
-	_vp.global_rotation = Vector3(-tilt, yaw, 0.0)
+	var spin := _vp.rotation.z
+	_vp.rotation = Vector3(-tilt, 0.0, spin)
 
 
 func _floor_at(at: Vector3) -> Variant:
