@@ -1847,7 +1847,9 @@ func _throw(actor: ToonActor, pie_name: String, level: int, marks: Array, still:
 		if pie_name == "birthday-cake":
 			_pose_prop(pie, pie_name, elapsed)
 		if elapsed < 2.7:
-			pie.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed, 0.0, 1.0))
+			# BattleProps.makeVariant. The whole fruit pie is the tart at 0.75.
+			var rest := 0.75 if pie_name == "fruitpie" else 1.0
+			pie.scale = Vector3.ONE * lerpf(0.01, rest, clampf(elapsed, 0.0, 1.0))
 		elif level == 6 and marks.size() > 1:
 			_fly_cake(pie, marks, elapsed)
 		else:
@@ -1985,7 +1987,7 @@ func _squirt(actor: ToonActor, prop_name: String, level: int, marks: Array, stil
 			prop.scale = Vector3.ONE * lerpf(0.01, 1.0, clampf(elapsed / 0.5, 0.0, 1.0))
 		if elapsed >= spray_at and elapsed < spray_at + hold and aim != null:
 			spray.visible = true
-			_spray(spray, prop.global_position, aim.global_position + Vector3(0.0, _HEIGHT * 0.66, 0.0), level)
+			_spray(spray, _squirt_from(actor, prop, level), aim.global_position + Vector3(0.0, _HEIGHT * 0.66, 0.0), level)
 		else:
 			spray.visible = false
 		_react_marks(marks, elapsed, contact_at, "squirt-small", dodge_at)
@@ -2115,11 +2117,13 @@ func _step_geysers(rows: Array, elapsed: float) -> void:
 		if mound != null:
 			mound.visible = mound_scale > 0.0
 			mound.global_position = base
+			mound.global_basis = _upright(cog)
 			if mound_scale > 0.0:
 				mound.scale = Vector3.ONE * mound_scale
 		if water != null:
 			water.visible = water_scale > 0.0
 			water.global_position = base
+			water.global_basis = _upright(cog)
 			if water_scale > 0.0:
 				water.scale = Vector3.ONE * water_scale
 				_cycle_splash(water, elapsed)
@@ -2293,6 +2297,8 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 				continue
 			falling.visible = true
 			if prop_name == "ship":
+				# The boat is not an actor. MovieDrop yaws it 90 past the cog.
+				falling.global_basis = _upright(cog) * _panda_hpr(90.0, 0.0, 0.0)
 				var fallen := clampf((elapsed - 4.3) / fall, 0.0, 1.0)
 				var above := rest + Vector3(0.0, 5.0, 0.0)
 				falling.global_position = above.lerp(rest, fallen) + Vector3(0.0, _drop_hop(elapsed - (4.3 + fall)), 0.0)
@@ -2306,7 +2312,9 @@ func _drop(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 				continue
 			# The channel is the fall. The root stays on the cog the way posObject does.
 			falling.global_position = _drop_root(cog, level, missed)
-			falling.global_basis = cog.global_basis.orthonormalized()
+			# The clip falls along local Z. The cog node is Y-up, so its basis
+			# would lay the anvil on its side.
+			falling.global_basis = _upright(cog)
 			var full := not missed or level == 1 or level == 2
 			var shown := elapsed - 4.3
 			if not full:
@@ -2442,9 +2450,9 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		bill = _make(bill_name)
 		var paid := _first_cog(marks)
 		if paid != null:
-			# The bill stands in front of the cog, 5.1 along the cog's forward.
-			_seat(bill, paid, "Suit", Vector3(0.0, 5.1, 0.0), Vector3.ZERO, Vector3.ONE)
-			bill.scale = Vector3.ONE
+			# MovieLure sets the bill on the suit, then detaches it. Leaving it
+			# parented lets the reach carry the bill across the row.
+			_place_dollar(bill, paid)
 		else:
 			_hand(bill, actor, "def_joint_right_hold")
 	var gate := {}
@@ -2553,7 +2561,9 @@ func _step_lure(marks: Array, level: int, elapsed: float) -> void:
 			continue
 		if not cog.has_meta("lure_home"):
 			cog.set_meta("lure_home", cog.global_position)
-			cog.set_meta("lure_ahead", _forward(cog))
+			# reachPos is the same battle-Y step for every suit. Along the nose,
+			# the end cogs walk across the cogs beside them.
+			cog.set_meta("lure_ahead", _toward_toons(cog))
 			cog.set_meta("lure_new", true)
 		# The step belongs to this lure. A cog left up by an earlier lure stays put.
 		if not bool(cog.get_meta("lure_new", false)):
@@ -3817,6 +3827,9 @@ func _throw_trap(prop: Node3D, actor: ToonActor, cog: Node3D, level: int, elapse
 		prop.visible = true
 		prop.reparent(self)
 		prop.global_position = spot
+		# Quicksand and the trapdoor are flat in local X/Y. Stand that plane on the ground.
+		if level == 3 or level == 4:
+			prop.global_basis = _upright(cog)
 		prop.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
 		return
 	if elapsed < 2.3:
@@ -3984,6 +3997,106 @@ func _forward(cog: Node3D) -> Vector3:
 	return forward.normalized()
 
 
+## A street cog's basis is Y-up. Gag meshes are Panda Z-up, so local Z has to
+## be world up and local Y has to be the direction the cog is facing.
+func _upright(host: Node3D) -> Basis:
+	var ahead := _forward(host)
+	var right := Vector3.UP.cross(ahead)
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
+	return Basis(right, ahead, Vector3.UP)
+
+
+## MovieLure.reachPos subtracts 2.6 from battle Y. Battle +Y points at the cogs,
+## so the step toward the toons is the opposite of _battle_basis.forward.
+func _toward_toons(cog: Node3D) -> Vector3:
+	var host := get_parent()
+	if host != null and host.has_method("_battle_basis"):
+		var fight: Variant = host.get("_fight")
+		if fight is Dictionary and not (fight as Dictionary).is_empty():
+			var axes: Dictionary = host.call("_battle_basis", fight)
+			var forward: Vector3 = axes["forward"]
+			forward.y = 0.0
+			if forward.length_squared() > 0.0001:
+				return -forward.normalized()
+	return _forward(cog)
+
+
+## SUIT_LURE_DOLLAR_DISTANCE is 5.1 in the suit's space, and suit.setScale
+## multiplies it. That scale is baked onto the body child, so an unscaled 5.1
+## sits on a large cog and the bill's arc passes over its head.
+func _place_dollar(bill: Node3D, cog: Node3D) -> void:
+	bill.reparent(self)
+	bill.global_basis = _upright(cog)
+	bill.scale = Vector3.ONE
+	bill.global_position = cog.global_position + _forward(cog) * _dollar_reach(cog)
+
+
+func _dollar_reach(cog: Node3D) -> float:
+	var worn := cog.scale.x
+	var suit := cog.get_node_or_null("Suit") as Node3D
+	if suit == null:
+		return 5.1 * worn
+	for child in suit.get_children():
+		if child is Node3D:
+			worn *= (child as Node3D).transform.basis.x.length()
+			break
+	return 5.1 * worn
+
+
+## MovieThrow pitches every child (0, -90, 0) so the pie face rides on lookAt's +Y.
+func _face_flight(prop: Node3D, target: Vector3) -> void:
+	var dir := target - prop.global_position
+	if dir.length_squared() < 0.0001:
+		return
+	dir = dir.normalized()
+	var up := Vector3.UP
+	if absf(dir.dot(up)) > 0.98:
+		up = Vector3.RIGHT
+	var side := up.cross(dir).normalized()
+	up = dir.cross(side).normalized()
+	var kept := prop.scale
+	prop.global_basis = Basis(side, dir, up)
+	prop.scale = kept
+	if prop.has_meta("flight_pose"):
+		return
+	prop.set_meta("flight_pose", true)
+	for child in prop.get_children():
+		var node := child as Node3D
+		if node == null:
+			continue
+		var child_scale := node.scale
+		node.basis = _panda_hpr(0.0, -90.0, 0.0)
+		node.scale = child_scale
+
+
+## MovieSquirt starts the stream at the nozzle, the bottle mouth, the hose, or the head.
+func _squirt_from(actor: Node3D, prop: Node3D, level: int) -> Vector3:
+	if level == 1:
+		var head := _joint(actor, "def_head")
+		if head == null:
+			head = _joint(actor, "joint_head")
+		if head != null:
+			return actor.to_global(actor.to_local(head.global_position) + Vector3(0.0, 0.3, -0.2))
+	var joint_name := ""
+	var nudge := Vector3.ZERO
+	if level == 2:
+		joint_name = "joint_nozzle"
+	elif level == 3:
+		joint_name = "joint_toSpray"
+		nudge = Vector3(0.0, -0.4, 0.0)
+	elif level == 4:
+		joint_name = "joint_water_stream"
+		nudge = Vector3(0.0, -0.55, 0.0)
+	if joint_name != "":
+		var joint := _joint(prop, joint_name)
+		if joint != null:
+			return actor.to_global(actor.to_local(joint.global_position) + nudge)
+	return prop.global_position
+
+
 func _first_victim(victims: Array, actor_of: Callable) -> ToonActor:
 	for item in victims:
 		if item is Dictionary:
@@ -3996,10 +4109,12 @@ func _first_victim(victims: Array, actor_of: Callable) -> ToonActor:
 func _fly(prop: Node3D, aim: Node3D, height: float, elapsed: float, leave: float, flight: float, miss: bool, shrink: bool = false) -> void:
 	if not prop.has_meta("from"):
 		var at := prop.global_position
+		var kept := prop.scale
 		prop.reparent(self)
 		prop.global_position = at
-		prop.scale = Vector3.ONE
+		prop.scale = kept
 		prop.set_meta("from", at)
+		prop.set_meta("rest", kept)
 	if aim == null:
 		return
 	var start: Vector3 = prop.get_meta("from")
@@ -4008,9 +4123,12 @@ func _fly(prop: Node3D, aim: Node3D, height: float, elapsed: float, leave: float
 		target = start + (target - start) * 1.5
 	var flown := clampf((elapsed - leave) / maxf(flight, 0.05), 0.0, 1.0)
 	prop.global_position = start.lerp(target, flown)
+	# MovieThrow.__propPreflight. lookAt aims local +Y, and the pie face is pitched onto that axis.
+	_face_flight(prop, target)
 	if shrink:
 		var faded := 0.0 if flown < 0.7 else (flown - 0.7) / 0.3
-		prop.scale = Vector3.ONE * maxf(1.0 - faded, 0.01)
+		var rest: Vector3 = prop.get_meta("rest", Vector3.ONE)
+		prop.scale = rest * maxf(1.0 - faded, 0.01)
 
 
 func _run(length: float, still: Callable, step: Callable) -> void:
@@ -4659,12 +4777,13 @@ func _seat(prop: Node3D, host: Node, joint_name: String, pos: Vector3, hpr: Vect
 	prop.set_meta("grow", grow)
 
 
-## Panda setHpr in the joint's Z-up space: heading about Z, pitch about X, roll about Y.
+## Panda setHpr: heading about Z, then pitch about X, then roll about Y.
+## Godot applies the left quaternion first, so the product is heading, pitch, roll.
 func _panda_hpr(heading: float, pitch: float, roll: float) -> Basis:
 	var turn := Quaternion(Vector3(0, 0, 1), deg_to_rad(heading))
 	var tilt := Quaternion(Vector3(1, 0, 0), deg_to_rad(pitch))
 	var twist := Quaternion(Vector3(0, 1, 0), deg_to_rad(roll))
-	return Basis(twist * tilt * turn)
+	return Basis(turn * tilt * twist)
 
 
 func _hand(prop: Node3D, actor: Node3D, joint_name: String) -> void:
