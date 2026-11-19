@@ -29,9 +29,10 @@ loadPrcFileData("", "model-cache-dir")
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets" / "streets" / "props"
-MODELS = Filename.from_os_specific(r"C:\Users\fukuy\Downloads\resources-master\TTO Resource files")
-DNA = Path(r"G:\Toontown-Reimagined\Original Toontown Assets\Game Assets")
-SOURCE = Path(r"G:\Toontown-Reimagined\Original Toontown Assets\Source Code\toontown\hood")
+ORIGIN = Path(__file__).resolve().parents[3] / "Original Toontown Assets"
+MODELS = Filename.from_os_specific(str(ORIGIN / "Game Assets"))
+DNA = ORIGIN / "Game Assets"
+SOURCE = ORIGIN / "Source Code" / "toontown" / "hood"
 
 HOODS = {
     "ttc": "ToontownCentral",
@@ -136,13 +137,24 @@ def body_node(model: NodePath) -> NodePath:
     high = model.find("**/*_high")
     if high.isEmpty():
         raise RuntimeError("no high lod on " + model.getName())
+    best = None
+    best_rows = -1
     for child in high.getChildren():
         if not child.node().isOfType(GeomNode.getClassType()):
             continue
-        if "dropshadow" in child.getName():
+        lowered = child.getName().lower()
+        if "dropshadow" in lowered or "drop_shadow" in lowered:
             continue
-        return child
-    raise RuntimeError("no body geom on " + model.getName())
+        rows = 0
+        node = child.node()
+        for index in range(node.getNumGeoms()):
+            rows += node.getGeom(index).getVertexData().getNumRows()
+        if rows > best_rows:
+            best = child
+            best_rows = rows
+    if best is None:
+        raise RuntimeError("no body geom on " + model.getName())
+    return best
 
 
 def bind_anim(model: NodePath, relative: str):

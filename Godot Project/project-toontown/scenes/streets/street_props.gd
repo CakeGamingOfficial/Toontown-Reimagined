@@ -7,10 +7,13 @@ extends Node
 
 const _GUI := preload("res://scenes/toons/toon_gui.gd")
 const _CATALOG := "res://assets/streets/props/catalog.json"
+const _ORDER := "res://assets/streets/props/order.json"
 const _BONUSES := "res://assets/streets/props/bonuses.json"
 
 static var _catalog: Dictionary = {}
 static var _catalog_loaded := false
+static var _order: Dictionary = {}
+static var _order_loaded := false
 static var _bonuses: Dictionary = {}
 static var _bonuses_loaded := false
 static var _clips: Dictionary = {}
@@ -39,6 +42,8 @@ class Prop extends RefCounted:
 	var sad_on := false
 	var label: Label3D
 	var sound: AudioStreamPlayer3D
+	## Clip corner i is drawn at this Godot vertex. Empty means the orders already match.
+	var order: Array = []
 
 
 static func attach(host: Node3D) -> void:
@@ -64,6 +69,7 @@ static func bonus_for(slug: String, zone: String) -> int:
 
 func _ready() -> void:
 	_load_catalog()
+	_load_order()
 	_collect(get_parent())
 
 
@@ -101,6 +107,17 @@ func _load_catalog() -> void:
 		_catalog = parsed
 
 
+func _load_order() -> void:
+	if _order_loaded:
+		return
+	_order_loaded = true
+	if not FileAccess.file_exists(_ORDER):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_ORDER))
+	if parsed is Dictionary:
+		_order = parsed
+
+
 func _collect(host: Node) -> void:
 	if host == null:
 		return
@@ -117,6 +134,9 @@ func _collect(host: Node) -> void:
 		prop.root = node as Node3D
 		prop.key = key
 		prop.track = _track_of(key)
+		var ordering: Variant = _order.get(key, [])
+		if ordering is Array:
+			prop.order = ordering
 		prop.zone_node = _zone_node(node)
 		if prop.zone_node != null:
 			prop.zone = str(prop.zone_node.name)
@@ -125,7 +145,7 @@ func _collect(host: Node) -> void:
 		if prop.meshes.is_empty():
 			continue
 		prop.label = _cheer_label(prop)
-		prop.sound = AudioStreamPlayer3D.new()
+		prop.sound = ToonAudio.effect_3d()
 		prop.sound.max_distance = 45.0
 		prop.sound.unit_size = 45.0
 		prop.root.add_child(prop.sound)
@@ -146,8 +166,10 @@ func _key_of(node_name: String) -> String:
 	if mark < 0:
 		return ""
 	var tail := low.substr(mark + 2)
-	if tail.ends_with("_dnaroot"):
-		tail = tail.substr(0, tail.length() - 8)
+	# Godot numbers duplicate names, so the second mailbox is DNARoot2.
+	var root := tail.find("_dnaroot")
+	if root >= 0:
+		tail = tail.substr(0, root)
 	return tail
 
 
@@ -177,7 +199,9 @@ func _take_meshes(node: Node, into: Array[MeshInstance3D], verts: Array) -> void
 		if node is Node3D:
 			(node as Node3D).visible = false
 		return
-	if node is MeshInstance3D and _mesh_matches(node as MeshInstance3D, verts):
+	# The ground blot is a quad. It is not the prop the reel was baked from.
+	var shadow := name.contains("dropshadow") or name.contains("drop_shadow")
+	if not shadow and node is MeshInstance3D and _mesh_matches(node as MeshInstance3D, verts):
 		into.append(node as MeshInstance3D)
 	for child in node.get_children():
 		_take_meshes(child, into, verts)
@@ -389,12 +413,12 @@ func _advance(prop: Prop, delta: float) -> void:
 	var fps := float(prop.clip.get("fps", 24.0))
 	prop.frame += delta * fps
 	if prop.frame < float(frames.size()):
-		_pose(prop, int(prop.frame))
+		_pose(prop, prop.frame)
 		return
 	if prop.loops_left > 1:
 		prop.loops_left -= 1
 		prop.frame = fmod(prop.frame, float(frames.size()))
-		_pose(prop, int(prop.frame))
+		_pose(prop, prop.frame)
 		return
 	_finish_clip(prop)
 
@@ -441,26 +465,57 @@ func _begin_pause(prop: Prop, info: Dictionary) -> void:
 		prop.sound.stop()
 
 
-func _pose(prop: Prop, frame: int) -> void:
+func _pose(prop: Prop, cursor: float) -> void:
 	var frames: Array = prop.clip.get("frames", [])
 	if frames.is_empty():
 		return
-	var index := clampi(frame, 0, frames.size() - 1)
-	var surfaces: Array = frames[index]
+	var last := frames.size() - 1
+	var index := clampi(int(cursor), 0, last)
+	var nxt := mini(index + 1, last)
+	var amount := clampf(cursor - float(index), 0.0, 1.0)
+	var current: Array = frames[index]
+	var following: Array = frames[nxt]
 	for mesh in prop.meshes:
 		if not is_instance_valid(mesh) or mesh.mesh == null:
 			continue
 		var posed := ArrayMesh.new()
-		for surface in surfaces.size():
+		for surface in current.size():
 			if surface >= mesh.mesh.get_surface_count():
 				break
+			var positions: PackedVector3Array = current[surface]
+			if amount > 0.001 and surface < following.size():
+				positions = _blend_positions(positions, following[surface], amount)
+			var perm: Array = prop.order[surface] if surface < prop.order.size() and prop.order[surface] is Array else []
+			positions = _scatter(positions, perm)
 			var arrays: Array = mesh.mesh.surface_get_arrays(surface)
-			arrays[Mesh.ARRAY_VERTEX] = surfaces[surface]
+			arrays[Mesh.ARRAY_VERTEX] = positions
 			posed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			var material := mesh.mesh.surface_get_material(surface)
 			if material != null:
 				posed.surface_set_material(surface, material)
 		mesh.mesh = posed
+
+
+func _blend_positions(a: PackedVector3Array, b: PackedVector3Array, amount: float) -> PackedVector3Array:
+	if a.size() != b.size():
+		return a
+	var out := PackedVector3Array()
+	out.resize(a.size())
+	for i in a.size():
+		out[i] = a[i].lerp(b[i], amount)
+	return out
+
+
+## The street import keeps the shape and shuffles the corner order. perm[i] is
+## where clip corner i is drawn.
+func _scatter(src: PackedVector3Array, perm: Array) -> PackedVector3Array:
+	if perm.size() != src.size():
+		return src
+	var dst := PackedVector3Array()
+	dst.resize(src.size())
+	for i in src.size():
+		dst[int(perm[i])] = src[i]
+	return dst
 
 
 static func _read_clip(path: String) -> Dictionary:
@@ -482,20 +537,28 @@ static func _read_clip(path: String) -> Dictionary:
 	var frame_count := file.get_32()
 	var fps := file.get_float()
 	var surface_count := file.get_32()
-	var counts: Array[int] = []
-	counts.resize(surface_count)
+	# Each surface is stored as its vertex count, then every frame of that surface.
+	var packed: Array = []
+	packed.resize(surface_count)
 	for surface in surface_count:
-		counts[surface] = file.get_32()
-	var frames: Array = []
-	for _frame_index in frame_count:
-		var surfaces: Array = []
-		for surface in surface_count:
+		var count := file.get_32()
+		var surface_frames: Array = []
+		surface_frames.resize(frame_count)
+		for frame_index in frame_count:
 			var positions := PackedVector3Array()
-			positions.resize(counts[surface])
-			for index in counts[surface]:
+			positions.resize(count)
+			for index in count:
 				positions[index] = Vector3(file.get_float(), file.get_float(), file.get_float())
-			surfaces.append(positions)
-		frames.append(surfaces)
+			surface_frames[frame_index] = positions
+		packed[surface] = surface_frames
+	var frames: Array = []
+	frames.resize(frame_count)
+	for frame_index in frame_count:
+		var surfaces: Array = []
+		surfaces.resize(surface_count)
+		for surface in surface_count:
+			surfaces[surface] = packed[surface][frame_index]
+		frames[frame_index] = surfaces
 	file.close()
 	var clip := {"fps": fps, "frames": frames}
 	_clips[path] = clip
