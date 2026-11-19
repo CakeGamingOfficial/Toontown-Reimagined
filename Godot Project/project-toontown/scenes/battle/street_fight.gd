@@ -1360,7 +1360,13 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 				if cog.has_method("march"):
 					cog.call("march", false)
 		else:
-			cog.call("hold_fight", true, stand, deg_to_rad(_line_heading(suit, stand, toon_center)))
+			# A lured cog stands on reachPos, 2.6 toward the toons, in neutral.
+			var planted := stand
+			if cog.has_meta("lure_spot") and (bool(suit.get("lured", false)) or state == "movie"):
+				planted = cog.get_meta("lure_spot")
+			elif cog.has_meta("lure_spot"):
+				cog.remove_meta("lure_spot")
+			cog.call("hold_fight", true, planted, deg_to_rad(_line_heading(suit, stand, toon_center)))
 			if state != "movie" and not _movie_playing():
 				if cog.has_method("march"):
 					cog.call("march", false)

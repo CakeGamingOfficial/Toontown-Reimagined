@@ -16,6 +16,8 @@ const _SPRAY_LEN := 1.5
 const _SPRAY_SCALE: Array[float] = [0.2, 0.3, 0.1, 0.6, 0.8, 1.0, 2.0]
 # MovieUtil.SUIT_LOSE_DURATION. The lose-mod plays after the hit react.
 const LOSE_SECONDS := 6.0
+## MovieTrap.createCartoonExplosionTrack. dust-chan is 40 frames at 24 fps.
+const DUST_SECONDS := 39.0 / 24.0
 ## MovieFire. The button press and the cannon that launches the cog run together.
 const FIRE_SECONDS := 10.5
 const _GAGS: Array = [
@@ -66,10 +68,24 @@ const _DROP_MISS: PackedStringArray = [
 const _SQUIRT_CLIP: PackedStringArray = ["pushbutton", "spit", "water-gun", "hold-bottle", "firehose", "pushbutton", "pushbutton"]
 const _HEAL_CLIP: PackedStringArray = ["tickle", "sound", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb"]
 const _LURE_DOLLAR: PackedStringArray = ["1dollar", "", "5dollar", "", "10dollar", "", ""]
+# MovieUtil.largeSuits. Their reach slides 0.9 back while the clip plays.
+const _LARGE_SUITS: PackedStringArray = [
+	"f", "cc", "gh", "tw", "bf", "sc", "ds", "hh", "cr", "tbc", "bs", "sd",
+	"le", "bw", "nc", "mb", "ls", "rb", "ms", "tf", "m", "mh",
+]
 
 const _DROP_FALL: Array[float] = [0.5, 0.1667, 0.0417, 0.4583, 0.4583, 0.4583, 0.0833]
 # MovieTrap distances, in front of the cog. Panda +Y is the cog's forward.
 const _TRAP_REACH: Array[float] = [2.6, 4.5, 3.7, 2.6, 2.6, 5.1, 2.6]
+# MovieUtil.getSuitRakeOffset. Added to the rake's distance, in suit space.
+const _RAKE_OFFSET := {
+	"gh": 1.4, "f": 1.0, "cc": 0.7, "tw": 1.3, "bf": 1.0, "sc": 0.8,
+	"ym": 0.1, "mm": 0.05, "tm": 0.07, "nd": 0.07, "pp": 0.04,
+	"bc": 0.36, "b": 0.41, "dt": 0.31, "ac": 0.39, "ds": 0.41,
+	"hh": 0.8, "cr": 2.1, "tbc": 1.4, "bs": 0.4, "sd": 1.02,
+	"le": 1.3, "bw": 1.4, "nc": 0.6, "mb": 1.85, "ls": 1.4,
+	"rb": 1.6, "ms": 0.7, "tf": 0.75, "m": 0.9, "mh": 1.3,
+}
 const _ATTACK_HELD := {
 	"Pound Key!": ["phone", "receiver"],
 	"Hang Up!": ["phone", "receiver"],
@@ -1828,6 +1844,7 @@ func _marks(beats: Array, cog_of: Callable) -> Array:
 			"hit": bool(beat.get("hit", false)),
 			"hp": int(beat.get("cog_hp", 1)),
 			"revived": bool(beat.get("revived", false)),
+			"vanish": bool(beat.get("vanish", false)),
 		})
 	return marks
 
@@ -2395,7 +2412,11 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 		if elapsed >= 3.5 and _latch(gate, "hit"):
 			contact.call()
 	)
-	if railroad and not props.is_empty():
+	# A second trap in the same round collides. The throw still plays, then the dust cloud replaces the prop.
+	var poof: Array[Node3D] = []
+	if _trap_vanished(marks):
+		poof = props
+	elif railroad and not props.is_empty():
 		var planted := props[0]
 		for mark in marks:
 			var row: Dictionary = mark
@@ -2405,6 +2426,9 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 	else:
 		for index in props.size():
 			var mark: Dictionary = marks[index]
+			if bool(mark.get("vanish", false)):
+				poof.append(props[index])
+				continue
 			var cog := _node3d(mark.get("cog"))
 			if cog != null:
 				var planted := props[index]
@@ -2415,9 +2439,66 @@ func _trap(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 					planted.visible = false
 					planted = react
 				_plant(cog, planted, int(mark.get("id", 0)), _TRAP_SFX[level] if level < _TRAP_SFX.size() else "TL_banana.ogg", level)
+	if not poof.is_empty():
+		await _poof_traps(poof, still)
 	if button != null:
 		button.visible = false
 	actor.end_action(clip)
+
+
+func _trap_vanished(marks: Array) -> bool:
+	for mark in marks:
+		if mark is Dictionary and bool((mark as Dictionary).get("vanish", false)):
+			return true
+	return false
+
+
+## createCartoonExplosionTrack. The dust actor billboards at the trap and plays once.
+func _poof_traps(props: Array[Node3D], still: Callable) -> void:
+	var clouds: Array[Node3D] = []
+	for prop in props:
+		if prop == null or not is_instance_valid(prop):
+			continue
+		var cloud := _make("dust")
+		cloud.global_position = prop.global_position
+		cloud.scale = Vector3(0.1, 0.9, 1.0)
+		_dust_cards(cloud)
+		prop.visible = false
+		clouds.append(cloud)
+	await _run(DUST_SECONDS, still, func(elapsed: float) -> void:
+		for cloud in clouds:
+			if cloud == null or not is_instance_valid(cloud):
+				continue
+			cloud.scale = Vector3(0.1, 0.9, 1.0)
+			_face_camera(cloud)
+			_pose_prop(cloud, "dust", elapsed)
+	)
+	for cloud in clouds:
+		if cloud != null and is_instance_valid(cloud):
+			cloud.visible = false
+
+
+## BattleProps.makeVariant stacks cloud1 in front of cloud11. The texture is dual transparency.
+func _dust_cards(cloud: Node3D) -> void:
+	for child in cloud.find_children("*", "MeshInstance3D", true, false):
+		var mesh := child as MeshInstance3D
+		var source: Material = mesh.get_active_material(0)
+		if source == null and mesh.mesh != null:
+			source = mesh.mesh.surface_get_material(0)
+		var standard := source as StandardMaterial3D
+		if standard == null:
+			continue
+		var next := standard.duplicate() as StandardMaterial3D
+		next.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		next.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		var named := mesh.name
+		if not named.begins_with("cloud") and mesh.get_parent() != null:
+			named = mesh.get_parent().name
+		var number := named.trim_prefix("cloud").to_int()
+		if number <= 0:
+			number = 1
+		next.render_priority = 12 - number
+		mesh.set_surface_override_material(0, next)
 
 
 func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
@@ -2518,29 +2599,34 @@ func _lure(actor: ToonActor, prop_name: String, level: int, marks: Array, still:
 	actor.end_action(clip)
 
 
-## MovieLure. Dollar and big-dollar cogs reach. Magnets shake through landing.
-## Hypno and the presentation play hypnotized, and a hit steps 2.6 toward the toon.
+## MovieLure. Dollar cogs play walknreach, then loop neutral 2.6 toward the toons.
+## Magnets scrub the landing clip. Hypno and the presentation play hypnotize.
 func _step_lure(marks: Array, level: int, elapsed: float) -> void:
 	var react := "reach"
 	var react_at := 3.5
+	var react_for := 3.5
 	var move_at := 3.5
 	var move_for := 1.4
 	var miss_at := 3.5
+	var dollar := level == 0 or level == 2 or level == 4
 	if level == 1 or level == 3:
 		react = "landing"
 		react_at = 2.6
+		react_for = 3.11
 		move_at = 3.95
 		move_for = 0.8
 		miss_at = 3.7
 	elif level == 5:
 		react = "hypnotized"
 		react_at = 1.6
+		react_for = 3.1
 		move_at = 3.3
 		move_for = 0.7
 		miss_at = 2.3
 	elif level == 6:
 		react = "hypnotized"
 		react_at = 3.8
+		react_for = 3.1
 		move_at = 5.5
 		move_for = 0.7
 		miss_at = 2.3
@@ -2555,10 +2641,19 @@ func _step_lure(marks: Array, level: int, elapsed: float) -> void:
 			if elapsed >= miss_at:
 				_react_one(cog, "sidestep-left", elapsed - miss_at)
 			continue
-		if elapsed >= react_at:
-			_react_one(cog, react, elapsed - react_at)
-		if elapsed < move_at:
+		if elapsed < react_at:
 			continue
+		var age := elapsed - react_at
+		var clip_time := age
+		var playing := age < react_for
+		if level == 1 or level == 3:
+			clip_time = _magnet_landing_time(age)
+			playing = clip_time >= 0.0
+		if playing:
+			_react_one(cog, react, clip_time)
+		else:
+			# The clip is done. loop('neutral') is the pose they hold while lured.
+			_react_one(cog, "", 0.0)
 		if not cog.has_meta("lure_home"):
 			cog.set_meta("lure_home", cog.global_position)
 			# reachPos is the same battle-Y step for every suit. Along the nose,
@@ -2570,8 +2665,43 @@ func _step_lure(marks: Array, level: int, elapsed: float) -> void:
 			continue
 		var home: Vector3 = cog.get_meta("lure_home")
 		var ahead: Vector3 = cog.get_meta("lure_ahead")
-		var walked := clampf((elapsed - move_at) / move_for, 0.0, 1.0)
-		cog.global_position = home + ahead * 2.6 * walked
+		var spot := home + ahead * 2.6
+		if dollar:
+			# The reach clip is the step. Large suits ease 0.9 back while it plays,
+			# then every suit is set onto reachPos and returns to neutral.
+			var placed := home
+			if playing and _large_suit(cog):
+				placed = home - ahead * 0.9 * clampf(age / 1.4, 0.0, 1.0)
+			elif not playing:
+				placed = spot
+			cog.global_position = placed
+		elif elapsed >= move_at:
+			var walked := clampf((elapsed - move_at) / move_for, 0.0, 1.0)
+			cog.global_position = home.lerp(spot, walked)
+		if not playing:
+			cog.set_meta("lure_spot", spot)
+			cog.global_position = spot
+
+
+## MovieLure magnet. The landing clip is scrubbed backward, shaken, then finished.
+func _magnet_landing_time(age: float) -> float:
+	if age < 0.55:
+		return lerpf(2.37, 1.82, age / 0.55)
+	age -= 0.55
+	if age < 0.8:
+		var shake := 0.8 / 3.0
+		return lerpf(1.82, 1.16, fmod(age, shake) / shake)
+	age -= 0.8
+	if age < 0.46:
+		return lerpf(1.16, 0.7, age / 0.46)
+	age -= 0.46
+	if age < 1.3:
+		return 0.7 + age
+	return -1.0
+
+
+func _large_suit(cog: Node3D) -> bool:
+	return _LARGE_SUITS.has(String(cog.get("cog_code")))
 
 
 ## The trap was planted earlier. This beat is MovieLure.__createSuitDamageTrack.
@@ -2683,6 +2813,7 @@ func _stand_home(cog: Node3D) -> void:
 		cog.remove_meta("lure_home")
 		cog.remove_meta("lure_ahead")
 		cog.remove_meta("lure_new")
+		cog.remove_meta("lure_spot")
 
 
 func _sound(actor: ToonActor, prop_name: String, level: int, marks: Array, still: Callable, contact: Callable) -> void:
@@ -3354,21 +3485,26 @@ func _plant(cog: Node3D, prop: Node3D, cog_id: int, sound_name: String, level: i
 		_traps[cog_id] = {"node": prop, "sound": sound_name, "level": level, "cog": cog}
 		return
 	var reach := _TRAP_REACH[clampi(level, 0, _TRAP_REACH.size() - 1)]
+	if level == 1:
+		reach += _rake_offset(cog)
 	var spot := cog.global_position + _forward(cog) * reach
 	spot.y = cog.global_position.y
 	if level == 0:
 		spot.y -= 0.35
 	elif level == 5:
 		spot.y += 0.4
-	else:
-		spot.y += 0.05
+	elif level == 3 or level == 4:
+		spot.y += 0.025
 	prop.reparent(self)
 	prop.global_position = spot
-	prop.scale = Vector3.ONE * (0.7 if level == 1 else 1.0)
+	var size := 1.0
 	if level == 1:
-		prop.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	elif level == 5:
-		prop.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+		size = 0.7
+	elif level == 3 or level == 4:
+		size = 1.7
+	prop.scale = Vector3.ONE * size
+	var turn := _trap_hpr(level)
+	prop.global_basis = _suit_prop(cog, turn.x, turn.y, turn.z)
 	_spawned.erase(prop)
 	_traps[cog_id] = {"node": prop, "sound": sound_name, "level": level, "cog": cog}
 
@@ -3447,13 +3583,12 @@ func _pose_sprung(elapsed: float) -> void:
 		elif level == 5:
 			_pose_prop(node, "tnt", age)
 		if level == 1:
-			if age >= 0.5 and age < 0.6:
-				node.rotation_degrees.x = lerpf(-90.0, 0.0, (age - 0.5) / 0.1)
-			elif age >= 0.6 and age < 1.3:
-				node.rotation_degrees.x = 0.0
-			elif age >= 1.3:
-				node.rotation_degrees.x = lerpf(0.0, -90.0, clampf((age - 1.3) / 0.4, 0.0, 1.0))
-				node.scale = Vector3.ONE * 0.7 * maxf(1.0 - clampf((age - 1.9) / 0.2, 0.0, 1.0), 0.01)
+			# The head flips up, falls back, then bounces twice before it shrinks.
+			var cog := _node3d(record.get("cog"))
+			if cog != null:
+				node.global_basis = _suit_prop(cog, 0.0, _rake_pitch(age), 0.0)
+			if age >= 2.3:
+				node.scale = Vector3.ONE * 0.7 * maxf(1.0 - clampf((age - 2.3) / 0.2, 0.0, 1.0), 0.01)
 		elif level == 5 and age >= 2.3 and not bool(record.get("boom", false)):
 			record["boom"] = true
 			node.visible = false
@@ -3830,7 +3965,11 @@ func _throw_trap(prop: Node3D, actor: ToonActor, cog: Node3D, level: int, elapse
 		# Quicksand and the trapdoor are flat in local X/Y. Stand that plane on the ground.
 		if level == 3 or level == 4:
 			prop.global_basis = _upright(cog)
-		prop.scale = Vector3.ONE * lerpf(0.1, 1.0, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
+			spot.y = cog.global_position.y + 0.025
+			prop.global_position = spot
+		# Placed traps grow to 1.7. The thrown ones stay at 1.
+		var placed := 1.7 if level == 3 or level == 4 else 1.0
+		prop.scale = Vector3.ONE * lerpf(0.1, placed, clampf((elapsed - 2.5) / 1.2, 0.0, 1.0))
 		return
 	if elapsed < 2.3:
 		var full := 0.7 if level == 1 else 1.0
@@ -3841,18 +3980,37 @@ func _throw_trap(prop: Node3D, actor: ToonActor, cog: Node3D, level: int, elapse
 		duration = 1.1
 	elif level == 2:
 		duration = 1.2
+	# The peel is thrown to the cog's feet, then slides out to the trap point.
+	var near := cog.global_position + _forward(cog) * (reach - 2.0)
+	near.y = spot.y
 	if level == 0 and elapsed > 2.3 + duration:
 		var slide := clampf((elapsed - 2.3 - duration) / 0.8, 0.0, 1.0)
-		var land := cog.global_position + _forward(cog) * (reach + 2.0)
-		land.y = spot.y
-		prop.global_position = land.lerp(spot, slide)
-		prop.rotation_degrees = Vector3.ZERO
+		prop.global_position = near.lerp(spot, slide)
+		prop.global_basis = _suit_prop(cog, 0.0, 0.0, 0.0)
 		return
-	_arc(prop, spot, elapsed, 2.3, duration, false)
-	if level == 1:
-		prop.rotation_degrees = Vector3(-90.0, 63.43, 63.43)
+	if level == 2:
+		# Marbles fling two units past the spot, then roll back, heading 94.
+		var past := cog.global_position + _forward(cog) * (reach + 2.0)
+		past.y = spot.y
+		if elapsed < 2.5:
+			_arc(prop, past, elapsed, 2.3, 0.2, false)
+		else:
+			if not prop.has_meta("marble_from"):
+				prop.set_meta("marble_from", prop.global_position)
+			var rolled: Vector3 = prop.get_meta("marble_from")
+			var roll := clampf((elapsed - 2.5) / 1.0, 0.0, 1.0)
+			prop.global_position = rolled.lerp(spot, roll)
+		prop.global_basis = _suit_prop(cog, 94.0, 0.0, 0.0)
+		return
+	var aim := near if level == 0 else spot
+	_arc(prop, aim, elapsed, 2.3, duration, false)
+	if level == 0:
+		prop.global_basis = _suit_prop(cog, 0.0, 0.0, 0.0)
+	elif level == 1:
+		prop.global_basis = _suit_prop(cog, 63.43, -90.0, 63.43)
+		prop.scale = Vector3.ONE * 0.7
 	elif level == 5:
-		prop.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+		prop.global_basis = _suit_prop(cog, 0.0, 90.0, 0.0)
 
 
 func _fly_cake(pie: Node3D, marks: Array, elapsed: float) -> void:
@@ -4007,6 +4165,50 @@ func _upright(host: Node3D) -> Basis:
 	else:
 		right = right.normalized()
 	return Basis(right, ahead, Vector3.UP)
+
+
+## placeTrap parents the prop to the suit, so heading is the cog's forward.
+func _suit_prop(cog: Node3D, heading: float, pitch: float, roll: float) -> Basis:
+	return _upright(cog) * _panda_hpr(heading, pitch, roll)
+
+
+func _trap_hpr(level: int) -> Vector3:
+	if level == 1:
+		return Vector3(0.0, 270.0, 0.0)
+	if level == 2:
+		return Vector3(94.0, 0.0, 0.0)
+	if level == 5:
+		return Vector3(0.0, 90.0, 0.0)
+	return Vector3.ZERO
+
+
+func _rake_offset(cog: Node3D) -> float:
+	return float(_RAKE_OFFSET.get(String(cog.get("cog_code")), 0.0))
+
+
+## MovieLure steps on the rake. Pitch 270 lies flat, 180 stands it up.
+func _rake_pitch(age: float) -> float:
+	if age < 0.5:
+		return 270.0
+	if age < 0.6:
+		return lerpf(270.0, 180.0, (age - 0.5) / 0.1)
+	if age < 1.3:
+		return 180.0
+	if age < 1.7:
+		return lerpf(180.0, 270.0, (age - 1.3) / 0.4)
+	age -= 1.7
+	if age < 0.15:
+		return lerpf(270.0, 120.0, age / 0.15)
+	age -= 0.15
+	if age < 0.05:
+		return lerpf(120.0, 270.0, age / 0.05)
+	age -= 0.05
+	if age < 0.15:
+		return lerpf(270.0, 100.0, age / 0.15)
+	age -= 0.15
+	if age < 0.05:
+		return lerpf(100.0, 270.0, age / 0.05)
+	return 270.0
 
 
 ## MovieLure.reachPos subtracts 2.6 from battle Y. Battle +Y points at the cogs,

@@ -882,6 +882,9 @@ func _resolve(fight: Dictionary) -> void:
 			if attacker.is_empty() or int(attacker.get("hp", 0)) <= 0:
 				continue
 			_apply_gag(fight, attacker, attack, beats)
+		if track == 1:
+			# MovieTrap. Two trap gags in one round collide and neither one stays.
+			_settle_traps(fight, beats)
 	_apply_combos(fight, beats)
 	for fighter_index in suits.size():
 		var fighter: Dictionary = suits[fighter_index]
@@ -1073,7 +1076,7 @@ func _sos_attack(fight: Dictionary, toon: Dictionary, choice: Dictionary, who: S
 			if lured or trapped:
 				beats.append(_beat("%s called %s, but the %s could not be trapped." % [who, npc_name, cog_name], gag_track, gag_level, toon, suit, false, 0))
 				continue
-			suit["trap"] = {"damage": npc_hp, "gag": gag, "by": npc_name, "owner": int(toon.get("id", 0)), "level": gag_level, "credit": false}
+			suit["trap"] = {"damage": npc_hp, "gag": gag, "by": npc_name, "owner": int(toon.get("id", 0)), "level": gag_level, "credit": false, "fresh": true}
 			beats.append(_beat("%s called %s, who set a %s on the %s." % [who, npc_name, gag, cog_name], gag_track, gag_level, toon, suit, true, 0))
 			continue
 		if gag_track == 2:
@@ -1160,7 +1163,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		var suit: Dictionary = cog
 		var cog_name := String(suit.get("name", "cog"))
 		if track == 1:
-			suit["trap"] = {"damage": damage, "gag": gag, "by": who, "owner": int(toon.get("id", 0)), "level": level, "credit": ToonLoadout.earns_experience(level, int(fight.get("credit_level", 0)))}
+			suit["trap"] = {"damage": damage, "gag": gag, "by": who, "owner": int(toon.get("id", 0)), "level": level, "credit": ToonLoadout.earns_experience(level, int(fight.get("credit_level", 0))), "fresh": true}
 			beats.append(_beat("%s set a %s on the %s." % [who, gag, cog_name], track, level, toon, suit, true, 0))
 			landed = true
 			continue
@@ -1196,6 +1199,43 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		landed = true
 	if landed and track != 1:
 		_grant(fight, int(toon.get("id", 0)), track, level)
+
+
+## Two or more trap gags in the same round throw, then both props are removed.
+func _settle_traps(fight: Dictionary, beats: Array) -> void:
+	var users: Dictionary = {}
+	var rows: Array = []
+	for item in beats:
+		if not (item is Dictionary):
+			continue
+		var beat: Dictionary = item
+		if int(beat.get("track", -1)) != 1 or String(beat.get("attack", "")) == "spring":
+			continue
+		if not bool(beat.get("hit", false)):
+			continue
+		users[int(beat.get("toon", 0))] = true
+		rows.append(beat)
+	if users.size() < 2:
+		return
+	var names := ToonLoadout.new()
+	for item in rows:
+		var beat: Dictionary = item
+		beat["vanish"] = true
+		var toon := _toon(fight, int(beat.get("toon", 0)))
+		var who := String(toon.get("name", "A toon"))
+		var gag := names.gag_name(1, int(beat.get("level", 0)))
+		beat["text"] = "%s's %s disappeared." % [who, gag]
+		var cog_id := int(beat.get("cog", 0))
+		for body in fight.get("cogs", []):
+			if not (body is Dictionary):
+				continue
+			var suit: Dictionary = body
+			if int(suit.get("id", 0)) != cog_id:
+				continue
+			var laid: Variant = suit.get("trap", {})
+			if laid is Dictionary and bool((laid as Dictionary).get("fresh", false)):
+				suit["trap"] = {}
+			break
 
 
 func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, hit: bool, acc: int, beats: Array, track: int, level: int) -> bool:
@@ -1814,6 +1854,9 @@ func _time_beats(beats: Array) -> float:
 			# track covers the group, so the extra time is added once.
 			if killed and not _gag_killed(lead):
 				dur += GagMovie.LOSE_SECONDS
+		# The dust cloud plays after the throw. The movie stays up until it finishes.
+		if _vanished_trap(slice):
+			dur += GagMovie.DUST_SECONDS
 		lead["dur"] = dur
 		for step in range(1, span):
 			(beats[index + step] as Dictionary)["dur"] = 0.0
@@ -1840,6 +1883,16 @@ func _gag_killed(beat: Variant) -> bool:
 		return false
 	var row: Dictionary = beat
 	return String(row.get("kind", "")) == "gag" and int(row.get("cog_hp", 1)) <= 0
+
+
+func _vanished_trap(slice: Array) -> bool:
+	for item in slice:
+		if not (item is Dictionary):
+			continue
+		var beat: Dictionary = item
+		if int(beat.get("track", -1)) == 1 and bool(beat.get("vanish", false)):
+			return true
+	return false
 
 
 func _beat_dur(beat: Dictionary) -> float:
