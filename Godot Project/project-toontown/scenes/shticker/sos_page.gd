@@ -30,6 +30,8 @@ var _heads: Array[TextureRect] = []
 var _stars: Array = []
 var _front_tex: Texture2D
 var _back_tex: Texture2D
+static var _shared_front: Texture2D
+static var _shared_back: Texture2D
 var _dna: Dictionary = {}
 var _portraits: Dictionary = {}
 var _baking: Dictionary = {}
@@ -306,6 +308,9 @@ func _style_for(npc_id: int) -> ToonStyle:
 
 
 func _bake_plates() -> void:
+	if _shared_front != null and _shared_back != null:
+		_apply_plates(_shared_front, _shared_back)
+		return
 	var packed := load(_CARD) as PackedScene
 	if packed == null:
 		return
@@ -319,6 +324,15 @@ func _bake_plates() -> void:
 		front_view.queue_free()
 	if is_instance_valid(back_view):
 		back_view.queue_free()
+	if _front_tex != null and _back_tex != null:
+		_shared_front = _front_tex
+		_shared_back = _back_tex
+	_apply_plates(_front_tex, _back_tex)
+
+
+func _apply_plates(front: Texture2D, back: Texture2D) -> void:
+	_front_tex = front
+	_back_tex = back
 	for index in _fronts.size():
 		_fronts[index].texture = _front_tex
 		_backs[index].texture = _back_tex
@@ -362,8 +376,9 @@ func _plate_view(packed: PackedScene, back: bool) -> SubViewport:
 	camera.size = 2.7
 	camera.near = 0.05
 	camera.current = true
-	camera.position = Vector3(0.0, 0.0, 4.0)
-	camera.look_at(Vector3.ZERO, Vector3.UP)
+	# The camera is not in the tree yet. look_at needs a parent and stalls the
+	# place load when the editor breaks on that error.
+	camera.look_at_from_position(Vector3(0.0, 0.0, 4.0), Vector3.ZERO, Vector3.UP)
 	stage.add_child(camera)
 	return port
 
