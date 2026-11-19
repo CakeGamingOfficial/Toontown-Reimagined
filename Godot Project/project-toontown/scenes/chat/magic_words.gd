@@ -738,6 +738,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if loadout == null:
 		return "No gag pouch here."
 	var filled := 0
+	var rewards := ""
 	if everything:
 		loadout.set_hp(137, 137)
 		loadout.save()
@@ -750,6 +751,8 @@ static func _restock(scene: Node, everything: bool) -> String:
 			tasks._remember(hood)
 		tasks.save()
 		_DISGUISE.max_suits()
+		rewards = _REWARDS.max_stock()
+		_refresh_rewards(scene)
 	else:
 		filled = loadout.restock()
 	var book := _find(scene, "ShtickerBook") as ShtickerBook
@@ -759,7 +762,7 @@ static func _restock(scene: Node, everything: bool) -> String:
 	if filled <= 0:
 		return "No gags are unlocked yet. ~max unlocks them."
 	if everything:
-		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, bank to %d, and vault to %d, filled %d gags, opened teleport to every playground and Cog HQ, and maxed every Cog suit." % [loadout.max_carry, _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.vault_limit(), filled]
+		return "Maxed laff to 137, gag pouch to %d, jellybean jar to %d, bank to %d, and vault to %d, filled %d gags, opened teleport to every playground and Cog HQ, and maxed every Cog suit. %s" % [loadout.max_carry, _BEANS.pouch_limit(), _BEANS.bank(), _BEANS.vault_limit(), filled, rewards]
 	return "Restocked %d gags." % filled
 
 

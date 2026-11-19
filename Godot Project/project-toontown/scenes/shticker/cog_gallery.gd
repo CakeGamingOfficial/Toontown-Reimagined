@@ -3,8 +3,14 @@ extends Control
 
 ## SuitPage. Four departments, eight cogs each, in suitHeadTypes order.
 ## A defeat fills in the head, the name, and "n of quota". The first quota
-## turns the card olive, and the second turns it gold. Radar and summons stay
-## out: this game has no district suit planner to ask.
+## turns the card olive, and the second turns it gold. The department icon is
+## the radar button. It wakes once every cog in that department has reached
+## the first quota, and the building count wakes at the second. The leaked
+## CogPageManagerAI.toonKilledCogs is a stub, so the unlock follows those
+## gallery tiers. A click counts the street the toon is standing on.
+## A summons button sits on a cog you have already met when you hold a
+## summons for that cog. The scroll icon is not in the exported book gui,
+## so the button is the original OK button and its "Summon" hover.
 
 const _SAVE := "user://cog_gallery.json"
 const _GUI := "res://assets/gui/shticker/gallery/"
@@ -16,6 +22,24 @@ const _ICONS: Array[Texture2D] = [
 	preload("res://assets/gui/shticker/gallery/money_icon.png"),
 	preload("res://assets/gui/shticker/gallery/sales_icon.png"),
 ]
+const _PLATE := preload("res://assets/gui/friends/avatar_panel.png")
+const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
+const _DIALOG := preload("res://assets/gui/tutorial/dialog/dialog_box.png")
+const _SUMMON_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+const _SUMMON_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+const _SUMMON_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
+const _QUIT_UP := preload("res://assets/toons/gui/QuitBtn_UP.png")
+const _QUIT_DOWN := preload("res://assets/toons/gui/QuitBtn_DN.png")
+const _QUIT_HOVER := preload("res://assets/toons/gui/QuitBtn_RLVR.png")
+const _CLOSE_UP := preload("res://assets/toons/gui/CloseBtn_UP.png")
+const _CLOSE_DOWN := preload("res://assets/toons/gui/CloseBtn_DN.png")
+const _CLOSE_HOVER := preload("res://assets/toons/gui/CloseBtn_Rllvr.png")
+const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
+const _DEPTS: PackedStringArray = ["c", "l", "m", "s"]
+## SuitPage.RADAR_DELAY. Each cog in the row appears 0.2 seconds after the last.
+const _RADAR_DELAY := 0.2
+## SuitPage.BUILDING_RADAR_POS, the label's z on the department button.
+const _BUILDING_Z: PackedFloat32Array = [0.375, 0.065, -0.225, -0.5]
 
 # SuitPage.makePanels. The board is wide enough for the dept icons on the left
 # and the last card on the right. The frame sits inside that board.
@@ -102,7 +126,20 @@ var _mysteries: Array[Label] = []
 var _quotas: Array[Label] = []
 var _shadows: Array[TextureRect] = []
 var _heads: Array[TextureRect] = []
-var _dept_icons: Array[TextureRect] = []
+var _dept_icons: Array[TextureButton] = []
+var _radar_labels: Array[Label] = []
+var _summon_buttons: Array[TextureButton] = []
+var _summon_hints: Array[Label] = []
+var _summon_dialog: Control
+var _summon_index := -1
+var _building_plates: Array[TextureRect] = []
+var _building_tags: Array[Label] = []
+var _radar_on: Array[bool] = [false, false, false, false]
+var _scanning: Array[bool] = [false, false, false, false]
+var _cog_ready: Array[bool] = [false, false, false, false]
+var _bldg_ready: Array[bool] = [false, false, false, false]
+var _scan_id: Array[int] = [0, 0, 0, 0]
+var _building_count: Array[int] = [0, 0, 0, 0]
 var _mounted: Array[bool] = []
 
 
@@ -162,6 +199,29 @@ func _init() -> void:
 		var quota := _suit_label("")
 		quota.visible = false
 		card.add_child(quota)
+		var radar := _suit_label("")
+		radar.visible = false
+		card.add_child(radar)
+		var summon := TextureButton.new()
+		summon.texture_normal = _SUMMON_UP
+		summon.texture_pressed = _SUMMON_DOWN
+		summon.texture_hover = _SUMMON_HOVER
+		summon.ignore_texture_size = true
+		summon.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		summon.focus_mode = Control.FOCUS_NONE
+		summon.mouse_filter = MOUSE_FILTER_STOP
+		summon.visible = false
+		summon.z_index = 3
+		ToonGui.button_sounds(summon)
+		summon.mouse_entered.connect(_hover_summon.bind(index, true))
+		summon.mouse_exited.connect(_hover_summon.bind(index, false))
+		summon.pressed.connect(_open_summon.bind(index))
+		card.add_child(summon)
+		var hint := _suit_label("Summon")
+		hint.visible = false
+		hint.mouse_filter = MOUSE_FILTER_IGNORE
+		hint.z_index = 4
+		card.add_child(hint)
 		# SuitPageMystery uses the panel text. Its baseline is the card's text_pos, not the name box.
 		var mystery := _suit_label("???")
 		mystery.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -173,15 +233,38 @@ func _init() -> void:
 		_names.append(cog_name)
 		_mysteries.append(mystery)
 		_quotas.append(quota)
+		_radar_labels.append(radar)
+		_summon_buttons.append(summon)
+		_summon_hints.append(hint)
 		_mounted.append(false)
 	for icon_index in _ICONS.size():
-		var icon := TextureRect.new()
-		icon.texture = _ICONS[icon_index]
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_SCALE
+		var icon := TextureButton.new()
+		icon.texture_normal = _ICONS[icon_index]
+		icon.texture_hover = _ICONS[icon_index]
+		icon.texture_pressed = _ICONS[icon_index]
+		icon.ignore_texture_size = true
+		icon.stretch_mode = TextureButton.STRETCH_SCALE
+		icon.focus_mode = Control.FOCUS_NONE
 		icon.mouse_filter = MOUSE_FILTER_IGNORE
+		icon.mouse_entered.connect(_hover_icon.bind(icon_index, true))
+		icon.mouse_exited.connect(_hover_icon.bind(icon_index, false))
+		icon.pressed.connect(_toggle_radar.bind(icon_index))
 		add_child(icon)
 		_dept_icons.append(icon)
+		var plate := TextureRect.new()
+		plate.texture = _PLATE
+		plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		plate.stretch_mode = TextureRect.STRETCH_SCALE
+		plate.mouse_filter = MOUSE_FILTER_IGNORE
+		plate.visible = false
+		plate.pivot_offset = plate.size * 0.5
+		add_child(plate)
+		var tag := _suit_label("0 buildings")
+		tag.visible = false
+		tag.add_theme_color_override("font_color", Color(1, 0, 0, 1))
+		add_child(tag)
+		_building_plates.append(plate)
+		_building_tags.append(tag)
 	_plate = Label.new()
 	_plate.text = "Cog Gallery"
 	_plate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -210,12 +293,486 @@ func layout(page_size: Vector2) -> void:
 		var box := _icon_rect(icon_index)
 		_dept_icons[icon_index].position = box.position
 		_dept_icons[icon_index].size = box.size
+		_layout_building(icon_index)
 
 
 func refresh() -> void:
+	_cancel_radar()
+	_apply_counts()
+
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_VISIBILITY_CHANGED or is_visible_in_tree():
+		return
+	if _cards.size() < _CODES.size():
+		return
+	_close_summon()
+	_cancel_radar()
+	_apply_counts()
+
+
+func _apply_counts() -> void:
 	var counts := _counts()
+	for dept in _DEPTS.size():
+		var cog_ready := true
+		var bldg_ready := true
+		for col in 8:
+			var have := int(counts.get(_CODES[dept * 8 + col], 0))
+			if have < _QUOTA_0[col]:
+				cog_ready = false
+			if have < _QUOTA_1[col]:
+				bldg_ready = false
+		_cog_ready[dept] = cog_ready
+		_bldg_ready[dept] = bldg_ready
+		_arm_icon(dept)
 	for index in _CODES.size():
 		_paint(index, int(counts.get(_CODES[index], 0)))
+
+
+func _layout_building(dept: int) -> void:
+	# The button origin is (-0.2, 0.05). The label sits 0.225 to the right.
+	var origin := _point(0.025, 0.05 + _BUILDING_Z[dept])
+	var plate := _building_plates[dept]
+	plate.size = _span(0.05, 0.1)
+	plate.pivot_offset = plate.size * 0.5
+	plate.rotation_degrees = 90.0
+	plate.position = origin + Vector2(0.0, _span(0.0, 0.015).y) - plate.size * 0.5
+	var tag := _building_tags[dept]
+	var px := maxi(int(_span(0.05, 0.05).y), 8)
+	_style_suit(tag, px)
+	tag.add_theme_color_override("font_color", Color(1, 0, 0, 1))
+	tag.size = _span(0.34, 0.06)
+	tag.position = origin - tag.size * 0.5
+
+
+func _toggle_radar(dept: int) -> void:
+	if dept < 0 or dept >= _DEPTS.size() or not _cog_ready[dept] or _scanning[dept]:
+		return
+	if _radar_on[dept]:
+		_scan_id[dept] += 1
+		_radar_on[dept] = false
+		_hide_dept(dept)
+		_arm_icon(dept)
+		return
+	_radar_on[dept] = true
+	_scanning[dept] = true
+	_scan_id[dept] += 1
+	var token := _scan_id[dept]
+	_arm_icon(dept)
+	var present := _present(dept)
+	_building_count[dept] = _buildings(dept)
+	for col in 8:
+		var index := dept * 8 + col
+		_quotas[index].visible = false
+		_radar_labels[index].text = "%d present" % present[index]
+		_radar_labels[index].visible = false
+		var wait := _RADAR_DELAY * float(col)
+		get_tree().create_timer(wait, true).timeout.connect(_reveal_cog.bind(dept, index, token))
+	get_tree().create_timer(_RADAR_DELAY * 8.0, true).timeout.connect(_finish_scan.bind(dept, token))
+
+
+func _reveal_cog(dept: int, index: int, token: int) -> void:
+	if token != _scan_id[dept] or not _radar_on[dept]:
+		return
+	_radar_labels[index].visible = true
+
+
+func _finish_scan(dept: int, token: int) -> void:
+	if token != _scan_id[dept] or not _radar_on[dept]:
+		return
+	_scanning[dept] = false
+	if _bldg_ready[dept]:
+		var count := _building_count[dept]
+		if count == 1:
+			_building_tags[dept].text = "%d building" % count
+		else:
+			_building_tags[dept].text = "%d buildings" % count
+		_building_plates[dept].visible = true
+		_building_tags[dept].visible = true
+	_arm_icon(dept)
+
+
+func _cancel_radar() -> void:
+	for dept in _DEPTS.size():
+		_scan_id[dept] += 1
+		_radar_on[dept] = false
+		_scanning[dept] = false
+		_hide_dept(dept)
+		if dept < _dept_icons.size():
+			_arm_icon(dept)
+
+
+func _hide_dept(dept: int) -> void:
+	_building_plates[dept].visible = false
+	_building_tags[dept].visible = false
+	for col in 8:
+		var index := dept * 8 + col
+		_radar_labels[index].visible = false
+		if _names[index].visible:
+			_quotas[index].visible = true
+
+
+func _arm_icon(dept: int) -> void:
+	if dept >= _dept_icons.size():
+		return
+	var icon := _dept_icons[dept]
+	var open := _cog_ready[dept] and not _scanning[dept]
+	icon.mouse_filter = MOUSE_FILTER_STOP if open else MOUSE_FILTER_IGNORE
+	if not open:
+		icon.modulate = Color.WHITE
+
+
+func _hover_icon(dept: int, over: bool) -> void:
+	if dept >= _dept_icons.size() or not _cog_ready[dept] or _scanning[dept]:
+		return
+	_dept_icons[dept].modulate = Color(1, 1, 1, 0.75) if over else Color.WHITE
+
+
+func _hover_summon(index: int, over: bool) -> void:
+	if index < 0 or index >= _summon_hints.size() or not _summon_buttons[index].visible:
+		return
+	_summon_hints[index].visible = over
+
+
+func _input(event: InputEvent) -> void:
+	if _summon_dialog == null or not event.is_action_pressed("ui_cancel"):
+		return
+	get_viewport().set_input_as_handled()
+	var ask := _summon_dialog.get_node_or_null("Ask") as Control
+	if ask != null and ask.visible:
+		ask.visible = false
+		return
+	_close_summon()
+
+
+func _open_summon(index: int) -> void:
+	if index < 0 or index >= _CODES.size() or not _summon_buttons[index].visible:
+		return
+	_close_summon()
+	_summon_index = index
+	var host := Control.new()
+	host.name = "SummonDialog"
+	host.mouse_filter = MOUSE_FILTER_STOP
+	host.z_index = 80
+	host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_book().add_child(host)
+	_summon_dialog = host
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.mouse_filter = MOUSE_FILTER_STOP
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.add_child(dim)
+	var frame := TextureRect.new()
+	frame.name = "Frame"
+	frame.texture = _DIALOG
+	frame.modulate = Color(1, 1, 0.75, 1)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = MOUSE_FILTER_IGNORE
+	host.add_child(frame)
+	var title := _plain_label("Issue a Cog Summons")
+	title.name = "Title"
+	host.add_child(title)
+	var portrait := TextureRect.new()
+	portrait.name = "Head"
+	portrait.texture = _heads[index].texture
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = MOUSE_FILTER_IGNORE
+	portrait.visible = portrait.texture != null
+	host.add_child(portrait)
+	var cog_name := _suit_label(_spoken(index))
+	cog_name.name = "CogName"
+	host.add_child(cog_name)
+	_choice(host, "Summon a Cog", "single", 0.42)
+	_choice(host, "Summon a Cog Building", "building", 0.24)
+	_choice(host, "Summon a Cog Invasion", "invasion", 0.06)
+	var status := _plain_label("")
+	status.name = "Status"
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.visible = false
+	host.add_child(status)
+	var close := TextureButton.new()
+	close.name = "Close"
+	close.texture_normal = _CLOSE_UP
+	close.texture_pressed = _CLOSE_DOWN
+	close.texture_hover = _CLOSE_HOVER
+	close.ignore_texture_size = true
+	close.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	close.focus_mode = Control.FOCUS_NONE
+	ToonGui.button_sounds(close)
+	close.pressed.connect(_close_summon)
+	host.add_child(close)
+	var ask := Control.new()
+	ask.name = "Ask"
+	ask.visible = false
+	ask.mouse_filter = MOUSE_FILTER_STOP
+	ask.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.add_child(ask)
+	var ask_dim := ColorRect.new()
+	ask_dim.color = Color(0, 0, 0, 0.35)
+	ask_dim.mouse_filter = MOUSE_FILTER_STOP
+	ask_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ask.add_child(ask_dim)
+	var ask_frame := TextureRect.new()
+	ask_frame.name = "AskFrame"
+	ask_frame.texture = _DIALOG
+	ask_frame.modulate = Color(1, 1, 0.75, 1)
+	ask_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ask_frame.stretch_mode = TextureRect.STRETCH_SCALE
+	ask_frame.mouse_filter = MOUSE_FILTER_IGNORE
+	ask.add_child(ask_frame)
+	var question := _plain_label("")
+	question.name = "Question"
+	question.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ask.add_child(question)
+	_yes_no(ask, "Yes", true)
+	_yes_no(ask, "No", false)
+	_layout_summon()
+
+
+func _choice(host: Control, text: String, kind: String, z: float) -> void:
+	var button := TextureButton.new()
+	button.name = kind
+	button.texture_normal = _QUIT_UP
+	button.texture_pressed = _QUIT_DOWN
+	button.texture_hover = _QUIT_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.button_sounds(button)
+	button.set_meta("z", z)
+	var dept := int(_summon_index / 8)
+	var cog_type := _summon_index % 8
+	var held := _REWARDS.has_summon(dept, cog_type, kind)
+	button.disabled = not held
+	button.modulate = Color(0.5, 0.5, 0.5, 1) if not held else Color.WHITE
+	button.pressed.connect(_ask_summon.bind(kind))
+	host.add_child(button)
+	var caption := _plain_label(text)
+	caption.name = kind + "Label"
+	caption.mouse_filter = MOUSE_FILTER_IGNORE
+	host.add_child(caption)
+
+
+func _yes_no(ask: Control, text: String, yes: bool) -> void:
+	var button := TextureButton.new()
+	button.name = "Yes" if yes else "No"
+	button.texture_normal = _SUMMON_UP if yes else _CLOSE_UP
+	button.texture_pressed = _SUMMON_DOWN if yes else _CLOSE_DOWN
+	button.texture_hover = _SUMMON_HOVER if yes else _CLOSE_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.button_sounds(button)
+	button.pressed.connect(_answer_summon.bind(yes))
+	ask.add_child(button)
+	var caption := _plain_label(text)
+	caption.name = button.name + "Label"
+	caption.mouse_filter = MOUSE_FILTER_IGNORE
+	ask.add_child(caption)
+
+
+func _ask_summon(kind: String) -> void:
+	if _summon_dialog == null:
+		return
+	var ask := _summon_dialog.get_node_or_null("Ask") as Control
+	var question := _summon_dialog.get_node_or_null("Ask/Question") as Label
+	if ask == null or question == null:
+		return
+	var cog_name := _spoken(_summon_index)
+	if kind == "building":
+		question.text = "Would you like to summon a %s to a nearby Toon building?" % cog_name
+	elif kind == "invasion":
+		question.text = "Would you like to summon a %s invasion?" % cog_name
+	else:
+		question.text = "Would you like to issue a summons to a %s?" % cog_name
+	ask.set_meta("kind", kind)
+	ask.visible = true
+	_layout_summon()
+
+
+func _answer_summon(yes: bool) -> void:
+	if _summon_dialog == null:
+		return
+	var ask := _summon_dialog.get_node_or_null("Ask") as Control
+	if ask == null:
+		return
+	var kind := String(ask.get_meta("kind", "single"))
+	ask.visible = false
+	if not yes:
+		return
+	var dept := int(_summon_index / 8)
+	var cog_type := _summon_index % 8
+	var code := _REWARDS.spend_summon(dept, cog_type, kind)
+	var cog_name := _spoken(_summon_index)
+	var status := _summon_dialog.get_node_or_null("Status") as Label
+	if status != null:
+		status.visible = true
+		if code == "success" and kind == "building":
+			status.text = "You have successfully summoned the Cogs. A Shopkeeper has agreed to let them temporarily take over their building!"
+		elif code == "success" and kind == "invasion":
+			status.text = "You have successfully summoned the Cogs. It's an invasion!"
+		elif code == "success":
+			status.text = "You have successfully summoned the Cog."
+		elif code == "busy":
+			status.text = "A %s cannot be found now.  Try again when the Cog invasion is over." % cog_name
+		elif code == "badlocation" and kind == "building":
+			status.text = "Sorry, there are no Toon buildings nearby for the Cogs to take over."
+		elif code == "badlocation":
+			status.text = "Sorry, Cogs aren't allowed here.  Try somewhere else."
+		else:
+			status.text = "Sorry, the Cog invasion has failed."
+	var choices: PackedStringArray = ["single", "building", "invasion"]
+	for choice in choices:
+		var button := _summon_dialog.get_node_or_null(choice) as CanvasItem
+		var caption := _summon_dialog.get_node_or_null(choice + "Label") as CanvasItem
+		if button != null:
+			button.visible = false
+		if caption != null:
+			caption.visible = false
+	_apply_counts()
+
+
+func _layout_summon() -> void:
+	if _summon_dialog == null:
+		return
+	var view := _summon_dialog.get_viewport().get_visible_rect().size
+	var frame := _summon_dialog.get_node_or_null("Frame") as Control
+	var title := _summon_dialog.get_node_or_null("Title") as Label
+	var portrait := _summon_dialog.get_node_or_null("Head") as Control
+	var cog_name := _summon_dialog.get_node_or_null("CogName") as Label
+	var status := _summon_dialog.get_node_or_null("Status") as Label
+	var close := _summon_dialog.get_node_or_null("Close") as Control
+	if frame == null or title == null or portrait == null or cog_name == null or status == null or close == null:
+		return
+	ToonGui.place(frame, view, 0.0, 0.42, 1.7, 0.95)
+	var title_px := maxi(int(round(0.06 * view.y * 0.5)), 10)
+	ToonGui.style_label(title, Color(0.08, 0.08, 0.08), title_px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(title, view, 0.0, 0.78, 1.4, 0.1)
+	ToonGui.place(portrait, view, -0.48, 0.48, 0.28, 0.28)
+	var name_px := maxi(int(round(0.045 * view.y * 0.5)), 8)
+	_style_suit(cog_name, name_px)
+	ToonGui.place(cog_name, view, -0.48, 0.22, 0.5, 0.12)
+	var body_px := maxi(int(round(0.035 * view.y * 0.5)), 8)
+	var choices: PackedStringArray = ["single", "building", "invasion"]
+	for choice in choices:
+		var button := _summon_dialog.get_node_or_null(choice) as Control
+		var caption := _summon_dialog.get_node_or_null(choice + "Label") as Label
+		if button == null or caption == null:
+			continue
+		var z := float(button.get_meta("z", 0.0))
+		ToonGui.place(button, view, 0.32, z, 0.72, 0.14)
+		ToonGui.style_label(caption, Color(0.08, 0.08, 0.08), body_px, Color(0, 0, 0, 0), 0)
+		ToonGui.place(caption, view, 0.32, z, 0.66, 0.1)
+	ToonGui.style_label(status, Color(0.08, 0.08, 0.08), body_px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(status, view, 0.28, 0.24, 0.7, 0.4)
+	ToonGui.place(close, view, 0.68, 0.02, 0.12, 0.12)
+	var ask := _summon_dialog.get_node_or_null("Ask") as Control
+	if ask == null:
+		return
+	var ask_frame := ask.get_node_or_null("AskFrame") as Control
+	var question := ask.get_node_or_null("Question") as Label
+	var yes := ask.get_node_or_null("Yes") as Control
+	var no := ask.get_node_or_null("No") as Control
+	var yes_label := ask.get_node_or_null("YesLabel") as Label
+	var no_label := ask.get_node_or_null("NoLabel") as Label
+	if ask_frame == null or question == null or yes == null or no == null or yes_label == null or no_label == null:
+		return
+	ToonGui.place(ask_frame, view, 0.0, 0.15, 1.35, 0.55)
+	ToonGui.style_label(question, Color(0.08, 0.08, 0.08), body_px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(question, view, 0.0, 0.28, 1.15, 0.22)
+	ToonGui.place(yes, view, 0.22, 0.02, 0.12, 0.12)
+	ToonGui.place(no, view, -0.22, 0.02, 0.12, 0.12)
+	ToonGui.style_label(yes_label, Color(0.08, 0.08, 0.08), body_px, Color(0, 0, 0, 0), 0)
+	ToonGui.style_label(no_label, Color(0.08, 0.08, 0.08), body_px, Color(0, 0, 0, 0), 0)
+	ToonGui.place(yes_label, view, 0.22, -0.08, 0.2, 0.06)
+	ToonGui.place(no_label, view, -0.22, -0.08, 0.2, 0.06)
+
+
+func _close_summon() -> void:
+	_summon_index = -1
+	if _summon_dialog != null and is_instance_valid(_summon_dialog):
+		_summon_dialog.queue_free()
+	_summon_dialog = null
+
+
+func _book() -> Control:
+	var node: Node = self
+	while node != null:
+		if node is ShtickerBook:
+			return node as Control
+		node = node.get_parent()
+	return self
+
+
+func _spoken(index: int) -> String:
+	if index < 0 or index >= _NAMES.size():
+		return "Cog"
+	return _NAMES[index].replace("\n", "")
+
+
+func _plain_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	return label
+
+
+## suitListQuery for this street. An empty list is what the page shows with no planner.
+func _present(dept: int) -> PackedInt32Array:
+	var counts := PackedInt32Array()
+	counts.resize(32)
+	var scene := get_tree().current_scene
+	var suits := scene.get_node_or_null("StreetSuits") if scene != null else null
+	if suits == null or not suits.has_method("roster"):
+		return counts
+	var listed: Variant = suits.call("roster")
+	if not (listed is Array):
+		return counts
+	var rows: Array = listed
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var cog: Variant = (item as Dictionary).get("cog", {})
+		if not (cog is Dictionary):
+			continue
+		var index := _CODES.find(String((cog as Dictionary).get("code", "")))
+		if index < dept * 8 or index >= dept * 8 + 8:
+			continue
+		counts[index] += 1
+	return counts
+
+
+## buildingListQuery. Suit, takeover, and clear-out count. A field office does not.
+func _buildings(dept: int) -> int:
+	var scene := get_tree().current_scene
+	var suits := scene.get_node_or_null("StreetSuits") if scene != null else null
+	if suits == null:
+		return 0
+	var district := int(suits.get("district_id"))
+	var slug := String(suits.get("street_slug"))
+	var snap := ToonNet.latest("buildings:%d:%s" % [district, slug])
+	var raw: Variant = snap.get("rows", [])
+	if not (raw is Array):
+		return 0
+	var forced := String(_HOLIDAYS.building_track(district))
+	var total := 0
+	for item in raw as Array:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		if bool(row.get("cogdo", false)):
+			continue
+		var state := String(row.get("state", ""))
+		if state != "suit" and state != "becoming" and state != "clearing":
+			continue
+		var track := forced if forced != "" else String(row.get("track", "c"))
+		if _DEPTS.find(track) == dept:
+			total += 1
+	return total
 
 
 func _layout_card(index: int) -> void:
@@ -248,6 +805,23 @@ func _layout_card(index: int) -> void:
 	_quotas[index].vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_quotas[index].position = Vector2(0.0, maxf(quota_base - font.get_ascent(px), 0.0))
 	_quotas[index].size = Vector2(card.size.x, line_h + 2.0)
+	# addCogRadarLabel uses the same z and a text scale of 0.05, against 0.045.
+	var radar_px := maxi(int(round(float(px) * 0.05 / 0.045)), 8)
+	_style_suit(_radar_labels[index], radar_px)
+	var radar_h := font.get_height(radar_px)
+	_radar_labels[index].vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_radar_labels[index].position = Vector2(0.0, maxf(quota_base - font.get_ascent(radar_px), 0.0))
+	_radar_labels[index].size = Vector2(card.size.x, radar_h + 2.0)
+	# addSummonButton sits at (0.1, -0.13) on the unscaled panel, then the panel scale of 0.6.
+	var summon_size := _span(0.045, 0.045)
+	var summon_center := _point(ax + 0.06, az - 0.078)
+	_summon_buttons[index].size = summon_size
+	_summon_buttons[index].position = summon_center - card.position - summon_size * 0.5
+	var hint_px := maxi(int(_span(0.04, 0.04).y), 8)
+	_style_suit(_summon_hints[index], hint_px)
+	_summon_hints[index].size = _span(0.18, 0.045)
+	var hint_center := _point(ax + 0.06 - 0.09, az - 0.078)
+	_summon_hints[index].position = hint_center - card.position - _summon_hints[index].size * 0.5
 	var fitted := _SHADOW_PLACE[index * 3] * 0.6
 	var ox := _SHADOW_PLACE[index * 3 + 1] * 0.6
 	var oz := _SHADOW_PLACE[index * 3 + 2] * 0.6
@@ -280,7 +854,11 @@ func _paint(index: int, count: int) -> void:
 	_names[index].visible = seen
 	_mysteries[index].visible = not seen
 	_quotas[index].text = "%d of %d" % [count, quota]
-	_quotas[index].visible = seen
+	_quotas[index].visible = seen and not _radar_on[row]
+	var held := seen and (_REWARDS.has_summon(row, col, "single") or _REWARDS.has_summon(row, col, "building") or _REWARDS.has_summon(row, col, "invasion"))
+	_summon_buttons[index].visible = held
+	if not held:
+		_summon_hints[index].visible = false
 	_shadows[index].visible = seen
 	_heads[index].visible = seen
 	if seen:

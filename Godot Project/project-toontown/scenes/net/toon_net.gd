@@ -3175,6 +3175,9 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 		state["film"] = outs
 	elif kind == "track" or kind == "trackend":
 		# Trolley Tracks. A vote is the round times 16, plus the votes times 2, plus the direction.
+		# Offline play files the toon as peer 1 on the trolley, and this process as 0.
+		if peer <= 0:
+			peer = peer_id()
 		var book: Dictionary = {}
 		var raw_book: Variant = state.get("tracks", {})
 		if raw_book is Dictionary:

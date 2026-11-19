@@ -288,10 +288,13 @@ func _fill_suit(dept: int) -> void:
 
 
 func _fill_meter(dept: int) -> void:
+	# getTotalMerits. The amount is the row for this cog, one step per level.
+	# A 0 at the end of the last cog means the suit cannot climb any further.
 	var total := _need(dept, _types[dept], _levels[dept])
 	var have := _merits[dept]
-	var progress := 0.0 if total <= 0 else clampf(float(have) / float(total), 0.0, 1.0)
-	var ready := total > 0 and have >= total
+	var finished := total <= 0
+	var progress := 1.0 if finished else clampf(float(have) / float(total), 0.0, 1.0)
+	var ready := finished or have >= total
 	if _promotion != null:
 		_promotion.visible = ready
 	for index in _progress.size():
@@ -906,7 +909,8 @@ static func vp_thanks(dept: int) -> String:
 	var last := cog_type >= 7
 	if last and cog_level >= 49:
 		return "I see that you have a level 50 Cog suit. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to rescue more Toons!"
-	if not ready_for_promotion(dept):
+	# __shouldPromoteToon. A rental suit does not take the promotion.
+	if not ready_for_promotion(dept) or not suit_complete(dept):
 		return ""
 	var lines: PackedStringArray = ["Say--that V.P. Cog left behind your promotion papers.\nI'll file them for you on the way out, so you'll get your promotion!"]
 	var new_level := cog_level + 1
@@ -925,7 +929,9 @@ static func ready_for_promotion(dept: int) -> bool:
 		return false
 	var record := _read_disk()
 	var merits := _four(record.get("merits", []))
-	return int(merits[dept]) >= promotion_cap(dept) and promotion_cap(dept) > 0
+	# A finished level 50 suit has a 0 cap. 0 merits still counts as ready,
+	# which is what lets that suit board the department boss elevator.
+	return int(merits[dept]) >= promotion_cap(dept)
 
 
 static func promotions(dept: int) -> int:
@@ -936,6 +942,37 @@ static func promotions(dept: int) -> int:
 	var levels := _four(record.get("levels", []))
 	var cog_type := clampi(int(types[dept]), 0, 7)
 	return 5 * cog_type + int(levels[dept]) - cog_type
+
+
+## The suit b_promote would write, before the file changes. Level 50 stays put.
+static func next_suit(dept: int) -> Dictionary:
+	if dept < 0 or dept > 3:
+		return {"type": 0, "level": 0, "laff": false, "changed": false}
+	var record := _read_disk()
+	var types := _four(record.get("types", []))
+	var levels := _four(record.get("levels", []))
+	var started_type := int(types[dept])
+	var started_level := int(levels[dept])
+	var last := started_type >= 7
+	var new_level := started_level + 1
+	var max_level := 49 if last else started_type + 4
+	var cog_type := started_type
+	var cog_level := started_level
+	var laff := false
+	if new_level > max_level:
+		if not last:
+			cog_type = started_type + 1
+			cog_level = cog_type
+	else:
+		cog_level = new_level
+		if last and _HP_LEVELS.has(new_level):
+			laff = true
+	return {
+		"type": cog_type,
+		"level": cog_level,
+		"laff": laff,
+		"changed": cog_type != started_type or cog_level != started_level,
+	}
 
 
 ## DistributedToonAI.b_promote. Merits clear, then the suit climbs. The last

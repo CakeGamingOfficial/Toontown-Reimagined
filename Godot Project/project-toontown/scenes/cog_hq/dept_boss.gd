@@ -98,6 +98,7 @@ var _rounds: Node
 var _show: Node
 var _caged: Dictionary = {}
 var _vp_ending := false
+var _suit_promoted := false
 var _net_doors := false
 var _vp_seq := 0
 var _pies_left := 0
@@ -434,7 +435,7 @@ func set_line(text: String) -> void:
 
 func hold_caged_toon() -> Dictionary:
 	if _caged.is_empty():
-		_caged = _REWARDS.hold_vp_sos()
+		_caged = _REWARDS.hold_vp_sos(_sellbot_rentals())
 	return _caged
 
 
@@ -951,24 +952,27 @@ func _start_reward() -> void:
 		if journal != null:
 			journal.note_cfo(_zone)
 		lines.append(_REWARDS.grant_unite())
+		for extra in _dept_promotion_lines():
+			lines.append(extra)
 	elif _kind == "cj":
 		if journal != null:
 			journal.note_cj(_zone)
-		lines.append(_REWARDS.grant_summon(DisguisePage.promotions(_dept)))
+		lines.append(_REWARDS.grant_summon(_party_average(_dept)))
 	else:
 		if journal != null:
 			journal.note_ceo(_zone)
-		var table := _ceo_table()
 		lines.append("You did it!  You've demoted the C.E.O.!")
 		lines.append("Here, take these pink slips the C.E.O. left behind.")
 		lines.append("With it you'll be able to fire Cogs in a battle.")
-		lines.append(_REWARDS.grant_pink(int(table.get("rank", 0)) + 1))
+		lines.append(_REWARDS.grant_pink(_ceo_slips()))
 		for extra in _ceo_epilogue_lines():
 			lines.append(extra)
-	if DisguisePage.ready_for_promotion(_dept):
-		lines.append(DisguisePage.promote(_dept))
-	else:
-		lines.append("Your Cog suit was not ready for a promotion.")
+	# The V.P. promotes a finished suit with a full merit bar. The C.F.O.,
+	# Chief Justice, and C.E.O. call b_promote on every win.
+	var spoken := _apply_suit_promotion()
+	if spoken.begins_with("You have been promoted"):
+		lines.append(spoken)
+		await _play_promotion()
 	_body.text = "\n".join(lines)
 	_bar.value = _bar.max_value
 	if _kind == "cfo":
@@ -1140,21 +1144,38 @@ func _clear_ceo_chat() -> void:
 
 
 func _ceo_epilogue_lines() -> PackedStringArray:
+	return _dept_promotion_lines()
+
+
+## Resistance, witness, and Bossbot reward speeches. The level they describe
+## is the suit b_promote is about to write.
+func _dept_promotion_lines() -> PackedStringArray:
 	var progress := DisguisePage.suit_progress(_dept)
 	var cog_type := int(progress.get("type", 0))
 	var cog_level := int(progress.get("level", 0))
 	var lines := PackedStringArray()
+	var suit_word := "Cog suit" if _kind == "cfo" else "Cog Suit"
+	var closing := "rescue more Toons!" if _kind == "cfo" else "defend more Toons!"
 	if cog_type >= 7 and cog_level >= 49:
-		lines.append("I see that you have a level 50 Cog Suit. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to defend more Toons!")
+		lines.append("I see that you have a level 50 %s. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to %s" % [suit_word, closing])
 		return lines
-	if not DisguisePage.ready_for_promotion(_dept):
-		return lines
-	var new_level := cog_level + 1
-	if cog_type >= 7 and new_level == 49:
-		lines.append("Wow, you've reached level 50 on your Cog Suit!\nCogs don't get promoted higher than that.\nYou can't upgrade your Cog Suit anymore, but you can certainly keep working for the Resistance!")
-	if cog_type >= 7 and (new_level == 14 or new_level == 19 or new_level == 29 or new_level == 39 or new_level == 49):
+	var nxt := DisguisePage.next_suit(_dept)
+	var new_type := int(nxt.get("type", cog_type))
+	var new_level := int(nxt.get("level", cog_level))
+	if new_type >= 7 and new_level == 49:
+		lines.append("Wow, you've reached level 50 on your %s!\nCogs don't get promoted higher than that.\nYou can't upgrade your %s anymore, but you can certainly keep working for the Resistance!" % [suit_word, suit_word])
+	if bool(nxt.get("laff", false)):
 		lines.append("You've done a lot of work for the Resistance.\nThe Toon Council has decided to give you another Laff point. Congratulations!")
 	return lines
+
+
+func _apply_suit_promotion() -> String:
+	if _suit_promoted:
+		return ""
+	_suit_promoted = true
+	if _kind == "vp" and (not DisguisePage.ready_for_promotion(_dept) or not DisguisePage.suit_complete(_dept)):
+		return ""
+	return DisguisePage.promote(_dept)
 
 
 func _remember_cj_exp() -> void:
@@ -1366,8 +1387,7 @@ func leave_for_playground() -> void:
 		journal.note_vp(_zone)
 		journal.note_rescue(_zone)
 	_REWARDS.grant_held_sos()
-	if DisguisePage.ready_for_promotion(_dept):
-		DisguisePage.promote(_dept)
+	_apply_suit_promotion()
 	_teleport_home()
 
 
@@ -1410,21 +1430,7 @@ func gavel_count() -> int:
 
 
 func cj_epilogue_lines() -> PackedStringArray:
-	var progress := DisguisePage.suit_progress(_dept)
-	var cog_type := int(progress.get("type", 0))
-	var cog_level := int(progress.get("level", 0))
-	var lines := PackedStringArray()
-	if cog_type >= 7 and cog_level >= 49:
-		lines.append("I see that you have a level 50 Cog Suit. Very impressive!\nOn behalf of the Toon Council, thank you for coming back to defend more Toons!")
-		return lines
-	if not DisguisePage.ready_for_promotion(_dept):
-		return lines
-	var new_level := cog_level + 1
-	if cog_type >= 7 and new_level == 49:
-		lines.append("Wow, you've reached level 50 on your Cog Suit!\nCogs don't get promoted higher than that.\nYou can't upgrade your Cog Suit anymore, but you can certainly keep working for the Resistance!")
-	if cog_type >= 7 and (new_level == 14 or new_level == 19 or new_level == 29 or new_level == 39 or new_level == 49):
-		lines.append("You've done a lot of work for the Resistance.\nThe Toon Council has decided to give you another Laff point. Congratulations!")
-	return lines
+	return _dept_promotion_lines()
 
 
 func _follow_cj() -> void:
@@ -2564,6 +2570,56 @@ func _rental_suit(peer: int) -> bool:
 	if peer == ToonNet.peer_id():
 		return not DisguisePage.suit_complete(3)
 	return not bool(ToonNet.latest("toon:%d" % peer).get("suit_ready", false))
+
+
+func _sellbot_rentals() -> int:
+	var count := 0
+	for id in _boss_peers():
+		if _rental_suit(int(id)):
+			count += 1
+	return count
+
+
+## getToonDifficulty. The boss uses the party's average promotions in its department.
+func _party_average(dept: int) -> float:
+	var total := 0.0
+	var count := 0.0
+	for id in _boss_peers():
+		total += _peer_promotions(int(id), dept)
+		count += 1.0
+	if count < 1.0:
+		return float(DisguisePage.promotions(dept))
+	return minf(total / count, 77.0)
+
+
+func _peer_promotions(peer: int, dept: int) -> float:
+	if peer == ToonNet.peer_id():
+		return float(DisguisePage.promotions(dept))
+	var raw: Variant = ToonNet.latest("toon:%d" % peer).get("boss_promos", [])
+	if raw is Array and dept >= 0 and dept < (raw as Array).size():
+		return float(int((raw as Array)[dept]))
+	return 0.0
+
+
+## calcAndSetBattleDifficulty. Five tiers, then one more pink slip than the tier.
+func _ceo_slips() -> int:
+	var tiers := 5
+	var difficulty := int(_party_average(0) / 77.0 * float(tiers))
+	if difficulty >= tiers:
+		difficulty = tiers - 1
+	return difficulty + 1
+
+
+func _play_promotion() -> void:
+	if _layer == null:
+		return
+	var panel := RewardPanel.new()
+	panel.name = "PromotionFanfare"
+	panel.z_index = 40
+	_layer.add_child(panel)
+	await panel.promotion_fanfare(_dept)
+	if is_instance_valid(panel):
+		panel.queue_free()
 
 
 func _seeded_order(peers: Array) -> Array:

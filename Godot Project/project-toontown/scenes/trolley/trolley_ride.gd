@@ -34,7 +34,7 @@ const _GAMES: Array[Dictionary] = [
 static var hood := 2000
 static var return_scene := ""
 static var previous_id := 0
-## The tunnel Trolley Tracks just reached. Play Again starts that game once.
+## The tunnel Trolley Tracks just reached. The next round plays that game.
 static var follow_id := 0
 static var players := 1
 static var seat := 0
@@ -425,6 +425,10 @@ func _reward(raw: int) -> void:
 	_quiet(self)
 	if _game != null:
 		_game.visible = false
+	# One toon on Trolley Tracks rides into the tunnel's game. The beans are already paid.
+	if follow_id != 0 and players <= 1:
+		_after_shop("again")
+		return
 	var stage: Node = (load("res://scenes/trolley/trolley_purchase.gd") as GDScript).new()
 	stage.set("loadout", ToonLoadout.for_selected())
 	stage.set("reward", paid)

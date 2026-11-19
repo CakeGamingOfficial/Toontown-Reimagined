@@ -4,7 +4,8 @@ extends RefCounted
 ## (attemptAddNPCFriend, two calls, 16 cards). The C.F.O. leaves a Resistance
 ## unite. The C.J. leaves a cog summon. The C.E.O. leaves pink slips. SOS and
 ## Fire are the battle inventory buttons. A unite is said from SpeedChat
-## UNITE! and also from the disguise page. Summons stay on the disguise page.
+## UNITE! and also from the disguise page. A summons is spent from that cog's
+## button on the Cog Gallery, and the disguise page can still spend the first card.
 
 const _PATH := "user://boss_rewards.json"
 const _SOS_FILE := "res://scenes/shticker/sos_toons.json"
@@ -36,9 +37,9 @@ static func grant_sos() -> String:
 	return _store_sos(_roll_sos(), _CALLS)
 
 
-static func hold_vp_sos() -> Dictionary:
+static func hold_vp_sos(rentals: int = 0) -> Dictionary:
 	if _held.is_empty():
-		_held = _roll_sos()
+		_held = _roll_sos(rentals)
 	return _held.duplicate(true)
 
 
@@ -198,6 +199,65 @@ static func give_unite(menu: int, item: int, count: int = 1) -> String:
 	return "The Resistance gave you %d unites: %s." % [copies, label]
 
 
+## ~max. Fill the SOS page, keep one of every unite and one summon for every
+## cog in each kind, and set pink slips to 255. Cards already held stay put.
+static func max_stock() -> String:
+	_load_catalog()
+	var record := _read()
+	var cards: Array = record.get("sos", [])
+	for item in _catalog:
+		if cards.size() >= _MAX_SOS:
+			break
+		if not (item is Dictionary):
+			continue
+		var card := (item as Dictionary).duplicate(true)
+		var npc := int(card.get("id", 0))
+		var held_sos := false
+		for existing in cards:
+			if existing is Dictionary and int((existing as Dictionary).get("id", 0)) == npc:
+				held_sos = true
+				break
+		if held_sos:
+			continue
+		card["calls"] = _CALLS
+		cards.append(card)
+	record["sos"] = cards
+	var unites: Array = record.get("unites", [])
+	var held_unites: Dictionary = {}
+	for existing in unites:
+		if existing is Dictionary:
+			var unite := existing as Dictionary
+			held_unites["%d:%d" % [int(unite.get("menu", 0)), int(unite.get("item", 0))]] = true
+	for menu in 3:
+		var count := 5 if menu == 0 else (4 if menu == 1 else 8)
+		for item in count:
+			var unite_key := "%d:%d" % [menu, item]
+			if held_unites.has(unite_key):
+				continue
+			unites.append({"menu": menu, "item": item})
+			held_unites[unite_key] = true
+	record["unites"] = unites
+	var summons: Array = record.get("summons", [])
+	var held_summons: Dictionary = {}
+	for existing in summons:
+		if existing is Dictionary:
+			var summon := existing as Dictionary
+			held_summons["%d:%d:%s" % [int(summon.get("dept", 0)), int(summon.get("type", 0)), String(summon.get("kind", ""))]] = true
+	var kinds: PackedStringArray = ["single", "building", "invasion"]
+	for dept in 4:
+		for cog_type in 8:
+			for kind in kinds:
+				var summon_key := "%d:%d:%s" % [dept, cog_type, kind]
+				if held_summons.has(summon_key):
+					continue
+				summons.append({"dept": dept, "type": cog_type, "kind": kind})
+				held_summons[summon_key] = true
+	record["summons"] = summons
+	record["pink"] = 255
+	_write(record)
+	return "Filled %d SOS cards, %d unites, %d summons, and 255 pink slips." % [cards.size(), unites.size(), summons.size()]
+
+
 static func give_every_unite() -> String:
 	var record := _read()
 	var unites: Array = record.get("unites", [])
@@ -212,26 +272,24 @@ static func give_every_unite() -> String:
 	return "The Resistance gave you one of every unite (%d)." % added
 
 
-static func grant_summon(promotions: int) -> String:
-	var roll := randi() % 100
-	var kind := "single"
-	if roll >= 97:
-		kind = "invasion"
-	elif roll >= 70:
-		kind = "building"
-	var dept := randi() % 4
-	var cog_type := clampi(int(float(promotions) / 77.0 * 8.0), 0, 7)
+static func grant_summon(average: float) -> String:
+	# giveCogSummonReward. The cog tier is the party's average suit, and a
+	# summon the toon already carries is skipped for a different one.
+	var cog_type := mini(int(average / 77.0 * 8.0), 7)
+	var picked := _choose_summon(randi() % 4, cog_type, _roll_kind())
+	if picked.is_empty():
+		return "The Chief Justice had no new summon to sign."
 	var record := _read()
 	var summons: Array = record.get("summons", [])
-	summons.append({"dept": dept, "type": cog_type, "kind": kind})
+	summons.append(picked)
 	record["summons"] = summons
 	_write(record)
-	var names: PackedStringArray = ["a single cog", "a cog building", "an invasion"]
-	var label := names[0]
+	var kind := String(picked.get("kind", "single"))
+	var label := "a single cog"
 	if kind == "building":
-		label = names[1]
+		label = "a cog building"
 	elif kind == "invasion":
-		label = names[2]
+		label = "an invasion"
 	return "The Chief Justice signed a summon for %s." % label
 
 
@@ -449,7 +507,7 @@ static func use_summon() -> String:
 		return "You have no cog summons."
 	var card: Dictionary = summons[0]
 	var result := _apply_summon(card)
-	if result.begins_with("Stand") or result.begins_with("This street") or result.begins_with("There is"):
+	if _refused(result):
 		return result
 	summons.remove_at(0)
 	record["summons"] = summons
@@ -463,6 +521,47 @@ static func unite_count() -> int:
 
 static func summon_count() -> int:
 	return (_read().get("summons", []) as Array).size()
+
+
+static func has_summon(dept: int, cog_type: int, kind: String) -> bool:
+	return _has_summon(dept, cog_type, kind)
+
+
+## reqCogSummons. The card is removed only when the summons lands.
+## "busy" keeps it, the same way an invasion already in progress does.
+static func spend_summon(dept: int, cog_type: int, kind: String) -> String:
+	var safe_dept := clampi(dept, 0, 3)
+	var safe_type := clampi(cog_type, 0, 7)
+	if kind != "single" and kind != "building" and kind != "invasion":
+		return "fail"
+	if not _has_summon(safe_dept, safe_type, kind):
+		return "fail"
+	if kind == "invasion" and bool(load(_HOLIDAYS).invading()):
+		return "busy"
+	var record := _read()
+	var summons: Array = record.get("summons", [])
+	var found := -1
+	for index in summons.size():
+		var item: Variant = summons[index]
+		if not (item is Dictionary):
+			continue
+		var card: Dictionary = item
+		if int(card.get("dept", -1)) == safe_dept and int(card.get("type", -1)) == safe_type and String(card.get("kind", "")) == kind:
+			found = index
+			break
+	if found < 0:
+		return "fail"
+	var chosen: Dictionary = summons[found]
+	if _refused(_apply_summon(chosen)):
+		return "badlocation"
+	summons.remove_at(found)
+	record["summons"] = summons
+	_write(record)
+	return "success"
+
+
+static func _refused(result: String) -> bool:
+	return result.begins_with("Stand") or result.begins_with("This street") or result.begins_with("There is") or result.begins_with("This cog") or result.begins_with("Unknown") or result.begins_with("Name a") or result.begins_with("Can't") or result.begins_with("A v2") or result.begins_with("A waiter") or result.begins_with("Only Bossbots")
 
 
 static func attach(page: Control) -> void:
@@ -535,6 +634,7 @@ static func _apply_unite(menu: int, item: int) -> String:
 static func _apply_effect(menu: int, item: int) -> bool:
 	var pockets = load(_POCKETS)
 	var loadout = pockets.for_selected()
+	var applied := false
 	if menu == 0:
 		var amount := int(_TOONUP[clampi(item, 0, _TOONUP.size() - 1)])
 		if loadout == null:
@@ -544,20 +644,22 @@ static func _apply_effect(menu: int, item: int) -> bool:
 		else:
 			loadout.gain_hp(amount)
 		loadout.save()
-		return true
-	if menu == 1:
+		applied = true
+	elif menu == 1:
 		var beans := int(_MONEY[clampi(item, 0, _MONEY.size() - 1)])
 		beans *= int(load(_HOLIDAYS).bean_scale("boss"))
 		load(_BEANS).add_beans(beans)
-		return true
-	if loadout == null:
-		return false
-	if item >= 7:
-		restock_all(loadout)
-		return true
-	_fill_track(loadout, clampi(item, 0, int(load(_POCKETS).TRACK_COUNT) - 1))
-	loadout.save()
-	return true
+		applied = true
+	elif loadout != null:
+		if item >= 7:
+			restock_all(loadout)
+		else:
+			_fill_track(loadout, clampi(item, 0, int(pockets.TRACK_COUNT) - 1))
+			loadout.save()
+		applied = true
+	if applied:
+		_play_unite_fx(menu, item)
+	return applied
 
 
 static func _announce(menu: int, item: int) -> void:
@@ -581,6 +683,194 @@ static func _local_body(node: Node) -> Node3D:
 		if found != null:
 			return found
 	return null
+
+
+const _SPARKLE := "res://assets/effects/fireworks/tt_t_efx_ext_particleSparkle.png"
+const _GAG_ICONS: PackedStringArray = [
+	"res://assets/gui/tutorial/gags/inventory_feather.png",
+	"res://assets/gui/tutorial/gags/inventory_megaphone.png",
+	"res://assets/gui/tutorial/gags/inventory_lipstick.png",
+	"res://assets/gui/tutorial/gags/inventory_bamboo_cane.png",
+	"res://assets/gui/tutorial/gags/inventory_pixiedust.png",
+	"res://assets/gui/tutorial/gags/inventory_juggling_cubes.png",
+	"res://assets/gui/tutorial/gags/inventory_ladder.png",
+	"res://assets/gui/tutorial/gags/inventory_bannana_peel.png",
+	"res://assets/gui/tutorial/gags/inventory_rake.png",
+	"res://assets/gui/tutorial/gags/inventory_marbles.png",
+	"res://assets/gui/tutorial/gags/inventory_quicksand_icon.png",
+	"res://assets/gui/tutorial/gags/inventory_trapdoor.png",
+	"res://assets/gui/tutorial/gags/inventory_tnt.png",
+	"res://assets/gui/tutorial/gags/inventory_traintracks.png",
+	"res://assets/gui/tutorial/gags/inventory_1dollarbill.png",
+	"res://assets/gui/tutorial/gags/inventory_small_magnet.png",
+	"res://assets/gui/tutorial/gags/inventory_5dollarbill.png",
+	"res://assets/gui/tutorial/gags/inventory_big_magnet.png",
+	"res://assets/gui/tutorial/gags/inventory_10dollarbill.png",
+	"res://assets/gui/tutorial/gags/inventory_hypno_goggles.png",
+	"res://assets/gui/tutorial/gags/inventory_screen.png",
+	"res://assets/gui/tutorial/gags/inventory_bikehorn.png",
+	"res://assets/gui/tutorial/gags/inventory_whistle.png",
+	"res://assets/gui/tutorial/gags/inventory_bugle.png",
+	"res://assets/gui/tutorial/gags/inventory_aoogah.png",
+	"res://assets/gui/tutorial/gags/inventory_elephant.png",
+	"res://assets/gui/tutorial/gags/inventory_fog_horn.png",
+	"res://assets/gui/tutorial/gags/inventory_opera_singer.png",
+	"res://assets/gui/tutorial/gags/inventory_tart.png",
+	"res://assets/gui/tutorial/gags/inventory_fruit_pie_slice.png",
+	"res://assets/gui/tutorial/gags/inventory_cream_pie_slice.png",
+	"res://assets/gui/tutorial/gags/inventory_fruitpie.png",
+	"res://assets/gui/tutorial/gags/inventory_creampie.png",
+	"res://assets/gui/tutorial/gags/inventory_cake.png",
+	"res://assets/gui/tutorial/gags/inventory_wedding.png",
+	"res://assets/gui/tutorial/gags/inventory_squirt_flower.png",
+	"res://assets/gui/tutorial/gags/inventory_glass_of_water.png",
+	"res://assets/gui/tutorial/gags/inventory_water_gun.png",
+	"res://assets/gui/tutorial/gags/inventory_seltzer_bottle.png",
+	"res://assets/gui/tutorial/gags/inventory_firehose.png",
+	"res://assets/gui/tutorial/gags/inventory_storm_cloud.png",
+	"res://assets/gui/tutorial/gags/inventory_geyser.png",
+	"res://assets/gui/tutorial/gags/inventory_flower_pot.png",
+	"res://assets/gui/tutorial/gags/inventory_sandbag.png",
+	"res://assets/gui/tutorial/gags/inventory_anvil.png",
+	"res://assets/gui/tutorial/gags/inventory_weight.png",
+	"res://assets/gui/tutorial/gags/inventory_safe_box.png",
+	"res://assets/gui/tutorial/gags/inventory_piano.png",
+	"res://assets/gui/tutorial/gags/inventory_ship.png",
+]
+
+
+static func _play_unite_fx(menu: int, item: int) -> void:
+	# ResistanceChat.doEffect. The burst lasts 3 seconds on the speaker, and
+	# every toon within 30 units takes the phrase color for a moment.
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	var body := _local_body(tree.root)
+	if body == null:
+		return
+	var tint := Color(1.0, 0.5, 1.0, 1.0)
+	if menu == 1:
+		tint = Color(0.0, 1.0, 0.0, 1.0)
+	elif menu != 0:
+		tint = Color(0.0, 0.0, 1.0, 1.0)
+	_flash_near(body, tint)
+	var host := Node3D.new()
+	host.name = "UniteFx"
+	body.add_child(host)
+	if menu == 0:
+		host.add_child(_burst(_SPARKLE, Color(1, 1, 1, 1), 80, 0.35))
+	elif menu == 1:
+		var colors: Array[Color] = [Color(1, 1, 0), Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1), Color(1, 0, 1)]
+		for color in colors:
+			var beans := _burst("", color, 20, 0.18)
+			beans.draw_pass_1 = _bean_mesh(color)
+			host.add_child(beans)
+	else:
+		for icon in _restock_icons(item):
+			host.add_child(_burst(icon, Color.WHITE, 16, 0.5))
+	tree.create_timer(3.2).timeout.connect(func() -> void:
+		if is_instance_valid(host):
+			host.queue_free()
+	)
+
+
+static func _burst(texture_path: String, tint: Color, amount: int, size: float) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.amount = amount
+	particles.lifetime = 3.0
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.local_coords = true
+	particles.visibility_aabb = AABB(Vector3(-16, -8, -16), Vector3(32, 24, 32))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = 2.0
+	process.direction = Vector3(0, 1, 0)
+	process.spread = 180.0
+	process.initial_velocity_min = 12.0
+	process.initial_velocity_max = 20.0
+	process.gravity = Vector3(0, -6.0, 0)
+	process.scale_min = size * 0.7
+	process.scale_max = size
+	process.color = tint
+	particles.process_material = process
+	var quad := QuadMesh.new()
+	quad.size = Vector2.ONE
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true
+	mat.albedo_color = tint
+	if texture_path != "" and ResourceLoader.exists(texture_path):
+		mat.albedo_texture = load(texture_path)
+	quad.material = mat
+	particles.draw_pass_1 = quad
+	particles.emitting = true
+	return particles
+
+
+static func _bean_mesh(color: Color) -> SphereMesh:
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.5
+	mesh.height = 0.7
+	mesh.radial_segments = 8
+	mesh.rings = 4
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mesh.material = mat
+	return mesh
+
+
+static func _restock_icons(item: int) -> PackedStringArray:
+	var icons := PackedStringArray()
+	if item < 7:
+		for level in 6:
+			var index := item * 7 + level
+			if index >= 0 and index < _GAG_ICONS.size():
+				icons.append(_GAG_ICONS[index])
+		return icons
+	var tracks: Array[int] = [0, 1, 2, 3, 4, 5, 6]
+	tracks.shuffle()
+	for index in 6:
+		var level := randi() % 6
+		var slot := tracks[index] * 7 + level
+		if slot >= 0 and slot < _GAG_ICONS.size():
+			icons.append(_GAG_ICONS[slot])
+	return icons
+
+
+static func _flash_near(origin: Node3D, tint: Color) -> void:
+	var tree := origin.get_tree()
+	if tree == null:
+		return
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.45)
+	var painted: Array[MeshInstance3D] = []
+	for node in tree.root.find_children("", "ToonActor", true, false):
+		if not (node is Node3D):
+			continue
+		var actor := node as Node3D
+		if actor.global_position.distance_to(origin.global_position) > 30.0:
+			continue
+		_overlay(actor, mat, painted)
+	tree.create_timer(0.6).timeout.connect(func() -> void:
+		for mesh in painted:
+			if is_instance_valid(mesh):
+				mesh.material_overlay = null
+	)
+
+
+static func _overlay(node: Node, mat: Material, painted: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D:
+		var mesh := node as MeshInstance3D
+		mesh.material_overlay = mat
+		painted.append(mesh)
+	for child in node.get_children():
+		_overlay(child, mat, painted)
 
 
 static func _apply_summon(card: Dictionary) -> String:
@@ -652,8 +942,61 @@ static func _unite_label(menu: int, item: int) -> String:
 	return "Gag-up %s" % _TRACKS[clampi(item, 0, 6)]
 
 
-static func _roll_sos() -> Dictionary:
-	return _roll_band(3, 5)
+static func _roll_sos(rentals: int = 0) -> Dictionary:
+	# A full party of rental suits draws only 3-star cards. One to three
+	# rentals stop at 4 stars. No rentals draw 3 through 5.
+	var high := 5
+	if rentals >= 4:
+		high = 3
+	elif rentals >= 1:
+		high = 4
+	return _roll_band(3, high)
+
+
+static func _roll_kind() -> String:
+	var roll := randi() % 100
+	if roll >= 97:
+		return "invasion"
+	if roll >= 70:
+		return "building"
+	return "single"
+
+
+static func _has_summon(dept: int, cog_type: int, kind: String) -> bool:
+	for item in _read().get("summons", []):
+		if not (item is Dictionary):
+			continue
+		var card: Dictionary = item
+		if int(card.get("dept", -1)) == dept and int(card.get("type", -1)) == cog_type and String(card.get("kind", "")) == kind:
+			return true
+	return false
+
+
+static func _choose_summon(pref_dept: int, cog_type: int, pref_kind: String) -> Dictionary:
+	var kinds: PackedStringArray = ["single", "building", "invasion"]
+	if not _has_summon(pref_dept, cog_type, pref_kind):
+		return {"dept": pref_dept, "type": cog_type, "kind": pref_kind}
+	for kind in kinds:
+		if not _has_summon(pref_dept, cog_type, kind):
+			return {"dept": pref_dept, "type": cog_type, "kind": kind}
+	for dept in 4:
+		if not _has_summon(dept, cog_type, pref_kind):
+			return {"dept": dept, "type": cog_type, "kind": pref_kind}
+		for kind in kinds:
+			if not _has_summon(dept, cog_type, kind):
+				return {"dept": dept, "type": cog_type, "kind": kind}
+	for _try in 5:
+		var dept := randi() % 4
+		var level := randi() % 8
+		var kind := _roll_kind()
+		if not _has_summon(dept, level, kind):
+			return {"dept": dept, "type": level, "kind": kind}
+	for kind in kinds:
+		for level in 8:
+			for dept in 4:
+				if not _has_summon(dept, level, kind):
+					return {"dept": dept, "type": level, "kind": kind}
+	return {}
 
 
 static func _roll_band(low: int, high: int) -> Dictionary:

@@ -33,6 +33,13 @@ const _BAR_SIZE := Vector2(0.5, 0.075)
 const _ROW := 0.09
 const _MERIT_DROP := 0.40
 const _DEPT_NAMES: PackedStringArray = ["BOSSBOT", "LAWBOT", "CASHBOT", "SELLBOT"]
+const _DEPT_FULL: PackedStringArray = ["Bossbot", "Lawbot", "Cashbot", "Sellbot"]
+const _DEPT_ICONS: PackedStringArray = [
+	"res://assets/gui/cogs/CorpIcon.png",
+	"res://assets/gui/cogs/LegalIcon.png",
+	"res://assets/gui/cogs/MoneyIcon.png",
+	"res://assets/gui/cogs/SalesIcon.png",
+]
 const _MERIT_WORDS: PackedStringArray = ["Stock Options", "Jury Notices", "Cogbucks", "Merits"]
 const _DEPT_COLORS: Array[Color] = [
 	Color(0.647, 0.608, 0.596),
@@ -136,6 +143,8 @@ var _merit_open: Array[bool] = [false, false, false, false]
 var _merit_before: Array[int] = [0, 0, 0, 0]
 var _merit_added: Array[int] = [0, 0, 0, 0]
 var _merit_cap: Array[int] = [0, 0, 0, 0]
+var _promo_icon: TextureRect
+var _promo_line: Label
 
 
 func stop() -> void:
@@ -205,6 +214,18 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 		await _wait(2.5)
 	if not _skip and _merit_on:
 		await _tick_merits()
+		for dept in 4:
+			if _skip:
+				break
+			if not _merit_open[dept] or _merit_added[dept] <= 0 or _merit_cap[dept] <= 0:
+				continue
+			if _merit_before[dept] + _merit_added[dept] < _merit_cap[dept]:
+				continue
+			if int(DisguisePage.suit_progress(dept).get("level", 0)) >= 49:
+				continue
+			await promotion_fanfare(dept)
+			visible = true
+			_show_bars()
 	if not _skip and not parts.is_empty():
 		await _show_parts(parts)
 	if not _skip and not quest_line.is_empty():
@@ -624,6 +645,33 @@ func _paint_merit(dept: int, shown: int, hot: bool) -> void:
 		_merit_amounts[dept].text = "%d/%d %s" % [shown, _merit_cap[dept], _MERIT_WORDS[dept]]
 
 
+func promotion_fanfare(dept: int) -> void:
+	# RewardPanel.promotion. The department icon sits for two seconds.
+	var index := clampi(dept, 0, 3)
+	_hide_track_bars()
+	_hide_merit_bars()
+	_hide_new_gag()
+	_name.visible = false
+	_quest_title.visible = false
+	_quest_line.visible = false
+	_skip_button.visible = false
+	_skip_caption.visible = false
+	_promo_line.text = "Ready for promotion in %s  track!" % _DEPT_FULL[index]
+	_promo_line.visible = true
+	_promo_icon.texture = load(_DEPT_ICONS[index])
+	_promo_icon.visible = true
+	_dialog.visible = true
+	visible = true
+	_layout()
+	await _wait(2.0)
+	_promo_line.visible = false
+	_promo_icon.visible = false
+	_name.visible = true
+	_skip_button.visible = true
+	_skip_caption.visible = true
+	visible = false
+
+
 func _show_parts(parts: Array) -> void:
 	_hide_track_bars()
 	_quest_title.text = "You gained a Cog disguise part!"
@@ -664,6 +712,14 @@ func _build() -> void:
 	_quest_title = _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
 	_quest_title.text = "ToonTasks"
 	_quest_title.visible = false
+	_promo_line = _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
+	_promo_line.visible = false
+	_promo_icon = TextureRect.new()
+	_promo_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_promo_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_promo_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_promo_icon.visible = false
+	add_child(_promo_icon)
 	_quest_line = RichTextLabel.new()
 	_quest_line.bbcode_enabled = false
 	_quest_line.scroll_active = false
@@ -806,6 +862,9 @@ func _layout() -> void:
 	_put(_dialog, _DIALOG_AT, _DIALOG_SIZE)
 	_style(_name, 0.0, _PANEL_Z + 0.3, 1.5, 0.08, HORIZONTAL_ALIGNMENT_CENTER)
 	_style(_quest_title, 0.0, _PANEL_Z + 0.2, 1.2, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
+	# promotionFrame text sits at local z -0.46, and the icon at z -0.225, scale 0.33.
+	_style(_promo_line, 0.0, _PANEL_Z + 0.24 - 0.46, 1.6, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
+	_put(_promo_icon, Vector2(0.0, _PANEL_Z + 0.24 - 0.225), Vector2(0.33, 0.33))
 	_place_quest_line()
 	var drop := _MERIT_DROP if _merit_on else 0.0
 	for dept in _merit_frames.size():

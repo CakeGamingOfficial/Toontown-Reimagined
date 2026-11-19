@@ -1,16 +1,31 @@
 extends "res://scenes/trolley/trolley_minigame.gd"
 
 ## Trolley Tracks. TravelGameId 100. The board, votes, and bonus beans follow
-## TravelGameGlobals and DistributedTravelGame. A solo ride pays the bonus and
-## goes to the gag shop. A party leaves the tunnel's game queued for Play Again.
+## TravelGameGlobals and DistributedTravelGame. The tunnel's game is queued
+## for the next round. A solo ride starts that game. A party buys gags first.
 
 const _TABLE := preload("res://assets/minigames/travel_turntable.glb")
 const _CAR := preload("res://assets/minigames/travel_trolley.glb")
 const _GROUND := preload("res://assets/minigames/travel_ground.glb")
 const _ICONS := preload("res://assets/minigames/travel_icons.glb")
+const _SKY := preload("res://scenes/sky/toontown_sky.gd")
+const _DIALOG := preload("res://assets/gui/minigames/dialog_box.png")
+const _SCROLL_UP := preload("res://assets/gui/friends/FndsLst_ScrollUp.png")
+const _SCROLL_DOWN := preload("res://assets/gui/friends/FndsLst_ScrollDN.png")
+const _SCROLL_HOVER := preload("res://assets/gui/friends/FndsLst_ScrollUp_Rllvr.png")
+const _OK_UP := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_UP.png")
+const _OK_DOWN := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_DN.png")
+const _OK_HOVER := preload("res://assets/gui/tutorial/dialog/ChtBx_OKBtn_Rllvr.png")
 const _X := 60.0
 const _Y := 15.0
 const _PIECE := 22.0
+## dialog_box_gui tight bounds. The vote frames scale that card.
+const _DIALOG_W := 1.1122
+const _DIALOG_H := 1.1861
+const _CREAM := Color(1.0, 1.0, 0.75, 1.0)
+## FndsLst_ScrollUp at scale 1, and the OK card at image_scale 3.
+const _SCROLL_SIZE := Vector2(0.2792, 0.0458)
+const _OK_SIZE := 0.3375
 
 var flat_score := true
 
@@ -40,11 +55,20 @@ var _yaw0 := 0.0
 var _yaw1 := 0.0
 var _move_time := 0.0
 var _layer: CanvasLayer
+var _remain_card: TextureRect
 var _remain: Label
+var _remain_num: Label
 var _choice: Control
+var _choice_card: TextureRect
+var _use: Label
+var _up_scroll: TextureButton
+var _down_scroll: TextureButton
+var _well: Panel
 var _count: Label
 var _tail: Label
 var _way: Label
+var _vote: TextureButton
+var _vote_text: Label
 var _waiting: Label
 var _result: Label
 var _bonus: Label
@@ -76,14 +100,13 @@ func _build() -> void:
 		(floor as Node3D).visible = false
 	if _hud != null:
 		_hud.visible = false
+	_SKY.ensure(self)
 	add_child(_GROUND.instantiate())
 	_which = shared_int(4)
 	_deal()
 	_lay_board()
 	_plant_car()
-	_camera.position = _panda(100.0, -20.0, 280.0)
-	_camera.rotation = Vector3(deg_to_rad(89.0), 0.0, 0.0)
-	_camera.fov = 52.0
+	_aim_top()
 	_build_ui()
 
 
@@ -137,7 +160,7 @@ func _lay_board() -> void:
 			var tunnel := _only(_TABLE.instantiate(), "tunnel1")
 			tunnel.position = _panda(pos.x + covered, pos.y, 0.0)
 			add_child(tunnel)
-			_plant_sign(int(_games.get(index, 0)), pos, tunnel.position)
+			_plant_sign(int(_games.get(index, 0)), pos, pos.x + covered)
 	var root: Vector2 = layout[0]["pos"]
 	_lay_track(root.x - _X, root.y, root.x, root.y, 0.0)
 
@@ -159,20 +182,26 @@ func _lay_track(x1: float, y1: float, x2: float, y2: float, lift: float) -> floa
 	return covered
 
 
-func _plant_sign(game_id: int, pos: Vector2, tunnel_pos: Vector3) -> void:
+func _plant_sign(game_id: int, pos: Vector2, tunnel_x: float) -> void:
 	var icon_name := _icon_name(game_id)
 	if icon_name == "":
 		return
-	var flat := _only(_ICONS.instantiate(), icon_name)
-	flat.position = _panda(pos.x, pos.y, 8.0)
-	flat.rotation.x = PI * 0.5
-	flat.scale = Vector3.ONE * 14.0
-	_signs.add_child(flat)
+	# One card lies on the switch. Another lies on the track in front of the tunnel.
+	_signs.add_child(_flat_icon(icon_name, pos.x, pos.y, 8.0))
+	_signs.add_child(_flat_icon(icon_name, tunnel_x - 16.0, pos.y, 3.0))
 	var upright := _only(_ICONS.instantiate(), icon_name)
-	upright.position = tunnel_pos + Vector3(0.0, 26.0, 0.0)
+	upright.position = _panda(tunnel_x, pos.y, 26.0)
 	upright.rotation.y = deg_to_rad(-90.0)
 	upright.scale = Vector3.ONE * 10.0
 	add_child(upright)
+
+
+func _flat_icon(icon_name: String, x: float, y: float, z: float) -> Node3D:
+	var flat := _only(_ICONS.instantiate(), icon_name)
+	flat.position = _panda(x, y, z)
+	flat.rotation.x = PI * 0.5
+	flat.scale = Vector3.ONE * 14.0
+	return flat
 
 
 func _plant_car() -> void:
@@ -240,14 +269,12 @@ func _open_vote() -> void:
 	_sent = false
 	_zero = _votes
 	_index = _zero
-	_camera.position = _panda(100.0, -20.0, 280.0)
-	_camera.rotation = Vector3(deg_to_rad(89.0), 0.0, 0.0)
+	_aim_top()
 	_paint_choice()
 
 
 func _choose(delta: float) -> void:
 	_phase_left -= delta
-	_remain.text = "Remaining Votes: %d" % (_votes - _choice_votes())
 	if _phase_left <= 0.0:
 		_cast(0, 0)
 		ToonNet.note_minigame("trackend", _vote_round)
@@ -318,8 +345,7 @@ func _slide_switch(delta: float) -> void:
 		_car.rotation.y = lerp_angle(_yaw1, _car_yaw(0.0), u)
 		_set_table(_from, 1.0 - u)
 		_set_table(_to, 1.0 - u)
-		_camera.position = _panda(100.0, -20.0, 280.0)
-		_camera.rotation = Vector3(deg_to_rad(89.0), 0.0, 0.0)
+		_aim_top()
 	if t < 4.0:
 		_camera.look_at(_car.global_position + Vector3(0.0, 7.5, 0.0), Vector3.UP)
 	if t >= 5.0:
@@ -345,14 +371,10 @@ func _begin_win() -> void:
 	_from_pos = _car.position
 	_to_pos = _panda(leaf.x + _X + 20.0, leaf.y, 0.0)
 	_sfx("SZ_trolley_bell")
-	var party := _party()
-	if party.size() > 1:
-		var next_id := int(_games.get(_switch, 0))
-		if next_id > 0:
-			_RIDE.follow_id = next_id
-		_result.text = "Up next, the %s trolley game." % _game_name(next_id)
-	else:
-		_result.text = "Only 1 player left. Going to Goofy's Gag Shop."
+	var next_id := int(_games.get(_switch, 0))
+	if next_id > 0:
+		_RIDE.follow_id = next_id
+	_result.text = "Up next, the %s trolley game." % _game_name(next_id)
 	_result.text += _bonus_line()
 
 
@@ -469,14 +491,17 @@ func _nudge(step: int) -> void:
 
 func _paint_choice() -> void:
 	var votes := _choice_votes()
-	_count.text = str(votes)
-	_remain.text = "Remaining Votes: %d" % (_votes - votes)
-	if _index < _zero:
+	var signed := _index - _zero
+	_count.text = str(signed)
+	_remain.text = "Remaining Votes:"
+	_remain_num.text = str(_votes - votes)
+	var phrase := "vote to go" if votes == 1 else "votes to go"
+	if signed < 0:
 		_count.add_theme_color_override("font_color", Color(0, 0, 1))
 		_way.text = "UP."
 		_way.add_theme_color_override("font_color", Color(0, 0, 1))
-		_tail.text = "vote to go" if votes == 1 else "votes to go"
-	elif _index == _zero:
+		_tail.text = phrase
+	elif signed == 0:
 		_count.add_theme_color_override("font_color", Color(0, 0, 0))
 		_way.text = ""
 		_tail.text = "votes."
@@ -484,7 +509,9 @@ func _paint_choice() -> void:
 		_count.add_theme_color_override("font_color", Color(1, 0, 0))
 		_way.text = "DOWN."
 		_way.add_theme_color_override("font_color", Color(1, 0, 0))
-		_tail.text = "vote to go" if votes == 1 else "votes to go"
+		_tail.text = phrase
+	_dim_scroll(_up_scroll, _index <= 0)
+	_dim_scroll(_down_scroll, _index >= _votes * 2)
 
 
 func _choice_votes() -> int:
@@ -499,57 +526,39 @@ func _build_ui() -> void:
 	_layer = CanvasLayer.new()
 	_layer.layer = 30
 	add_child(_layer)
-	_remain = Label.new()
-	_style(_remain, Color(0, 0.45, 0), 28)
+	_remain_card = _dialog_card()
+	_layer.add_child(_remain_card)
+	_remain = _line("Remaining Votes:", Color(0, 0, 0), HORIZONTAL_ALIGNMENT_LEFT)
 	_layer.add_child(_remain)
+	_remain_num = _line("5", Color(0, 0.5, 0), HORIZONTAL_ALIGNMENT_RIGHT)
+	_layer.add_child(_remain_num)
 	_choice = Control.new()
+	_choice.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(_choice)
-	var panel := ColorRect.new()
-	panel.color = Color(0.55, 0.78, 0.95, 0.92)
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_choice.add_child(panel)
-	var use := Label.new()
-	use.text = "Use"
-	use.position = Vector2(16, 28)
-	_style(use, Color(0, 0, 0), 26)
-	_choice.add_child(use)
-	var up := Button.new()
-	up.text = "UP"
-	up.position = Vector2(70, 8)
-	up.size = Vector2(64, 32)
-	up.pressed.connect(_nudge.bind(-1))
-	_choice.add_child(up)
-	var down := Button.new()
-	down.text = "DOWN"
-	down.position = Vector2(70, 48)
-	down.size = Vector2(64, 32)
-	down.pressed.connect(_nudge.bind(1))
-	_choice.add_child(down)
-	_count = Label.new()
-	_count.position = Vector2(150, 24)
-	_count.size = Vector2(48, 40)
-	_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_style(_count, Color(0, 0, 0), 32)
+	_choice_card = _dialog_card()
+	_choice.add_child(_choice_card)
+	_use = _line("Use", Color(0, 0, 0), HORIZONTAL_ALIGNMENT_CENTER)
+	_choice.add_child(_use)
+	_well = _ridge()
+	_choice.add_child(_well)
+	_count = _line("0", Color(0, 0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_choice.add_child(_count)
-	_tail = Label.new()
-	_tail.position = Vector2(210, 28)
-	_style(_tail, Color(0, 0, 0), 22)
+	_up_scroll = _scroll_button(false)
+	_up_scroll.pressed.connect(_nudge.bind(-1))
+	_choice.add_child(_up_scroll)
+	_down_scroll = _scroll_button(true)
+	_down_scroll.pressed.connect(_nudge.bind(1))
+	_choice.add_child(_down_scroll)
+	_tail = _line("votes.", Color(0, 0, 0), HORIZONTAL_ALIGNMENT_LEFT)
 	_choice.add_child(_tail)
-	_way = Label.new()
-	_way.position = Vector2(360, 28)
-	_style(_way, Color(0, 0, 1), 26)
+	_way = _line("", Color(0, 0, 1), HORIZONTAL_ALIGNMENT_LEFT)
 	_choice.add_child(_way)
-	var vote := Button.new()
-	vote.text = "Vote!"
-	vote.position = Vector2(450, 22)
-	vote.size = Vector2(90, 44)
-	vote.pressed.connect(func() -> void: _cast(_choice_votes(), _choice_dir()))
-	_choice.add_child(vote)
-	_waiting = Label.new()
-	_waiting.text = "Waiting for other players to vote..."
-	_waiting.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_style(_waiting, Color(1, 1, 1), 28)
+	_vote = _ok_button()
+	_vote.pressed.connect(func() -> void: _cast(_choice_votes(), _choice_dir()))
+	_choice.add_child(_vote)
+	_vote_text = _line("Vote!", Color(0, 0, 0), HORIZONTAL_ALIGNMENT_CENTER)
+	_choice.add_child(_vote_text)
+	_waiting = _line("Waiting for other players to vote...", Color(1, 1, 1), HORIZONTAL_ALIGNMENT_CENTER)
 	_layer.add_child(_waiting)
 	_result = Label.new()
 	_result.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -561,22 +570,124 @@ func _build_ui() -> void:
 	_style(_bonus, Color(1, 1, 1), 24)
 	_layer.add_child(_bonus)
 	_paint_choice()
+	_layout_ui()
 
 
 func _layout_ui() -> void:
-	if _choice == null:
+	if _choice == null or _remain_card == null:
 		return
 	var view := get_viewport().get_visible_rect().size
-	_remain.position = Vector2(24, 20)
-	_choice.position = Vector2(view.x * 0.5 - 280.0, view.y - 110.0)
-	_choice.size = Vector2(560, 90)
-	_choice.visible = _phase == "choose"
-	_remain.visible = _phase == "choose"
+	if view.y < 2.0:
+		return
+	var choosing := _phase == "choose"
+	_remain_card.visible = choosing
+	_remain.visible = choosing
+	_remain_num.visible = choosing
+	_choice.visible = choosing
 	_waiting.visible = _phase == "wait"
-	_waiting.position = Vector2(view.x * 0.5 - 280.0, view.y - 80.0)
-	_waiting.size = Vector2(560, 40)
+	_choice.position = Vector2.ZERO
+	_choice.size = view
+	# remainingVotesFrame: dialog geom_scale (7, 1, 1), node scale 0.1, at (-0.9, 0.8).
+	ToonGui.place(_remain_card, view, -0.9, 0.8, 0.7 * _DIALOG_W, 0.1 * _DIALOG_H)
+	_place_line(_remain, -1.24, 0.79, 0.07, 0.62, HORIZONTAL_ALIGNMENT_LEFT)
+	_place_line(_remain_num, -0.58, 0.785, 0.07, 0.28, HORIZONTAL_ALIGNMENT_RIGHT)
+	# choiceFrame image_scale (1.4, 1, 0.225) at (-0.55, -0.85).
+	ToonGui.place(_choice_card, view, -0.55, -0.85, 1.4 * _DIALOG_W, 0.225 * _DIALOG_H)
+	_place_line(_use, -1.14, -0.86, 0.1, 0.4, HORIZONTAL_ALIGNMENT_CENTER)
+	ToonGui.place(_up_scroll, view, -0.91, -0.775, _SCROLL_SIZE.x, _SCROLL_SIZE.y)
+	ToonGui.place(_well, view, -0.91, -0.87, 0.24, 0.1025)
+	ToonGui.style_label(_count, _count.get_theme_color("font_color"), _font_px(0.1), Color(0, 0, 0, 0), 0)
+	ToonGui.place(_count, view, -0.91, -0.87, 0.22, 0.09)
+	ToonGui.place(_down_scroll, view, -0.91, -0.91, _SCROLL_SIZE.x, _SCROLL_SIZE.y)
+	_place_line(_tail, -0.76, -0.86, 0.1, 0.52, HORIZONTAL_ALIGNMENT_LEFT)
+	_place_line(_way, -0.24, -0.86, 0.125, 0.45, HORIZONTAL_ALIGNMENT_LEFT)
+	ToonGui.place(_vote, view, 0.3, -0.85, _OK_SIZE, _OK_SIZE)
+	ToonGui.style_label(_vote_text, Color(0, 0, 0), _font_px(0.07), Color(0, 0, 0, 0), 0)
+	ToonGui.place(_vote_text, view, 0.3, -0.85, 0.3, 0.08)
+	_place_line(_waiting, -0.2, -0.85, 0.075, 2.4, HORIZONTAL_ALIGNMENT_CENTER)
 	_result.position = Vector2(view.x * 0.12, view.y * 0.18)
 	_result.size = Vector2(view.x * 0.76, view.y * 0.4)
+
+
+func _aim_top() -> void:
+	# cameraTopView is (100, -20, 280) with HPR (0, -89, 0). Positive pitch looks up.
+	_camera.position = _panda(100.0, -20.0, 280.0)
+	_camera.rotation = Vector3(deg_to_rad(-89.0), 0.0, 0.0)
+	_camera.fov = 52.0
+
+
+func _dialog_card() -> TextureRect:
+	var card := TextureRect.new()
+	card.texture = _DIALOG
+	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	card.stretch_mode = TextureRect.STRETCH_SCALE
+	card.modulate = _CREAM
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return card
+
+
+func _line(text: String, color: Color, align: HorizontalAlignment) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ToonGui.style_label(label, color, 16, Color(0, 0, 0, 0), 0)
+	return label
+
+
+func _ridge() -> Panel:
+	var panel := Panel.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.82, 0.82, 0.82, 1)
+	box.border_color = Color(0.55, 0.55, 0.55, 1)
+	box.set_border_width_all(3)
+	panel.add_theme_stylebox_override("panel", box)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return panel
+
+
+func _scroll_button(flip: bool) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = _SCROLL_UP
+	button.texture_pressed = _SCROLL_DOWN
+	button.texture_hover = _SCROLL_HOVER
+	button.texture_disabled = _SCROLL_UP
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.flip_v = flip
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	return button
+
+
+func _ok_button() -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = _OK_UP
+	button.texture_pressed = _OK_DOWN
+	button.texture_hover = _OK_HOVER
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	return button
+
+
+func _dim_scroll(button: TextureButton, stuck: bool) -> void:
+	button.disabled = stuck
+	button.modulate = Color(0.6, 0.6, 0.6, 0.6) if stuck else Color(1, 1, 1, 1)
+
+
+func _place_line(label: Label, x: float, z: float, scale: float, width: float, align: HorizontalAlignment) -> void:
+	var view := get_viewport().get_visible_rect().size
+	var color := label.get_theme_color("font_color")
+	ToonGui.style_label(label, color, _font_px(scale), Color(0, 0, 0, 0), 0)
+	var center_x := x
+	if align == HORIZONTAL_ALIGNMENT_LEFT:
+		center_x = x + width * 0.5
+	elif align == HORIZONTAL_ALIGNMENT_RIGHT:
+		center_x = x - width * 0.5
+	ToonGui.place(label, view, center_x, z + scale * 0.35, width, scale * 1.35)
 
 
 func _pin_bonus() -> void:

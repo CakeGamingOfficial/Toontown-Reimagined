@@ -280,6 +280,12 @@ func _send() -> void:
 			DisguisePage.ready_for_promotion(2),
 			DisguisePage.ready_for_promotion(3),
 		],
+		"boss_promos": [
+			DisguisePage.promotions(0),
+			DisguisePage.promotions(1),
+			DisguisePage.promotions(2),
+			DisguisePage.promotions(3),
+		],
 		"ghost": MagicWords.ghosting(),
 		"asleep": MagicWords.asleep(),
 		"instant_kill": MagicWords.instant_kill(),

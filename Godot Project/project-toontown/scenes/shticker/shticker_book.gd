@@ -3,7 +3,7 @@ extends Control
 
 ## ShtikerBook. The corner button opens the book on a blue field, icon tabs
 ## sit down the right edge, and the pages are Options, Districts, the map,
-## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Karts, Golf, Cog Disguise, Events, and Developer. Harry's reward still opens on the
+## Gags, ToonTasks, Gag Training, the Cog Gallery, Fishing, Karts, Golf, Cog Disguise, SOS Toons, Gardening, Events, and Developer. Harry's reward still opens on the
 ## map and turns to gags, then tasks.
 
 signal book_opened
@@ -21,10 +21,11 @@ const PAGE_FISH := 7
 const PAGE_KARTS := 8
 const PAGE_GOLF := 9
 const PAGE_DISGUISE := 10
-const PAGE_GARDEN := 11
-const PAGE_EVENTS := 12
-const PAGE_DEVELOPER := 13
-const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Golf", "Cog Disguise", "Gardening", "Events", "Developer"]
+const PAGE_SOS := 11
+const PAGE_GARDEN := 12
+const PAGE_EVENTS := 13
+const PAGE_DEVELOPER := 14
+const _PAGE_NAMES: PackedStringArray = ["Options", "Districts", "Map", "Gags", "ToonTasks", "Gag Training", "Cog Gallery", "Fishing", "Karts", "Golf", "Cog Disguise", "SOS Toons", "Gardening", "Events", "Developer"]
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 
@@ -123,6 +124,7 @@ const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
 const _KART_PAGE := preload("res://scenes/shticker/kart_page.gd")
 const _GOLF_PAGE := preload("res://scenes/shticker/golf_page.gd")
 const _GOLF_TAB := preload("res://assets/gui/golf/score_card_icon.png")
+const _SOS_PAGE := preload("res://scenes/shticker/sos_page.gd")
 const _GARDEN_PAGE := preload("res://scenes/shticker/garden_page.gd")
 const _EVENTS_PAGE := preload("res://scenes/shticker/events_page.gd")
 const _DEVELOPER_PAGE := preload("res://scenes/shticker/developer_page.gd")
@@ -165,6 +167,7 @@ var _karts: Control
 var _golf: Control
 var _garden: Control
 var _disguise: DisguisePage
+var _sos: Control
 var _events: Control
 var _developer: Control
 var _districts_page: DistrictPage
@@ -452,6 +455,10 @@ func _build_book() -> void:
 	_disguise = DisguisePage.new()
 	_cover.add_child(_disguise)
 	_pages.append(_disguise)
+	_sos = _SOS_PAGE.new()
+	_sos.connect("tab_ready", _set_sos_tab)
+	_cover.add_child(_sos)
+	_pages.append(_sos)
 	_garden = _GARDEN_PAGE.new()
 	_cover.add_child(_garden)
 	_pages.append(_garden)
@@ -467,7 +474,12 @@ func _build_book() -> void:
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
-		tab.icon = icons[index]
+		# The SOS tab is the playing-card back. Its picture arrives once that page has drawn it.
+		if index != PAGE_SOS:
+			var icon_index := index
+			if index > PAGE_SOS:
+				icon_index = index - 1
+			tab.icon = icons[icon_index]
 		tab.expand_icon = true
 		tab.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tab.add_theme_stylebox_override("normal", _tab_style(false))
@@ -912,6 +924,12 @@ func _set_page(index: int) -> void:
 	page_ready.emit(_page)
 
 
+func _set_sos_tab(icon: Texture2D) -> void:
+	if icon == null or PAGE_SOS >= _tabs.size():
+		return
+	_tabs[PAGE_SOS].icon = icon
+
+
 func _show_page(index: int) -> void:
 	if index == PAGE_OPTIONS and _options != null:
 		_options.layout(_options.size, maxi(int(_options.size.y * 0.038), 13), _guided)
@@ -935,6 +953,8 @@ func _show_page(index: int) -> void:
 		_golf.call("refresh")
 	elif index == PAGE_DISGUISE and _disguise != null:
 		_disguise.refresh()
+	elif index == PAGE_SOS and _sos != null:
+		_sos.call("refresh")
 	elif index == PAGE_GARDEN and _garden != null:
 		_garden.call("refresh")
 	elif index == PAGE_EVENTS and _events != null:
@@ -1484,6 +1504,8 @@ func _layout() -> void:
 		_golf.call("layout", page_size)
 	if _disguise != null:
 		_disguise.layout(page_size)
+	if _sos != null:
+		_sos.call("layout", page_size)
 	if _garden != null:
 		_garden.call("layout", page_size)
 	if _events != null:
