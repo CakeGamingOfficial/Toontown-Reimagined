@@ -27,6 +27,7 @@ const _GAMES: Array[Dictionary] = [
 	{"id": 3, "script": "res://scenes/trolley/game_tag.gd", "music": "res://assets/audio/bgm/MG_toontag.ogg", "loop": true, "volume": 0.85},
 	{"id": 4, "script": "res://scenes/trolley/game_pattern.gd", "music": "res://assets/audio/bgm/m_match_bg1.ogg", "loop": true, "volume": 0.85},
 	{"id": 13, "script": "res://scenes/trolley/game_ice.gd", "music": "res://assets/audio/bgm/MG_IceGame.ogg", "loop": true, "volume": 0.85},
+	{"id": 16, "script": "res://scenes/trolley/game_photo.gd", "music": "res://assets/audio/bgm/MG_cannon_game.ogg", "loop": true, "volume": 0.8},
 	{"id": 100, "script": "res://scenes/trolley/game_tracks.gd", "music": "res://assets/audio/bgm/MG_Travel.ogg", "loop": true, "volume": 0.8},
 ]
 

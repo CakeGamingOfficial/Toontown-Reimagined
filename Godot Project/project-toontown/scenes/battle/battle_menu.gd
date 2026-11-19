@@ -99,13 +99,13 @@ var _slots: Array[TextureButton] = []
 var _icons: Array[TextureRect] = []
 var _counts: Array[Label] = []
 var _total: Label
+var _detail_icon: TextureRect
 var _detail_name: Label
 var _detail_amount: Label
 var _detail_data: Label
 var _detail_credit: Label
 var _run: TextureButton
 var _sos: TextureButton
-var _doodle: TextureButton
 var _fire: TextureButton
 var _sos_list: VBoxContainer
 var _pass: TextureButton
@@ -250,6 +250,9 @@ func _build() -> void:
 	_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_total.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_total)
+	# showDetail puts the gag picture in the blue plate, under the name.
+	_detail_icon = _image(_ICONS[0])
+	_detail_icon.visible = false
 	_detail_name = _label()
 	_detail_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_detail_name)
@@ -275,8 +278,6 @@ func _build() -> void:
 	_run.pressed.connect(_run_away)
 	_sos = _command("SOS", _PRESSABLE)
 	_sos.pressed.connect(_open_sos)
-	_doodle = _command("PET", _PRESSABLE)
-	_doodle.pressed.connect(_open_doodle)
 	_fire.pressed.connect(_use_fire)
 	_sos_list = VBoxContainer.new()
 	_sos_list.visible = false
@@ -346,10 +347,9 @@ func _layout() -> void:
 	_layout_run()
 	_place(_run, 0.73 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_sos, 0.96 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
-	_place(_doodle, 0.5 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_fire, 0.73 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())
 	_place(_pass, 0.96 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())
-	for command in [_run, _sos, _doodle, _fire, _pass]:
+	for command in [_run, _sos, _fire, _pass]:
 		var caption := command.get_child(0) as Label
 		ToonGui.style_label(caption, Color.WHITE, _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
 	_paint_rewards(FRAME)
@@ -410,6 +410,7 @@ func _paint_total() -> void:
 
 func _show_total() -> void:
 	_total.visible = true
+	_detail_icon.visible = false
 	_detail_name.visible = false
 	_detail_amount.visible = false
 	_detail_data.visible = false
@@ -422,6 +423,8 @@ func _show_detail(track: int, level: int) -> void:
 	if _loadout == null:
 		return
 	_total.visible = false
+	_detail_icon.visible = true
+	_detail_icon.texture = _ICONS[track * ToonLoadout.LEVEL_COUNT + level]
 	_detail_name.visible = true
 	_detail_amount.visible = true
 	_detail_data.visible = true
@@ -581,6 +584,16 @@ func _open_sos() -> void:
 		child.free()
 	if not _sos_list.visible:
 		return
+	# TownBattleSOSPanel puts the doodle first in the friends list.
+	var kennel := preload("res://scenes/pets/doodle_kennel.gd")
+	if kennel.has_pet():
+		var pet_name := String(kennel.current().get("name", ""))
+		if pet_name.is_empty():
+			pet_name = "Doodle"
+		var pet := Button.new()
+		pet.text = pet_name
+		pet.pressed.connect(_show_tricks)
+		_sos_list.add_child(pet)
 	for card in _REWARDS.sos_cards():
 		if not (card is Dictionary):
 			continue
@@ -599,21 +612,29 @@ func _use_sos(npc_id: int) -> void:
 	picked.emit(-4, npc_id)
 
 
-func _open_doodle() -> void:
+func _show_tricks() -> void:
 	if not _waiting or _sos_list == null:
 		return
-	_sos_list.visible = not _sos_list.visible
+	_sos_list.visible = true
 	for child in _sos_list.get_children():
 		_sos_list.remove_child(child)
 		child.queue_free()
-	if not _sos_list.visible:
-		return
+	var back := Button.new()
+	back.text = "BACK"
+	back.pressed.connect(_reopen_sos)
+	_sos_list.add_child(back)
 	var names: PackedStringArray = ["Jump", "Beg", "Play Dead", "Rollover", "Backflip", "Dance", "Speak"]
 	for trick in names.size():
 		var button := Button.new()
 		button.text = names[trick]
 		button.pressed.connect(_use_doodle.bind(trick))
 		_sos_list.add_child(button)
+
+
+func _reopen_sos() -> void:
+	if _sos_list != null:
+		_sos_list.visible = false
+	_open_sos()
 
 
 func _use_doodle(trick: int) -> void:
@@ -645,12 +666,10 @@ func _paint_rewards(frame: float) -> void:
 	if fire_label != null:
 		fire_label.text = "FIRE" if slips <= 0 else "FIRE %d" % slips
 	var cards := _REWARDS.sos_count()
-	_sos.disabled = cards <= 0
-	_sos.modulate = _PRESSABLE if cards > 0 else Color(0.4, 0.4, 0.4, 1)
 	var has_pet := preload("res://scenes/pets/doodle_kennel.gd").has_pet()
-	if _doodle != null:
-		_doodle.disabled = not has_pet
-		_doodle.modulate = _PRESSABLE if has_pet else Color(0.4, 0.4, 0.4, 1)
+	var can_call := cards > 0 or has_pet
+	_sos.disabled = not can_call
+	_sos.modulate = _PRESSABLE if can_call else Color(0.4, 0.4, 0.4, 1)
 	if _sos_list == null:
 		return
 	_sos_list.position = _sos.position + Vector2(-_sos.size.x * 2.2, -180.0 * frame)
@@ -699,24 +718,33 @@ func _command(text: String, tint: Color) -> TextureButton:
 	return button
 
 
-## The yellow well on BATTLE_Menu.png. The gag name, count, and stats stay inside it.
+## BATTLE_Menu's yellow panel and the blue plate inside it. The name sits in the
+## yellow band above the plate, the gag picture fills the plate, and the count
+## and stats fill the yellow body underneath.
 func _seat_info(frame: float) -> void:
 	var card := _menu
-	var well := Rect2(
-		card.position.x + card.size.x * 0.785,
-		card.position.y + card.size.y * 0.225,
-		card.size.x * 0.16,
-		card.size.y * 0.39
-	)
-	var name_h := well.size.y * 0.18
-	var row_h := well.size.y * 0.16
-	_fit_line(_detail_name, Rect2(well.position, Vector2(well.size.x, name_h)), HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.04 * frame)
-	_fit_line(_detail_amount, Rect2(Vector2(well.position.x, well.position.y + name_h), Vector2(well.size.x, row_h)), HORIZONTAL_ALIGNMENT_RIGHT, VERTICAL_ALIGNMENT_CENTER, 0.038 * frame)
-	var credit := Rect2(Vector2(well.position.x, well.position.y + well.size.y - row_h), Vector2(well.size.x, row_h))
-	var data_top := well.position.y + name_h + row_h
-	_fit_line(_detail_data, Rect2(Vector2(well.position.x, data_top), Vector2(well.size.x, credit.position.y - data_top)), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_TOP, 0.034 * frame)
-	_fit_line(_detail_credit, credit, HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER, 0.034 * frame)
-	_fit_line(_total, Rect2(well.position + Vector2(0.0, well.size.y * 0.28), Vector2(well.size.x, well.size.y * 0.44)), HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.045 * frame)
+	var yellow := _card_rect(card, 0.7734, 0.2070, 0.1875, 0.4258)
+	var plate := _card_rect(card, 0.7930, 0.2852, 0.1484, 0.1328)
+	var pad := yellow.size.x * 0.08
+	var inner_x := yellow.position.x + pad
+	var inner_w := yellow.size.x - pad * 2.0
+	var name_rect := Rect2(inner_x, yellow.position.y, inner_w, plate.position.y - yellow.position.y)
+	_fit_line(_detail_name, name_rect, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.045 * frame)
+	var side := plate.size.y * 0.82
+	_detail_icon.position = plate.position + (plate.size - Vector2(side, side)) * 0.5
+	_detail_icon.size = Vector2(side, side)
+	var line_h := plate.size.y * 0.48
+	var amount := Rect2(inner_x, plate.position.y + plate.size.y, inner_w, line_h)
+	_fit_line(_detail_amount, amount, HORIZONTAL_ALIGNMENT_RIGHT, VERTICAL_ALIGNMENT_CENTER, 0.04 * frame)
+	var credit := Rect2(inner_x, yellow.position.y + yellow.size.y - line_h - pad * 0.25, inner_w, line_h)
+	var data_top := amount.position.y + amount.size.y
+	_fit_line(_detail_data, Rect2(inner_x, data_top, inner_w, credit.position.y - data_top), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_TOP, 0.04 * frame)
+	_fit_line(_detail_credit, credit, HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER, 0.04 * frame)
+	_fit_line(_total, plate, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.05 * frame)
+
+
+func _card_rect(card: Control, x: float, y: float, w: float, h: float) -> Rect2:
+	return Rect2(card.position + Vector2(card.size.x * x, card.size.y * y), Vector2(card.size.x * w, card.size.y * h))
 
 
 func _fit_line(label: Label, rect: Rect2, horizontal: HorizontalAlignment, vertical: VerticalAlignment, scale: float) -> void:
@@ -724,8 +752,9 @@ func _fit_line(label: Label, rect: Rect2, horizontal: HorizontalAlignment, verti
 	label.size = rect.size
 	label.horizontal_alignment = horizontal
 	label.vertical_alignment = vertical
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.clip_text = true
+	label.add_theme_constant_override("line_spacing", 0)
 	var ink := Color(0.5, 0.0, 0.0, 1.0) if label == _detail_credit and _no_credit else _INK
 	ToonGui.style_label(label, ink, _px_of(scale), Color(0, 0, 0, 0), 0)
 

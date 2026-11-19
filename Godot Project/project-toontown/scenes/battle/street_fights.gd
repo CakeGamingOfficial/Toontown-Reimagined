@@ -242,11 +242,17 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 	for cog in cogs:
 		if cog is Dictionary:
 			_add_cog(fight, cog)
+	var seat_at := 0
 	for rider in riders:
 		if not (rider is Dictionary):
 			continue
 		var toon: Dictionary = rider
-		_add_toon(fight, int(toon.get("id", -1)), String(toon.get("name", "Toon")), int(toon.get("hp", 1)), int(toon.get("max_hp", 1)))
+		var peer := int(toon.get("id", -1))
+		_add_toon(fight, peer, String(toon.get("name", "Toon")), int(toon.get("hp", 1)), int(toon.get("max_hp", 1)))
+		var member := _toon(fight, peer)
+		if not member.is_empty():
+			member["seat"] = int(toon.get("seat", seat_at))
+		seat_at += 1
 	_place(fight)
 	_begin_faceoff(fight)
 	return int(fight.get("id", 0))
@@ -792,6 +798,9 @@ func _face_walk(fight: Dictionary) -> float:
 		var cog: Dictionary = item
 		var dist := _flat(_point(cog.get("from", [])), _point(cog.get("slot", [])))
 		longest = maxf(longest, dist / SUIT_SPEED)
+	# DistributedBattleBldgAI waits out the run from elevatorPos (0, -30, 0).
+	if int(fight.get("building", 0)) != 0:
+		longest = maxf(longest, 30.0 / TOON_SPEED)
 	return longest
 
 

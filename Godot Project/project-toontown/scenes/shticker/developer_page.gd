@@ -326,6 +326,7 @@ func layout(page_size: Vector2) -> void:
 		var tab := _tabs[index]
 		tab.position = Vector2(page_size.x * 0.02 + float(index) * (tab_w + 6.0), top)
 		tab.size = Vector2(tab_w, tab_h)
+		ToonGui.pill_fit(tab)
 		_style_button(tab, px)
 	var list_top := top + tab_h + 8.0
 	var list_w := page_size.x * 0.34
@@ -347,6 +348,7 @@ func layout(page_size: Vector2) -> void:
 	_new.position = Vector2(edit_x + (button_w + 8.0) * 2.0, button_y)
 	for button in [_save, _delete, _new]:
 		button.size = Vector2(button_w, tab_h)
+		ToonGui.pill_fit(button)
 		_style_button(button, px)
 	_status.position = Vector2(page_size.x * 0.02, button_y + tab_h)
 	_status.size = Vector2(page_size.x * 0.94, page_size.y - _status.position.y)
@@ -1580,6 +1582,7 @@ func _place_dev_panel(edit_x: float, edit_w: float, editor_top: float, editor_h:
 		for button_index in _modes.size():
 			_modes[button_index].position = Vector2(edit_x + float(button_index) * (pill_w + gap), editor_top)
 			_modes[button_index].size = Vector2(pill_w, tab_h)
+			ToonGui.pill_fit(_modes[button_index])
 		var form_top := editor_top + tab_h + 6.0
 		if _cog_mode == 0:
 			var form_h := (bottom - form_top) * 0.62
@@ -2134,6 +2137,7 @@ func _pill(text: String, call: Callable) -> TextureButton:
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
 	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.pill_art(button)
 	button.pressed.connect(call)
 	var label := Label.new()
 	label.text = text
@@ -2149,4 +2153,7 @@ func _pill(text: String, call: Callable) -> TextureButton:
 func _style_button(button: TextureButton, px: int) -> void:
 	var label := button.get_child(0) as Label
 	if label != null:
-		ToonGui.style_label(label, _INK, px, Color(0, 0, 0, 0), 0)
+		var fit := px
+		if button.size.y > 8.0:
+			fit = mini(px, maxi(int(button.size.y / 1.45), 8))
+		ToonGui.style_label(label, _INK, fit, Color(0, 0, 0, 0), 0)

@@ -3,8 +3,8 @@ class_name RemoteToons
 
 ## Other players are DistributedToon copies. The owner walks a local toon.
 ## Everyone else is built with show_style from that toon's DNA and plays the
-## anim state the owner published. The owner's doodle rides along on that
-## same pose. Poses arrive about five times a second, the old smooth-node
+## anim state the owner published. The owner's doodle is on the estate with
+## them, and a battle call uses the published look. Poses arrive about five times a second, the old smooth-node
 ## broadcast, and this fills in the frames between them.
 
 const _PERIOD := 0.2
@@ -216,16 +216,19 @@ func _send() -> void:
 	var pet_anim := "neutral"
 	var record := _KENNEL.current()
 	var mine = _world.get_node_or_null("Doodle") if _world != null else null
-	if not record.is_empty() and mine is Node3D and is_instance_valid(mine):
-		var body := mine as Node3D
+	var pet_present := false
+	if not record.is_empty():
 		for number in record.get("dna", []):
 			pet_dna.append(int(number))
 		pet_name = String(record.get("name", ""))
-		pet_x = body.global_position.x
-		pet_y = body.global_position.y
-		pet_z = body.global_position.z
-		pet_yaw = body.rotation.y
-		pet_anim = String(body.call("clip_name"))
+		if mine is Node3D and is_instance_valid(mine):
+			var body := mine as Node3D
+			pet_present = true
+			pet_x = body.global_position.x
+			pet_y = body.global_position.y
+			pet_z = body.global_position.z
+			pet_yaw = body.rotation.y
+			pet_anim = String(body.call("clip_name"))
 	var worn := _CLOSET.accessory_ids()
 	# A quest close-up hides the local mesh because the camera sits on that
 	# spot. Other toons still see you standing where the movie left you.
@@ -285,6 +288,7 @@ func _send() -> void:
 		"accessories": worn,
 		"pet_name": pet_name,
 		"pet_dna": pet_dna,
+		"pet_present": pet_present,
 		"pet_x": pet_x,
 		"pet_y": pet_y,
 		"pet_z": pet_z,
@@ -905,7 +909,7 @@ func _exit_tree() -> void:
 func _sync_pet(peer: int, puppet: Dictionary, state: Dictionary) -> void:
 	var raw: Variant = state.get("pet_dna", [])
 	var pet = puppet.get("pet")
-	if not (raw is Array) or (raw as Array).size() < 9:
+	if not bool(state.get("pet_present", false)) or not (raw is Array) or (raw as Array).size() < 9:
 		_free_pet(puppet)
 		return
 	var dna: Array = raw

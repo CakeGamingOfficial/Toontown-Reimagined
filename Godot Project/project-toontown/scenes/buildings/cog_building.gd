@@ -34,10 +34,11 @@ const _EXIT_RUN := 1.0
 ## Elevator.enableExitButton. image_scale (20, 1, 11) on a 0.15 node.
 const _HOP_W := 0.1804 * 20.0 * 0.15
 const _HOP_H := 0.1137 * 11.0 * 0.15
-## Interior car keeps the glTF root spin, so panda (x, y, z) is (x, z, -y).
+## ElevatorPoints. elevator-in is still the panda marker: X across, Y in from
+## the doors, Z up. The toons stand in the car, facing out.
 const _SEATS: Array[Vector3] = [
-	Vector3(-1.5, 0.1, -5.0), Vector3(1.5, 0.1, -5.0),
-	Vector3(-2.5, 0.1, -3.0), Vector3(2.5, 0.1, -3.0),
+	Vector3(-1.5, 5.0, 0.1), Vector3(1.5, 5.0, 0.1),
+	Vector3(-2.5, 3.0, 0.1), Vector3(2.5, 3.0, 0.1),
 ]
 ## Street elevator local space is still the panda elevator: X across, Y in, Z up.
 const _STAND: Array[Vector3] = [
@@ -587,7 +588,8 @@ func _park_car(car_name: String, anchor: Node3D) -> Node3D:
 	else:
 		_room.add_child(car)
 	car.transform = Transform3D.IDENTITY
-	# The import stands the mesh up. The floor is still panda Z-up, same as the marker.
+	# elevator-in is panda Z-up. The import spins the car onto Godot Y, which
+	# lays it on its side in that marker. Clearing the spin stands it up.
 	_drop_spin(car)
 	preload("res://scenes/streets/street_buildings.gd").frame_solid(car)
 	_car_floor(car)
@@ -668,6 +670,13 @@ func _clear_cogs() -> void:
 		child.queue_free()
 
 
+## The spot a rider stands in while the doors are open, before the battle run.
+func arrival_seat(index: int) -> Vector3:
+	if _car == null or _SEATS.is_empty():
+		return Vector3.ZERO
+	return _car.global_transform * _SEATS[index % _SEATS.size()]
+
+
 func _seat(run: Dictionary) -> Vector3:
 	if _car == null:
 		return _RUNS.room_origin(int(run.get("block", 0)))
@@ -711,11 +720,9 @@ func _pose_ride(run: Dictionary, delta: float) -> void:
 		index += 1
 
 
-## Panda H 180 faces elevator -Y, out the doors. That direction is this car's +Z.
+## setHpr(180) faces the car's -Y, out the doors.
 func _ride_heading() -> float:
-	if _car == null:
-		return 0.0
-	return _heading_of(_car.global_transform.basis * Vector3(0.0, 0.0, 1.0))
+	return _out_heading(_car)
 
 
 func _seat_index(run: Dictionary) -> int:
@@ -797,13 +804,13 @@ func _present_out(run: Dictionary, delta: float) -> void:
 	_spots = _STAND
 
 
-## The interior car keeps the glTF spin, so its local -Z is into the car.
+## The far car is the same panda elevator. -Y is out the doors, Z is up.
 func _aim_interior(car: Node3D) -> void:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
-	var dest: Vector3 = car.global_transform * Vector3(0.0, 4.0, 8.0)
-	var look: Vector3 = car.global_transform * Vector3(0.0, 3.0, -2.0)
+	var dest: Vector3 = car.global_transform * Vector3(0.0, -8.0, 4.0)
+	var look: Vector3 = car.global_transform * Vector3(0.0, 2.0, 3.0)
 	var blend := clampf(_cam_blend, 0.0, 1.0)
 	camera.global_position = _cam_from.lerp(dest, blend)
 	var focus := _look_from.lerp(look, blend)
@@ -1317,8 +1324,9 @@ func _aim_ride(elapsed: float) -> void:
 		bob = lerpf(4.0, 4.2, (elapsed - 2.5) / 0.5)
 	elif elapsed < 4.0:
 		bob = lerpf(4.2, 4.0, (elapsed - 3.0) / 1.0)
-	camera.global_position = _car.global_transform * Vector3(0.0, bob, -14.0)
-	var look: Vector3 = _car.global_transform * Vector3(0.0, 3.0, -4.0)
+	# camera.setPos(0, 14, height), setH(180). Behind the toons, level, out the doors.
+	camera.global_position = _car.global_transform * Vector3(0.0, 14.0, bob)
+	var look: Vector3 = _car.global_transform * Vector3(0.0, 0.0, bob)
 	if camera.global_position.distance_squared_to(look) > 0.04:
 		camera.look_at(look, Vector3.UP)
 

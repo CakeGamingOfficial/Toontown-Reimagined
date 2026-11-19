@@ -275,6 +275,70 @@ static func basket_value() -> int:
 	return total
 
 
+# setMaxFlowerBasket defaults to 20.
+const BASKET_MAX := 20
+
+
+static func basket_max() -> int:
+	return BASKET_MAX
+
+
+static func basket_items() -> Array:
+	return _record().get("basket", [])
+
+
+static func collected_keys() -> PackedStringArray:
+	var keys := PackedStringArray()
+	for item in _record().get("collected", []):
+		keys.append(str(item))
+	return keys
+
+
+static func shovel_goal() -> int:
+	var tool := shovel()
+	var goal := _SHOVEL_SKILL[tool]
+	if tool >= _SHOVEL_SKILL.size() - 1:
+		goal -= 1
+	return goal
+
+
+static func can_goal() -> int:
+	var tool := can()
+	var goal := _CAN_SKILL[tool]
+	if tool >= _CAN_SKILL.size() - 1:
+		goal -= 1
+	return goal
+
+
+static func species_catalog() -> Array:
+	var rows: Array = []
+	var book := _load_book()
+	var species: Dictionary = book.get("species", {})
+	var recipes: Dictionary = book.get("recipes", {})
+	var keys: PackedStringArray = PackedStringArray()
+	for key in species.keys():
+		keys.append(str(key))
+	keys.sort()
+	for spec_key in keys:
+		var spec: Dictionary = species[spec_key]
+		var varieties: Array = []
+		for item in spec.get("varieties", []):
+			if not (item is Dictionary):
+				continue
+			var variety: Dictionary = item
+			var recipe: Dictionary = recipes.get(str(int(variety.get("recipe", -1))), {})
+			varieties.append({
+				"beans": String(recipe.get("beans", "")),
+				"value": int(variety.get("value", 1)),
+			})
+		rows.append({
+			"id": int(spec_key),
+			"name": String(spec.get("name", "Flower")),
+			"varieties": varieties,
+		})
+	return rows
+
+
 static func collected() -> int:
 	return int(_record().get("collected", []).size())
 

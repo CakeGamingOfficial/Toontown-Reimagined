@@ -26,12 +26,12 @@ const WELCOME_VALLEY := 0
 const LOW_POP := 399
 const MID_POP := 599
 const _PORT := 4343
-const _TROLLEY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 100]
+const _TROLLEY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 100]
 ## MinigamePlayerMatrix. One toon never draws Race, Tag, Match Minnie, or Ice.
-## Trolley Tracks is 100. The original never deals it from the random list.
-const _TROLLEY_ONE: Array[int] = [2, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
-const _TROLLEY_TWO: Array[int] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-const _TROLLEY_MANY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+## Photo Fun is 16. It is dealt with the other games.
+const _TROLLEY_ONE: Array[int] = [2, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16]
+const _TROLLEY_TWO: Array[int] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+const _TROLLEY_MANY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 const _CONFIG := "res://scenes/net/districts.json"
 const _TOON := preload("res://scenes/playgrounds/playground_toon.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
@@ -3117,7 +3117,7 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 	var stamp := int(latest("trolley:%d" % district).get("stamp", 0))
 	var state := latest(_mg_channel(district)).duplicate(true)
 	if int(state.get("round", -1)) != stamp:
-		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": [], "tracks": {}}
+		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": [], "photos": {}, "film": [], "tracks": {}}
 	if kind == "it":
 		var current := int(state.get("it", -1))
 		if current < 0 or current == peer:
@@ -3147,6 +3147,32 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 			state["deal"] = deal
 			state["turn"] = int(state.get("turn", 0)) + 1
 			state["picks"] = {}
+	elif kind == "photo":
+		# Photo Fun. The value is the assignment slot times ten plus the star count.
+		var slot := int(value / 10)
+		var stars := value % 10
+		var photos: Dictionary = {}
+		var raw_photos: Variant = state.get("photos", {})
+		if raw_photos is Dictionary:
+			photos = (raw_photos as Dictionary).duplicate()
+		if slot >= 0 and slot < 5 and stars >= 1 and stars <= 5:
+			var key := str(slot)
+			var stored := 0
+			var existing: Variant = photos.get(key, {})
+			if existing is Dictionary:
+				stored = int((existing as Dictionary).get("score", 0))
+			if stars > stored:
+				photos[key] = {"score": stars, "by": peer}
+		state["photos"] = photos
+	elif kind == "film":
+		# Photo Fun. This player has used their last frame.
+		var outs: Array = []
+		var raw_film: Variant = state.get("film", [])
+		if raw_film is Array:
+			outs = (raw_film as Array).duplicate()
+		if not outs.has(peer):
+			outs.append(peer)
+		state["film"] = outs
 	elif kind == "track" or kind == "trackend":
 		# Trolley Tracks. A vote is the round times 16, plus the votes times 2, plus the direction.
 		var book: Dictionary = {}

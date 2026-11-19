@@ -63,6 +63,8 @@ var _reward: Label
 var _quest_id: Label
 var _reward_text := ""
 var _choosing := false
+## QuestBookPoster shrinks the body type. The choice card and the briefing keep the full poster.
+var _journal := false
 var _return: Label
 var _left_name: Label
 var _right_name: Label
@@ -209,25 +211,24 @@ func layout(card: Vector2) -> void:
 	ToonGui.style_label(_count, Color.WHITE, body, Color(0, 0, 0), 1)
 	if _complete:
 		_place_sign(_headline, 0.23, 0.05, card)
-		_place_line(_return, 0.0, 0.12, 0.04, card, true)
-		_place_line(_left_name, -0.18, 0.02, 0.0325, card, false)
-		_place_line(_right_name, 0.18, 0.02, 0.0325, card, false)
-		_place_line(_where, 0.0, -0.075, 0.045, card, true)
-		_where.size.y = card.y * (0.16 / 0.58)
+		_place_line(_return, 0.0, 0.12, 0.04, card, 11.0)
+		_place_line(_left_name, -0.18, 0.02, 0.0325, card, 11.0)
+		_place_line(_right_name, 0.18, 0.02, 0.0325, card, 11.0)
+		_place_line(_where, 0.0, -0.075, _info_scale(), card, _info_wrap())
 	elif _split:
 		# RecoverItemQuest puts the package at x -0.18, "from:" in the middle,
 		# and the holder at x 0.18. Each caption sits under its picture.
 		_place_sign(_headline, 0.23, 0.05, card)
-		_place_line(_caption, -0.18, 0.02, 0.0325, card, false)
-		_place_line(_right_name, 0.18, 0.02, 0.0325, card, false)
-		_place_line(_aux, 0.0, 0.12, 0.04, card, false)
-		_place_line(_where, 0.0, _where_z(), 0.045, card, true)
+		_place_line(_caption, -0.18, 0.02, 0.0325, card, 11.0)
+		_place_line(_right_name, 0.18, 0.02, 0.0325, card, 11.0)
+		_place_line(_aux, 0.0, 0.12, 0.04, card, 8.0)
+		_place_line(_where, 0.0, _where_z(), _info_scale(), card, _info_wrap())
 	else:
 		# An open poster keeps the picture centered. The headline sits at z 0.23,
 		# the caption under the frame, and the location under that.
 		_place_sign(_headline, 0.23, 0.05, card)
-		_place_line(_caption, 0.0, 0.02, 0.045, card, false)
-		_place_line(_where, 0.0, _where_z(), 0.045, card, true)
+		_place_line(_caption, 0.0, 0.02, _info_scale(), card, 11.0)
+		_place_line(_where, 0.0, _where_z(), _info_scale(), card, _info_wrap())
 	# The reward stays on the scroll, at the choice-card height, so the journal
 	# does not have to grow the card before the line can be read.
 	_place_reward(-0.205, card)
@@ -253,6 +254,19 @@ func layout(card: Vector2) -> void:
 
 
 signal track_pressed(quest_id: int)
+
+
+## The Shticker Book page uses QuestBookPoster, which is the same card with smaller type.
+func for_journal() -> void:
+	_journal = true
+
+
+func _info_scale() -> float:
+	return 0.0315 if _journal else 0.045
+
+
+func _info_wrap() -> float:
+	return 12.48 if _journal else 15.6
 
 
 ## The journal page can be clicked. Choice cards and the briefing cannot.
@@ -924,19 +938,32 @@ func _progress_word(kind: String) -> String:
 	return "defeated"
 
 
-## A quest-card z, on the 0.8 by 0.58 poster, measured from the card center.
-func _place_line(label: Label, x: float, z: float, text_scale: float, card: Vector2, wide: bool) -> void:
+## A quest-card z is the text baseline, on the 0.8 by 0.58 poster. wrap_ems is text_wordwrap.
+func _place_line(label: Label, x: float, z: float, text_scale: float, card: Vector2, wrap_ems: float) -> void:
 	var px := maxi(int(card.y * text_scale / 0.58), 10)
-	var width := card.x * (0.72 if wide else 0.34)
-	var height := float(px) * 1.35
-	var center := Vector2(card.x * ((x + 0.4) / 0.8), card.y * ((0.29 - z) / 0.58))
-	label.position = center - Vector2(width, height) * 0.5
-	label.size = Vector2(width, height)
+	var width := card.x * clampf(text_scale * wrap_ems / 0.8, 0.2, 0.95)
 	if label == _headline:
 		var ink := _DONE if _complete else _INK
 		ToonGui.style_sign(label, ink, px, Color(0, 0, 0, 0), 0)
 	else:
 		ToonGui.style_label(label, _INK, px, Color(0, 0, 0, 0), 0)
+	var metrics := _font_metrics(label.get_theme_font("font"), px)
+	var rows := 1
+	if label == _where:
+		rows = 4
+	elif label == _caption or label == _left_name or label == _right_name:
+		rows = 2
+	var baseline_y := card.y * ((0.29 - z) / 0.58)
+	var center_x := card.x * ((x + 0.4) / 0.8)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	label.position = Vector2(center_x - width * 0.5, baseline_y - metrics.x)
+	label.size = Vector2(width, metrics.y * float(rows))
+
+
+func _font_metrics(face: Font, px: int) -> Vector2:
+	if face == null:
+		return Vector2(float(px) * 0.8, float(px))
+	return Vector2(face.get_ascent(px), maxf(face.get_height(px), float(px)))
 
 
 ## The quest number sits in the top-left of the scroll. A counted task's red
@@ -974,15 +1001,15 @@ func _place_tracking(card: Vector2) -> void:
 ## words sit above it and a wrapped second line continues down the scroll.
 func _place_reward(z: float, card: Vector2) -> void:
 	var px := maxi(int(card.y * 0.0425 / 0.58), 8)
+	ToonGui.style_label(_reward, _REWARD, px, Color(0, 0, 0, 0), 0)
+	var metrics := _font_metrics(_reward.get_theme_font("font"), px)
 	var width := card.x * 0.9
-	var line_h := float(px)
 	var left := card.x * ((-0.36 + 0.4) / 0.8)
 	var baseline := card.y * ((0.29 - z) / 0.58)
 	_reward.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_reward.position = Vector2(left, baseline - line_h)
-	_reward.size = Vector2(width, line_h * 2.4)
-	ToonGui.style_label(_reward, _REWARD, px, Color(0, 0, 0, 0), 0)
+	_reward.position = Vector2(left, baseline - metrics.x)
+	_reward.size = Vector2(width, metrics.y * 2.4)
 
 
 func _place_sign(label: Label, z: float, text_scale: float, card: Vector2) -> void:
-	_place_line(label, 0.0, z, text_scale, card, true)
+	_place_line(label, 0.0, z, text_scale, card, 12.0)

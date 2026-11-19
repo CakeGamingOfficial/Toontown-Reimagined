@@ -77,6 +77,112 @@ static func style_label(label: Label, color: Color, px: int, outline: Color, out
 	label.add_theme_constant_override("outline_size", maxi(outline_px, 0))
 
 
+## Drawn in the button's own pixels. The 2003 quit-button picture is not used.
+## shade 0 is the yellow pill, 1 is the blue rollover, 2 is pressed.
+## marked darkens the rim so a selected tab stays yellow.
+const _PILL_SHADER := "shader_type canvas_item;
+uniform vec2 quad_size = vec2(200.0, 40.0);
+uniform float shade = 0.0;
+uniform float marked = 0.0;
+void fragment() {
+	vec2 size = max(quad_size, vec2(4.0, 4.0));
+	vec2 p = UV * size;
+	float radius = min(size.x, size.y) * 0.5;
+	vec2 center = size * 0.5;
+	vec2 box = vec2(max(center.x - radius, 0.0), max(center.y - radius, 0.0));
+	vec2 q = abs(p - center) - box;
+	float dist = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+	float alpha = clamp(0.5 - dist, 0.0, 1.0);
+	float t = clamp(p.y / size.y, 0.0, 1.0);
+	vec3 fill = mix(vec3(1.0, 0.92, 0.28), vec3(0.98, 0.78, 0.05), t);
+	vec3 rim = vec3(0.62, 0.42, 0.0);
+	if (shade > 0.5 && shade < 1.5) {
+		fill = mix(vec3(0.62, 0.90, 1.0), vec3(0.12, 0.58, 0.90), t);
+		rim = vec3(0.04, 0.28, 0.52);
+	} else if (shade > 1.5) {
+		fill = mix(vec3(0.86, 0.62, 0.02), vec3(1.0, 0.86, 0.16), t);
+		rim = vec3(0.48, 0.30, 0.0);
+	}
+	if (marked > 0.5) {
+		rim = vec3(0.38, 0.22, 0.0);
+	}
+	float band = smoothstep(-2.4, -0.9, dist);
+	vec3 col = mix(fill, rim, band);
+	COLOR = vec4(col, alpha) * COLOR;
+}
+"
+static var _pill_shader: Shader
+static var _pill_blank: Texture2D
+
+
+static func _blank_pill() -> Texture2D:
+	if _pill_blank == null:
+		var image := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+		image.fill(Color.WHITE)
+		_pill_blank = ImageTexture.create_from_image(image)
+	return _pill_blank
+
+
+static func pill_art(button: CanvasItem) -> void:
+	if _pill_shader == null:
+		_pill_shader = Shader.new()
+		_pill_shader.code = _PILL_SHADER
+	var mat := ShaderMaterial.new()
+	mat.shader = _pill_shader
+	button.material = mat
+	var painted := button as TextureButton
+	if painted != null:
+		var blank := _blank_pill()
+		painted.texture_normal = blank
+		painted.texture_pressed = blank
+		painted.texture_hover = blank
+		painted.texture_disabled = blank
+		painted.ignore_texture_size = true
+		painted.stretch_mode = TextureButton.STRETCH_SCALE
+	var control := button as Control
+	if control == null:
+		return
+	if not bool(control.get_meta("pill_ready", false)):
+		control.set_meta("pill_ready", true)
+		control.resized.connect(_pill_fit.bind(control))
+		var press := button as BaseButton
+		if press != null:
+			press.mouse_entered.connect(_pill_shade.bind(press, 1.0))
+			press.mouse_exited.connect(_pill_shade.bind(press, 0.0))
+			press.button_down.connect(_pill_shade.bind(press, 2.0))
+			press.button_up.connect(_pill_release.bind(press))
+	_pill_fit(control)
+
+
+static func pill_fit(button: Control) -> void:
+	_pill_fit(button)
+
+
+static func _pill_fit(control: Control) -> void:
+	var mat := control.material as ShaderMaterial
+	if mat == null:
+		return
+	mat.set_shader_parameter("quad_size", control.size)
+
+
+static func pill_mark(button: CanvasItem, marked: bool) -> void:
+	var mat := button.material as ShaderMaterial
+	if mat == null:
+		return
+	mat.set_shader_parameter("marked", 1.0 if marked else 0.0)
+
+
+static func _pill_shade(button: BaseButton, shade: float) -> void:
+	var mat := button.material as ShaderMaterial
+	if mat == null:
+		return
+	mat.set_shader_parameter("shade", shade)
+
+
+static func _pill_release(button: BaseButton) -> void:
+	_pill_shade(button, 1.0 if button.is_hovered() else 0.0)
+
+
 ## NametagGroup chat wordwrap. TextNode breaks a line after this many font
 ## heights, and a shorter line stays on one row so the balloon hugs the words.
 const CHAT_WORDWRAP := 10.0

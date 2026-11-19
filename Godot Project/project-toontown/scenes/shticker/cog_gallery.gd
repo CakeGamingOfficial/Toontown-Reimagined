@@ -230,23 +230,37 @@ func _layout_card(index: int) -> void:
 	_style_suit(_names[index], px)
 	_style_suit(_quotas[index], px)
 	_style_suit(_mysteries[index], px)
-	_names[index].position = Vector2(0.0, card.size.y * 0.02)
-	_names[index].size = Vector2(card.size.x, card.size.y * 0.26)
-	# Card geom is z -0.2396..0.2396. text_pos (0, 0.185, 0) puts the baseline at z 0.185.
+	# The seen name replaces "???" on the same panel text. text_pos (0, 0.185)
+	# is that baseline on the card geom z -0.2396..0.2396. A second line hangs
+	# below it, and the head stays under that.
 	var font := ToonGui.suit_font()
 	var baseline := card.size.y * ((0.239583 - 0.185) / 0.479166)
-	_mysteries[index].position = Vector2(0.0, maxf(baseline - font.get_ascent(px), 0.0))
-	_mysteries[index].size = Vector2(card.size.x, font.get_height(px) + 2.0)
-	_quotas[index].position = Vector2(0.0, card.size.y * 0.80)
-	_quotas[index].size = Vector2(card.size.x, card.size.y * 0.17)
-	_heads[index].position = Vector2(card.size.x * 0.14, card.size.y * 0.28)
-	_heads[index].size = Vector2(card.size.x * 0.72, card.size.y * 0.50)
+	var text_top := maxf(baseline - font.get_ascent(px), 0.0)
+	var line_h := font.get_height(px)
+	_names[index].vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_names[index].clip_contents = true
+	_names[index].position = Vector2(0.0, text_top)
+	_names[index].size = Vector2(card.size.x, line_h * 2.0 + 2.0)
+	_mysteries[index].position = Vector2(0.0, text_top)
+	_mysteries[index].size = Vector2(card.size.x, line_h + 2.0)
+	# addQuotaLabel sits at z -0.215 in the same card space.
+	var quota_base := card.size.y * ((0.239583 - (-0.215)) / 0.479166)
+	_quotas[index].vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_quotas[index].position = Vector2(0.0, maxf(quota_base - font.get_ascent(px), 0.0))
+	_quotas[index].size = Vector2(card.size.x, line_h + 2.0)
 	var fitted := _SHADOW_PLACE[index * 3] * 0.6
 	var ox := _SHADOW_PLACE[index * 3 + 1] * 0.6
 	var oz := _SHADOW_PLACE[index * 3 + 2] * 0.6
 	var shadow_size := _span(_SHADOW_SIZE[index * 2] * fitted, _SHADOW_SIZE[index * 2 + 1] * fitted)
 	_shadows[index].size = shadow_size
 	_shadows[index].position = _point(ax + ox, az + oz) - card.position - shadow_size * 0.5
+	# The portrait is the centered head, so its middle sits on this cog's shadow.
+	# attachSuitHead still sets the size: (0.2 + column/100), then the panel scale of 0.6.
+	var head_world := (0.2 + float(col) / 100.0) * 0.6
+	var head_px := _span(head_world, head_world)
+	var shadow_center := _shadows[index].position + shadow_size * 0.5
+	_heads[index].size = head_px
+	_heads[index].position = shadow_center - head_px * 0.5
 
 
 func _paint(index: int, count: int) -> void:

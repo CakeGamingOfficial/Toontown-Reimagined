@@ -1,0 +1,828 @@
+{
+ "frame": {
+  "x": 0.05,
+  "z": 0.1,
+  "scale": 0.85
+ },
+ "cards": {
+  "node__partyCreatorGUI_grp__background__buttons__cancel_button__cancelButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__cancel_button__cancelButton_rollover.png",
+   "x0": 1.0842,
+   "x1": 1.2544,
+   "z0": 0.664,
+   "z1": 0.8372
+  },
+  "node__partyCreatorGUI_grp__background__buttons__cancel_button__cancelButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__cancel_button__cancelButton_up.png",
+   "x0": 1.0842,
+   "x1": 1.2544,
+   "z0": 0.664,
+   "z1": 0.8372
+  },
+  "node__partyCreatorGUI_grp__background__buttons__cancel_button__cancelButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__cancel_button__cancelButton_down.png",
+   "x0": 1.0842,
+   "x1": 1.2544,
+   "z0": 0.664,
+   "z1": 0.8372
+  },
+  "node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomNext_button__nextButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomNext_button__nextButton_up.png",
+   "x0": 0.2176,
+   "x1": 0.3959,
+   "z0": -1.0052,
+   "z1": -0.8269
+  },
+  "node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomNext_button__nextButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomNext_button__nextButton_rollover.png",
+   "x0": 0.2176,
+   "x1": 0.3959,
+   "z0": -1.0052,
+   "z1": -0.8269
+  },
+  "node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomNext_button__nextButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomNext_button__nextButton_down.png",
+   "x0": 0.2176,
+   "x1": 0.3959,
+   "z0": -1.0052,
+   "z1": -0.8269
+  },
+  "node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton_down.png",
+   "x0": -0.4079,
+   "x1": -0.2296,
+   "z0": -1.0052,
+   "z1": -0.8269
+  },
+  "node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton_up.png",
+   "x0": -0.4079,
+   "x1": -0.2296,
+   "z0": -1.0052,
+   "z1": -0.8269
+  },
+  "node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton_rollover.png",
+   "x0": -0.4079,
+   "x1": -0.2296,
+   "z0": -1.0052,
+   "z1": -0.8269
+  },
+  "node__partyCreatorGUI_grp__background__background": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__background__background.png",
+   "x0": -1.4939,
+   "x1": 1.4939,
+   "z0": -1.5649,
+   "z1": 1.423
+  },
+  "node__partyCreatorGUI_grp__step_01__peteText_flat": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_01__peteText_flat.png",
+   "x0": -0.7375,
+   "x1": 0.7043,
+   "z0": -0.791,
+   "z1": -0.4051
+  },
+  "node__partyCreatorGUI_grp__step_02": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_02.png",
+   "x0": -0.8553,
+   "x1": 0.8,
+   "z0": -0.7888,
+   "z1": 0.3917
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonUp_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonUp_up.png",
+   "x0": -0.4502,
+   "x1": -0.14,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonUp_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonUp_down.png",
+   "x0": -0.4502,
+   "x1": -0.14,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonUp_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonUp_rollover.png",
+   "x0": -0.4502,
+   "x1": -0.14,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonDown_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonDown_up.png",
+   "x0": -0.4502,
+   "x1": -0.14,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonDown_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonDown_down.png",
+   "x0": -0.4502,
+   "x1": -0.14,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonDown_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__hour_buttons__hourButtonDown_rollover.png",
+   "x0": -0.4502,
+   "x1": -0.14,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonUp_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonUp_up.png",
+   "x0": -0.1439,
+   "x1": 0.1664,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonUp_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonUp_down.png",
+   "x0": -0.1439,
+   "x1": 0.1664,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonUp_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonUp_rollover.png",
+   "x0": -0.1439,
+   "x1": 0.1664,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonDown_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonDown_up.png",
+   "x0": -0.1439,
+   "x1": 0.1664,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonDown_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonDown_down.png",
+   "x0": -0.1439,
+   "x1": 0.1664,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonDown_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__minute_buttons__minuteButtonDown_rollover.png",
+   "x0": -0.1439,
+   "x1": 0.1664,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonUp_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonUp_up.png",
+   "x0": 0.131,
+   "x1": 0.4412,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonUp_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonUp_down.png",
+   "x0": 0.131,
+   "x1": 0.4412,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonUp_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonUp_rollover.png",
+   "x0": 0.131,
+   "x1": 0.4412,
+   "z0": 0.0651,
+   "z1": 0.1427
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonDown_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonDown_up.png",
+   "x0": 0.131,
+   "x1": 0.4412,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonDown_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonDown_down.png",
+   "x0": 0.131,
+   "x1": 0.4412,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonDown_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__step_03_buttons__ampm_buttons__ampmButtonDown_rollover.png",
+   "x0": 0.131,
+   "x1": 0.4412,
+   "z0": -0.1808,
+   "z1": -0.1033
+  },
+  "node__partyCreatorGUI_grp__step_03__toontownTime_background": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_03__toontownTime_background.png",
+   "x0": -0.7243,
+   "x1": 0.7063,
+   "z0": -0.8213,
+   "z1": 0.6093
+  },
+  "node__partyCreatorGUI_grp__step_04__guestListBackground_flat": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__guestListBackground_flat.png",
+   "x0": -0.6439,
+   "x1": 0.6242,
+   "z0": -0.7793,
+   "z1": 0.1684
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__checkAll_button__checkAllButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__checkAll_button__checkAllButton_up.png",
+   "x0": -0.5828,
+   "x1": -0.4936,
+   "z0": 0.0296,
+   "z1": 0.1187
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__checkAll_button__checkAllButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__checkAll_button__checkAllButton_down.png",
+   "x0": -0.5828,
+   "x1": -0.4936,
+   "z0": 0.0296,
+   "z1": 0.1187
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__checkAll_button__checkAllButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__checkAll_button__checkAllButton_rollover.png",
+   "x0": -0.5828,
+   "x1": -0.4936,
+   "z0": 0.0296,
+   "z1": 0.1187
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__uncheckAll_button__uncheckAllButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__uncheckAll_button__uncheckAllButton_up.png",
+   "x0": -0.4714,
+   "x1": -0.3823,
+   "z0": 0.0296,
+   "z1": 0.1187
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__uncheckAll_button__uncheckAllButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__uncheckAll_button__uncheckAllButton_down.png",
+   "x0": -0.4714,
+   "x1": -0.3823,
+   "z0": 0.0296,
+   "z1": 0.1187
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__uncheckAll_button__uncheckAllButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__uncheckAll_button__uncheckAllButton_rollover.png",
+   "x0": -0.4714,
+   "x1": -0.3823,
+   "z0": 0.0296,
+   "z1": 0.1187
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_up.png",
+   "x0": -0.3122,
+   "x1": -0.0036,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_down.png",
+   "x0": -0.3122,
+   "x1": -0.0036,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_rollover.png",
+   "x0": -0.3122,
+   "x1": -0.0036,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_inactive": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__public_button__publicButton_inactive.png",
+   "x0": -0.3122,
+   "x1": -0.0036,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_up.png",
+   "x0": 0.0005,
+   "x1": 0.3091,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_down.png",
+   "x0": 0.0005,
+   "x1": 0.3091,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_rollover.png",
+   "x0": 0.0005,
+   "x1": 0.3091,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_inactive": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__private_button__privateButton_inactive.png",
+   "x0": 0.0005,
+   "x1": 0.3091,
+   "z0": 0.1689,
+   "z1": 0.3232
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_up.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": 0.0204,
+   "z1": 0.1263
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_down.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": 0.0204,
+   "z1": 0.1263
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_rollover.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": 0.0204,
+   "z1": 0.1263
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_inactive": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonUp_inactive.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": 0.0204,
+   "z1": 0.1263
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_up.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": -0.735,
+   "z1": -0.6291
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_down.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": -0.735,
+   "z1": -0.6291
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_rollover.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": -0.735,
+   "z1": -0.6291
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_inactive": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__invite_buttons__inviteButtonDown_inactive.png",
+   "x0": -0.2328,
+   "x1": 0.1908,
+   "z0": -0.735,
+   "z1": -0.6291
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__inviteButtonUnchecked": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__inviteButtonUnchecked.png",
+   "x0": -0.0469,
+   "x1": 0.0469,
+   "z0": -0.0469,
+   "z1": 0.0469
+  },
+  "node__partyCreatorGUI_grp__step_04__step_04_buttons__inviteButtonChecked": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_04__step_04_buttons__inviteButtonChecked.png",
+   "x0": -0.0469,
+   "x1": 0.0469,
+   "z0": -0.0469,
+   "z1": 0.0469
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_up.png",
+   "x0": -0.8315,
+   "x1": -0.4836,
+   "z0": 0.3428,
+   "z1": 0.4298
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_down.png",
+   "x0": -0.8315,
+   "x1": -0.4836,
+   "z0": 0.3428,
+   "z1": 0.4298
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_rollover.png",
+   "x0": -0.8315,
+   "x1": -0.4836,
+   "z0": 0.3428,
+   "z1": 0.4298
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_inactive": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonUp_inactive.png",
+   "x0": -0.8315,
+   "x1": -0.4836,
+   "z0": 0.3428,
+   "z1": 0.4298
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_up.png",
+   "x0": -0.8316,
+   "x1": -0.4835,
+   "z0": -0.0706,
+   "z1": 0.0164
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_down.png",
+   "x0": -0.8316,
+   "x1": -0.4835,
+   "z0": -0.0706,
+   "z1": 0.0164
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_rollover.png",
+   "x0": -0.8316,
+   "x1": -0.4835,
+   "z0": -0.0706,
+   "z1": 0.0164
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_inactive": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__activities_buttons__activitiesButtonDown_inactive.png",
+   "x0": -0.8316,
+   "x1": -0.4835,
+   "z0": -0.0706,
+   "z1": 0.0164
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__rotate_button__rotateButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__rotate_button__rotateButton_up.png",
+   "x0": -0.0396,
+   "x1": 0.0396,
+   "z0": -0.0396,
+   "z1": 0.0396
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__rotate_button__rotateButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__rotate_button__rotateButton_down.png",
+   "x0": -0.0396,
+   "x1": 0.0396,
+   "z0": -0.0396,
+   "z1": 0.0396
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__rotate_button__rotateButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__rotate_button__rotateButton_rollover.png",
+   "x0": -0.0396,
+   "x1": 0.0396,
+   "z0": -0.0396,
+   "z1": 0.0396
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__add_button__add_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__add_button__add_up.png",
+   "x0": -0.8701,
+   "x1": -0.5497,
+   "z0": -0.871,
+   "z1": -0.7656
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__add_button__add_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__add_button__add_down.png",
+   "x0": -0.8701,
+   "x1": -0.5497,
+   "z0": -0.871,
+   "z1": -0.7656
+  },
+  "node__partyCreatorGUI_grp__step_05__buttons_grp__add_button__add_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__buttons_grp__add_button__add_rollover.png",
+   "x0": -0.8701,
+   "x1": -0.5497,
+   "z0": -0.871,
+   "z1": -0.7656
+  },
+  "node__partyCreatorGUI_grp__step_05__activitiesDecorations_flat": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activitiesDecorations_flat.png",
+   "x0": -0.9095,
+   "x1": -0.4127,
+   "z0": 0.0183,
+   "z1": 0.3509
+  },
+  "node__partyCreatorGUI_grp__step_05__partyGrid_flat": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__partyGrid_flat.png",
+   "x0": -0.3415,
+   "x1": 0.9357,
+   "z0": -0.8736,
+   "z1": 0.4036
+  },
+  "node__partyCreatorGUI_grp__step_05__instructions_flat": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__instructions_flat.png",
+   "x0": -1.1453,
+   "x1": 1.2184,
+   "z0": -1.2862,
+   "z1": -1.0177
+  },
+  "node__partyCreatorGUI_grp__step_05__activitiesDecorations_flat1": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activitiesDecorations_flat1.png",
+   "x0": -1.0265,
+   "x1": -0.4115,
+   "z0": -0.9789,
+   "z1": -0.0693
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__decoration_1x1": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__decoration_1x1.png",
+   "x0": -0.0277,
+   "x1": 0.0277,
+   "z0": -0.0277,
+   "z1": 0.0277
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyFireworks_activity_2x4": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyFireworks_activity_2x4.png",
+   "x0": -0.0569,
+   "x1": 0.0569,
+   "z0": -0.1139,
+   "z1": 0.1139
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyTufOfWar_activity_4x4": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyTufOfWar_activity_4x4.png",
+   "x0": -0.1148,
+   "x1": 0.1148,
+   "z0": -0.1179,
+   "z1": 0.1117
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyDance_activity_3x3": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyDance_activity_3x3.png",
+   "x0": -0.0867,
+   "x1": 0.0867,
+   "z0": -0.089,
+   "z1": 0.0844
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyTrampoline_activity_2x2": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyTrampoline_activity_2x2.png",
+   "x0": -0.0559,
+   "x1": 0.0559,
+   "z0": -0.0559,
+   "z1": 0.0559
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyJukebox_activity_1x1": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyJukebox_activity_1x1.png",
+   "x0": -0.0277,
+   "x1": 0.0277,
+   "z0": -0.0277,
+   "z1": 0.0277
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyCannon_activity_1x1": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyCannon_activity_1x1.png",
+   "x0": -0.0277,
+   "x1": 0.0277,
+   "z0": -0.0277,
+   "z1": 0.0277
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyCatch_activity_5x5": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyCatch_activity_5x5.png",
+   "x0": -0.143,
+   "x1": 0.143,
+   "z0": -0.1468,
+   "z1": 0.1392
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyClock_activity_1x1": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyClock_activity_1x1.png",
+   "x0": -0.0277,
+   "x1": 0.0277,
+   "z0": -0.0277,
+   "z1": 0.0277
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__PartyCog_activity_5x5": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__PartyCog_activity_5x5.png",
+   "x0": -0.143,
+   "x1": 0.143,
+   "z0": -0.1468,
+   "z1": 0.1392
+  },
+  "node__partyCreatorGUI_grp__step_05__activity_squares__decoration_propStage_2x2": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_05__activity_squares__decoration_propStage_2x2.png",
+   "x0": -0.0559,
+   "x1": 0.0559,
+   "z0": -0.0559,
+   "z1": 0.0559
+  },
+  "node__partyCreatorGUI_grp__step_06__topArrows_buttons__topNext_button__nextButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__topArrows_buttons__topNext_button__nextButton_down.png",
+   "x0": 0.3353,
+   "x1": 0.4421,
+   "z0": 0.2827,
+   "z1": 0.3895
+  },
+  "node__partyCreatorGUI_grp__step_06__topArrows_buttons__topNext_button__nextButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__topArrows_buttons__topNext_button__nextButton_up.png",
+   "x0": 0.3353,
+   "x1": 0.4421,
+   "z0": 0.2827,
+   "z1": 0.3895
+  },
+  "node__partyCreatorGUI_grp__step_06__topArrows_buttons__topNext_button__nextButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__topArrows_buttons__topNext_button__nextButton_rollover.png",
+   "x0": 0.3353,
+   "x1": 0.4421,
+   "z0": 0.2827,
+   "z1": 0.3895
+  },
+  "node__partyCreatorGUI_grp__step_06__topArrows_buttons__topPrevious_button__previousButton_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__topArrows_buttons__topPrevious_button__previousButton_down.png",
+   "x0": -0.4804,
+   "x1": -0.3737,
+   "z0": 0.2827,
+   "z1": 0.3895
+  },
+  "node__partyCreatorGUI_grp__step_06__topArrows_buttons__topPrevious_button__previousButton_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__topArrows_buttons__topPrevious_button__previousButton_up.png",
+   "x0": -0.4804,
+   "x1": -0.3737,
+   "z0": 0.2827,
+   "z1": 0.3895
+  },
+  "node__partyCreatorGUI_grp__step_06__topArrows_buttons__topPrevious_button__previousButton_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__topArrows_buttons__topPrevious_button__previousButton_rollover.png",
+   "x0": -0.4804,
+   "x1": -0.3737,
+   "z0": 0.2827,
+   "z1": 0.3895
+  },
+  "node__partyCreatorGUI_grp__step_06__send_button__send_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__send_button__send_up.png",
+   "x0": -0.1942,
+   "x1": 0.408,
+   "z0": -1.0237,
+   "z1": -0.8257
+  },
+  "node__partyCreatorGUI_grp__step_06__send_button__send_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__send_button__send_down.png",
+   "x0": -0.1942,
+   "x1": 0.408,
+   "z0": -1.0237,
+   "z1": -0.8257
+  },
+  "node__partyCreatorGUI_grp__step_06__send_button__send_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__send_button__send_rollover.png",
+   "x0": -0.1942,
+   "x1": 0.408,
+   "z0": -1.0237,
+   "z1": -0.8257
+  },
+  "node__partyCreatorGUI_grp__step_06__invitationBackground": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_06__invitationBackground.png",
+   "x0": -0.851,
+   "x1": 0.8307,
+   "z0": -1.009,
+   "z1": 0.6726
+  },
+  "node__partyCreatorGUI_grp__step_07__peteText_flat": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_07__peteText_flat.png",
+   "x0": -0.7375,
+   "x1": 0.7043,
+   "z0": -0.791,
+   "z1": -0.4051
+  },
+  "node__partyCreatorGUI_grp__step_07__close_button__close_up": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_07__close_button__close_up.png",
+   "x0": -0.3011,
+   "x1": 0.3011,
+   "z0": -0.9814,
+   "z1": -0.7833
+  },
+  "node__partyCreatorGUI_grp__step_07__close_button__close_down": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_07__close_button__close_down.png",
+   "x0": -0.3011,
+   "x1": 0.3011,
+   "z0": -0.9814,
+   "z1": -0.7833
+  },
+  "node__partyCreatorGUI_grp__step_07__close_button__close_rollover": {
+   "file": "res://assets/parties/planner/node__partyCreatorGUI_grp__step_07__close_button__close_rollover.png",
+   "x0": -0.3011,
+   "x1": 0.3011,
+   "z0": -0.9814,
+   "z1": -0.7833
+  }
+ },
+ "locators": {
+  "title_locator": {
+   "x": -0.0518,
+   "z": 0.5878
+  },
+  "step_07_close_text_locator": {
+   "x": 0.0,
+   "z": -0.8895
+  },
+  "step_07_partymanPeteText_locator": {
+   "x": 0.0,
+   "z": -0.5758
+  },
+  "step_07_partymanPete_locator": {
+   "x": -0.018,
+   "z": -0.1242
+  },
+  "step_06_sendInvitation_locator": {
+   "x": 0.1119,
+   "z": -0.9353
+  },
+  "step_06_theme_locator": {
+   "x": 0.0,
+   "z": 0.315
+  },
+  "step_05_add_text_locator": {
+   "x": -0.7099,
+   "z": -0.8261
+  },
+  "step_05_centerGrid_locator": {
+   "x": 0.2922,
+   "z": -0.2412
+  },
+  "step_05_partyGrounds_text_locator": {
+   "x": 0.2683,
+   "z": 0.3307
+  },
+  "step_05_activitiesName_text_locator": {
+   "x": -0.7099,
+   "z": -0.1495
+  },
+  "step_05_totalPrice_locator": {
+   "x": -0.3622,
+   "z": -0.7505
+  },
+  "step_05_instructions_locator": {
+   "x": 0.0481,
+   "z": -1.1787
+  },
+  "step_05_activitiesList_locator": {
+   "x": -0.8227,
+   "z": 0.2683
+  },
+  "step_05_activityDescription_text_locator": {
+   "x": -0.7099,
+   "z": -0.6136
+  },
+  "step_05_activityPrice_text_locator": {
+   "x": -0.8507,
+   "z": -0.918
+  },
+  "step_05_activitiesIcon_locator": {
+   "x": -0.7099,
+   "z": -0.3504
+  },
+  "step_04_private_locator": {
+   "x": 0.1625,
+   "z": 0.2369
+  },
+  "step_04_public_locator": {
+   "x": -0.1548,
+   "z": 0.2369
+  },
+  "step_04_partyWillBe_locator": {
+   "x": 0.0,
+   "z": 0.3248
+  },
+  "step_04_inviteList_locator": {
+   "x": 0.0,
+   "z": -0.2822
+  },
+  "step_03_toontownTime_locator": {
+   "x": -0.0255,
+   "z": -0.5915
+  },
+  "step_03_partyDateAndTime_locator": {
+   "x": -0.0255,
+   "z": -0.5147
+  },
+  "step_03_ampm_locator": {
+   "x": 0.2882,
+   "z": -0.0603
+  },
+  "step_03_minute_locator": {
+   "x": 0.0156,
+   "z": -0.0603
+  },
+  "step_03_colon_locator": {
+   "x": -0.1461,
+   "z": -0.0537
+  },
+  "step_03_hour_locator": {
+   "x": -0.3017,
+   "z": -0.0603
+  },
+  "step_03_time_locator": {
+   "x": -0.0034,
+   "z": -0.2978
+  },
+  "step_03_toontown_locator": {
+   "x": -0.0136,
+   "z": 0.1764
+  },
+  "step_01_partymanPeteNametag_locator": {
+   "x": -0.4975,
+   "z": 0.0875
+  },
+  "step_01_partymanPeteText_locator": {
+   "x": -0.1476,
+   "z": -0.5628
+  },
+  "step_01_partymanPete_locator": {
+   "x": -0.4975,
+   "z": -0.5001
+  }
+ }
+}

@@ -894,6 +894,10 @@ func _clear_dark(landmark: Node) -> void:
 
 
 func _paint(node: Node, mat: Material) -> void:
+	# The takeover tint is for the shop walls. A shadow card under that node is a
+	# quad, and this overlay has no texture, so the quad would draw solid black.
+	if String(node.name).to_lower().contains("shadow"):
+		return
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
 		if mesh.material_overlay != mat:

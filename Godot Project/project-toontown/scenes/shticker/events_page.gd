@@ -73,22 +73,7 @@ var _page := Vector2.ZERO
 
 
 static func tab_icon() -> Texture2D:
-	# Stickerbook_PartyIcon lives in phase_4/models/parties/partyStickerbook,
-	# which is not in the asset set. This stands in for that book tab.
-	var image := Image.create(32, 32, false, Image.FORMAT_RGBA8)
-	image.fill(Color(0, 0, 0, 0))
-	for y in 20:
-		var half := int(float(20 - y) * 9.0 / 20.0)
-		for x in range(16 - half, 16 + half):
-			image.set_pixel(x, y + 8, Color(0.95, 0.78, 0.15, 1))
-	for y in 6:
-		for x in 6:
-			if Vector2(x - 2.5, y - 2.5).length() < 2.8:
-				image.set_pixel(13 + x, y + 2, Color(0.9, 0.18, 0.22, 1))
-	for x in range(7, 25):
-		image.set_pixel(x, 27, Color(0.85, 0.15, 0.22, 1))
-		image.set_pixel(x, 28, Color(0.85, 0.15, 0.22, 1))
-	return ImageTexture.create_from_image(image)
+	return load("res://assets/gui/shticker/tab_events.png")
 
 
 func _ready() -> void:
@@ -603,6 +588,7 @@ func _disabled_pill(parent: Control, text: String, node_name: String) -> void:
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
 	button.focus_mode = FOCUS_NONE
+	ToonGui.pill_art(button)
 	button.disabled = true
 	button.modulate = Color(1, 1, 1, 0.45)
 	button.mouse_filter = MOUSE_FILTER_IGNORE
@@ -619,5 +605,7 @@ func _disabled_pill(parent: Control, text: String, node_name: String) -> void:
 func _place_pill(button: TextureButton, at: Vector2, box: Vector2) -> void:
 	button.position = at
 	button.size = box
+	ToonGui.pill_fit(button)
 	var caption := button.get_child(0) as Label
-	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), maxi(int(box.y * 0.28), 12), Color(0, 0, 0, 0), 0)
+	var fit := maxi(int(box.y / 1.45), 8)
+	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), fit, Color(0, 0, 0, 0), 0)

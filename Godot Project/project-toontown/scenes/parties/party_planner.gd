@@ -1,7 +1,8 @@
 extends Node
 
 ## PartyPlanner pages: Welcome, the grounds editor, guests, the day,
-## the time, the invitation, then the farewell. The clock is bought
+## the time, the invitation, then the farewell. The frame is the original
+## partyPlannerGUI model (scale 0.85 at 0.05, 0.1). The clock is bought
 ## automatically and starts at grid (8, 7). As Soon As Possible is the
 ## next 5-minute mark, and a party lasts 30 minutes.
 
@@ -50,28 +51,57 @@ var _theme := "Star"
 var _friends: Array = []
 var _invited: Array = []
 
+const _FRAME_X := 0.05
+const _FRAME_Z := 0.1
+const _FRAME_S := 0.85
+const _LAYOUT := "res://assets/parties/planner/layout.json"
+
 var _layer: CanvasLayer
-var _panel: ColorRect
+var _dim: ColorRect
+var _panel: Control
 var _title: Label
 var _info: Label
-var _back: Button
-var _next: Button
+var _back: TextureButton
+var _next: TextureButton
+var _send_label: Label
 var _pages: Dictionary = {}
-var _grid: GridContainer
+var _grid: Control
 var _cells: Array = []
-var _list: VBoxContainer
-var _buy: Button
+var _buy: TextureButton
+var _buy_label: Label
 var _cost: Label
+var _beans_label: Label
 var _guest_list: VBoxContainer
+var _guest_buttons: Array = []
 var _privacy: Label
+var _public_button: TextureButton
+var _private_button: TextureButton
 var _date_list: VBoxContainer
 var _date_buttons: Array = []
+var _asap_button: TextureButton
 var _time_label: Label
+var _hour_label: Label
+var _minute_label: Label
+var _ampm_label: Label
 var _invite_label: Label
-var _theme_buttons: Array = []
+var _theme_label: Label
+var _name_label: Label
+var _desc_label: Label
+var _price_label: Label
+var _icon: TextureRect
+var _layout: Dictionary = {}
+var _view := Vector2.ZERO
+var _pins: Array = []
+var _info_pin: Array = []
+var _list_scroll := 0
+var _offered_indices: Array = []
+var _squares: Dictionary = {}
 
 
 func _ready() -> void:
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(_LAYOUT))
+	if parsed is Dictionary:
+		_layout = parsed
 	_catalog = _make_catalog()
 	_friends = FriendsBook.page(2)
 	for _friend in _friends:
@@ -82,6 +112,22 @@ func _ready() -> void:
 	_add_clock()
 	_build()
 	_show("welcome")
+
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_WM_SIZE_CHANGED or _layer == null:
+		return
+	_view = get_viewport().get_visible_rect().size
+	if _dim != null:
+		_dim.size = _view
+	if _panel != null:
+		_panel.size = _view
+	for id in _pages.keys():
+		var page := _pages[id] as Control
+		page.size = _view
+	for raw in _pins:
+		_apply_pin(raw as Array)
+	_layout_grid()
 
 
 func _init_clock() -> void:
@@ -108,177 +154,349 @@ func _init_clock() -> void:
 
 
 func _build() -> void:
-	var view := get_viewport().get_visible_rect().size
-	var panel_size := Vector2(min(960.0, view.x - 24.0), min(640.0, view.y - 24.0))
+	_view = get_viewport().get_visible_rect().size
 	_layer = CanvasLayer.new()
 	_layer.layer = 30
 	add_child(_layer)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.45)
-	dim.size = view
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	_layer.add_child(dim)
-	_panel = ColorRect.new()
-	_panel.color = Color(0.45, 0.2, 0.55, 0.96)
-	_panel.position = (view - panel_size) * 0.5
-	_panel.size = panel_size
-	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_dim = ColorRect.new()
+	_dim.color = Color(0, 0, 0, 0.28)
+	_dim.size = _view
+	_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_layer.add_child(_dim)
+	_panel = Control.new()
+	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_panel.size = _view
 	_layer.add_child(_panel)
-	_title = _label(Vector2(16, 10), Vector2(panel_size.x - 32, 56), 26)
-	_panel.add_child(_title)
-	_info = _label(Vector2(16, 70), Vector2(panel_size.x - 32, 72), 18)
-	_panel.add_child(_info)
-	_build_editor(panel_size)
-	_build_guests(panel_size)
-	_build_date(panel_size)
-	_build_time(panel_size)
-	_build_invite(panel_size)
-	_back = _nav_button("Back", Vector2(16, panel_size.y - 52), _on_back)
-	_next = _nav_button("Continue", Vector2(panel_size.x * 0.5 - 110, panel_size.y - 52), _on_next)
-	_nav_button("Close Planner", Vector2(panel_size.x - 236, panel_size.y - 52), _finish)
+	_picture(_panel, "background__background")
+	_build_welcome()
+	_build_editor()
+	_build_guests()
+	_build_date()
+	_build_time()
+	_build_invite()
+	_build_farewell()
+	_title = _caption(_panel, Color(0.35, 0.12, 0.08), HORIZONTAL_ALIGNMENT_CENTER)
+	_title.set_meta("lines", 2)
+	_pin_text(_title, "title_locator", 1.7, 0.18)
+	_info = _caption(_panel, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
+	_info.set_meta("edge", Color(0, 0, 0, 0.9))
+	_info.set_meta("lines", 4)
+	_info_pin = [_info, "box", -0.4, 0.64, -0.76, -0.46]
+	_pins.append(_info_pin)
+	_apply_pin(_info_pin)
+	_back = _art(_panel, "background__buttons__bottomArrows_buttons__bottomPrevious_button__previousButton", _on_back)
+	_next = _art(_panel, "background__buttons__bottomArrows_buttons__bottomNext_button__nextButton", _on_next)
+	_art(_panel, "background__buttons__cancel_button__cancelButton", _finish)
+	_paint_privacy()
 
 
-func _label(at: Vector2, size: Vector2, font_size: int) -> Label:
+func _k(tail: String) -> String:
+	return "node__partyCreatorGUI_grp__" + tail
+
+
+func _card(tail: String) -> Dictionary:
+	return _layout["cards"][_k(tail)]
+
+
+func _tex(tail: String) -> Texture2D:
+	var card: Dictionary = _card(tail)
+	return load(String(card["file"])) as Texture2D
+
+
+func _ax(x: float) -> float:
+	return _FRAME_X + x * _FRAME_S
+
+
+func _az(z: float) -> float:
+	return _FRAME_Z + z * _FRAME_S
+
+
+func _apply_pin(pin: Array) -> void:
+	var control := pin[0] as Control
+	if control == null or not is_instance_valid(control):
+		return
+	var mode := String(pin[1])
+	if mode == "card":
+		var card: Dictionary = _card(String(pin[2]))
+		var x0 := float(card["x0"])
+		var x1 := float(card["x1"])
+		var z0 := float(card["z0"])
+		var z1 := float(card["z1"])
+		_GUI.place(control, _view, _ax((x0 + x1) * 0.5), _az((z0 + z1) * 0.5), (x1 - x0) * _FRAME_S, (z1 - z0) * _FRAME_S)
+	elif mode == "box":
+		var bx0 := float(pin[2])
+		var bx1 := float(pin[3])
+		var bz0 := float(pin[4])
+		var bz1 := float(pin[5])
+		_GUI.place(control, _view, _ax((bx0 + bx1) * 0.5), _az((bz0 + bz1) * 0.5), (bx1 - bx0) * _FRAME_S, (bz1 - bz0) * _FRAME_S)
+		_fit(control)
+	else:
+		var point: Dictionary = _layout["locators"][String(pin[2])]
+		_GUI.place(control, _view, _ax(float(point["x"])), _az(float(point["z"])), float(pin[3]), float(pin[4]))
+		_fit(control)
+	if control == _grid:
+		_layout_grid()
+
+
+func _pin_card(control: Control, tail: String) -> void:
+	var pin: Array = [control, "card", tail]
+	_pins.append(pin)
+	_apply_pin(pin)
+
+
+func _pin_box(control: Control, x0: float, x1: float, z0: float, z1: float) -> void:
+	var pin: Array = [control, "box", x0, x1, z0, z1]
+	_pins.append(pin)
+	_apply_pin(pin)
+
+
+func _pin_text(control: Control, loc: String, width: float, height: float) -> void:
+	var pin: Array = [control, "text", loc, width, height]
+	_pins.append(pin)
+	_apply_pin(pin)
+
+
+func _fit(control: Control) -> void:
+	var label := control as Label
+	if label == null or not label.has_meta("ink"):
+		return
+	var ink: Color = label.get_meta("ink")
+	var edge := Color(0, 0, 0, 0)
+	if label.has_meta("edge"):
+		edge = label.get_meta("edge")
+	var lines := 1
+	if label.has_meta("lines"):
+		lines = maxi(int(label.get_meta("lines")), 1)
+	var px := maxi(int(label.size.y / float(lines) * 0.72), 10)
+	var outline := 0
+	if edge.a > 0.0:
+		outline = maxi(int(float(px) / 14.0), 1)
+	_GUI.style_label(label, ink, px, edge, outline)
+
+
+func _caption(parent: Node, ink: Color, align: HorizontalAlignment) -> Label:
 	var label := Label.new()
-	label.position = at
-	label.size = size
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_GUI.style_label(label, Color.WHITE, font_size, Color.BLACK, 3)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.set_meta("ink", ink)
+	parent.add_child(label)
 	return label
 
 
-func _nav_button(caption: String, at: Vector2, call: Callable) -> Button:
-	var button := Button.new()
-	button.text = caption
-	button.position = at
-	button.custom_minimum_size = Vector2(210, 40)
-	button.size = Vector2(210, 40)
+func _picture(parent: Node, tail: String) -> TextureRect:
+	var image := TextureRect.new()
+	image.texture = _tex(tail)
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	parent.add_child(image)
+	_pin_card(image, tail)
+	return image
+
+
+func _art(parent: Node, stem: String, call: Callable) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = _tex(stem + "_up")
+	button.texture_pressed = _tex(stem + "_down")
+	button.texture_hover = _tex(stem + "_rollover")
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_SCALE
+	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(call)
-	_panel.add_child(button)
+	button.resized.connect(_fit_button.bind(button))
+	_GUI.button_sounds(button)
+	parent.add_child(button)
+	_pin_card(button, stem + "_up")
 	return button
 
 
-func _make_page(id: String, panel_size: Vector2) -> Control:
+func _fit_button(button: TextureButton) -> void:
+	if button.get_child_count() == 0:
+		return
+	var label := button.get_child(0) as Label
+	if label == null or not label.has_meta("ink"):
+		return
+	var ink: Color = label.get_meta("ink")
+	var px := maxi(int(button.size.y * 0.32), 8)
+	_GUI.style_label(label, ink, px, Color(0, 0, 0, 0.9), maxi(int(float(px) / 12.0), 1))
+
+
+func _stamp(button: TextureButton, text: String, ink: Color) -> Label:
+	var label := _caption(button, ink, HORIZONTAL_ALIGNMENT_CENTER)
+	label.text = text
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fit_button(button)
+	return label
+
+
+func _flat(button: Button) -> void:
+	var empty := StyleBoxEmpty.new()
+	button.add_theme_stylebox_override("normal", empty)
+	button.add_theme_stylebox_override("hover", empty)
+	button.add_theme_stylebox_override("pressed", empty)
+	button.add_theme_stylebox_override("disabled", empty)
+	button.add_theme_stylebox_override("focus", empty)
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_override("font", _GUI.font())
+	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_color_override("font_color", Color(0.12, 0.08, 0.2))
+	button.add_theme_color_override("font_hover_color", Color(0.05, 0.28, 0.6))
+	button.add_theme_color_override("font_pressed_color", Color(0.05, 0.28, 0.6))
+
+
+func _make_page(id: String) -> Control:
 	var box := Control.new()
-	box.position = Vector2(12, 148)
-	box.size = Vector2(panel_size.x - 24, panel_size.y - 210)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.position = Vector2.ZERO
+	box.size = _view
 	box.visible = false
 	_panel.add_child(box)
 	_pages[id] = box
 	return box
 
 
-func _build_editor(panel_size: Vector2) -> void:
-	var page := _make_page("editor", panel_size)
-	var themes := GridContainer.new()
-	themes.columns = 2
-	themes.position = Vector2(0, 0)
-	page.add_child(themes)
-	for theme in _THEMES:
-		var theme_button := Button.new()
-		theme_button.text = theme
-		theme_button.custom_minimum_size = Vector2(128, 28)
-		theme_button.pressed.connect(_set_theme.bind(theme))
-		themes.add_child(theme_button)
-		_theme_buttons.append(theme_button)
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 140)
-	scroll.size = Vector2(270, page.size.y - 184)
-	page.add_child(scroll)
-	_list = VBoxContainer.new()
-	_list.custom_minimum_size = Vector2(250, 0)
-	scroll.add_child(_list)
-	_grid = GridContainer.new()
-	_grid.columns = _COLS
-	_grid.position = Vector2(284, 0)
-	_grid.add_theme_constant_override("h_separation", 1)
-	_grid.add_theme_constant_override("v_separation", 1)
+func _move_info(x0: float, x1: float, z0: float, z1: float, lines: int) -> void:
+	if _info_pin.is_empty():
+		return
+	_info.set_meta("lines", lines)
+	_info_pin[1] = "box"
+	_info_pin[2] = x0
+	_info_pin[3] = x1
+	_info_pin[4] = z0
+	_info_pin[5] = z1
+	_apply_pin(_info_pin)
+
+
+func _build_welcome() -> void:
+	var page := _make_page("welcome")
+	_picture(page, "step_01__peteText_flat")
+
+
+func _build_editor() -> void:
+	var page := _make_page("editor")
+	_picture(page, "step_05__activitiesDecorations_flat")
+	_picture(page, "step_05__activitiesDecorations_flat1")
+	_picture(page, "step_05__partyGrid_flat")
+	_picture(page, "step_05__instructions_flat")
+	_art(page, "step_05__buttons_grp__activities_buttons__activitiesButtonUp", _scroll_catalog.bind(-1))
+	_art(page, "step_05__buttons_grp__activities_buttons__activitiesButtonDown", _scroll_catalog.bind(1))
+	_buy = _art(page, "step_05__buttons_grp__add_button__add", _on_buy)
+	_buy_label = _stamp(_buy, "BUY", Color.WHITE)
+	_icon = TextureRect.new()
+	_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	page.add_child(_icon)
+	_pin_text(_icon, "step_05_activitiesIcon_locator", 0.2, 0.2)
+	_name_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_name_label, "step_05_activitiesName_text_locator", 0.48, 0.08)
+	_desc_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_desc_label.set_meta("lines", 3)
+	_pin_text(_desc_label, "step_05_activityDescription_text_locator", 0.5, 0.18)
+	_price_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_price_label, "step_05_activityPrice_text_locator", 0.36, 0.07)
+	_cost = _caption(page, Color(0.15, 0.08, 0.05), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_cost, "step_05_totalPrice_locator", 0.55, 0.08)
+	_beans_label = _caption(page, Color(0.95, 0.9, 0.15), HORIZONTAL_ALIGNMENT_RIGHT)
+	_beans_label.set_meta("edge", Color(0, 0, 0, 0.9))
+	_pin_box(_beans_label, -1.05, -0.45, 0.52, 0.66)
+	var grounds := _caption(page, Color(0.85, 0.05, 0.05), HORIZONTAL_ALIGNMENT_CENTER)
+	grounds.text = "PARTY GROUNDS MAP"
+	grounds.set_meta("edge", Color(1, 1, 1, 0.8))
+	_pin_text(grounds, "step_05_partyGrounds_text_locator", 0.7, 0.08)
+	_grid = Control.new()
+	_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(_grid)
+	_pin_box(_grid, -0.11, 0.55, -0.447, 0.289)
 	for y in _ROWS:
 		for x in _COLS:
 			var cell := Button.new()
-			cell.custom_minimum_size = Vector2(_CELL, _CELL)
-			cell.focus_mode = Control.FOCUS_NONE
+			_flat(cell)
 			cell.pressed.connect(_on_cell.bind(x, y))
+			var mark := TextureRect.new()
+			mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			mark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			cell.add_child(mark)
 			_grid.add_child(cell)
 			_cells.append(cell)
-	_buy = Button.new()
-	_buy.position = Vector2(0, page.size.y - 40)
-	_buy.custom_minimum_size = Vector2(120, 36)
-	_buy.size = Vector2(120, 36)
-	_buy.pressed.connect(_on_buy)
-	page.add_child(_buy)
+	_layout_grid()
 	var trash := Button.new()
+	_flat(trash)
 	trash.text = "Trash"
-	trash.position = Vector2(130, page.size.y - 40)
-	trash.custom_minimum_size = Vector2(120, 36)
-	trash.size = Vector2(120, 36)
 	trash.pressed.connect(_on_trash)
 	page.add_child(trash)
-	_cost = _label(Vector2(284, page.size.y - 40), Vector2(360, 40), 18)
-	page.add_child(_cost)
-	for index in _catalog.size():
-		var button := Button.new()
-		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.pressed.connect(_select_catalog.bind(index))
-		_list.add_child(button)
+	_pin_box(trash, -0.36, -0.12, -0.78, -0.52)
 
 
-func _build_guests(panel_size: Vector2) -> void:
-	var page := _make_page("guests", panel_size)
+func _layout_grid() -> void:
+	if _grid == null or _cells.is_empty():
+		return
+	var cell := Vector2(_grid.size.x / float(_COLS), _grid.size.y / float(_ROWS))
+	if cell.x < 1.0 or cell.y < 1.0:
+		return
+	for y in _ROWS:
+		for x in _COLS:
+			var button := _cells[y * _COLS + x] as Button
+			button.position = Vector2(cell.x * float(x), cell.y * float(y))
+			button.size = cell
+
+
+func _build_guests() -> void:
+	var page := _make_page("guests")
+	_picture(page, "step_04__guestListBackground_flat")
 	var scroll := ScrollContainer.new()
-	scroll.size = Vector2(page.size.x, page.size.y - 90)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	page.add_child(scroll)
+	_pin_box(scroll, -0.55, 0.55, -0.72, -0.02)
 	_guest_list = VBoxContainer.new()
-	_guest_list.custom_minimum_size = Vector2(page.size.x - 20, 0)
+	_guest_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_guest_list)
 	for index in _friends.size():
 		var friend: Dictionary = _friends[index]
-		var box := CheckButton.new()
-		box.text = FriendsBook.shown_name(friend)
-		box.toggled.connect(_on_guest.bind(index))
-		_guest_list.add_child(box)
-	var all := Button.new()
-	all.text = "Check All"
-	all.position = Vector2(0, page.size.y - 80)
-	all.custom_minimum_size = Vector2(160, 34)
-	all.pressed.connect(_set_guests.bind(true))
-	page.add_child(all)
-	var none := Button.new()
-	none.text = "Uncheck All"
-	none.position = Vector2(170, page.size.y - 80)
-	none.custom_minimum_size = Vector2(160, 34)
-	none.pressed.connect(_set_guests.bind(false))
-	page.add_child(none)
-	var public_button := Button.new()
-	public_button.text = "Public"
-	public_button.position = Vector2(360, page.size.y - 80)
-	public_button.custom_minimum_size = Vector2(140, 34)
-	public_button.pressed.connect(_set_public.bind(true))
-	page.add_child(public_button)
-	var private_button := Button.new()
-	private_button.text = "Private"
-	private_button.position = Vector2(510, page.size.y - 80)
-	private_button.custom_minimum_size = Vector2(140, 34)
-	private_button.pressed.connect(_set_public.bind(false))
-	page.add_child(private_button)
-	_privacy = _label(Vector2(0, page.size.y - 40), Vector2(page.size.x, 36), 18)
-	page.add_child(_privacy)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var box := TextureButton.new()
+		box.custom_minimum_size = Vector2(22, 22)
+		box.ignore_texture_size = true
+		box.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		box.focus_mode = Control.FOCUS_NONE
+		box.pressed.connect(_toggle_guest.bind(index))
+		_GUI.button_sounds(box)
+		row.add_child(box)
+		var who := _caption(row, Color(0.1, 0.08, 0.22), HORIZONTAL_ALIGNMENT_LEFT)
+		who.text = FriendsBook.shown_name(friend)
+		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		who.custom_minimum_size = Vector2(0, 24)
+		_GUI.style_label(who, Color(0.1, 0.08, 0.22), 16, Color(0, 0, 0, 0), 0)
+		_guest_list.add_child(row)
+		_guest_buttons.append(box)
+	_paint_guests()
+	_art(page, "step_04__step_04_buttons__checkAll_button__checkAllButton", _set_guests.bind(true))
+	_art(page, "step_04__step_04_buttons__uncheckAll_button__uncheckAllButton", _set_guests.bind(false))
+	_public_button = _art(page, "step_04__step_04_buttons__public_button__publicButton", _set_public.bind(true))
+	_public_button.texture_disabled = _tex("step_04__step_04_buttons__public_button__publicButton_inactive")
+	_stamp(_public_button, "Public", Color.WHITE)
+	_private_button = _art(page, "step_04__step_04_buttons__private_button__privateButton", _set_public.bind(false))
+	_private_button.texture_disabled = _tex("step_04__step_04_buttons__private_button__privateButton_inactive")
+	_stamp(_private_button, "Private", Color.WHITE)
+	_privacy = _caption(page, Color(0.12, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_privacy.text = "This party will be:"
+	_pin_text(_privacy, "step_04_partyWillBe_locator", 0.9, 0.08)
 
 
-func _build_date(panel_size: Vector2) -> void:
-	var page := _make_page("date", panel_size)
-	var asap := Button.new()
-	asap.text = "As Soon As Possible"
-	asap.custom_minimum_size = Vector2(280, 36)
-	asap.pressed.connect(_on_asap)
-	page.add_child(asap)
+func _build_date() -> void:
+	var page := _make_page("date")
+	_picture(page, "step_02")
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 46)
-	scroll.size = Vector2(page.size.x, page.size.y - 46)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	page.add_child(scroll)
+	_pin_box(scroll, -0.72, 0.68, -0.7, 0.28)
 	_date_list = VBoxContainer.new()
-	_date_list.custom_minimum_size = Vector2(page.size.x - 20, 0)
+	_date_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_date_list)
 	var noon := _clock.duplicate()
 	noon["hour"] = 12
@@ -287,56 +505,123 @@ func _build_date(panel_size: Vector2) -> void:
 	for index in 28:
 		var dict := _unix_to_local(int(_day_origin + float(index) * 86400.0))
 		var button := Button.new()
+		_flat(button)
 		button.text = _format_date(dict)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.pressed.connect(_on_day.bind(index))
 		_date_list.add_child(button)
 		_date_buttons.append(button)
+	_asap_button = _art(page, "step_06__send_button__send", _on_asap)
+	_stamp(_asap_button, "As Soon As Possible", Color.WHITE)
 
 
-func _build_time(panel_size: Vector2) -> void:
-	var page := _make_page("time", panel_size)
-	_time_label = _label(Vector2(0, 0), Vector2(page.size.x, 80), 22)
-	page.add_child(_time_label)
-	_time_step(page, "Hour", Vector2(0, 100), 1)
-	_time_step(page, "Minute", Vector2(230, 100), 15)
-	var ampm := Button.new()
-	ampm.text = "AM / PM"
-	ampm.position = Vector2(460, 100)
-	ampm.custom_minimum_size = Vector2(160, 36)
-	ampm.pressed.connect(_shift_hour.bind(12))
-	page.add_child(ampm)
+func _build_time() -> void:
+	var page := _make_page("time")
+	_picture(page, "step_03__toontownTime_background")
+	var town := _caption(page, Color(0.85, 0.05, 0.05), HORIZONTAL_ALIGNMENT_CENTER)
+	town.text = "Toontown"
+	town.set_meta("edge", Color(1, 1, 1, 0.75))
+	_pin_text(town, "step_03_toontown_locator", 0.55, 0.1)
+	var time_word := _caption(page, Color(0.85, 0.05, 0.05), HORIZONTAL_ALIGNMENT_CENTER)
+	time_word.text = "Time"
+	time_word.set_meta("edge", Color(1, 1, 1, 0.75))
+	_pin_text(time_word, "step_03_time_locator", 0.4, 0.1)
+	var colon := _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	colon.text = ":"
+	_pin_text(colon, "step_03_colon_locator", 0.08, 0.1)
+	_hour_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_hour_label, "step_03_hour_locator", 0.16, 0.12)
+	_minute_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_minute_label, "step_03_minute_locator", 0.16, 0.12)
+	_ampm_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_ampm_label, "step_03_ampm_locator", 0.18, 0.1)
+	_art(page, "step_03__step_03_buttons__hour_buttons__hourButtonUp", _shift_clock.bind("Hour", 1))
+	_art(page, "step_03__step_03_buttons__hour_buttons__hourButtonDown", _shift_clock.bind("Hour", -1))
+	_art(page, "step_03__step_03_buttons__minute_buttons__minuteButtonUp", _shift_clock.bind("Minute", 15))
+	_art(page, "step_03__step_03_buttons__minute_buttons__minuteButtonDown", _shift_clock.bind("Minute", -15))
+	_art(page, "step_03__step_03_buttons__ampm_buttons__ampmButtonUp", _shift_hour.bind(12))
+	_art(page, "step_03__step_03_buttons__ampm_buttons__ampmButtonDown", _shift_hour.bind(-12))
+	_time_label = _caption(page, Color(0.1, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_time_label.set_meta("lines", 2)
+	_pin_text(_time_label, "step_03_toontownTime_locator", 1.15, 0.16)
 
 
-func _time_step(page: Control, caption: String, at: Vector2, amount: int) -> void:
-	var up := Button.new()
-	up.text = caption + " +"
-	up.position = at
-	up.custom_minimum_size = Vector2(160, 36)
-	up.pressed.connect(_shift_clock.bind(caption, amount))
-	page.add_child(up)
-	var down := Button.new()
-	down.text = caption + " -"
-	down.position = at + Vector2(0, 44)
-	down.custom_minimum_size = Vector2(160, 36)
-	down.pressed.connect(_shift_clock.bind(caption, -amount))
-	page.add_child(down)
+func _build_invite() -> void:
+	var page := _make_page("invite")
+	_picture(page, "step_06__invitationBackground")
+	_art(page, "step_06__topArrows_buttons__topPrevious_button__previousButton", _cycle_theme.bind(-1))
+	_art(page, "step_06__topArrows_buttons__topNext_button__nextButton", _cycle_theme.bind(1))
+	_theme_label = _caption(page, Color(0.12, 0.08, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_pin_text(_theme_label, "step_06_theme_locator", 0.8, 0.08)
+	_invite_label = _caption(page, Color(0.1, 0.08, 0.22), HORIZONTAL_ALIGNMENT_CENTER)
+	_invite_label.set_meta("lines", 6)
+	_pin_box(_invite_label, -0.62, 0.62, -0.55, 0.12)
+	var send := _art(page, "step_06__send_button__send", _on_next)
+	_send_label = _stamp(send, "Send Invites", Color.WHITE)
 
 
-func _build_invite(panel_size: Vector2) -> void:
-	var page := _make_page("invite", panel_size)
-	_invite_label = _label(Vector2(0, 0), Vector2(page.size.x, 180), 18)
-	page.add_child(_invite_label)
-	var row := 0
-	for theme in _THEMES:
-		var button := Button.new()
-		button.text = theme
-		button.position = Vector2(float(row % 4) * 180.0, 190.0 + float(row / 4) * 44.0)
-		button.custom_minimum_size = Vector2(170, 36)
-		button.pressed.connect(_set_theme.bind(theme))
-		page.add_child(button)
-		_theme_buttons.append(button)
-		row += 1
+func _build_farewell() -> void:
+	var page := _make_page("farewell")
+	_picture(page, "step_07__peteText_flat")
+	var close := _art(page, "step_07__close_button__close", _finish)
+	_stamp(close, "Close Planner", Color.WHITE)
+
+
+func _icon_tail(item: Dictionary) -> String:
+	var station := String(item.get("station", ""))
+	if station == "cog":
+		return "step_05__activity_squares__PartyCog_activity_5x5"
+	if station == "jukebox":
+		return "step_05__activity_squares__PartyJukebox_activity_1x1"
+	if station == "cannon":
+		return "step_05__activity_squares__PartyCannon_activity_1x1"
+	if station == "trampoline":
+		return "step_05__activity_squares__PartyTrampoline_activity_2x2"
+	if station == "catch":
+		return "step_05__activity_squares__PartyCatch_activity_5x5"
+	if station == "dance":
+		return "step_05__activity_squares__PartyDance_activity_3x3"
+	if station == "tug":
+		return "step_05__activity_squares__PartyTufOfWar_activity_4x4"
+	if station == "fireworks":
+		return "step_05__activity_squares__PartyFireworks_activity_2x4"
+	if station == "clock":
+		return "step_05__activity_squares__PartyClock_activity_1x1"
+	if String(item.get("kind", "")) == "d" and int(item.get("w", 1)) >= 2:
+		return "step_05__activity_squares__decoration_propStage_2x2"
+	return "step_05__activity_squares__decoration_1x1"
+
+
+func _square_for(item: Dictionary) -> Texture2D:
+	var tail := _icon_tail(item)
+	if not _squares.has(tail):
+		_squares[tail] = _tex(tail)
+	return _squares[tail] as Texture2D
+
+
+func _scroll_catalog(step: int) -> void:
+	_refresh_offered()
+	if _offered_indices.is_empty():
+		return
+	var slot := _list_scroll
+	if step != 0:
+		slot = clampi(_list_scroll + step, 0, _offered_indices.size() - 1)
+	_list_scroll = slot
+	_select_catalog(int(_offered_indices[_list_scroll]))
+
+
+func _refresh_offered() -> void:
+	_offered_indices.clear()
+	for index in _catalog.size():
+		if _offered(_catalog[index]):
+			_offered_indices.append(index)
+
+
+func _cycle_theme(step: int) -> void:
+	var index := _THEMES.find(_theme)
+	if index < 0:
+		index = 0
+	_set_theme(_THEMES[posmod(index + step, _THEMES.size())])
 
 
 func _show(page: String) -> void:
@@ -345,38 +630,48 @@ func _show(page: String) -> void:
 		(_pages[id] as Control).visible = id == page
 	_title.text = "Toontown Party Planner"
 	_back.visible = page != "welcome" and page != "farewell"
-	_next.visible = page != "farewell"
-	_next.text = "Continue"
+	_next.visible = page != "farewell" and page != "invite"
 	_next.disabled = false
+	_info.visible = true
 	if page == "welcome":
+		_move_info(-0.4, 0.64, -0.76, -0.46, 4)
 		_info.text = "Hosting your own party is a lot of fun!\nStart planning with the arrows at the bottom!"
 	elif page == "editor":
 		_title.text = "Design Your Party\nPlace Activities and Decorations"
+		_move_info(-1.02, 1.1, -1.25, -1.08, 2)
 		_info.text = _theme_note()
-		_paint_editor()
+		if _catalog_index < 0:
+			_scroll_catalog(0)
+		else:
+			_paint_editor()
 	elif page == "guests":
 		_title.text = "Choose Your Guests"
+		_move_info(-0.85, 0.85, 0.38, 0.5, 2)
 		_paint_privacy()
 	elif page == "date":
 		_title.text = "Pick A Day For Your Party"
+		_move_info(-0.7, 0.7, 0.4, 0.5, 2)
 		_info.text = "As Soon As Possible uses the next 5-minute mark."
 		_next.visible = _day_index >= 0
+		_asap_button.visible = _day_index < 0
 		_paint_days()
 	elif page == "time":
 		_title.text = "Pick A Time For Your Party"
-		_info.text = "Toontown Time"
+		_info.visible = false
 		_paint_time()
 	elif page == "invite":
 		_title.text = "Double Check Your Party" if _invitees().is_empty() else "Choose Invitations To Send"
-		_next.text = "Plan Party" if _invitees().is_empty() else "Send Invites"
-		_info.text = "Theme"
+		_info.visible = false
+		_send_label.text = "Plan Party" if _invitees().is_empty() else "Send Invites"
 		_paint_invite()
 	elif page == "farewell":
 		_title.text = "Congratulations!"
+		_move_info(-0.4, 0.64, -0.76, -0.46, 4)
 		if _invitees().is_empty():
 			_info.text = "Your party has been created!\nThanks!"
 		else:
 			_info.text = "Your party has been created and your invitations sent out.\nThanks!"
+	_fit(_title)
 
 
 func _on_back() -> void:
@@ -410,6 +705,8 @@ func _on_next() -> void:
 		_show("time")
 	elif _page == "time":
 		if _start_unix() <= Time.get_unix_time_from_system():
+			_info.visible = true
+			_move_info(-0.7, 0.7, -0.98, -0.82, 2)
 			_info.text = "Please choose a time in the future."
 			return
 		_show("invite")
@@ -432,6 +729,7 @@ func _on_day(index: int) -> void:
 	_asap = false
 	_paint_days()
 	_next.visible = true
+	_asap_button.visible = false
 
 
 func _shift_clock(caption: String, amount: int) -> void:
@@ -458,7 +756,16 @@ func _shift_hour(amount: int) -> void:
 
 func _paint_time() -> void:
 	var shown := _unix_to_local(int(_local_to_unix(_clock)))
+	var hour := int(shown["hour"])
+	var h12 := hour % 12
+	if h12 == 0:
+		h12 = 12
+	_hour_label.text = str(h12)
+	_minute_label.text = "%02d" % int(shown["minute"])
+	_ampm_label.text = "am" if hour < 12 else "pm"
 	_time_label.text = "%s\n%s" % [_format_date(shown), _format_time(shown)]
+	if _page == "time":
+		_info.visible = false
 
 
 func _paint_days() -> void:
@@ -467,16 +774,24 @@ func _paint_days() -> void:
 		button.modulate = Color(1, 1, 0.55) if index == _day_index else Color.WHITE
 
 
-func _on_guest(on: bool, index: int) -> void:
-	_invited[index] = on
+func _toggle_guest(index: int) -> void:
+	_invited[index] = not bool(_invited[index])
+	_paint_guests()
+
+
+func _paint_guests() -> void:
+	var on_tex := _tex("step_04__step_04_buttons__inviteButtonChecked")
+	var off_tex := _tex("step_04__step_04_buttons__inviteButtonUnchecked")
+	for index in _guest_buttons.size():
+		var button := _guest_buttons[index] as TextureButton
+		var marked: bool = bool(_invited[index])
+		button.texture_normal = on_tex if marked else off_tex
 
 
 func _set_guests(on: bool) -> void:
 	for index in _invited.size():
 		_invited[index] = on
-		var box := _guest_list.get_child(index) as CheckButton
-		if box != null:
-			box.set_pressed_no_signal(on)
+	_paint_guests()
 
 
 func _set_public(on: bool) -> void:
@@ -485,12 +800,13 @@ func _set_public(on: bool) -> void:
 
 
 func _paint_privacy() -> void:
-	if _public:
-		_info.text = "This party will be:\nAny Toon can come!"
-		_privacy.text = "Public"
-	else:
-		_info.text = "This party will be:\nOnly Invited Toons can come!"
-		_privacy.text = "Private"
+	if _public_button != null:
+		_public_button.disabled = _public
+	if _private_button != null:
+		_private_button.disabled = not _public
+	if _info == null:
+		return
+	_info.text = "Any Toon can come!" if _public else "Only Invited Toons can come!"
 
 
 func _set_theme(theme: String) -> void:
@@ -501,7 +817,10 @@ func _set_theme(theme: String) -> void:
 	_paint_invite()
 	if _page == "editor":
 		_info.text = _theme_note()
-		_paint_editor()
+		if _catalog_index < 0:
+			_scroll_catalog(0)
+		else:
+			_paint_editor()
 
 
 func _paint_invite() -> void:
@@ -519,9 +838,10 @@ func _paint_invite() -> void:
 		decor,
 		_total(),
 	]
-	for index in _theme_buttons.size():
-		var button := _theme_buttons[index] as Button
-		button.modulate = Color(1, 1, 0.55) if button.text == _theme else Color.WHITE
+	var slot := _THEMES.find(_theme)
+	if slot < 0:
+		slot = 0
+	_theme_label.text = "%s (%d/%d)" % [_theme, slot + 1, _THEMES.size()]
 
 
 func _send() -> void:
@@ -530,6 +850,8 @@ func _send() -> void:
 	var message := String(result)
 	if message != "":
 		_title.text = "Oops."
+		_info.visible = true
+		_move_info(-0.62, 0.62, -0.15, 0.12, 3)
 		_info.text = message
 		return
 	_show("farewell")
@@ -547,59 +869,65 @@ func _paint_editor() -> void:
 	_paint_list()
 	_paint_buy()
 	_cost.text = "Total Cost: %d beans" % _total()
-	for index in _theme_buttons.size():
-		var theme_button := _theme_buttons[index] as Button
-		theme_button.modulate = Color(1, 1, 0.55) if theme_button.text == _theme else Color.WHITE
+	_beans_label.text = str(maxi(_beans() - _total(), 0))
 
 
 func _paint_grid() -> void:
 	for y in _ROWS:
 		for x in _COLS:
 			var button := _cells[y * _COLS + x] as Button
+			var mark := button.get_child(0) as TextureRect
 			var owner := _owner_at(x, y, -1)
 			if not _open_cell(x, y):
 				button.disabled = true
-				button.modulate = Color(0.32, 0.2, 0.4)
+				button.modulate = Color(1, 1, 1, 0)
+				mark.visible = false
 				continue
 			button.disabled = false
 			if owner < 0:
-				button.modulate = Color(0.62, 0.8, 0.95)
-			elif owner == _selected:
-				button.modulate = Color(1, 1, 0.45)
-			elif String(_items[owner].get("kind", "")) == "d":
-				button.modulate = Color(0.9, 0.45, 0.75)
-			elif int(_items[owner].get("id", -1)) == 7:
-				button.modulate = Color(0.95, 0.84, 0.25)
-			else:
-				button.modulate = Color(0.28, 0.74, 0.4)
+				button.modulate = Color(1, 1, 1, 0)
+				mark.visible = false
+				continue
+			mark.visible = true
+			mark.texture = _square_for(_items[owner])
+			button.modulate = Color(1, 1, 0.55) if owner == _selected else Color.WHITE
 
 
 func _paint_list() -> void:
-	for index in _catalog.size():
-		var entry: Dictionary = _catalog[index]
-		var button := _list.get_child(index) as Button
-		if button == null:
-			continue
-		button.visible = _offered(entry)
-		var caption := "%d  %s" % [int(entry["cost"]), String(entry["editor"])]
-		if _count(entry) >= int(entry["limit"]):
-			caption += "  SOLD OUT"
-		button.text = caption
-		button.modulate = Color(1, 1, 0.55) if index == _catalog_index else Color.WHITE
+	_refresh_offered()
+	var found := _offered_indices.find(_catalog_index)
+	if found >= 0:
+		_list_scroll = found
+	if _catalog_index < 0 or _catalog_index >= _catalog.size():
+		_name_label.text = ""
+		_desc_label.text = ""
+		_price_label.text = ""
+		_icon.texture = null
+		return
+	var entry: Dictionary = _catalog[_catalog_index]
+	var caption := String(entry["editor"])
+	if _count(entry) >= int(entry["limit"]):
+		caption += "\nSOLD OUT"
+	_name_label.text = caption
+	_desc_label.text = String(entry["desc"])
+	_price_label.text = "%d beans" % int(entry["cost"])
+	_icon.texture = _square_for(entry)
 
 
 func _paint_buy() -> void:
 	_buy.disabled = true
-	_buy.text = "BUY"
+	_buy.modulate = Color(0.55, 0.55, 0.55)
+	_buy_label.text = "BUY"
 	if _catalog_index < 0:
 		return
 	var entry: Dictionary = _catalog[_catalog_index]
 	if _count(entry) >= int(entry["limit"]):
-		_buy.text = "SOLD OUT"
+		_buy_label.text = "SOLD OUT"
 		return
 	if _total() + int(entry["cost"]) > _beans():
 		return
 	_buy.disabled = false
+	_buy.modulate = Color.WHITE
 
 
 func _select_catalog(index: int) -> void:
@@ -607,7 +935,7 @@ func _select_catalog(index: int) -> void:
 	_moving = false
 	_ground_ok = false
 	var entry: Dictionary = _catalog[index]
-	_info.text = "%s\n%d beans\nClick Buy or click the Party Grounds Map." % [String(entry["desc"]), int(entry["cost"])]
+	_info.text = "Click Buy or click the Party Grounds Map."
 	_paint_editor()
 
 

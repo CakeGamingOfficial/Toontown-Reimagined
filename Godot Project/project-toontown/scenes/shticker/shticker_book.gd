@@ -115,6 +115,9 @@ const _TAB_TASKS := preload("res://assets/gui/tutorial/book/tab_tasks.png")
 const _TAB_FILM := preload("res://assets/gui/shticker/filmstrip.png")
 const _TAB_GEAR := preload("res://assets/gui/shticker/gallery/tab_gear.png")
 const _TAB_FISH := preload("res://assets/gui/shticker/fishing/tab_fish.png")
+const _TAB_KART := preload("res://assets/gui/shticker/tab_kart.png")
+const _TAB_GARDEN := preload("res://assets/gui/shticker/tab_garden.png")
+const _TAB_EVENTS := preload("res://assets/gui/shticker/tab_events.png")
 const _TAB_DISGUISE := preload("res://assets/gui/shticker/disguise/tab_icon.png")
 const _FISH_PAGE := preload("res://scenes/shticker/fish_page.gd")
 const _KART_PAGE := preload("res://scenes/shticker/kart_page.gd")
@@ -460,13 +463,7 @@ func _build_book() -> void:
 	_developer.name = "DeveloperPage"
 	_cover.add_child(_developer)
 	_pages.append(_developer)
-	var kart_icon := load("res://assets/racing/maps/kart_icon.png") as Texture2D
-	if kart_icon == null:
-		kart_icon = _TAB_FISH
-	var flower := load("res://assets/neighborhoods/daisy_gardens/props/flower_treasure_0.png") as Texture2D
-	if flower == null:
-		flower = _TAB_FISH
-	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, kart_icon, _GOLF_TAB, _TAB_DISGUISE, flower, _EVENTS_PAGE.tab_icon(), _TAB_OPTIONS]
+	var icons: Array[Texture2D] = [_TAB_OPTIONS, _TAB_DISTRICT, _TAB_MAP, _TAB_GAGS, _TAB_TASKS, _TAB_FILM, _TAB_GEAR, _TAB_FISH, _TAB_KART, _GOLF_TAB, _TAB_DISGUISE, _TAB_GARDEN, _TAB_EVENTS, _TAB_OPTIONS]
 	for index in _PAGE_NAMES.size():
 		var tab := Button.new()
 		tab.focus_mode = Control.FOCUS_NONE
@@ -717,6 +714,7 @@ func _pill(text: String) -> TextureButton:
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
 	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.pill_art(button)
 	var caption := Label.new()
 	caption.text = text
 	caption.name = "Caption"
@@ -1190,6 +1188,7 @@ func _fill_tasks() -> void:
 	if cards.is_empty():
 		var blank := QuestPoster.new()
 		sheet.add_child(blank)
+		blank.for_journal()
 		blank.show_task({})
 	else:
 		for index in cards.size():
@@ -1198,6 +1197,7 @@ func _fill_tasks() -> void:
 			task["task_number"] = index + 1
 			var poster := QuestPoster.new()
 			sheet.add_child(poster)
+			poster.for_journal()
 			poster.show_task(task)
 			poster.allow_track()
 			poster.track_pressed.connect(_pick_task)
@@ -1675,8 +1675,11 @@ func _map_span(aspect_w: float, aspect_h: float, page_size: Vector2) -> Vector2:
 func _place_pill(button: TextureButton, at: Vector2, box: Vector2, body_px: int) -> void:
 	button.position = at
 	button.size = box
+	ToonGui.pill_fit(button)
 	var caption := button.get_child(0) as Label
-	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), maxi(body_px - 1, 12), Color(0, 0, 0, 0), 0)
+	var fit := maxi(int(box.y / 1.45), 8)
+	var px := mini(maxi(body_px - 1, 8), fit)
+	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), px, Color(0, 0, 0, 0), 0)
 
 
 func _restore_peek() -> void:

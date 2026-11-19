@@ -244,7 +244,8 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 	for index in _tabs.size():
 		var tab_at := Vector2(tab_gap + float(index) * (tab_w + tab_gap), tab_y)
 		_place_pill(_tabs[index], tab_at, Vector2(tab_w, tab_h), maxi(int(tab_h * 0.38), 11))
-		_tabs[index].modulate = Color(1.0, 0.86, 0.35) if index == _tab else Color.WHITE
+		_tabs[index].modulate = Color.WHITE
+		ToonGui.pill_mark(_tabs[index], index == _tab)
 		_tabs[index].mouse_filter = MOUSE_FILTER_IGNORE if _locked else MOUSE_FILTER_STOP
 	var action_h := page_size.y * 0.09
 	var action_pad := maxf(page_size.y * 0.012, 6.0)
@@ -256,7 +257,8 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 	var menu_x := (page_size.x - menu_w * 2.0 - menu_gap) * 0.5
 	for index in _control_tabs.size():
 		_place_pill(_control_tabs[index], Vector2(menu_x + float(index) * (menu_w + menu_gap), top), Vector2(menu_w, menu_h), maxi(int(menu_h * 0.42), 11))
-		_control_tabs[index].modulate = Color(1.0, 0.86, 0.35) if index == _control_menu else Color.WHITE
+		_control_tabs[index].modulate = Color.WHITE
+		ToonGui.pill_mark(_control_tabs[index], index == _control_menu)
 		_control_tabs[index].mouse_filter = MOUSE_FILTER_IGNORE if _locked or _tab != 1 else MOUSE_FILTER_STOP
 	if _tab == 1:
 		top += menu_h + page_size.y * 0.012
@@ -272,7 +274,7 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		button.position = Vector2(page_size.x * 0.52, y + row_h * 0.12)
 		button.size = Vector2(page_size.x * 0.28, row_h * 0.76)
 		var key_name := button.get_child(0) as Label
-		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), body_px, Color(0, 0, 0, 0), 0)
+		ToonGui.style_label(key_name, Color(0.1, 0.1, 0.12), _pill_px(row_h * 0.76, body_px), Color(0, 0, 0, 0), 0)
 	var restore_h := minf(36.0, room * 0.1)
 	var pad_room := maxf(room - restore_h - page_size.y * 0.008, 1.0)
 	var pad_h := minf(pad_room / float(maxi(_pad_buttons.size(), 1)), 36.0)
@@ -288,7 +290,7 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		pad_button.size = Vector2(page_size.x * 0.34, pad_h * 0.76)
 		var pad_name := pad_button.get_child(0) as Label
 		pad_name.clip_text = true
-		ToonGui.style_label(pad_name, Color(0.1, 0.1, 0.12), pad_px, Color(0, 0, 0, 0), 0)
+		ToonGui.style_label(pad_name, Color(0.1, 0.1, 0.12), _pill_px(pad_h * 0.76, pad_px), Color(0, 0, 0, 0), 0)
 	if _pad_restore != null:
 		var restore_y := top + float(_pad_buttons.size()) * pad_h
 		var restore_box := Vector2(page_size.x * 0.34, maxf(restore_h * 0.86, 22.0))
@@ -312,7 +314,7 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		_device_caption.position = Vector2(0, device_y)
 		_device_caption.size = Vector2(page_size.x * 0.38, audio_h)
 		ToonGui.style_label(_device_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		_place_pill(_device_button, Vector2(page_size.x * 0.42, device_y + audio_h * 0.22), Vector2(page_size.x * 0.54, audio_h * 0.56), body_px)
+		_place_pill(_device_button, Vector2(page_size.x * 0.42, device_y + audio_h * 0.12), Vector2(page_size.x * 0.54, audio_h * 0.76), body_px)
 		audio_at = 1
 	for index in _audio_sliders.size():
 		var y := top + float(index + audio_at) * audio_h
@@ -323,13 +325,13 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		var slider_x := page_size.x * 0.32
 		var toggle := _toggle_for(_audio_kinds[index])
 		if toggle != null:
-			_place_pill(toggle, Vector2(page_size.x * 0.32, y + audio_h * 0.22), Vector2(page_size.x * 0.13, audio_h * 0.56), body_px)
+			_place_pill(toggle, Vector2(page_size.x * 0.32, y + audio_h * 0.12), Vector2(page_size.x * 0.13, audio_h * 0.76), body_px)
 			slider_x = page_size.x * 0.47
 		var field_w := page_size.x * 0.12
 		var field := _audio_fields[index]
-		field.position = Vector2(page_size.x * 0.84, y + audio_h * 0.2)
-		field.size = Vector2(field_w, audio_h * 0.6)
-		field.add_theme_font_size_override("font_size", body_px)
+		field.position = Vector2(page_size.x * 0.84, y + audio_h * 0.12)
+		field.size = Vector2(field_w, audio_h * 0.76)
+		field.add_theme_font_size_override("font_size", _pill_px(audio_h * 0.76, body_px))
 		var slider := _audio_sliders[index]
 		slider.position = Vector2(slider_x, y + audio_h * 0.32)
 		slider.size = Vector2(page_size.x * 0.82 - slider_x, audio_h * 0.36)
@@ -340,7 +342,7 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		caption.position = Vector2(0, y)
 		caption.size = Vector2(page_size.x * 0.38, gfx_h)
 		ToonGui.style_label(caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		_place_pill(_gfx_buttons[index], Vector2(page_size.x * 0.42, y + gfx_h * 0.22), Vector2(page_size.x * 0.54, gfx_h * 0.56), body_px)
+		_place_pill(_gfx_buttons[index], Vector2(page_size.x * 0.42, y + gfx_h * 0.12), Vector2(page_size.x * 0.54, gfx_h * 0.76), body_px)
 	var chat_colors := 0
 	for page in _color_page:
 		if page == "chat":
@@ -376,7 +378,7 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		chat_caption.position = Vector2(0, chat_y)
 		chat_caption.size = Vector2(page_size.x * 0.62, chat_h)
 		ToonGui.style_label(chat_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		_place_pill(_chat_toggles[index], Vector2(page_size.x * 0.66, chat_y + chat_h * 0.12), Vector2(page_size.x * 0.28, chat_h * 0.76), body_px)
+		_place_pill(_chat_toggles[index], Vector2(page_size.x * 0.66, chat_y + chat_h * 0.12), Vector2(page_size.x * 0.28, chat_h * 0.76), _pill_px(chat_h * 0.76, body_px))
 	var ui_colors := 0
 	for page in _color_page:
 		if page == "ui":
@@ -392,14 +394,14 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		_ui_caption.position = Vector2(0, top)
 		_ui_caption.size = Vector2(page_size.x * 0.62, ui_h)
 		ToonGui.style_label(_ui_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		_place_pill(_ui_toggle, Vector2(page_size.x * 0.66, top + ui_h * 0.22), Vector2(page_size.x * 0.28, ui_h * 0.56), body_px)
+		_place_pill(_ui_toggle, Vector2(page_size.x * 0.66, top + ui_h * 0.12), Vector2(page_size.x * 0.28, ui_h * 0.76), body_px)
 		ui_at = 1
 	if _discord_caption != null:
 		var discord_y := top + float(ui_at) * ui_h
 		_discord_caption.position = Vector2(0, discord_y)
 		_discord_caption.size = Vector2(page_size.x * 0.62, ui_h)
 		ToonGui.style_label(_discord_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
-		_place_pill(_discord_toggle, Vector2(page_size.x * 0.66, discord_y + ui_h * 0.22), Vector2(page_size.x * 0.28, ui_h * 0.56), body_px)
+		_place_pill(_discord_toggle, Vector2(page_size.x * 0.66, discord_y + ui_h * 0.12), Vector2(page_size.x * 0.28, ui_h * 0.76), body_px)
 		ui_at += 1
 	for index in _color_captions.size():
 		if _color_page[index] != "ui":
@@ -1387,6 +1389,7 @@ func _pill(text: String) -> TextureButton:
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_SCALE
 	button.focus_mode = Control.FOCUS_NONE
+	ToonGui.pill_art(button)
 	var caption := Label.new()
 	caption.text = text
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1400,8 +1403,15 @@ func _pill(text: String) -> TextureButton:
 func _place_pill(button: TextureButton, at: Vector2, box: Vector2, body_px: int) -> void:
 	button.position = at
 	button.size = box
+	ToonGui.pill_fit(button)
 	var caption := button.get_child(0) as Label
-	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), maxi(body_px - 1, 12), Color(0, 0, 0, 0), 0)
+	ToonGui.style_label(caption, Color(0.12, 0.12, 0.14), _pill_px(box.y, body_px), Color(0, 0, 0, 0), 0)
+
+
+## ImpressBT's line is about 1.24 times the font size. Keep that line inside the yellow pill.
+func _pill_px(box_h: float, requested: int) -> int:
+	var fit := maxi(int(box_h / 1.45), 8)
+	return mini(maxi(requested, 8), fit)
 
 
 func _style_slider(slider: HSlider) -> void:

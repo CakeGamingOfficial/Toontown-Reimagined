@@ -2063,8 +2063,8 @@ func _try_clerk() -> void:
 func _bring_doodle() -> void:
 	if _body == null or not _KENNEL.has_pet():
 		return
-	var path := _scene_path()
-	if not path.contains("/playgrounds/") and not path.contains("/streets/") and not _PLACES.is_estate(path):
+	# The pet lives on the estate. A battle calls it in for one trick.
+	if not _PLACES.is_estate(_scene_path()):
 		return
 	var record := _KENNEL.current()
 	var pet = _DOODLE.new()

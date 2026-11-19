@@ -464,7 +464,9 @@ static func _leave_alone(node_name: String) -> bool:
 	var lowered := node_name.to_lower()
 	if _landmark(lowered):
 		return true
-	if lowered.contains("__billboard") or lowered.contains("drop_shadow") or lowered.contains("sky"):
+	# A prop shadow is a soft card. Folding it into the shop and then laying the
+	# takeover tint on that mesh draws the whole card solid, a black box on every prop.
+	if lowered.contains("__billboard") or lowered.contains("shadow") or lowered.contains("sky"):
 		return true
 	# The painted door and its frame sit on the wall mesh. Folding them into
 	# that mesh and then hiding the wall node removes the door and leaves a hole.

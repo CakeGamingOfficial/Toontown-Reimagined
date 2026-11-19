@@ -38,10 +38,16 @@ static func ensure_exterior(host: Node, slot: int) -> void:
 		root.free()
 		return
 	var kept := door.transform
-	door.reparent(origin)
+	# The glb is not in the tree yet. reparent() reads a global transform and logs an error.
+	door.owner = null
+	var parent := door.get_parent()
+	if parent != null:
+		parent.remove_child(door)
+	origin.add_child(door)
 	door.transform = kept
 	door.name = "door_0"
-	root.free()
+	if root != door:
+		root.free()
 	_collide(door)
 
 

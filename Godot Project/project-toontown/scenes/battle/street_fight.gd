@@ -1543,6 +1543,11 @@ func _walk_toons(fight: Dictionary, toon: Node, delta: float) -> void:
 		var slot := _vec(row.get("slot", []))
 		var key := "t:%d" % peer
 		var current := _toon_here(toon, peer, slot)
+		# A building face-off starts in the open elevator. The run begins after the taunt.
+		if int(fight.get("building", 0)) != 0 and _face_elapsed <= taunt_for:
+			var seated := _elevator_seat(int(row.get("seat", 0)))
+			if seated.length_squared() > 1.0:
+				_face_from[key] = seated
 		if not _face_from.has(key):
 			_face_from[key] = _join_from(current, slot, along)
 		var start: Vector3 = _face_from[key]
@@ -1570,6 +1575,17 @@ func _toon_here(toon: Node, peer: int, fallback: Vector3) -> Vector3:
 	if actor == null:
 		return fallback
 	return actor.global_position
+
+
+## ElevatorPoints for this rider. The building car is the open elevator they run from.
+func _elevator_seat(index: int) -> Vector3:
+	var building := get_parent().get_node_or_null("CogBuilding")
+	if building == null or not building.has_method("arrival_seat"):
+		return Vector3.ZERO
+	var spot: Variant = building.call("arrival_seat", index)
+	if spot is Vector3:
+		return spot
+	return Vector3.ZERO
 
 
 func _join_from(current: Vector3, slot: Vector3, along: float) -> Vector3:
@@ -2304,6 +2320,18 @@ func _aim_camera(fight: Dictionary) -> void:
 			fov = 80.0
 			pos = origin - forward * 10.0 + Vector3.UP * 4.0
 			look = cog_pos
+			# camPos (0, -6, 4) parented to the toon, then the default fov.
+			# The shot rides behind them as they run out of the elevator.
+			if int(fight.get("building", 0)) != 0:
+				var runner := _actor_for(ToonNet.peer_id())
+				if runner != null:
+					var ahead := runner.global_transform.basis.y
+					ahead.y = 0.0
+					if ahead.length_squared() > 0.0001:
+						ahead = ahead.normalized()
+						pos = runner.global_position - ahead * 6.0 + Vector3.UP * 4.0
+						look = runner.global_position + ahead * 4.0 + Vector3.UP * 4.0
+						fov = 52.0
 	elif state == "input":
 		fov = 65.0
 	camera.fov = fov
