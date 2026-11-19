@@ -27,11 +27,14 @@ const _GAMES: Array[Dictionary] = [
 	{"id": 3, "script": "res://scenes/trolley/game_tag.gd", "music": "res://assets/audio/bgm/MG_toontag.ogg", "loop": true, "volume": 0.85},
 	{"id": 4, "script": "res://scenes/trolley/game_pattern.gd", "music": "res://assets/audio/bgm/m_match_bg1.ogg", "loop": true, "volume": 0.85},
 	{"id": 13, "script": "res://scenes/trolley/game_ice.gd", "music": "res://assets/audio/bgm/MG_IceGame.ogg", "loop": true, "volume": 0.85},
+	{"id": 100, "script": "res://scenes/trolley/game_tracks.gd", "music": "res://assets/audio/bgm/MG_Travel.ogg", "loop": true, "volume": 0.8},
 ]
 
 static var hood := 2000
 static var return_scene := ""
 static var previous_id := 0
+## The tunnel Trolley Tracks just reached. Play Again starts that game once.
+static var follow_id := 0
 static var players := 1
 static var seat := 0
 ## Playground file the seats belong to. Released once this ride has the party.
@@ -411,7 +414,11 @@ func _drop_rules() -> void:
 
 func _reward(raw: int) -> void:
 	# getScoreMult, then the jellybean holiday. They stack. The cap is 255.
-	var paid := clampi(int(round(float(raw) * _multiplier() * float(_HOLIDAYS.bean_scale("trolley")))), 0, 255)
+	# Trolley Tracks reports hasScoreMult 0, so its beans skip the safezone scale.
+	var zone := 1.0
+	if _game == null or not bool(_game.get("flat_score")):
+		zone = _multiplier()
+	var paid := clampi(int(round(float(raw) * zone * float(_HOLIDAYS.bean_scale("trolley")))), 0, 255)
 	ToonNet.finish_trolley(paid)
 	_TASKS.for_selected().note_trolley()
 	_quiet(self)
@@ -429,19 +436,53 @@ func _after_shop(reason: String) -> void:
 	if _shop != null:
 		_shop.queue_free()
 		_shop = null
-	if reason == "again":
-		if _game != null:
-			if _game.finished.is_connected(_reward):
-				_game.finished.disconnect(_reward)
-			_game.queue_free()
-			_game = null
-		_choice = _pick()
-		previous_id = int(_choice["id"])
-		_show_rules()
-		if _rules_open():
-			_play_song(false)
+	if reason != "again":
+		follow_id = 0
+		_home()
 		return
-	_home()
+	var leaving := _game
+	_game = null
+	if leaving != null and is_instance_valid(leaving):
+		if leaving.finished.is_connected(_reward):
+			leaving.finished.disconnect(_reward)
+		# Build the next round after this game has left the tree. Freeing the
+		# tracks board in the same call as the new game's camera crashed.
+		leaving.tree_exited.connect(func() -> void:
+			call_deferred("_start_again")
+		, CONNECT_ONE_SHOT)
+		leaving.queue_free()
+		return
+	call_deferred("_start_again")
+
+
+func _start_again() -> void:
+	if not is_inside_tree():
+		return
+	_seal_round()
+	if follow_id != 0:
+		ToonNet.reserve_trolley(follow_id)
+		follow_id = 0
+	_choice = _pick()
+	if _choice.is_empty():
+		# A client asked the district. The publish arrives on the trolley channel.
+		_dealt = false
+		return
+	previous_id = int(_choice["id"])
+	_show_rules()
+	if _rules_open():
+		_play_song(false)
+
+
+## Play Again has to deal a new game. A round left open answered with the one that just ended.
+func _seal_round() -> void:
+	if not ToonNet.is_authority():
+		return
+	var channel := "trolley:%d" % ToonNet.district_id()
+	var have := ToonNet.latest(channel)
+	if have.is_empty() or not bool(have.get("open", false)):
+		return
+	have["open"] = false
+	ToonNet.publish(channel, have)
 
 
 func _quiet(node: Node) -> void:

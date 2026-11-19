@@ -253,6 +253,9 @@ const _TROLLEY: Dictionary = {
 	"2d": 15,
 	"twod": 15,
 	"escape": 15,
+	"tracks": 100,
+	"trolleytracks": 100,
+	"travel": 100,
 }
 
 const _TROLLEY_NAMES: Dictionary = {
@@ -271,6 +274,7 @@ const _TROLLEY_NAMES: Dictionary = {
 	13: "Ice Slide",
 	14: "Cog Thief",
 	15: "Toon Escape",
+	100: "Trolley Tracks",
 }
 
 const _ZONES: Dictionary = {

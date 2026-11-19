@@ -26,8 +26,9 @@ const WELCOME_VALLEY := 0
 const LOW_POP := 399
 const MID_POP := 599
 const _PORT := 4343
-const _TROLLEY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+const _TROLLEY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 100]
 ## MinigamePlayerMatrix. One toon never draws Race, Tag, Match Minnie, or Ice.
+## Trolley Tracks is 100. The original never deals it from the random list.
 const _TROLLEY_ONE: Array[int] = [2, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
 const _TROLLEY_TWO: Array[int] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 const _TROLLEY_MANY: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
@@ -630,7 +631,9 @@ static func claim_maze_treasure(index: int) -> void:
 static func finish_trolley(score: int) -> void:
 	var net := live()
 	if net != null:
-		net._finish_trolley(score, _BEANS.pouch(), _BEANS.pouch_limit())
+		# The party list is peer_id(). Offline _self_peer() is 0, so a score
+		# filed under that id never matched and the round stayed open.
+		net._finish_trolley(score, _BEANS.pouch(), _BEANS.pouch_limit(), -1, peer_id())
 
 
 static func request_suits(district: int, slug: String) -> void:
@@ -3114,7 +3117,7 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 	var stamp := int(latest("trolley:%d" % district).get("stamp", 0))
 	var state := latest(_mg_channel(district)).duplicate(true)
 	if int(state.get("round", -1)) != stamp:
-		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": []}
+		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": [], "tracks": {}}
 	if kind == "it":
 		var current := int(state.get("it", -1))
 		if current < 0 or current == peer:
@@ -3144,6 +3147,68 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 			state["deal"] = deal
 			state["turn"] = int(state.get("turn", 0)) + 1
 			state["picks"] = {}
+	elif kind == "track" or kind == "trackend":
+		# Trolley Tracks. A vote is the round times 16, plus the votes times 2, plus the direction.
+		var book: Dictionary = {}
+		var raw_book: Variant = state.get("tracks", {})
+		if raw_book is Dictionary:
+			book = (raw_book as Dictionary).duplicate(true)
+		var choices: Dictionary = {}
+		var raw_choices: Variant = book.get("choices", {})
+		if raw_choices is Dictionary:
+			choices = (raw_choices as Dictionary).duplicate()
+		var vote_round := value
+		if kind == "track":
+			vote_round = int(value / 16)
+			choices["%d:%d" % [vote_round, peer]] = value % 16
+		book["choices"] = choices
+		var party: Array[int] = []
+		var listed: Variant = latest("trolley:%d" % district).get("party", [])
+		if listed is Array:
+			for id in listed as Array:
+				var member := int(id)
+				if member > 0 and not party.has(member):
+					party.append(member)
+		if party.is_empty():
+			party.append(peer)
+		var ready := kind == "trackend"
+		if not ready:
+			ready = true
+			for member in party:
+				if not choices.has("%d:%d" % [vote_round, member]):
+					ready = false
+					break
+		if ready and int(book.get("vote", -1)) != vote_round:
+			var up := 0
+			var down := 0
+			var peers: Array[int] = []
+			var counts: Array[int] = []
+			var dirs: Array[int] = []
+			for member in party:
+				var packed := int(choices.get("%d:%d" % [vote_round, member], 0))
+				var spent := int(packed / 2)
+				var way := packed % 2
+				if way == 0:
+					up += spent
+				else:
+					down += spent
+				peers.append(member)
+				counts.append(spent)
+				dirs.append(way)
+			var go := 0
+			var reason := 0
+			if down > up:
+				go = 1
+			elif up == down:
+				go = 0 if (vote_round + stamp) % 2 == 0 else 1
+				reason = 2
+			book["vote"] = vote_round
+			book["dir"] = go
+			book["reason"] = reason
+			book["peers"] = peers
+			book["counts"] = counts
+			book["dirs"] = dirs
+		state["tracks"] = book
 	publish(_mg_channel(district), state)
 
 
