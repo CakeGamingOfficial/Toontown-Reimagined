@@ -225,7 +225,7 @@ func inject_suit(district: int, slug: String, cog: Dictionary, slot: int) -> voi
 
 ## A client asked for a street this process is not standing on. Plan it as data
 ## until a scene claims the record and draws it.
-func ensure(district: int, slug: String) -> void:
+func ensure(district: int, slug: String, peer := 0) -> void:
 	if not ToonNet.is_authority():
 		return
 	if slug == "sellbot_factory" or slug.begins_with("sellbot_factory:"):
@@ -238,12 +238,12 @@ func ensure(district: int, slug: String) -> void:
 	if slug == "lawbot_office":
 		var office := get_node_or_null("OfficeBoard")
 		if office != null and office.has_method("ensure"):
-			office.call("ensure", district)
+			office.call("ensure", district, peer)
 		return
 	if slug == "bossbot_course":
 		var course := get_node_or_null("CourseBoard")
 		if course != null and course.has_method("ensure"):
-			course.call("ensure", district)
+			course.call("ensure", district, peer)
 		return
 	remember_state()
 	var key := _key(district, slug)

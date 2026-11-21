@@ -17,6 +17,7 @@ const PLACE_VOLUME := 0.8
 const _LOSE := "res://assets/audio/battle/ENC_Lose.ogg"
 const _WIN := "res://assets/audio/sfx/ENC_Win.mp3"
 const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
+const _CAMERA := preload("res://scenes/battle/battle_camera.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
 const _TITLES := preload("res://scenes/places/zone_title.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
@@ -36,6 +37,7 @@ var _fight: Dictionary = {}
 var _asking := false
 var _ask_seq := -1
 var _pending := Vector2i(-1, -1)
+var _draft_target := -999
 var _need_target := false
 var _sos_toons := false
 var _sent_seq := -1
@@ -65,7 +67,7 @@ var _line_left := 0.0
 var _line_age := 0.0
 var _ask_wait := 0.0
 var _saved_fov := -1.0
-var _reward_seq := -1
+var _reward_key := ""
 var _reward_token := 0
 var _paid_key := ""
 var _factory_key := ""
@@ -114,7 +116,8 @@ func _ready() -> void:
 	_hud.backed.connect(_on_back)
 	root.add_child(_hud)
 	_reward = RewardPanel.new()
-	_reward.z_index = 20
+	# Above the gag menu. choose() lifts that menu to 60, which was covering this card.
+	_reward.z_index = 80
 	root.add_child(_reward)
 	_reward.mouse_filter = Control.MOUSE_FILTER_STOP
 	_gags = load("res://scenes/battle/gag_movie.gd").new()
@@ -158,18 +161,22 @@ func _process(delta: float) -> void:
 		_watch(rows, delta)
 		return
 	_fight = fight
-	_aim_camera(fight)
 	var battle_state := String(fight.get("state", ""))
-	# A cog-building floor uses the indoor battle themes. The outdoor
-	# encounter song, and putting the street song back, belong on the street.
-	if int(fight.get("building", 0)) == 0:
-		_start_music()
+	# Show the reward before the camera. A camera fault must not skip the card.
 	if battle_state == "reward":
 		_hide_gag_gui()
 		_banner.text = ""
 		_start_win()
 		_play(fight, delta)
+		_aim_camera(fight, delta)
 		return
+	# The movie aims after it advances, so a cut uses this frame's shot.
+	if battle_state != "movie":
+		_aim_camera(fight, delta)
+	# A cog-building floor uses the indoor battle themes. The outdoor
+	# encounter song, and putting the street song back, belong on the street.
+	if int(fight.get("building", 0)) == 0:
+		_start_music()
 	_stop_win()
 	if battle_state == "faceoff" or battle_state == "reserves":
 		_hide_gag_gui()
@@ -189,8 +196,8 @@ func _process(delta: float) -> void:
 	# as the new movie keeps the cog attack from playing.
 	_choose(fight, true)
 	_play(fight, delta)
-	if String(fight.get("state", "")) == "movie":
-		_aim_camera(fight)
+	if battle_state == "movie":
+		_aim_camera(fight, delta)
 
 
 func _rows() -> Array:
@@ -428,6 +435,9 @@ func _choose(fight: Dictionary, mine: bool) -> void:
 	var building := int(fight.get("building", 0)) != 0
 	var credit := _HOLIDAYS.gag_credit(int(fight.get("district", 0)), building, int(fight.get("floor", 0)))
 	_menu.setup(loadout, false, building, credit, ToonLoadout.credit_level(fight.get("cogs", [])), int(fight.get("bonus", -1)), _fight_can_run(fight))
+	_menu.hold_choices = preload("res://scenes/shticker/ui_settings.gd").gag_lock_on()
+	if not _menu.drafted.is_connected(_on_draft):
+		_menu.drafted.connect(_on_draft)
 	_ask(fight, seq, loadout)
 
 
@@ -438,6 +448,10 @@ func _ask(fight: Dictionary, seq: int, loadout: ToonLoadout) -> void:
 	if not is_inside_tree():
 		return
 	if pick.x == -3 or int(_fight.get("seq", -1)) != seq:
+		return
+	if _menu.hold_choices and pick.x != -2:
+		var target := _draft_target if _draft_target != -999 else -1
+		_send(pick.x, pick.y, target, _exp_for(pick.x))
 		return
 	if pick.x == -4:
 		var card := _REWARDS.sos_by_id(pick.y)
@@ -481,6 +495,11 @@ func _show_targets(fight: Dictionary) -> void:
 	if not toons:
 		var only := _only_cog(fight)
 		if only >= 0:
+			if _menu != null and _menu.hold_choices:
+				_draft_target = only
+				_preview(track, _pending.y, only, _exp_for(track))
+				_menu.arm_lock(true)
+				return
 			var loadout := _loadout()
 			@warning_ignore("shadowed_global_identifier")
 			var exp := 0 if loadout == null else loadout.experience_of(track)
@@ -530,6 +549,81 @@ func _blocked_cog(cog: Dictionary, track: int) -> bool:
 	return false
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if _hud == null or not _hud.choosing_cogs():
+		return
+	var click := event as InputEventMouseButton
+	if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var slot := _cog_slot_at(click.position)
+	if slot < 0:
+		return
+	_on_target(slot)
+	get_viewport().set_input_as_handled()
+
+
+func _cog_slot_at(mouse: Vector2) -> int:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return -1
+	var origin := camera.project_ray_origin(mouse)
+	var dir := camera.project_ray_normal(mouse)
+	var rows: Array = _fight.get("cogs", [])
+	var best := -1
+	var best_dist := 100000.0
+	for slot in rows.size():
+		if not (rows[slot] is Dictionary):
+			continue
+		var body: Dictionary = rows[slot]
+		if int(body.get("hp", 0)) <= 0 or _blocked_cog(body, _pending.x):
+			continue
+		var cog := _cog_node(int(body.get("id", 0)))
+		if cog == null or not (cog is Node3D):
+			continue
+		var hit := _ray_cog(origin, dir, cog as Node3D)
+		if hit >= 0.0 and hit < best_dist:
+			best_dist = hit
+			best = slot
+	return best
+
+
+func _ray_cog(origin: Vector3, dir: Vector3, cog: Node3D) -> float:
+	var tall := 4.0
+	if cog.get("height") != null:
+		tall = maxf(float(cog.get("height")), 1.0)
+	var feet := cog.global_position
+	var half := Vector3(0.9, tall * 0.5, 0.9)
+	var center := feet + Vector3(0.0, half.y, 0.0)
+	return _ray_box(origin, dir, center - half, center + half)
+
+
+func _ray_box(origin: Vector3, dir: Vector3, low: Vector3, high: Vector3) -> float:
+	var near := 0.0
+	var far := 100000.0
+	for axis in 3:
+		var start := origin[axis]
+		var step := dir[axis]
+		var side_a := low[axis]
+		var side_b := high[axis]
+		if absf(step) < 0.00001:
+			if start < side_a or start > side_b:
+				return -1.0
+			continue
+		var enter := (side_a - start) / step
+		var leave := (side_b - start) / step
+		if enter > leave:
+			var swap := enter
+			enter = leave
+			leave = swap
+		near = maxf(near, enter)
+		far = minf(far, leave)
+		if near > far:
+			return -1.0
+	if far < 0.0:
+		return -1.0
+	return near if near >= 0.0 else far
+
+
 func _on_target(slot: int) -> void:
 	var toons := _pending.x == ToonLoadout.TOON_UP
 	var rows: Array = _fight.get("toons", []) if toons else _fight.get("cogs", [])
@@ -545,11 +639,98 @@ func _on_target(slot: int) -> void:
 			exp = loadout.experience_of(gag_track)
 	elif loadout != null:
 		exp = loadout.experience_of(_pending.x)
+	var picked_id := int((rows[slot] as Dictionary).get("id", 0))
+	if _menu != null and _menu.hold_choices and _asking:
+		_draft_target = picked_id
+		_preview(_pending.x, _pending.y, picked_id, exp)
+		_menu.arm_lock(true)
+		return
 	_sos_toons = false
-	_send(_pending.x, _pending.y, int((rows[slot] as Dictionary).get("id", 0)), exp)
+	_send(_pending.x, _pending.y, picked_id, exp)
+
+
+func _on_draft(track: int, level: int) -> void:
+	_pending = Vector2i(track, level)
+	_draft_target = -999
+	if _needs_target(track, level):
+		_need_target = true
+		_sos_toons = _draft_targets_toons(track, level)
+		_show_targets(_fight)
+		return
+	_need_target = false
+	_sos_toons = false
+	if _hud != null:
+		_hud.hide_choose()
+	_draft_target = -1
+	_preview(track, level, -1, _exp_for(track))
+	if _menu != null:
+		_menu.arm_lock(true)
+
+
+func _needs_target(track: int, level: int) -> bool:
+	if track == -5:
+		return true
+	if track == -4:
+		var card := _REWARDS.sos_by_id(level)
+		var gag_track := int(card.get("track", 7))
+		var gag_level := int(card.get("level", 0))
+		if gag_track >= 7:
+			return false
+		return not ToonLoadout.affects_group(gag_track, gag_level)
+	if track < 0:
+		return false
+	return not ToonLoadout.affects_group(track, level)
+
+
+func _draft_targets_toons(track: int, level: int) -> bool:
+	if track == ToonLoadout.TOON_UP:
+		return true
+	if track != -4:
+		return false
+	var card := _REWARDS.sos_by_id(level)
+	return int(card.get("track", 7)) == ToonLoadout.TOON_UP
+
+
+func _standing_toons(fight: Dictionary) -> int:
+	var count := 0
+	for item in fight.get("toons", []):
+		if not (item is Dictionary):
+			continue
+		var body: Dictionary = item
+		if int(body.get("hp", 0)) <= 0 or bool(body.get("running", false)):
+			continue
+		count += 1
+	return count
+
+
+func _exp_for(track: int) -> int:
+	var loadout := _loadout()
+	if loadout == null:
+		return 0
+	if track == -4:
+		var card := _REWARDS.sos_by_id(_pending.y)
+		var gag_track := int(card.get("track", -1))
+		if gag_track >= 0 and gag_track <= 6:
+			return loadout.experience_of(gag_track)
+		return 0
+	if track < 0:
+		return 0
+	return loadout.experience_of(track)
+
+
+func _preview(track: int, level: int, target: int, exp: int) -> void:
+	ToonNet.ask_gag(int(_fight.get("id", 0)), track, level, target, exp, false)
 
 
 func _on_back() -> void:
+	if _menu != null and _menu.hold_choices and _asking:
+		_need_target = false
+		_draft_target = -999
+		_sos_toons = false
+		_menu.arm_lock(false)
+		if _hud != null:
+			_hud.hide_choose()
+		return
 	_need_target = false
 	_sos_toons = false
 	_pending = Vector2i(-1, -1)
@@ -578,6 +759,8 @@ func _spend(fight: Dictionary) -> void:
 		return
 	var choice := _my_choice(fight)
 	if choice.is_empty():
+		return
+	if String(fight.get("state", "")) == "input" and not bool(choice.get("locked", false)):
 		return
 	var track := int(choice.get("track", -1))
 	var level := int(choice.get("level", -1))
@@ -643,8 +826,10 @@ func _play(fight: Dictionary, _delta: float) -> void:
 			_remember(fight, false)
 	if state == "reward":
 		_banner.text = ""
-		if _reward_seq != seq:
-			_reward_seq = seq
+		# Each floor starts its seq over. The top floor's card is a different battle.
+		var reward_key := "%s:%s" % [fight.get("id", 0), seq]
+		if _reward_key != reward_key:
+			_reward_key = reward_key
 			_dance = 0.0
 			_pay_promotion(fight)
 			if _mine(fight) and not bool(fight.get("floor_clear", false)):
@@ -908,7 +1093,10 @@ func _credit(fight: Dictionary, beat: Dictionary) -> void:
 	if _credited_fight != fight_id:
 		_credited_fight = fight_id
 		_credited.clear()
-	if not _mine(fight) or String(beat.get("kind", "")) != "gag":
+	# A pink slip is not a gag, and it still defeats the cog. Quest credit
+	# is what puts the task line on the victory card.
+	var kind := String(beat.get("kind", ""))
+	if not _mine(fight) or (kind != "gag" and kind != "fire"):
 		return
 	# A v2.0 gets back up. That knockdown is not a defeat. The Skelecog
 	# that stays down is the one QuestManagerAI puts in suitsKilled.
@@ -1325,9 +1513,13 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 			var start := slot
 			if row.has("from"):
 				start = _vec(row.get("from"))
-			var spot := start.lerp(slot, along)
-			var moving := along < 1.0 and Vector2(slot.x - start.x, slot.z - start.z).length() > 0.08
-			var facing := _yaw(start, slot) if moving else _line_heading(row, spot, cog_center)
+			var travel := Vector2(slot.x - start.x, slot.z - start.z).length()
+			var eased := _ease(along)
+			var spot := start.lerp(slot, eased)
+			var moving := along < 1.0 and travel > 0.08
+			var facing := _line_heading(row, slot, cog_center)
+			if moving:
+				facing = _turn_heading(_yaw(start, slot), _yaw(start, slot), facing, along)
 			var peer := int(row.get("id", 0))
 			var actor: ToonActor = null
 			if peer == ToonNet.peer_id():
@@ -1347,6 +1539,8 @@ func _place_bodies(fight: Dictionary, delta: float) -> void:
 		var stand := _vec(suit.get("slot", []))
 		var cog := _cog_node(int(suit.get("id", 0)))
 		if cog == null or not cog.has_method("hold_fight"):
+			continue
+		if cog.has_meta("fire_cannon"):
 			continue
 		if faceoff:
 			_walk_cog(fight, suit, cog, toon_center)
@@ -1431,14 +1625,11 @@ func _place_cog_cards(rows: Array) -> void:
 			(card.get_node("Level") as Label).text = title
 			(card.get_node("Hp") as Label).text = "%d/%d" % [hp, maximum]
 			var ratio := clampf(float(hp) / float(maximum), 0.0, 1.0)
-			var fill := card.get_node("Fill") as ColorRect
-			fill.size = Vector2(140.0 * ratio, 16.0)
-			if ratio > 0.5:
-				fill.color = Color(0.2, 0.78, 0.22)
-			elif ratio > 0.25:
-				fill.color = Color(0.9, 0.78, 0.15)
-			else:
-				fill.color = Color(0.85, 0.16, 0.12)
+			var light := card.get_node("Light") as Panel
+			var light_box: Variant = light.get_meta("bulb", null)
+			if light_box is StyleBoxFlat:
+				(light_box as StyleBoxFlat).bg_color = _cog_light_color(ratio)
+			_show_cog_face(card, String(suit.get("code", "")))
 			card.visible = true
 			var screen := camera.unproject_position(point)
 			card.position = screen - Vector2(card.size.x * 0.5, card.size.y + 8.0)
@@ -1458,53 +1649,163 @@ func _place_cog_cards(rows: Array) -> void:
 func _cog_card(root: Control, cog_id: int) -> Control:
 	if _cog_cards.has(cog_id):
 		var existing: Control = _cog_cards[cog_id]
-		if is_instance_valid(existing) and existing.get_node_or_null("Hp") != null:
+		if is_instance_valid(existing) and existing.get_node_or_null("Light") != null:
 			return existing
 		if is_instance_valid(existing):
 			existing.queue_free()
 	var card := Panel.new()
 	card.name = "CogHealth%d" % cog_id
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.size = Vector2(168, 90)
+	card.size = Vector2(156, 108)
 	card.visible = false
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.78, 0.8, 0.84)
-	box.border_color = Color(0.25, 0.25, 0.28)
-	box.set_border_width_all(3)
-	box.set_corner_radius_all(8)
+	box.bg_color = Color(0.55, 0.55, 0.58, 0.78)
+	box.set_corner_radius_all(18)
 	card.add_theme_stylebox_override("panel", box)
+	var light := Panel.new()
+	light.name = "Light"
+	light.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	light.position = Vector2(10, 34)
+	light.size = Vector2(36, 36)
+	var bulb := StyleBoxFlat.new()
+	bulb.bg_color = Color(0.15, 1.0, 0.2)
+	bulb.set_corner_radius_all(18)
+	light.add_theme_stylebox_override("panel", bulb)
+	light.set_meta("bulb", bulb)
+	card.add_child(light)
+	var plate := Panel.new()
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.position = Vector2(108, 8)
+	plate.size = Vector2(40, 40)
+	var plate_box := StyleBoxFlat.new()
+	plate_box.bg_color = Color(0.93, 0.93, 0.95, 0.95)
+	plate_box.set_corner_radius_all(6)
+	plate.add_theme_stylebox_override("panel", plate_box)
+	card.add_child(plate)
+	var face := TextureRect.new()
+	face.name = "Face"
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.position = Vector2(110, 10)
+	face.size = Vector2(36, 36)
+	card.add_child(face)
 	var level := Label.new()
 	level.name = "Level"
 	level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	level.position = Vector2(8, 4)
-	level.size = Vector2(152, 24)
+	level.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level.position = Vector2(40, 28)
+	level.size = Vector2(76, 26)
 	level.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(level, Color(0.1, 0.1, 0.12), 18, Color(1, 1, 1, 0.4), 1)
+	ToonGui.style_label(level, Color(0.08, 0.08, 0.1), 18, Color(1, 1, 1, 0.35), 1)
 	card.add_child(level)
 	var hp_label := Label.new()
 	hp_label.name = "Hp"
 	hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hp_label.position = Vector2(8, 28)
-	hp_label.size = Vector2(152, 22)
+	hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hp_label.position = Vector2(40, 54)
+	hp_label.size = Vector2(76, 36)
 	hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ToonGui.style_label(hp_label, Color(0.1, 0.1, 0.12), 16, Color(1, 1, 1, 0.4), 1)
+	ToonGui.style_label(hp_label, Color(0.08, 0.08, 0.1), 28, Color(1, 1, 1, 0.35), 1)
 	card.add_child(hp_label)
-	var track := ColorRect.new()
-	track.color = Color(0.15, 0.15, 0.16)
-	track.position = Vector2(14, 54)
-	track.size = Vector2(140, 16)
-	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(track)
-	var fill := ColorRect.new()
-	fill.name = "Fill"
-	fill.color = Color(0.2, 0.78, 0.22)
-	fill.position = Vector2(14, 54)
-	fill.size = Vector2(140, 16)
-	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(fill)
 	root.add_child(card)
 	_cog_cards[cog_id] = card
 	return card
+
+
+func _cog_light_color(ratio: float) -> Color:
+	if ratio > 0.5:
+		return Color(0.15, 1.0, 0.22)
+	if ratio > 0.25:
+		return Color(0.95, 0.86, 0.12)
+	return Color(0.92, 0.16, 0.12)
+
+
+func _show_cog_face(card: Control, code: String) -> void:
+	var face := card.get_node_or_null("Face") as TextureRect
+	if face == null or code.is_empty():
+		return
+	if String(card.get_meta("face_code", "")) == code and face.texture != null:
+		return
+	card.set_meta("face_code", code)
+	var old := card.get_node_or_null("FacePort")
+	if old != null:
+		old.queue_free()
+	var packed := load("res://assets/cogs/heads/%s.glb" % code) as PackedScene
+	if packed == null:
+		face.visible = false
+		return
+	var port := SubViewport.new()
+	port.name = "FacePort"
+	port.transparent_bg = true
+	port.own_world_3d = true
+	port.size = Vector2i(96, 96)
+	port.gui_disable_input = true
+	port.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	card.add_child(port)
+	var stage := Node3D.new()
+	port.add_child(stage)
+	var world := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0, 0, 0, 0)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color.WHITE
+	env.ambient_light_energy = 1.15
+	world.environment = env
+	stage.add_child(world)
+	var actor := packed.instantiate() as Node3D
+	if actor == null:
+		face.visible = false
+		return
+	stage.add_child(actor)
+	var holder := Node3D.new()
+	stage.add_child(holder)
+	_copy_cog_head(actor, holder)
+	stage.remove_child(actor)
+	actor.free()
+	var camera := Camera3D.new()
+	camera.fov = 28.0
+	camera.current = true
+	camera.position = Vector3(0.0, 0.02, 2.05)
+	stage.add_child(camera)
+	face.texture = port.get_texture()
+	face.visible = true
+
+
+func _copy_cog_head(actor: Node3D, holder: Node3D) -> void:
+	var merged := AABB()
+	var found := false
+	for node in actor.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		var copy := mesh.duplicate() as MeshInstance3D
+		copy.transform = _cog_head_pose(mesh, actor)
+		holder.add_child(copy)
+		var box := copy.transform * copy.get_aabb()
+		merged = box if not found else merged.merge(box)
+		found = true
+	if not found:
+		return
+	var center := merged.get_center()
+	for child in holder.get_children():
+		var placed := child as Node3D
+		if placed != null:
+			placed.position -= center
+	var biggest := maxf(merged.size.x, maxf(merged.size.y, merged.size.z))
+	holder.scale = Vector3.ONE / maxf(biggest, 0.001)
+
+
+func _cog_head_pose(mesh: Node3D, actor: Node3D) -> Transform3D:
+	var xform := Transform3D.IDENTITY
+	var node: Node = mesh
+	while node is Node3D:
+		xform = (node as Node3D).transform * xform
+		if node == actor:
+			break
+		node = node.get_parent()
+	return xform
 
 
 func _age_faceoff(fight: Dictionary, delta: float) -> void:
@@ -1551,8 +1852,8 @@ func _walk_toons(fight: Dictionary, toon: Node, delta: float) -> void:
 		if not _face_from.has(key):
 			_face_from[key] = _join_from(current, slot, along)
 		var start: Vector3 = _face_from[key]
-		var spot := start.lerp(slot, along)
-		var facing := _yaw(spot, focus) if along <= 0.001 else _yaw(start, slot)
+		var spot := start.lerp(slot, _ease(along))
+		var facing := _turn_heading(_yaw(start, focus), _yaw(start, slot), _yaw(slot, focus), along)
 		var actor: ToonActor = null
 		if peer == ToonNet.peer_id():
 			toon.call("place_for_battle", spot, facing)
@@ -1616,12 +1917,9 @@ func _walk_cog(fight: Dictionary, suit: Dictionary, cog: Node, toon_center: Vect
 	var along := 0.0
 	if _face_elapsed > taunt_for:
 		along = 1.0 if walk < 0.05 else clampf((_face_elapsed - taunt_for) / walk, 0.0, 1.0)
-	var spot := start.lerp(slot, along)
-	var facing := _yaw(start, slot)
-	if along <= 0.001:
-		facing = float(suit["from_h"]) if suit.has("from_h") else _yaw(spot, toon_center)
-	elif along >= 0.999:
-		facing = _line_heading(suit, slot, toon_center)
+	var spot := start.lerp(slot, _ease(along))
+	var from_h := float(suit["from_h"]) if suit.has("from_h") else _yaw(start, toon_center)
+	var facing := _turn_heading(from_h, _yaw(start, slot), _line_heading(suit, slot, toon_center), along)
 	cog.call("hold_fight", true, spot, deg_to_rad(facing))
 	var walking := along > 0.001 and along < 1.0
 	if cog.has_method("march"):
@@ -1653,7 +1951,14 @@ func _clear_taunt(cog: Node, fight: Dictionary) -> void:
 	cog.set_meta("faceoff_chat", -1)
 
 
+func _show_corner_meter(shown: bool) -> void:
+	var toon := _toon()
+	if toon != null and toon.has_method("show_laff_meter"):
+		toon.call("show_laff_meter", shown)
+
+
 func _hide_gag_gui() -> void:
+	_show_corner_meter(true)
 	if _hud != null:
 		_hud.hide_all()
 	if _menu == null:
@@ -1661,7 +1966,6 @@ func _hide_gag_gui() -> void:
 	if _asking:
 		_menu.cancel()
 		_asking = false
-		return
 	_menu.tuck()
 
 
@@ -1679,16 +1983,19 @@ func _show_hud(fight: Dictionary, delta: float) -> void:
 		var choice := _choice_for(int(row.get("id", 0)))
 		var pending := int(row.get("id", 0)) == ToonNet.peer_id() and _pending.x >= 0 and choice.is_empty()
 		if pending:
-			choice = {"track": _pending.x, "level": _pending.y, "target": -1}
+			choice = {"track": _pending.x, "level": _pending.y, "target": -1, "locked": false}
 		if String(fight.get("state", "")) != "join" and not choice.is_empty():
 			var track := int(choice.get("track", -1))
 			var level := int(choice.get("level", -1))
 			card["track"] = track
 			card["level"] = level
+			card["locked"] = bool(choice.get("locked", false)) or String(fight.get("state", "")) != "input"
 			if not pending:
 				card["which"] = _which_marks(track, level, int(choice.get("target", -1)), int(row.get("id", 0)))
 		cards.append(card)
+	_show_corner_meter(false)
 	_hud.show_battle(cards, String(fight.get("state", "")), _seconds(fight, delta))
+	_push_preview(fight)
 
 
 ## TownBattleToonPanel.determineWhichText. The first mark is the leftmost body.
@@ -1968,6 +2275,14 @@ func battle_style(peer: int) -> ToonStyle:
 			return ToonStyle.from_dict(raw)
 	return ToonStyle.new()
 
+func _push_preview(fight: Dictionary) -> void:
+	if _menu == null or not _menu.visible:
+		return
+	var cogs: Array = fight.get("cogs", [])
+	var choices: Array = fight.get("choices", [])
+	_menu.set_preview(cogs, choices)
+
+
 func _choice_for(peer: int) -> Dictionary:
 	for item in _fight.get("choices", []):
 		if item is Dictionary and int((item as Dictionary).get("id", -1)) == peer:
@@ -1994,6 +2309,8 @@ func _hold(active: bool) -> void:
 	var toon := _toon()
 	if toon != null:
 		toon.call("hold_for_battle", active)
+		if toon.has_method("show_street_buttons"):
+			toon.call("show_street_buttons", not active)
 	if not active:
 		_end_victory()
 		_cool = 2.0
@@ -2010,6 +2327,7 @@ func _hold(active: bool) -> void:
 		_release_cogs()
 		_release_remotes()
 		_restore_camera()
+		_CAMERA.release()
 
 
 func _release_cogs() -> void:
@@ -2255,9 +2573,34 @@ func _yaw(from: Vector3, to: Vector3) -> float:
 	return rad_to_deg(atan2(-flat.x, -flat.z))
 
 
+func _ease(along: float) -> float:
+	var t := clampf(along, 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+
+func _lerp_heading(from_h: float, to_h: float, along: float) -> float:
+	return rad_to_deg(lerp_angle(deg_to_rad(from_h), deg_to_rad(to_h), clampf(along, 0.0, 1.0)))
+
+
+## Face the way they are walking, then settle onto the battle line.
+func _turn_heading(from_h: float, travel_h: float, line_h: float, along: float) -> float:
+	var t := clampf(along, 0.0, 1.0)
+	if t <= 0.001:
+		return from_h
+	if t >= 0.999:
+		return line_h
+	if t < 0.7:
+		return _lerp_heading(from_h, travel_h, _ease(t / 0.7))
+	return _lerp_heading(travel_h, line_h, _ease((t - 0.7) / 0.3))
+
+
+func _place_camera(camera: Camera3D, pos: Vector3, look: Vector3, fov: float, delta: float) -> void:
+	_CAMERA.glide(camera, pos, look, fov, delta)
+
+
 ## DistributedBattleBase camera. The battle node faces the cogs. The menu
 ## view sits behind the toons; the face-off starts on the cog, then drops low.
-func _aim_camera(fight: Dictionary) -> void:
+func _aim_camera(fight: Dictionary, delta: float) -> void:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
@@ -2270,15 +2613,12 @@ func _aim_camera(fight: Dictionary) -> void:
 	var state := String(fight.get("state", ""))
 	if state == "reserves":
 		var out := _vec(fight.get("out", []))
-		camera.global_position = out + Vector3(0.0, 2.0, 8.0)
-		if camera.global_position.distance_squared_to(out) > 0.04:
-			camera.look_at(out + Vector3(0.0, 2.0, 0.0), Vector3.UP)
-		camera.fov = 52.0
+		_place_camera(camera, out + Vector3(0.0, 2.0, 8.0), out + Vector3(0.0, 2.0, 0.0), 52.0, delta)
 		return
 	if state == "movie":
 		var movie := _gags as GagMovie
 		if movie != null and movie.has_aim():
-			movie.aim_camera(camera, basis)
+			movie.aim_camera(camera, basis, delta)
 			return
 	if state == "reward":
 		# Movie.show_reward frames the dancing toon from the side, behind the line.
@@ -2289,10 +2629,7 @@ func _aim_camera(fight: Dictionary) -> void:
 			look = actor.global_position + Vector3.UP * 3.0
 		var side_sign := 1.0 if int(fight.get("id", 0)) % 2 == 0 else -1.0
 		var reward_pos := look - forward * 10.0 + right * side_sign * 5.0
-		camera.fov = 80.0
-		camera.global_position = reward_pos
-		if camera.global_position.distance_squared_to(look) > 0.25:
-			camera.look_at(look, Vector3.UP)
+		_CAMERA.cut(camera, reward_pos, look, 80.0)
 		return
 	var fov := 80.0
 	var pos := origin - forward * 8.6 + Vector3.UP * 16.5
@@ -2334,10 +2671,7 @@ func _aim_camera(fight: Dictionary) -> void:
 						fov = 52.0
 	elif state == "input":
 		fov = 65.0
-	camera.fov = fov
-	camera.global_position = pos
-	if camera.global_position.distance_squared_to(look) > 0.25:
-		camera.look_at(look, Vector3.UP)
+	_place_camera(camera, pos, look, fov, delta)
 
 
 func _restore_camera() -> void:

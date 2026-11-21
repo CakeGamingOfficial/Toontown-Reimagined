@@ -444,7 +444,7 @@ MEDALLION_COLOR = {
     "l": Vec4(0.749, 0.776, 0.824, 1.0),
     "m": Vec4(0.749, 0.769, 0.749, 1.0),
 }
-JOINTS = ("joint_head", "joint_attachMeter")
+JOINTS = ("joint_head", "joint_attachMeter", "joint_Rhold", "joint_Lhold")
 
 
 def exposed_joints(model: NodePath) -> list[str]:

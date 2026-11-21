@@ -16,15 +16,25 @@ uniform float glove = 0.0;
 uniform float hole_clip = 0.0;
 uniform float hole_floor = 0.0;
 uniform float ghost_alpha = 0.4;
+// Same display-rate blend as toon_body.gdshader.
+uniform float pose_blend = 0.0;
 varying vec3 hole_world;
 varying vec3 model_normal;
 varying float model_x;
 
 void vertex() {
-	model_normal = NORMAL;
-	model_x = VERTEX.x;
-	VERTEX += NORMAL * shell;
-	hole_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	vec3 pos = VERTEX;
+	vec3 nrm = NORMAL;
+	if (pose_blend > 0.001) {
+		pos = mix(VERTEX, CUSTOM0.xyz, pose_blend);
+		nrm = normalize(mix(NORMAL, TANGENT.xyz, pose_blend));
+	}
+	model_normal = nrm;
+	model_x = pos.x;
+	pos += nrm * shell;
+	VERTEX = pos;
+	NORMAL = nrm;
+	hole_world = (MODEL_MATRIX * vec4(pos, 1.0)).xyz;
 }
 
 void fragment() {

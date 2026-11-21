@@ -7,6 +7,7 @@ extends Node
 ## the original prop parented to the same hand joint.
 
 const _PROPS := "res://assets/battle/props/"
+const _CAMERA := preload("res://scenes/battle/battle_camera.gd")
 const _SFX := "res://assets/audio/battle/"
 const _SUIT_HEIGHT := 4.88
 const _PIE_LEAVES := 2.7
@@ -41,7 +42,6 @@ var _shot := ""
 var _shot_time := 0.0
 var _shot_open := 3.0
 var _shot_side := 1.0
-var _saved_fov := -1.0
 
 
 func setup(player: ToonActor, flunky: Flunky, camera: Camera3D) -> void:
@@ -526,7 +526,7 @@ func _prepare_death() -> void:
 			continue
 		if _boom_mats.is_empty():
 			_boom_size = _card_size(found.mesh)
-		var material := _sprite_material(found.get_active_material(0))
+		var material := _sprite_material(found.get_active_material(0), found.mesh)
 		if material != null:
 			_boom_mats.append(material)
 	root.free()
@@ -543,12 +543,12 @@ func _card_material(path: String, remember_size: bool) -> Material:
 		var mesh_node := meshes[0] as MeshInstance3D
 		if mesh_node.mesh != null and remember_size:
 			_gear_size = _card_size(mesh_node.mesh)
-		material = _sprite_material(mesh_node.get_active_material(0))
+		material = _sprite_material(mesh_node.get_active_material(0), mesh_node.mesh)
 	root.free()
 	return material
 
 
-func _sprite_material(source: Material) -> Material:
+func _sprite_material(source: Material, mesh: Mesh = null) -> Material:
 	if source == null:
 		return null
 	var material := source.duplicate() as BaseMaterial3D
@@ -557,7 +557,28 @@ func _sprite_material(source: Material) -> Material:
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if mesh != null:
+		_crop_card(material, mesh)
 	return material
+
+
+func _crop_card(material: BaseMaterial3D, mesh: Mesh) -> void:
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var listed: Variant = arrays[Mesh.ARRAY_TEX_UV]
+	if listed == null or not (listed is PackedVector2Array):
+		return
+	var points: PackedVector2Array = listed
+	if points.is_empty():
+		return
+	var low := points[0]
+	var high := points[0]
+	for uv in points:
+		low.x = minf(low.x, uv.x)
+		low.y = minf(low.y, uv.y)
+		high.x = maxf(high.x, uv.x)
+		high.y = maxf(high.y, uv.y)
+	material.uv1_offset = Vector3(low.x, low.y, 0.0)
+	material.uv1_scale = Vector3(high.x - low.x, high.y - low.y, 1.0)
 
 
 func _card_size(mesh: Mesh) -> Vector2:
@@ -686,30 +707,31 @@ func hide_reward() -> void:
 	_end_shot()
 
 
-func tick_shot(delta: float) -> void:
+func tick_shot(delta: float) -> bool:
 	if _shot == "" or _camera == null or _player == null or _flunky == null:
-		return
+		return false
 	_shot_time += delta
 	var toon_height := 3.5
 	if _shot == "toon":
 		# avatarCloseUpThrowShot is 3 aside and 8 ahead. The cut to the cog
 		# uses the wider three-quarter, still 8 ahead.
 		if _shot_time < _shot_open:
-			_frame(_player, _flunky, _shot_side * 3.0, 8.0, toon_height * 0.66)
+			_frame(_player, _flunky, _shot_side * 3.0, 8.0, toon_height * 0.66, delta)
 		else:
-			_frame(_flunky, _player, -_shot_side * 5.2, 8.0, _SUIT_HEIGHT * 0.66)
+			_frame(_flunky, _player, -_shot_side * 5.2, 8.0, _SUIT_HEIGHT * 0.66, delta)
 	elif _shot == "cog":
 		if _shot_time < _shot_open:
-			_frame(_flunky, _player, _shot_side * 3.0, 8.0, _SUIT_HEIGHT * 0.66)
+			_frame(_flunky, _player, _shot_side * 3.0, 8.0, _SUIT_HEIGHT * 0.66, delta)
 		else:
-			_frame(_player, _flunky, -_shot_side * 5.2, 8.0, toon_height * 0.66)
+			_frame(_player, _flunky, -_shot_side * 5.2, 8.0, toon_height * 0.66, delta)
 	elif _shot == "death":
 		# BattleCamDefaultFov is 80. Step further back once the pieces leave.
 		var side := _shot_side * (6.0 if _shot_time < _shot_open else 9.0)
 		var ahead := 10.0 if _shot_time < _shot_open else 14.0
-		_frame(_flunky, _player, side, ahead, _SUIT_HEIGHT * 0.66)
+		_frame(_flunky, _player, side, ahead, _SUIT_HEIGHT * 0.66, delta)
 	else:
-		_frame(_player, _flunky, _shot_side * 5.0, -10.0, toon_height * 0.85)
+		_frame(_player, _flunky, _shot_side * 5.0, -10.0, toon_height * 0.85, delta)
+	return true
 
 
 func _begin_shot(mode: String, open_for: float) -> void:
@@ -717,20 +739,14 @@ func _begin_shot(mode: String, open_for: float) -> void:
 	_shot_time = 0.0
 	_shot_open = open_for
 	_shot_side = 1.0 if randi() % 2 == 0 else -1.0
-	if _camera != null and _saved_fov < 0.0:
-		_saved_fov = _camera.fov
-		_camera.fov = 80.0
 	tick_shot(0.0)
 
 
 func _end_shot() -> void:
 	_shot = ""
-	if _saved_fov >= 0.0 and _camera != null:
-		_camera.fov = _saved_fov
-		_saved_fov = -1.0
 
 
-func _frame(actor: Node3D, other: Node3D, side: float, ahead: float, height: float) -> void:
+func _frame(actor: Node3D, other: Node3D, side: float, ahead: float, height: float, delta: float) -> void:
 	var forward := other.global_position - actor.global_position
 	forward.y = 0.0
 	if forward.length_squared() < 0.04:
@@ -742,8 +758,7 @@ func _frame(actor: Node3D, other: Node3D, side: float, ahead: float, height: flo
 	var pos := actor.global_position + right * side + forward * ahead + Vector3(0.0, height, 0.0)
 	if pos.distance_squared_to(look) < 0.36:
 		pos = look - forward * 4.0
-	_camera.global_position = pos
-	_camera.look_at(look, Vector3.UP)
+	_CAMERA.glide(_camera, pos, look, 80.0, delta)
 
 
 ## Movie steps are lambdas. Godot copies a bool into that lambda, so setting
@@ -871,11 +886,12 @@ func _spray(spray: Node3D, from_world: Vector3, to_world: Vector3, width: float)
 		spray.visible = false
 		return
 	var y := dir / distance
-	var up := Vector3(0, 0, 1)
+	var up := Vector3.UP
 	if absf(y.dot(up)) > 0.95:
 		up = Vector3(1, 0, 0)
-	var x := up.cross(y).normalized()
-	var z := y.cross(x).normalized()
+	# Right-handed, so scaling the length does not turn the stream around.
+	var x := y.cross(up).normalized()
+	var z := x.cross(y).normalized()
 	var reach := distance / 1.5
 	spray.reparent(_player, false)
 	spray.transform = Transform3D(Basis(x, y, z).scaled(Vector3(reach * width, reach, reach * width)), origin)

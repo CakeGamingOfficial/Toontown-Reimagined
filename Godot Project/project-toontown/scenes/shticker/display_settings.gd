@@ -25,6 +25,7 @@ const _SIZES: Array[Vector2i] = [
 
 static var _mode := "windowed"
 static var _vsync := true
+static var _day_cycle := false
 static var _width := 0
 static var _height := 0
 static var _ready := false
@@ -116,6 +117,19 @@ static func set_fullscreen(enabled: bool) -> void:
 	_save()
 
 
+static func day_cycle_on() -> bool:
+	_ensure()
+	return _day_cycle
+
+
+static func set_day_cycle(enabled: bool) -> void:
+	_ensure()
+	if _day_cycle == enabled:
+		return
+	_day_cycle = enabled
+	_save()
+
+
 static func set_vsync(enabled: bool) -> void:
 	_ensure()
 	_vsync = enabled
@@ -144,6 +158,7 @@ static func _ensure() -> void:
 	if not _MODES.has(_mode):
 		_mode = "windowed"
 	_vsync = bool(config.get_value("display", "vsync", true))
+	_day_cycle = bool(config.get_value("display", "day_cycle", false))
 	_width = int(config.get_value("display", "width", 0))
 	_height = int(config.get_value("display", "height", 0))
 
@@ -186,6 +201,7 @@ static func _save() -> void:
 	config.set_value("display", "mode", _mode)
 	config.set_value("display", "fullscreen", _mode != "windowed")
 	config.set_value("display", "vsync", _vsync)
+	config.set_value("display", "day_cycle", _day_cycle)
 	config.set_value("display", "width", _width)
 	config.set_value("display", "height", _height)
 	config.save(_PATH)

@@ -1993,7 +1993,9 @@ func _pose_clip(bank: Dictionary, frame: int, following: int, blend: float) -> v
 			var nxt := _joint_at(record, following)
 			posed_frame.origin = posed_frame.origin.lerp(nxt.origin, fraction)
 			posed_frame.basis = _blend_basis(posed_frame.basis, nxt.basis, fraction)
-		var stamp := frame * 1000 + int(fraction * 20.0)
+		# The body shader blends every display frame. The joint uses that same
+		# fraction, so a prop on the suit does not step between baked frames.
+		var stamp := frame * 100000 + int(fraction * 10000.0)
 		# The stamp only means this clip already wrote this pose. A hit clip
 		# writes the same joint in between, and skipping here left that pose on.
 		if int(record.get("pose_id", 0)) == 0:

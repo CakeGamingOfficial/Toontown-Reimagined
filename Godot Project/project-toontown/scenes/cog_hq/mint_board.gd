@@ -25,7 +25,8 @@ func ensure(district: int, owner: int, mint: int, floor_num: int, ride: int) -> 
 	for existing in stale:
 		_rosters.erase(existing)
 	if not _rosters.has(key):
-		_rosters[key] = _roll(mint, floor_num)
+		var toons := preload("res://scenes/cog_hq/party_scale.gd").for_peer(owner)
+		_rosters[key] = _roll(mint, floor_num, toons)
 	_publish(district, owner, key)
 
 
@@ -141,7 +142,7 @@ func _publish(district: int, owner: int, key: String) -> void:
 	ToonNet.publish("suits:%d:%d:%s" % [district, owner, SLUG], {"rows": _rosters.get(key, [])})
 
 
-func _roll(mint: int, floor_num: int) -> Array:
+func _roll(mint: int, floor_num: int, toons: int) -> Array:
 	var catalog := _read_json(_CATALOG)
 	var by_code := {}
 	for item in catalog.get("cogs", []):
@@ -157,6 +158,7 @@ func _roll(mint: int, floor_num: int) -> Array:
 		var suit := _suit(by_code, level, int(spec.get("skeleton", 0)) == 1)
 		if suit.is_empty():
 			continue
+		suit["level"] = preload("res://scenes/cog_hq/party_scale.gd").level(int(suit.get("level", 1)), toons)
 		suit["pos"] = spec.get("pos", [0.0, 0.0, 0.0])
 		suit["yaw"] = float(spec.get("yaw", 0.0))
 		suit["cell"] = int(spec.get("room", 0)) * 100 + int(spec.get("cell", 0))

@@ -55,6 +55,10 @@ var _ui_caption: Label
 var _ui_toggle: TextureButton
 var _discord_caption: Label
 var _discord_toggle: TextureButton
+var _gag_caption: Label
+var _gag_toggle: TextureButton
+var _play_caption: Label
+var _play_toggle: TextureButton
 var _custom_menu: Control
 var _custom_card: Panel
 var _custom_title: Label
@@ -193,11 +197,14 @@ func _ensure() -> void:
 	_gfx_row("Display Mode", _cycle_window)
 	_gfx_row("Resolution", _cycle_resolution)
 	_gfx_row("VSync", _cycle_vsync)
+	_gfx_row("Day and Night", _cycle_day)
 	_ChatSettings.bind(_ChatSettings.current_key())
 	_color_row("SpeedChat Color", "speed")
 	_color_row("SpeedChat++ Color", "plus")
 	_ui_row()
 	_discord_row()
+	_gag_row()
+	_play_row()
 	_color_row("In Progress Color", "progress", "ui")
 	_color_row("Completed Color", "done", "ui")
 	for row in _ChatSettings.rows():
@@ -263,6 +270,12 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 	if _tab == 1:
 		top += menu_h + page_size.y * 0.012
 	var room := maxf(action_y - top - page_size.y * 0.015, 1.0)
+	if _play_caption != null:
+		var play_h := minf(room, 52.0)
+		_play_caption.position = Vector2(0, top)
+		_play_caption.size = Vector2(page_size.x * 0.62, play_h)
+		ToonGui.style_label(_play_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		_place_pill(_play_toggle, Vector2(page_size.x * 0.66, top + play_h * 0.12), Vector2(page_size.x * 0.28, play_h * 0.76), body_px)
 	var row_h := minf(room / float(maxi(_bind_buttons.size(), 1)), 36.0)
 	for index in _bind_buttons.size():
 		var y := top + float(index) * row_h
@@ -388,6 +401,8 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		ui_rows += 1
 	if _discord_caption != null:
 		ui_rows += 1
+	if _gag_caption != null:
+		ui_rows += 1
 	var ui_h := minf(room / float(maxi(ui_rows, 1)), 52.0)
 	var ui_at := 0
 	if _ui_caption != null:
@@ -402,6 +417,13 @@ func _layout_page(page_size: Vector2, body_px: int) -> void:
 		_discord_caption.size = Vector2(page_size.x * 0.62, ui_h)
 		ToonGui.style_label(_discord_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
 		_place_pill(_discord_toggle, Vector2(page_size.x * 0.66, discord_y + ui_h * 0.12), Vector2(page_size.x * 0.28, ui_h * 0.76), body_px)
+		ui_at += 1
+	if _gag_caption != null:
+		var gag_y := top + float(ui_at) * ui_h
+		_gag_caption.position = Vector2(0, gag_y)
+		_gag_caption.size = Vector2(page_size.x * 0.62, ui_h)
+		ToonGui.style_label(_gag_caption, Color(0.1, 0.1, 0.1), body_px, Color(0, 0, 0, 0), 0)
+		_place_pill(_gag_toggle, Vector2(page_size.x * 0.66, gag_y + ui_h * 0.12), Vector2(page_size.x * 0.28, ui_h * 0.76), _pill_px(ui_h * 0.76, body_px))
 		ui_at += 1
 	for index in _color_captions.size():
 		if _color_page[index] != "ui":
@@ -448,6 +470,7 @@ func _show_group() -> void:
 	var pads := _tab == 1 and _control_menu == 1
 	var graphics := _tab == 2
 	var chat := _tab == 3
+	var play := _tab == 4
 	var ui := _tab == 5
 	for caption in _audio_captions:
 		caption.visible = sound
@@ -488,6 +511,12 @@ func _show_group() -> void:
 	if _discord_caption != null:
 		_discord_caption.visible = ui
 		_discord_toggle.visible = ui
+	if _gag_caption != null:
+		_gag_caption.visible = ui
+		_gag_toggle.visible = ui
+	if _play_caption != null:
+		_play_caption.visible = play
+		_play_toggle.visible = play
 	if not ui and _custom_menu != null:
 		_custom_menu.visible = false
 	for index in _color_captions.size():
@@ -634,9 +663,49 @@ func _toggle_discord() -> void:
 	_paint_ui()
 
 
+func _play_row() -> void:
+	_play_caption = Label.new()
+	_play_caption.text = "Gag Lock In"
+	_play_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_play_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_play_caption.mouse_filter = MOUSE_FILTER_IGNORE
+	_page.add_child(_play_caption)
+	_play_toggle = _pill("On")
+	_play_toggle.pressed.connect(_toggle_gag_lock)
+	_page.add_child(_play_toggle)
+
+
+func _toggle_gag_lock() -> void:
+	_UI.set_gag_lock_on(not _UI.gag_lock_on())
+	_paint_ui()
+
+
+func _gag_row() -> void:
+	_gag_caption = Label.new()
+	_gag_caption.text = "Battle Gag Menu"
+	_gag_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_gag_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_gag_caption.mouse_filter = MOUSE_FILTER_IGNORE
+	_page.add_child(_gag_caption)
+	_gag_toggle = _pill("Vertical")
+	_gag_toggle.pressed.connect(_toggle_gag_rows)
+	_page.add_child(_gag_toggle)
+
+
+func _toggle_gag_rows() -> void:
+	_UI.set_gag_rows_across(not _UI.gag_rows_across())
+	_paint_ui()
+
+
 func _paint_ui() -> void:
 	_paint_switch(_ui_toggle, _UI.tracker_on())
 	_paint_switch(_discord_toggle, _UI.discord_on())
+	_paint_switch(_play_toggle, _UI.gag_lock_on())
+	if _gag_toggle == null:
+		return
+	var gag_label := _gag_toggle.get_child(0) as Label
+	if gag_label != null:
+		gag_label.text = "Horizontal" if _UI.gag_rows_across() else "Vertical"
 
 
 func _paint_switch(button: TextureButton, on: bool) -> void:
@@ -1099,6 +1168,11 @@ func _cycle_vsync() -> void:
 	_paint_graphics()
 
 
+func _cycle_day() -> void:
+	DisplaySettings.set_day_cycle(not DisplaySettings.day_cycle_on())
+	_paint_graphics()
+
+
 func _paint_graphics() -> void:
 	if _gfx_buttons.size() < 3:
 		return
@@ -1111,6 +1185,10 @@ func _paint_graphics() -> void:
 	var vsync := _gfx_buttons[2].get_child(0) as Label
 	if vsync != null:
 		vsync.text = "On" if DisplaySettings.vsync_on() else "Off"
+	if _gfx_buttons.size() > 3:
+		var day := _gfx_buttons[3].get_child(0) as Label
+		if day != null:
+			day.text = "On" if DisplaySettings.day_cycle_on() else "Off"
 
 
 func _toggle_audio(kind: String) -> void:

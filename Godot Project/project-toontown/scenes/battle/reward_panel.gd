@@ -31,7 +31,14 @@ const _FRAME_Z := 0.827
 const _BAR_AT := Vector2(_FRAME_X + 0.4, 0.0)
 const _BAR_SIZE := Vector2(0.5, 0.075)
 const _ROW := 0.09
-const _MERIT_DROP := 0.40
+# RewardPanel.initGagFrame. A finished cog suit shifts the gag column left
+# by 0.47. The suit names, bars, and points stay on the right.
+const _SUIT_SHIFT := 0.47
+const _MERIT_NAME_X := 0.05
+const _MERIT_BAR_X := 0.48
+const _MERIT_BAR_SIZE := Vector2(0.40, 0.075)
+const _MERIT_PLUS_X := 0.80
+const _MERIT_Z0 := 0.702
 const _DEPT_NAMES: PackedStringArray = ["BOSSBOT", "LAWBOT", "CASHBOT", "SELLBOT"]
 const _DEPT_FULL: PackedStringArray = ["Bossbot", "Lawbot", "Cashbot", "Sellbot"]
 const _DEPT_ICONS: PackedStringArray = [
@@ -210,9 +217,17 @@ func present(toon_name: String, loadout: ToonLoadout, before: Dictionary, earned
 	var found_parts: Variant = suit.get("parts", [])
 	if found_parts is Array:
 		parts = found_parts
-	if not showed and not _skip and not _merit_on and parts.is_empty():
+	# A pink slip pays no gag experience. Owning a finished cog suit must not
+	# skip this hold: the card would open and close before a frame is drawn.
+	var merit_gain := false
+	if _merit_on:
+		for dept in 4:
+			if _merit_open[dept] and _merit_added[dept] > 0:
+				merit_gain = true
+				break
+	if not showed and not _skip and not merit_gain and parts.is_empty():
 		await _wait(2.5)
-	if not _skip and _merit_on:
+	if not _skip and merit_gain:
 		await _tick_merits()
 		for dept in 4:
 			if _skip:
@@ -758,7 +773,8 @@ func _build() -> void:
 		var fill := ColorRect.new()
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		frame.add_child(fill)
-		var amount := _ink_label(HORIZONTAL_ALIGNMENT_LEFT)
+		var amount := _ink_label(HORIZONTAL_ALIGNMENT_CENTER)
+		amount.clip_text = true
 		amount.visible = false
 		var title := _ink_label(HORIZONTAL_ALIGNMENT_RIGHT)
 		title.text = _DEPT_NAMES[dept]
@@ -866,21 +882,21 @@ func _layout() -> void:
 	_style(_promo_line, 0.0, _PANEL_Z + 0.24 - 0.46, 1.6, 0.06, HORIZONTAL_ALIGNMENT_CENTER)
 	_put(_promo_icon, Vector2(0.0, _PANEL_Z + 0.24 - 0.225), Vector2(0.33, 0.33))
 	_place_quest_line()
-	var drop := _MERIT_DROP if _merit_on else 0.0
+	var shift := _SUIT_SHIFT if _merit_on else 0.0
 	for dept in _merit_frames.size():
-		var merit_z := _FRAME_Z - _ROW * float(dept)
-		_put(_merit_frames[dept], Vector2(_BAR_AT.x, merit_z), _BAR_SIZE)
-		_style(_merit_names[dept], _FRAME_X - 0.08, merit_z - 0.02, 0.55, 0.045, HORIZONTAL_ALIGNMENT_RIGHT)
-		_style(_merit_plus[dept], _FRAME_X + 0.86, merit_z - 0.02, 0.3, 0.045, HORIZONTAL_ALIGNMENT_LEFT)
-		_style(_merit_amounts[dept], _BAR_AT.x - _BAR_SIZE.x * 0.42, merit_z, _BAR_SIZE.x * 0.9, 0.04, HORIZONTAL_ALIGNMENT_LEFT)
+		var merit_z := _MERIT_Z0 - _ROW * float(dept)
+		_put(_merit_frames[dept], Vector2(_MERIT_BAR_X, merit_z), _MERIT_BAR_SIZE)
+		_style(_merit_names[dept], _MERIT_NAME_X, merit_z - 0.02, 0.42, 0.05, HORIZONTAL_ALIGNMENT_RIGHT)
+		_style(_merit_plus[dept], _MERIT_PLUS_X, merit_z - 0.02, 0.22, 0.045, HORIZONTAL_ALIGNMENT_LEFT)
+		_style(_merit_amounts[dept], _MERIT_BAR_X, merit_z, _MERIT_BAR_SIZE.x * 0.9, 0.038, HORIZONTAL_ALIGNMENT_CENTER)
 		if _merit_frames[dept].visible:
 			_paint_merit(dept, _merit_before[dept], false)
 	for track in ToonLoadout.TRACK_COUNT:
-		var row_z := _FRAME_Z - drop - _ROW * float(track)
-		_put(_frames[track], Vector2(_BAR_AT.x, row_z), _BAR_SIZE)
-		_style(_tracks[track], _FRAME_X - 0.08, row_z - 0.02, 0.42, 0.05, HORIZONTAL_ALIGNMENT_RIGHT)
-		_style(_plus[track], _FRAME_X + 0.86, row_z - 0.02, 0.35, 0.05, HORIZONTAL_ALIGNMENT_LEFT)
-		_style(_amounts[track], _BAR_AT.x, row_z, _BAR_SIZE.x, 0.045, HORIZONTAL_ALIGNMENT_CENTER)
+		var row_z := _FRAME_Z - _ROW * float(track)
+		_put(_frames[track], Vector2(_BAR_AT.x - shift, row_z), _BAR_SIZE)
+		_style(_tracks[track], _FRAME_X - 0.08 - shift, row_z - 0.02, 0.42, 0.05, HORIZONTAL_ALIGNMENT_RIGHT)
+		_style(_plus[track], _FRAME_X + 0.86 - shift, row_z - 0.02, 0.35, 0.05, HORIZONTAL_ALIGNMENT_LEFT)
+		_style(_amounts[track], _BAR_AT.x - shift, row_z, _BAR_SIZE.x, 0.045, HORIZONTAL_ALIGNMENT_CENTER)
 		if _loadout != null and _frames[track].visible:
 			_paint(track, _shown(track), false)
 	_put(_skip_button, _SKIP_AT, _SKIP_SIZE)

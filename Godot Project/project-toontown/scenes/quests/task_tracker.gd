@@ -26,6 +26,7 @@ var _label: RichTextLabel
 var _arrow: TextureRect
 var _shown := ""
 var _wait := 0.0
+var _battle := false
 var _view := Vector2.ZERO
 var _goal := Vector3.ZERO
 var _have := false
@@ -90,10 +91,22 @@ func _process(delta: float) -> void:
 	_aim()
 
 
+func hold_for_battle(held: bool) -> void:
+	_battle = held
+	if not held:
+		_wait = 0.0
+		return
+	_have = false
+	if _panel != null:
+		_panel.visible = false
+	if _arrow != null:
+		_arrow.visible = false
+
+
 func _refresh() -> void:
 	var book := get_parent().get_node_or_null("ShtickerBook") if get_parent() != null else null
 	var open := book != null and book.has_method("is_open") and bool(book.call("is_open"))
-	if open or _tasks == null or not _UI.tracker_on():
+	if _battle or open or _tasks == null or not _UI.tracker_on():
 		_panel.visible = false
 		_have = false
 		return

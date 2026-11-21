@@ -25,7 +25,8 @@ const _CLOCK := preload("res://assets/gui/purchase/alarm_clock.png")
 
 const _EVEN: Array[float] = [0.75, 0.25, -0.25, -0.75]
 const _ODD: Array[float] = [0.5, 0.0, -0.5]
-const _PANEL_Z := -0.9
+## Above the bottom gag bar, so the toon cards do not cover the picker or the fight.
+const _PANEL_Z := 0.72
 const _PANEL_SCALE := 0.8
 const _STATUS_SIZE := Vector2(0.4292, 0.2708)
 const _INK := Color(0.05, 0.14, 0.4)
@@ -35,6 +36,8 @@ var _cards: Array[Control] = []
 var _health: Array[Label] = []
 var _marks: Array[Label] = []
 var _which: Array[Label] = []
+var _toon_names: Array[Label] = []
+var _positions: Array[Label] = []
 var _gags: Array[TextureRect] = []
 var _plates: Array[TextureRect] = []
 var _passes: Array[TextureRect] = []
@@ -143,7 +146,8 @@ func hide_all() -> void:
 	_set_choose_visible(false)
 
 
-## TownBattleChooseAvatarPanel. Slot 0 is the rightmost body, matching the cards.
+## TownBattleChooseAvatarPanel. Toon-up still uses the arrows. A cog attack
+## is chosen by clicking that cog. Slot 0 is the rightmost body.
 func show_choose(toon_targets: bool, count: int, invalid: PackedInt32Array, skip_slot: int) -> void:
 	_choosing = true
 	_choose_toon = toon_targets
@@ -152,6 +156,10 @@ func show_choose(toon_targets: bool, count: int, invalid: PackedInt32Array, skip
 	_skip_slot = skip_slot
 	_tab_text.text = "WHICH TOON?" if toon_targets else "WHICH COG?"
 	_layout()
+
+
+func choosing_cogs() -> bool:
+	return _choosing and _state == "input" and not _choose_toon
 
 
 func hide_choose() -> void:
@@ -164,14 +172,25 @@ func hide_choose() -> void:
 
 func _build_card(index: int) -> void:
 	var card := TextureRect.new()
-	card.texture = _STATUS
-	# image_color tints the frame only. modulate would wash out the gag.
-	card.self_modulate = Color(0.5, 0.9, 0.5, 0.7)
-	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	card.stretch_mode = TextureRect.STRETCH_SCALE
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(card)
 	_cards.append(card)
+	var shell := Panel.new()
+	shell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shell.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var frame_style := StyleBoxFlat.new()
+	frame_style.bg_color = Color(0.95, 0.96, 0.98, 0.94)
+	frame_style.border_color = Color(0.12, 0.22, 0.4, 1.0)
+	frame_style.set_border_width_all(2)
+	frame_style.set_corner_radius_all(4)
+	shell.add_theme_stylebox_override("panel", frame_style)
+	card.add_child(shell)
+	var toon_name := _label(HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER)
+	toon_name.reparent(card)
+	_toon_names.append(toon_name)
+	var position := _label(HORIZONTAL_ALIGNMENT_RIGHT, VERTICAL_ALIGNMENT_CENTER)
+	position.reparent(card)
+	_positions.append(position)
 	var meter := LaffMeter.new()
 	meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(meter)
@@ -215,69 +234,122 @@ func _layout() -> void:
 	var view := get_viewport().get_visible_rect().size
 	if view.y < 2.0:
 		return
-	# TownBattle shows the status cards only while toons are choosing a gag.
+	# Your card is the lowest. Other toons stack above it, clear of the fight.
 	var showing := _state == "input"
 	var count := mini(_toons.size(), 4)
-	var spots := _ODD if count % 2 == 1 else _EVEN
-	var start := 0 if count >= 3 else 1
+	var order: Array[int] = []
+	var mine := -1
+	for index in count:
+		if int((_toons[index] as Dictionary).get("id", -1)) == ToonNet.peer_id():
+			mine = index
+		else:
+			order.append(index)
+	if mine >= 0:
+		order.append(mine)
+	var gap := 6.0
+	var card_h := clampf(view.y * 0.09, 72.0, 96.0)
+	var card_w := card_h * 2.55
+	var shown := order.size()
+	var stack_h := float(shown) * card_h + float(maxi(shown - 1, 0)) * gap
+	# The gag bar is only the track names, so the cards sit in the bottom-left corner.
+	var bottom := view.y - 10.0
+	if shown > 0 and bottom - stack_h < 8.0:
+		card_h = maxf((bottom - 8.0 - float(maxi(shown - 1, 0)) * gap) / float(shown), 60.0)
+		card_w = card_h * 2.55
+		stack_h = float(shown) * card_h + float(maxi(shown - 1, 0)) * gap
 	for index in 4:
 		var card := _cards[index]
-		var on := showing and index < count
+		var slot := order.find(index)
+		var on := showing and slot >= 0
 		card.visible = on
 		if not on:
 			continue
-		var spot := spots[start + index]
-		ToonGui.place(card, view, spot, _PANEL_Z, _STATUS_SIZE.x * _PANEL_SCALE, _STATUS_SIZE.y * _PANEL_SCALE)
-		_fill_card(index, _toons[index], view)
+		var from_bottom := float(shown - 1 - slot)
+		card.position = Vector2(10.0, bottom - card_h - from_bottom * (card_h + gap))
+		card.size = Vector2(card_w, card_h)
+		_fill_card(index, _toons[index], _battle_position(index, count))
 	_place_clock(view)
 	_place_wait(view, count)
 	_place_choose(view)
 
 
-func _fill_card(index: int, toon: Dictionary, view: Vector2) -> void:
+## The first battle point is the rightmost toon. That spot is position 1.
+func _battle_position(index: int, count: int) -> int:
+	var place := 0
+	for cursor in mini(count, _toons.size()):
+		var body: Dictionary = _toons[cursor]
+		if bool(body.get("running", false)):
+			continue
+		place += 1
+		if cursor == index:
+			return place
+	return 0
+
+
+func _fill_card(index: int, toon: Dictionary, position: int) -> void:
 	var card := _cards[index]
-	var unit := view.y * 0.5
+	var width := card.size.x
+	var height := card.size.y
 	var hp := int(toon.get("hp", 0))
 	var maximum := maxi(int(toon.get("max_hp", hp)), 1)
+	var meter_px := height * 0.62
+	_dress_meter(index, int(toon.get("id", 0)), hp, maximum, Vector2(8.0 + meter_px * 0.5, height * 0.4), meter_px)
 	_health[index].text = "%d/%d" % [hp, maximum]
-	_place_on(card, _health[index], -0.048, -0.06, 0.16, 0.05, unit)
-	ToonGui.style_label(_health[index], _INK, _px(unit, 0.044), Color(0, 0, 0, 0), 0)
-	_dress_meter(index, int(toon.get("id", 0)), hp, maximum, unit)
+	_health[index].position = Vector2(meter_px + 12.0, height * 0.12)
+	_health[index].size = Vector2(width * 0.34, height * 0.28)
+	ToonGui.style_label(_health[index], _INK, maxi(int(height * 0.2), 11), Color(0, 0, 0, 0), 0)
+	_toon_names[index].text = String(toon.get("name", "Toon"))
+	_toon_names[index].position = Vector2(8.0, height * 0.62)
+	_toon_names[index].size = Vector2(width * 0.52, height * 0.32)
+	ToonGui.style_label(_toon_names[index], _INK, maxi(int(height * 0.18), 11), Color(0, 0, 0, 0), 0)
+	_positions[index].text = "Pos. #%d" % position if position > 0 else ""
+	_positions[index].position = Vector2(width * 0.5, height * 0.62)
+	_positions[index].size = Vector2(width * 0.46, height * 0.32)
+	_positions[index].horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ToonGui.style_label(_positions[index], _INK, maxi(int(height * 0.16), 10), Color(0, 0, 0, 0), 0)
 	var track := int(toon.get("track", -1))
 	var level := int(toon.get("level", -1))
 	# A missing choice is not a pass. Pass is track -1 only after this toon picked it.
 	var chosen_pass := toon.has("track") and track == -1
 	var undecided := not toon.has("track") or track < -1
+	var icon := height * 0.46
+	var icon_at := Vector2(width - icon - 10.0, (height - icon) * 0.28)
 	_marks[index].visible = not chosen_pass and (undecided or track == -2)
 	_marks[index].text = "Run" if track == -2 else "?"
-	_place_on(card, _marks[index], 0.08, 0.012, 0.14, 0.08, unit)
-	ToonGui.style_label(_marks[index], _INK, _px(unit, 0.08), Color(0, 0, 0, 0), 0)
+	_marks[index].position = icon_at
+	_marks[index].size = Vector2(icon, icon)
+	ToonGui.style_label(_marks[index], _INK, maxi(int(icon * 0.55), 14), Color(0, 0, 0, 0), 0)
 	_passes[index].visible = chosen_pass
 	_passes[index].z_index = 3
-	_place_on(card, _passes[index], 0.1, 0.05, 0.1, 0.1, unit)
+	_passes[index].position = icon_at
+	_passes[index].size = Vector2(icon, icon)
 	var chosen := track >= 0
 	_plates[index].visible = chosen
 	_gags[index].visible = chosen
 	if chosen:
 		_gags[index].texture = BattleMenu.icon_for(track, level)
-	# TownBattleToonPanel.gagNode is (0.1, 0, 0.03), and the button sits at local z 0.02.
-	_place_on(card, _plates[index], 0.1, 0.05, 0.16, 0.16, unit)
-	_place_on(card, _gags[index], 0.1, 0.05, 0.11, 0.11, unit)
+		var held := not bool(toon.get("locked", true))
+		_gags[index].modulate = Color(1, 1, 1, 0.55) if held else Color.WHITE
+		_plates[index].modulate = Color(1, 1, 1, 0.55) if held else Color.WHITE
+	_plates[index].position = icon_at
+	_plates[index].size = Vector2(icon, icon)
+	_gags[index].position = icon_at + Vector2(icon, icon) * 0.12
+	_gags[index].size = Vector2(icon, icon) * 0.76
 	var marks := String(toon.get("which", ""))
 	_which[index].visible = marks != ""
 	_which[index].text = marks
-	_place_on(card, _which[index], 0.08, -0.064, 0.16, 0.05, unit)
-	ToonGui.style_label(_which[index], _INK, _px(unit, 0.04), Color(0, 0, 0, 0), 0)
+	_which[index].position = Vector2(width * 0.52, height * 0.08)
+	_which[index].size = Vector2(width * 0.44, height * 0.24)
+	ToonGui.style_label(_which[index], _INK, maxi(int(height * 0.16), 10), Color(0, 0, 0, 0), 0)
 
 
-func _dress_meter(index: int, peer: int, hp: int, maximum: int, unit: float) -> void:
+func _dress_meter(index: int, peer: int, hp: int, maximum: int, center: Vector2, pixels: float) -> void:
 	var meter := _meters[index]
 	var kind := _species(peer)
 	if _meter_kind[index] != kind or meter.get_child_count() == 0:
 		_meter_kind[index] = kind
 		meter.setup(_style(peer))
-	var pixels := unit * 0.12
-	meter.place(Vector2(_cards[index].size.x * 0.5 - 0.048 * unit, _cards[index].size.y * 0.5 - 0.04 * unit), pixels)
+	meter.place(center, pixels)
 	meter.set_hp(hp, maximum, true)
 
 
@@ -345,8 +417,14 @@ func _place_choose(view: Vector2) -> void:
 	_back_text.position = _back.position
 	_back_text.size = _back.size
 	ToonGui.style_label(_back_text, Color(0, 0, 0.8), _px(view.y * 0.5, 0.05 * 1.05), Color(0, 0, 0, 0), 0)
+	if not _choose_toon:
+		_pick.visible = false
+		_pick_status.visible = false
+		for arrow in _arrows:
+			arrow.visible = false
+		return
 	var spots := _arrow_spots(_choose_count)
-	var height := 0.2 if not _choose_toon else -0.2
+	var height := -0.2
 	for slot in 4:
 		var arrow := _arrows[slot]
 		var show := slot < _choose_count and not _invalid.has(slot) and slot != _skip_slot
@@ -370,7 +448,7 @@ func _arrow_spots(count: int) -> Array[float]:
 
 func _local_choice() -> Dictionary:
 	for item in _toons:
-		if item is Dictionary and int((item as Dictionary).get("id", -1)) == ToonNet.peer_id() and (item as Dictionary).has("track"):
+		if item is Dictionary and int((item as Dictionary).get("id", -1)) == ToonNet.peer_id() and (item as Dictionary).has("track") and bool((item as Dictionary).get("locked", false)):
 			return item
 	return {}
 
@@ -384,7 +462,7 @@ func _everyone_chose() -> bool:
 		var toon: Dictionary = item
 		if int(toon.get("hp", 0)) <= 0:
 			continue
-		if not toon.has("track"):
+		if not toon.has("track") or not bool(toon.get("locked", false)):
 			return false
 	return true
 

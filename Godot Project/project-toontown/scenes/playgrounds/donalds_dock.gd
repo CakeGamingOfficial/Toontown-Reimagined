@@ -192,6 +192,8 @@ func _ready_boat() -> void:
 		return
 	_east_to_west = data["east_to_west"]
 	_west_to_east = data["west_to_east"]
+	_east_to_west["poses"] = _pose_list(_east_to_west["samples"])
+	_west_to_east["poses"] = _pose_list(_west_to_east["samples"])
 	_east_down = _panda_transform(data["east_down"])
 	_east_up = _panda_transform(data["east_up"])
 	_west_down = _panda_transform(data["west_down"])
@@ -237,11 +239,11 @@ func _apply_sailing() -> void:
 	var leaving := clampf(_phase_time / PIER_TIME, 0.0, 1.0)
 	var arriving := clampf((_phase_time - (duration - PIER_TIME)) / PIER_TIME, 0.0, 1.0)
 	if toward_east:
-		_west_pier.transform = _west_up.interpolate_with(_west_down, leaving)
-		_east_pier.transform = _east_down.interpolate_with(_east_up, arriving)
+		_west_pier.transform = _swing(_west_up, _west_down, leaving)
+		_east_pier.transform = _swing(_east_down, _east_up, arriving)
 	else:
-		_east_pier.transform = _east_up.interpolate_with(_east_down, leaving)
-		_west_pier.transform = _west_down.interpolate_with(_west_up, arriving)
+		_east_pier.transform = _swing(_east_up, _east_down, leaving)
+		_west_pier.transform = _swing(_west_down, _west_up, arriving)
 	_sail_sounds(duration, toward_east)
 
 
@@ -279,17 +281,57 @@ func _apply_dock() -> void:
 	_west_pier.transform = _west_down if at_east else _west_up
 
 
+func _pose_list(samples: Array) -> Array:
+	var poses: Array[Transform3D] = []
+	for sample in samples:
+		if sample is Array:
+			poses.append(_panda_transform(sample))
+	return poses
+
+
+## The recorded samples are a tenth of a second apart. A straight blend
+## kinks the heading at every sample. The position follows the curve through
+## them, and the heading turns on the shortest rotation.
 func _along(path: Dictionary, time: float) -> Transform3D:
 	var duration := float(path["duration"])
-	var samples: Array = path["samples"]
-	var last := samples.size() - 1
+	var poses: Array = path.get("poses", [])
+	var last := poses.size() - 1
+	if last < 0:
+		return Transform3D.IDENTITY
 	var clamped := clampf(time, 0.0, duration)
 	var t := 0.0 if duration <= 0.0 else clamped / duration * float(last)
-	var i0 := mini(int(floorf(t)), last)
-	var i1 := mini(i0 + 1, last)
-	var from_pose := _panda_transform(samples[i0])
-	var to_pose := _panda_transform(samples[i1])
-	return from_pose.interpolate_with(to_pose, t - float(i0))
+	var i1 := mini(int(floorf(t)), last)
+	var i2 := mini(i1 + 1, last)
+	var i0 := maxi(i1 - 1, 0)
+	var i3 := mini(i2 + 1, last)
+	var u := t - float(i1)
+	var p0 := poses[i0] as Transform3D
+	var p1 := poses[i1] as Transform3D
+	var p2 := poses[i2] as Transform3D
+	var p3 := poses[i3] as Transform3D
+	var origin := _catmull(p0.origin, p1.origin, p2.origin, p3.origin, u)
+	var spin := p1.basis.get_rotation_quaternion().slerp(p2.basis.get_rotation_quaternion(), u)
+	return Transform3D(Basis(spin), origin)
+
+
+func _catmull(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, u: float) -> Vector3:
+	var u2 := u * u
+	var u3 := u2 * u
+	return 0.5 * (
+		(2.0 * p1)
+		+ (-p0 + p2) * u
+		+ (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * u2
+		+ (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * u3
+	)
+
+
+## The bridge used to blend its whole pose in a straight line, which wobbles
+## the deck. It now turns on its hinge and eases out of the stop.
+func _swing(from_pose: Transform3D, to_pose: Transform3D, amount: float) -> Transform3D:
+	var u := clampf(amount, 0.0, 1.0)
+	u = u * u * (3.0 - 2.0 * u)
+	var spin := from_pose.basis.get_rotation_quaternion().slerp(to_pose.basis.get_rotation_quaternion(), u)
+	return Transform3D(Basis(spin), from_pose.origin.lerp(to_pose.origin, u))
 
 
 func _sound(parent: Node, path: String) -> AudioStreamPlayer3D:
@@ -312,7 +354,7 @@ func _ride_collision(root: Node) -> void:
 		riding.transform = body.transform
 		riding.collision_layer = body.collision_layer
 		riding.collision_mask = body.collision_mask
-		riding.sync_to_physics = true
+		riding.sync_to_physics = false
 		var parent := body.get_parent()
 		var index := body.get_index()
 		for child in body.get_children():

@@ -97,43 +97,43 @@ func _configure() -> void:
 	_heal = heal_amount(kind)
 	match kind:
 		"tt":
-			_scene = "res://assets/neighborhoods/toontown_central/props/icecream.glb"
+			_scene = "res://assets/neighborhoods/toontown_central/props/icecream_solid.glb"
 			_heal = 3
 			_interval = 20.0
 			_max = 5
 			_points = _convert([[-59.9, -6.9, 0.84], [-90.6, -3.0, -0.75], [27.1, -93.5, 2.5], [94.2, 33.5, 4.0], [35.4, 43.1, 4.0], [67.1, 105.5, 2.5], [-99.15, -87.3407, 0.52499], [1.60586, -119.492, 3.025], [43.2026, -76.287, 3.025], [129.137, -61.9039, 2.525], [92.99, -158.399, 3.025], [111.749, -8.59927, 4.57466], [41.999, -30.2923, 4.025], [31.0649, -43.9149, 4.025], [10.0156, 105.218, 2.525], [46.9667, 169.143, 3.025], [100.68, 93.9896, 2.525], [129.285, 58.6107, 2.525], [-28.6272, 85.9833, 0.525], [-114.613, 86.1727, 0.525], [-132.528, 31.255, 0.025]])
 		"dd":
-			_scene = "res://assets/neighborhoods/donalds_dock/props/starfish_treasure.glb"
+			_scene = "res://assets/neighborhoods/donalds_dock/props/starfish_treasure_solid.glb"
 			_heal = 10
 			_interval = 20.0
 			_max = 2
 			_points = _convert([[52.9072, -23.4768, -12.308], [35.3827, -51.9196, -12.308], [17.4252, -57.3107, -12.308], [-0.716054, -68.5, -12.308], [-29.0169, -66.8887, -12.308], [-63.492, -64.2191, -12.308], [-72.2423, -58.3686, -12.308], [-97.9602, -42.8905, -12.308], [-102.215, -34.1519, -12.308], [-102.978, -4.09065, -12.308], [-101.305, 30.6454, -12.308], [-45.0621, -21.0088, -12.308], [-11.4043, -29.0816, -12.308], [2.33548, -7.71722, -12.308], [-8.643, 33.9891, -12.308], [-53.224, 18.1293, -12.308], [-99.7225, -8.1298, -12.308], [-100.457, 28.351, -12.308], [-76.7946, 4.21199, -12.308], [-64.9137, 37.5765, -12.308], [-17.6075, 102.135, -12.308], [-23.4112, 127.777, -12.308], [-11.3513, 128.991, -12.308], [-14.1068, 83.2043, -12.308], [53.2685, 24.3585, -12.308], [41.4197, 4.35384, -12.308]])
 		"dg":
-			_scene = "res://assets/neighborhoods/daisy_gardens/props/flower_treasure.glb"
+			_scene = "res://assets/neighborhoods/daisy_gardens/props/flower_treasure_solid.glb"
 			_heal = 10
 			_interval = 15.0
 			_max = 2
 			_points = _convert([[-49.0, 156.0, 0.0], [-59.0, 50.0, 0.0], [19.0, 16.0, 0.0], [76.0, 38.0, 1.1], [102.0, 121.0, 0.0], [69.0, 123.0, 0.0], [49.0, 105.0, 0.0], [24.0, 156.0, 0.0], [-27.0, 127.0, 0.0], [-56.0, 105.0, 0.0], [-40.0, 113.0, 0.0], [25.0, 114.0, 0.0], [-6.0, 84.0, 0.0], [19.0, 96.0, 0.0], [0.0, 114.0, 0.0], [-78.0, 157.0, 10.0], [-33.4, 218.2, 10.0], [57.0, 205.0, 10.0], [32.0, 77.0, 0.0], [-102.0, 101.0, 0.0]])
 		"mm":
-			_scene = "res://assets/neighborhoods/minnies_melodyland/props/music_treasure.glb"
+			_scene = "res://assets/neighborhoods/minnies_melodyland/props/music_treasure_solid.glb"
 			_heal = 10
 			_interval = 20.0
 			_max = 2
 			_points = _convert([[118.0, -39.0, 3.3], [118.0, 1.0, 3.3], [112.0, -22.0, 0.8], [108.0, -74.0, -4.5], [110.0, -65.0, -4.5], [102.0, 23.5, -4.5], [60.0, -115.0, 6.5], [-5.0, -115.0, 6.5], [-64.0, -77.0, 6.5], [-77.0, -44.0, 6.5], [-76.0, 3.0, 6.5], [44.0, 76.0, 6.5], [136.0, -96.0, -13.5], [85.0, -6.7, -13.5], [60.0, -95.0, -14.5], [72.0, 60.0, -13.5], [-55.0, -23.0, -14.5], [-21.0, 47.0, -14.5], [-24.0, -75.0, -14.5]])
 		"br":
-			_scene = "res://assets/neighborhoods/the_burrrgh/props/snowflake_treasure.glb"
+			_scene = "res://assets/neighborhoods/the_burrrgh/props/snowflake_treasure_solid.glb"
 			_heal = 12
 			_interval = 20.0
 			_max = 2
 			_points = _convert([[-108.0, 46.0, 6.2], [-111.0, 74.0, 6.2], [-126.0, 81.0, 6.2], [-74.0, -75.0, 3.0], [-136.0, -51.0, 3.0], [-20.0, 35.0, 6.2], [-55.0, 109.0, 6.2], [58.0, -57.0, 6.2], [-42.0, -134.0, 6.2], [-68.0, -148.0, 6.2], [-1.0, -62.0, 6.2], [25.0, 2.0, 6.2], [-133.0, 53.0, 6.2], [-99.0, 86.0, 6.2], [30.0, 63.0, 6.2], [-147.0, 3.0, 6.2], [-135.0, -102.0, 6.2], [35.0, -98.0, 6.2]])
 		"dl":
-			_scene = "res://assets/neighborhoods/donalds_dreamland/props/zzz_treasure.glb"
+			_scene = "res://assets/neighborhoods/donalds_dreamland/props/zzz_treasure_solid.glb"
 			_heal = 12
 			_interval = 20.0
 			_max = 2
 			_points = _convert([[86.0, 69.0, -17.4], [34.0, -48.0, -16.4], [87.0, -70.0, -17.5], [-98.0, 99.0, 0.0], [51.0, 100.0, 0.0], [-45.0, -12.0, -15.0], [9.0, 8.0, -15.0], [-24.0, 64.0, -17.2], [-100.0, -99.0, 0.0], [21.0, -101.0, 0.0], [88.0, -17.0, -15.0], [32.0, 70.0, -17.4], [53.0, 35.0, -15.8], [2.0, -30.0, -15.5], [-40.0, -56.0, -16.8], [-28.0, 18.0, -15.0], [-34.0, -88.0, 0.0]])
 		"oz":
-			_scene = "res://assets/neighborhoods/acorn_acres/props/acorn_treasure.glb"
+			_scene = "res://assets/neighborhoods/acorn_acres/props/acorn_treasure_solid.glb"
 			_heal = 3
 			_interval = 20.0
 			_max = 5
@@ -191,7 +191,13 @@ func _tick(slot: Dictionary, delta: float, player: Node3D, toon: Node, camera: C
 	var state := String(slot["state"])
 	if state == "empty":
 		return
-	_face(slot, camera)
+	var card := slot["card"] as Node3D
+	if card != null:
+		_face(slot, camera)
+	else:
+		var shaped := slot["model"] as Node3D
+		if shaped != null:
+			shaped.rotate_y(delta * 0.7)
 	if state == "fly":
 		_advance_fly(slot, delta, player)
 		return
@@ -323,19 +329,10 @@ func _face(slot: Dictionary, camera: Camera3D) -> void:
 	if camera == null:
 		return
 	var card := slot["card"] as Node3D
-	if card != null:
-		var rest: Basis = slot["rest"]
-		_yaw(card, rest, camera.global_position)
+	if card == null:
 		return
-	var model := slot["model"] as Node3D
-	if model == null:
-		return
-	var flat := camera.global_position - model.global_position
-	flat.y = 0.0
-	if flat.length() < 0.001:
-		return
-	# The ice-cream cone's visible side is +Z. look_at aims -Z at the point.
-	model.look_at(model.global_position - flat, Vector3.UP)
+	var rest: Basis = slot["rest"]
+	_yaw(card, rest, camera.global_position)
 
 
 func _yaw(node: Node3D, rest: Basis, target: Vector3) -> void:
@@ -374,17 +371,26 @@ func _paint(slot: Dictionary, darkness: float) -> void:
 func _own(node: Node, mats: Array[StandardMaterial3D], colors: Array[Color], modes: Array[int]) -> void:
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
-		var source := mesh.get_active_material(0) as StandardMaterial3D
-		if source == null and mesh.mesh != null:
-			source = mesh.mesh.surface_get_material(0) as StandardMaterial3D
-		if source != null:
-			var copy := source.duplicate() as StandardMaterial3D
-			copy.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			copy.cull_mode = BaseMaterial3D.CULL_DISABLED
-			mesh.material_override = copy
-			mats.append(copy)
-			colors.append(copy.albedo_color)
-			modes.append(int(copy.transparency))
+		if mesh.mesh != null:
+			mesh.material_override = null
+			for surface in mesh.mesh.get_surface_count():
+				var source := mesh.get_active_material(surface) as StandardMaterial3D
+				if source == null:
+					source = mesh.mesh.surface_get_material(surface) as StandardMaterial3D
+				if source == null:
+					continue
+				var copy := source.duplicate() as StandardMaterial3D
+				copy.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				copy.cull_mode = BaseMaterial3D.CULL_BACK
+				# The mesh is the solid shape. The picture's transparent border
+				# is not a second cutout.
+				copy.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+				copy.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+				copy.vertex_color_use_as_albedo = true
+				mesh.set_surface_override_material(surface, copy)
+				mats.append(copy)
+				colors.append(copy.albedo_color)
+				modes.append(int(copy.transparency))
 	for child in node.get_children():
 		_own(child, mats, colors, modes)
 

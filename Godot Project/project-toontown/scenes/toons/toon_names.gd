@@ -38,7 +38,7 @@ static func titles(gender: String) -> PackedStringArray:
 	else:
 		names.append_array(_lists[0])
 	names.append_array(_lists[2])
-	return names
+	return _alphabetical(names)
 
 
 static func firsts(gender: String) -> PackedStringArray:
@@ -49,7 +49,7 @@ static func firsts(gender: String) -> PackedStringArray:
 	else:
 		names.append_array(_lists[3])
 	names.append_array(_lists[5])
-	return names
+	return _alphabetical(names)
 
 
 static func prefixes() -> PackedStringArray:
@@ -57,12 +57,23 @@ static func prefixes() -> PackedStringArray:
 	var names := PackedStringArray()
 	names.append_array(_lists[6])
 	names.append_array(_lists[7])
-	return names
+	return _alphabetical(names)
 
 
 static func suffixes() -> PackedStringArray:
 	ensure()
-	return _lists[8]
+	return _alphabetical(_lists[8])
+
+
+static func _alphabetical(names: PackedStringArray) -> PackedStringArray:
+	var rows: Array[String] = []
+	for name in names:
+		rows.append(name)
+	rows.sort_custom(func(a: String, b: String) -> bool: return a.nocasecmp_to(b) < 0)
+	var sorted := PackedStringArray()
+	for name in rows:
+		sorted.append(name)
+	return sorted
 
 
 static func last_name(prefix: String, suffix: String) -> String:

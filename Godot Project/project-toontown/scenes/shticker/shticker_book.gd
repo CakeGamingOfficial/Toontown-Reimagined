@@ -298,6 +298,17 @@ func is_open() -> bool:
 	return _open
 
 
+## The corner book stays off during a fight, then comes back if the toon has it.
+func set_corner_button(shown: bool) -> void:
+	if not shown:
+		close()
+		if _button != null:
+			_button.visible = false
+		return
+	if _button != null and _tasks != null and _tasks.book_ready() and not _open:
+		_button.visible = true
+
+
 ## InventoryHotkey is Home, QuestsHotkey is End. The page stays up only while the key is held.
 func show_peek(which: String) -> void:
 	if which != "gags" and which != "tasks":

@@ -21,16 +21,27 @@ uniform float glove = 0.0;
 // in Panda's Z-up space; the actor basis has already turned that into world Y.
 uniform float hole_clip = 0.0;
 uniform float hole_floor = 0.0;
+// 0 shows this frame. In a battle, CUSTOM0 is the next position and TANGENT
+// is the next normal, so the pose moves at the display rate.
+uniform float pose_blend = 0.0;
 varying vec3 hole_world;
 // Mesh space is still Panda's: +Y is the face, +X is the toon's right.
 varying vec3 model_normal;
 varying float model_x;
 
 void vertex() {
-	model_normal = NORMAL;
-	model_x = VERTEX.x;
-	VERTEX += NORMAL * shell;
-	hole_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	vec3 pos = VERTEX;
+	vec3 nrm = NORMAL;
+	if (pose_blend > 0.001) {
+		pos = mix(VERTEX, CUSTOM0.xyz, pose_blend);
+		nrm = normalize(mix(NORMAL, TANGENT.xyz, pose_blend));
+	}
+	model_normal = nrm;
+	model_x = pos.x;
+	pos += nrm * shell;
+	VERTEX = pos;
+	NORMAL = nrm;
+	hole_world = (MODEL_MATRIX * vec4(pos, 1.0)).xyz;
 }
 
 void fragment() {

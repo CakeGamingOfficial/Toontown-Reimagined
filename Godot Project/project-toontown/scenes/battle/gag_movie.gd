@@ -6,12 +6,14 @@ extends Node
 ## camera cuts are MovieCamera's open shot, then the close shot.
 
 const _PROPS := "res://assets/battle/props/"
+const _CAMERA := preload("res://scenes/battle/battle_camera.gd")
+const _PROP_POSE := preload("res://scenes/battle/prop_pose.gdshader")
 const _SFX := "res://assets/audio/battle/"
 const _PORTAL := preload("res://scenes/playgrounds/teleport_portal.gd")
 const _HEIGHT := 4.88
 # Panda Z-up into Godot Y-up. Storm-cloud bolts are cards in local X/Z, so this stands them up.
 const _Z_UP := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
-# MovieUtil.SPRAY_LEN. The spray mesh runs along local +Y, and Panda's lookAt aims that axis.
+# MovieUtil.SPRAY_LEN. The spray mesh runs along local +Y, from the nozzle out.
 const _SPRAY_LEN := 1.5
 const _SPRAY_SCALE: Array[float] = [0.2, 0.3, 0.1, 0.6, 0.8, 1.0, 2.0]
 # MovieUtil.SUIT_LOSE_DURATION. The lose-mod plays after the hit react.
@@ -20,6 +22,8 @@ const LOSE_SECONDS := 6.0
 const DUST_SECONDS := 39.0 / 24.0
 ## MovieFire. The button press and the cannon that launches the cog run together.
 const FIRE_SECONDS := 10.5
+## The boom and the launch share this time. The duck starts here.
+const _FIRE_BOOM := 7.25
 const _GAGS: Array = [
 	["feather", "megaphone", "lipstick", "cane", "", "cubes", "ladder"],
 	["banana", "rake", "marbles", "quicksand", "trapdoor", "tnt", "traintrack"],
@@ -889,7 +893,7 @@ func end_aim() -> void:
 	_aim_cog = null
 
 
-func aim_camera(camera: Camera3D, basis: Dictionary) -> void:
+func aim_camera(camera: Camera3D, basis: Dictionary, delta: float) -> void:
 	if not _aiming or camera == null:
 		return
 	var name := _aim_close_name if _aim_time >= _aim_open else _aim_open_name
@@ -924,10 +928,7 @@ func aim_camera(camera: Camera3D, basis: Dictionary) -> void:
 		look = anchor + Vector3.UP * (height * 0.66)
 	if pos.distance_squared_to(look) < 0.36:
 		pos = look - forward * 6.0 + Vector3.UP * 2.0
-	camera.fov = 80.0
-	camera.global_position = pos
-	if camera.global_position.distance_squared_to(look) > 0.25:
-		camera.look_at(look, Vector3.UP)
+	_CAMERA.glide(camera, pos, look, 80.0, delta)
 
 
 func clear_traps() -> void:
@@ -1607,17 +1608,7 @@ func _fire(actor: ToonActor, marks: Array, still: Callable, contact: Callable) -
 	var gate := {}
 	await _run(FIRE_SECONDS, still, func(elapsed: float) -> void:
 		if actor != null and is_instance_valid(actor):
-			if elapsed < 3.5:
-				actor.pose_action("pushbutton", elapsed)
-			elif elapsed < 5.5:
-				actor.pose_action("wave", elapsed - 3.5)
-			elif elapsed < 7.3:
-				actor.pose_action("duck", elapsed - 5.5)
-			else:
-				if bool(state.get("face", false)):
-					actor.global_basis = face
-					state["face"] = false
-				actor.set_locomotion(0.0, false, false, 0.0)
+			_pose_fire_toon(actor, elapsed)
 		if button != null and is_instance_valid(button):
 			var grown := 1.0
 			if elapsed < 1.0:
@@ -1647,11 +1638,26 @@ func _fire(actor: ToonActor, marks: Array, still: Callable, contact: Callable) -
 	if actor != null and is_instance_valid(actor):
 		actor.end_action("pushbutton")
 		actor.end_action("wave")
+		actor.end_action("salute")
 		actor.end_action("duck")
 		if bool(state.get("face", false)):
 			actor.global_basis = face
 		actor.set_locomotion(0.0, false, false, 0.0)
 	_fire_clear(state.get("rig", {}))
+
+
+## Button, then the wave, then the salute. The duck starts as the cannon fires.
+func _pose_fire_toon(actor: ToonActor, elapsed: float) -> void:
+	var salute_for := actor.action_length("salute")
+	var salute_at := _FIRE_BOOM - salute_for
+	if elapsed < 3.5:
+		actor.pose_action("pushbutton", elapsed)
+	elif elapsed < salute_at:
+		actor.pose_action("wave", elapsed - 3.5)
+	elif elapsed < _FIRE_BOOM:
+		actor.pose_action("salute", elapsed - salute_at)
+	else:
+		actor.pose_action("duck", elapsed - _FIRE_BOOM)
 
 
 func _fire_rig(cog: Node3D) -> Dictionary:
@@ -1681,6 +1687,9 @@ func _fire_rig(cog: Node3D) -> Dictionary:
 	seat.scale = Vector3(1.0 / 1.6, 1.0, 1.0 / 1.6)
 	var home_scale := cog.scale
 	var home_xform := cog.transform
+	# Street placement only sees direct children. This mark keeps a later
+	# pass from pulling the cog back out of the barrel.
+	cog.set_meta("fire_cannon", true)
 	cog.reparent(seat, false)
 	cog.position = Vector3.ZERO
 	cog.rotation = Vector3.ZERO
@@ -1705,9 +1714,9 @@ func _fire_rig(cog: Node3D) -> Dictionary:
 
 
 func _fire_cannon(rig: Dictionary, local: float) -> void:
-	var holder := rig.get("holder") as Node3D
-	var barrel := rig.get("barrel") as Node3D
-	var cog := rig.get("cog") as Node3D
+	var holder := _node3d(rig.get("holder"))
+	var barrel := _node3d(rig.get("barrel"))
+	var cog := _node3d(rig.get("cog"))
 	if holder == null or not is_instance_valid(holder):
 		return
 	var base: Vector3 = rig.get("base", holder.global_position)
@@ -1758,18 +1767,27 @@ func _fire_cannon(rig: Dictionary, local: float) -> void:
 func _fire_clear(rig: Dictionary) -> void:
 	if rig.is_empty():
 		return
-	var cog := rig.get("cog") as Node3D
-	var host := rig.get("host") as Node
-	var holder := rig.get("holder") as Node3D
-	if cog != null and is_instance_valid(cog):
-		if host != null and is_instance_valid(host):
+	var cog := _node3d(rig.get("cog"))
+	# StreetSuits is a Node, not a Node3D. _node3d would drop it and the
+	# queue_free below would delete the cog with the cannon.
+	var host_value: Variant = rig.get("host")
+	var host: Node = host_value if _live(host_value) and host_value is Node else null
+	var holder := _node3d(rig.get("holder"))
+	if cog != null:
+		if cog.has_meta("fire_cannon"):
+			cog.remove_meta("fire_cannon")
+		if host != null:
 			cog.reparent(host, false)
 			cog.transform = rig.get("xform", Transform3D.IDENTITY)
 			cog.scale = rig.get("scale", Vector3.ONE)
 		cog.visible = false
 		if cog.has_method("begin_react"):
 			cog.call("begin_react", "", 0.0)
-	if holder != null and is_instance_valid(holder):
+		# The cannon took the cog off the street list, so the round's dismiss
+		# never found it. Mark it defeated now that it is back on that list.
+		if cog.has_method("defeat"):
+			cog.call("defeat")
+	if holder != null:
 		holder.queue_free()
 
 
@@ -3737,7 +3755,7 @@ func _prepare_death() -> void:
 			continue
 		if _boom_mats.is_empty():
 			_boom_size = _card_size(found.mesh)
-		var material := _sprite_material(found.get_active_material(0))
+		var material := _sprite_material(found.get_active_material(0), found.mesh)
 		if material != null:
 			_boom_mats.append(material)
 	root.free()
@@ -3754,12 +3772,12 @@ func _card_material(path: String, remember_size: bool) -> Material:
 		var mesh_node := meshes[0] as MeshInstance3D
 		if mesh_node.mesh != null and remember_size:
 			_gear_size = _card_size(mesh_node.mesh)
-		material = _sprite_material(mesh_node.get_active_material(0))
+		material = _sprite_material(mesh_node.get_active_material(0), mesh_node.mesh)
 	root.free()
 	return material
 
 
-func _sprite_material(source: Material) -> Material:
+func _sprite_material(source: Material, mesh: Mesh = null) -> Material:
 	if source == null:
 		return null
 	var material := source.duplicate() as BaseMaterial3D
@@ -3768,7 +3786,30 @@ func _sprite_material(source: Material) -> Material:
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# The source card only uses one cell of the sheet. A fresh quad is 0–1,
+	# so without this crop the whole sheet shows, black block and all.
+	if mesh != null:
+		_crop_card(material, mesh)
 	return material
+
+
+func _crop_card(material: BaseMaterial3D, mesh: Mesh) -> void:
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var listed: Variant = arrays[Mesh.ARRAY_TEX_UV]
+	if listed == null or not (listed is PackedVector2Array):
+		return
+	var points: PackedVector2Array = listed
+	if points.is_empty():
+		return
+	var low := points[0]
+	var high := points[0]
+	for uv in points:
+		low.x = minf(low.x, uv.x)
+		low.y = minf(low.y, uv.y)
+		high.x = maxf(high.x, uv.x)
+		high.y = maxf(high.y, uv.y)
+	material.uv1_offset = Vector3(low.x, low.y, 0.0)
+	material.uv1_scale = Vector3(high.x - low.x, high.y - low.y, 1.0)
 
 
 func _card_size(mesh: Mesh) -> Vector2:
@@ -4574,15 +4615,22 @@ func _pose_prop(prop: Node3D, clip_name: String, elapsed: float) -> void:
 		var node := record.get("node") as Node3D
 		if node == null or not is_instance_valid(node):
 			continue
-		node.transform = _prop_matrix(_blended_cells(record["frames"] as Array, frame, following, blend))
+		node.transform = _blend_prop_joint(record["frames"] as Array, frame, following, blend)
 	for item in bank.get("meshes", []):
 		var record: Dictionary = item
 		var instance := record.get("instance") as MeshInstance3D
 		if instance == null or not is_instance_valid(instance):
 			continue
-		var posed := _prop_surface(record, frame, following, blend)
-		if posed != null and instance.mesh != posed:
-			instance.mesh = posed
+		_use_prop_pose(record, instance)
+		var posed := _prop_blend_mesh(record, frame, following)
+		var amount := 0.0
+		if posed != null:
+			if instance.mesh != posed:
+				instance.mesh = posed
+			amount = 0.0 if following == frame else blend
+		for mat in record.get("pose_materials", []):
+			if mat is ShaderMaterial:
+				(mat as ShaderMaterial).set_shader_parameter("pose_blend", amount)
 
 
 func _bind_prop(prop: Node3D, clip_name: String) -> Dictionary:
@@ -4599,14 +4647,11 @@ func _bind_prop(prop: Node3D, clip_name: String) -> Dictionary:
 		var mesh := _mesh_under(prop, String(record.get("parent", "")))
 		if mesh == null:
 			continue
-		var poses: Array = []
-		poses.resize(int(source.get("frames", 0)))
 		bank["meshes"].append({
 			"instance": mesh,
 			"original": mesh.mesh,
 			"surfaces": record["surfaces"],
 			"bytes": record["bytes"],
-			"poses": poses,
 		})
 	return bank
 
@@ -4695,6 +4740,24 @@ func _parse_prop(path: String) -> Dictionary:
 	return {"frames": frame_count, "joints": joints, "meshes": meshes}
 
 
+## Rotation eases between the baked joints. A prop that is scaling away,
+## such as a splat, keeps the straight mix so the size does not pop.
+func _blend_prop_joint(frames: Array, frame: int, following: int, blend: float) -> Transform3D:
+	var current: PackedFloat32Array = frames[frame]
+	if blend <= 0.001 or following == frame:
+		return _prop_matrix(current)
+	var nxt: PackedFloat32Array = frames[following]
+	var from := _prop_matrix(current)
+	var to := _prop_matrix(nxt)
+	var from_scale := from.basis.get_scale()
+	var to_scale := to.basis.get_scale()
+	if from_scale.length_squared() < 0.0004 or to_scale.length_squared() < 0.0004 or from.basis.determinant() <= 0.0001 or to.basis.determinant() <= 0.0001:
+		return _prop_matrix(_blended_cells(frames, frame, following, blend))
+	var mixed_scale := from_scale.lerp(to_scale, blend)
+	var mixed := Basis(from.basis.get_rotation_quaternion()).slerp(Basis(to.basis.get_rotation_quaternion()), blend)
+	return Transform3D(mixed.scaled(mixed_scale), from.origin.lerp(to.origin, blend))
+
+
 func _blended_cells(frames: Array, frame: int, following: int, blend: float) -> PackedFloat32Array:
 	var current: PackedFloat32Array = frames[frame]
 	if blend <= 0.001 or following == frame:
@@ -4716,25 +4779,119 @@ func _prop_matrix(cells: PackedFloat32Array) -> Transform3D:
 	), Vector3(cells[12], cells[13], cells[14]))
 
 
-func _prop_surface(record: Dictionary, frame: int, following: int, blend: float) -> ArrayMesh:
-	var poses: Array = record["poses"]
-	var posed: ArrayMesh = null
-	if frame < poses.size():
-		posed = poses[frame] as ArrayMesh
-	if posed == null:
-		posed = _build_prop_mesh(record, frame)
-		if frame < poses.size():
-			poses[frame] = posed
-	if blend <= 0.001 or following == frame or posed == null:
-		return posed
-	var nxt := poses[following] as ArrayMesh
-	if nxt == null:
-		nxt = _build_prop_mesh(record, following)
-		if following < poses.size():
-			poses[following] = nxt
-	if nxt == null:
-		return posed
-	return _blend_prop_mesh(posed, nxt, blend)
+func _use_prop_pose(record: Dictionary, instance: MeshInstance3D) -> void:
+	if record.has("pose_materials"):
+		return
+	var source := instance.mesh
+	var materials: Array[ShaderMaterial] = []
+	var count := source.get_surface_count() if source != null else 0
+	for index in count:
+		var found := instance.get_surface_override_material(index)
+		if found == null and source != null:
+			found = source.surface_get_material(index)
+		var posed := _prop_pose_material(found)
+		instance.set_surface_override_material(index, posed)
+		materials.append(posed)
+	record["pose_materials"] = materials
+
+
+func _prop_pose_material(source: Material) -> ShaderMaterial:
+	var posed := ShaderMaterial.new()
+	posed.shader = _PROP_POSE
+	var albedo := Color.WHITE
+	var texture: Texture2D = null
+	var scissor := 0.0
+	if source is StandardMaterial3D:
+		var standard := source as StandardMaterial3D
+		albedo = standard.albedo_color
+		texture = standard.albedo_texture
+		if standard.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
+			scissor = standard.alpha_scissor_threshold
+		elif standard.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+			scissor = 0.5
+	elif source is BaseMaterial3D:
+		var basic := source as BaseMaterial3D
+		albedo = basic.albedo_color
+		texture = basic.albedo_texture
+	posed.set_shader_parameter("albedo_color", albedo)
+	posed.set_shader_parameter("use_albedo_texture", 1.0 if texture != null else 0.0)
+	if texture != null:
+		posed.set_shader_parameter("albedo_texture", texture)
+	posed.set_shader_parameter("alpha_scissor", scissor)
+	posed.set_shader_parameter("pose_blend", 0.0)
+	return posed
+
+
+func _prop_blend_mesh(record: Dictionary, frame: int, following: int) -> ArrayMesh:
+	var cache: Dictionary = record.get("blend_meshes", {})
+	var key := frame * 10000 + following
+	var cached: ArrayMesh = cache.get(key) as ArrayMesh
+	if cached != null and cached.get_surface_count() > 0:
+		return cached
+	var current := _build_prop_mesh(record, frame)
+	var nxt := _build_prop_mesh(record, following)
+	if current == null or nxt == null or current.get_surface_count() != nxt.get_surface_count():
+		return null
+	var mixed := ArrayMesh.new()
+	var flags := Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
+	for index in current.get_surface_count():
+		var left: Array = current.surface_get_arrays(index)
+		var right: Array = nxt.surface_get_arrays(index)
+		var positions: PackedVector3Array = left[Mesh.ARRAY_VERTEX]
+		var next_positions: PackedVector3Array = right[Mesh.ARRAY_VERTEX]
+		if positions.size() != next_positions.size() or positions.is_empty():
+			return null
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = positions
+		var normal_slot: Variant = left[Mesh.ARRAY_NORMAL]
+		if normal_slot is PackedVector3Array:
+			var normals: PackedVector3Array = normal_slot
+			if normals.size() == positions.size():
+				arrays[Mesh.ARRAY_NORMAL] = normals
+		# A dollar or a magnet has no texture coordinates. The slot is null.
+		var uv_slot: Variant = left[Mesh.ARRAY_TEX_UV]
+		if uv_slot is PackedVector2Array:
+			var uvs: PackedVector2Array = uv_slot
+			if uvs.size() == positions.size():
+				arrays[Mesh.ARRAY_TEX_UV] = uvs
+		arrays[Mesh.ARRAY_CUSTOM0] = _prop_rgba(next_positions)
+		var next_normal_slot: Variant = right[Mesh.ARRAY_NORMAL]
+		if next_normal_slot is PackedVector3Array:
+			var next_normals: PackedVector3Array = next_normal_slot
+			if next_normals.size() == positions.size():
+				arrays[Mesh.ARRAY_TANGENT] = _prop_tangents(next_normals)
+		mixed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
+		mixed.surface_set_material(index, current.surface_get_material(index))
+	cache[key] = mixed
+	record["blend_meshes"] = cache
+	return mixed
+
+
+static func _prop_rgba(points: PackedVector3Array) -> PackedFloat32Array:
+	var packed := PackedFloat32Array()
+	packed.resize(points.size() * 4)
+	var at := 0
+	for point in points:
+		packed[at] = point.x
+		packed[at + 1] = point.y
+		packed[at + 2] = point.z
+		packed[at + 3] = 0.0
+		at += 4
+	return packed
+
+
+static func _prop_tangents(normals: PackedVector3Array) -> PackedFloat32Array:
+	var packed := PackedFloat32Array()
+	packed.resize(normals.size() * 4)
+	var at := 0
+	for normal in normals:
+		packed[at] = normal.x
+		packed[at + 1] = normal.y
+		packed[at + 2] = normal.z
+		packed[at + 3] = 1.0
+		at += 4
+	return packed
 
 
 func _build_prop_mesh(record: Dictionary, frame: int) -> ArrayMesh:
@@ -4756,34 +4913,15 @@ func _build_prop_mesh(record: Dictionary, frame: int) -> ArrayMesh:
 		arrays.resize(Mesh.ARRAY_MAX)
 		arrays[Mesh.ARRAY_VERTEX] = positions
 		arrays[Mesh.ARRAY_NORMAL] = _face_normals(positions)
-		var uvs: PackedVector2Array = surface["uv"]
-		if uvs.size() == count:
-			arrays[Mesh.ARRAY_TEX_UV] = uvs
+		var uv_slot: Variant = surface.get("uv", null)
+		if uv_slot is PackedVector2Array:
+			var uvs: PackedVector2Array = uv_slot
+			if uvs.size() == count:
+				arrays[Mesh.ARRAY_TEX_UV] = uvs
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		if original != null and surface_index < original.get_surface_count():
 			mesh.surface_set_material(surface_index, original.surface_get_material(surface_index))
 	return mesh
-
-
-func _blend_prop_mesh(current: ArrayMesh, nxt: ArrayMesh, blend: float) -> ArrayMesh:
-	var mixed := ArrayMesh.new()
-	for index in current.get_surface_count():
-		var left: Array = current.surface_get_arrays(index)
-		var right: Array = nxt.surface_get_arrays(index)
-		var positions: PackedVector3Array = left[Mesh.ARRAY_VERTEX]
-		var next_positions: PackedVector3Array = right[Mesh.ARRAY_VERTEX]
-		var blended := PackedVector3Array()
-		blended.resize(positions.size())
-		for vertex in positions.size():
-			blended[vertex] = positions[vertex].lerp(next_positions[vertex], blend)
-		var arrays: Array = []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = blended
-		arrays[Mesh.ARRAY_NORMAL] = _face_normals(blended)
-		arrays[Mesh.ARRAY_TEX_UV] = left[Mesh.ARRAY_TEX_UV]
-		mixed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		mixed.surface_set_material(index, current.surface_get_material(index))
-	return mixed
 
 
 func _face_normals(positions: PackedVector3Array) -> PackedVector3Array:
@@ -5040,14 +5178,16 @@ func _spray(spray: Node3D, from_world: Vector3, to_world: Vector3, level: int) -
 		spray.visible = false
 		return
 	spray.reparent(self)
-	# look_at aims local -Z. This mesh's stream is local +Y, so aim that at the cog.
+	# The stream runs along local +Y, from the nozzle toward the cog.
+	# The basis has to stay right-handed. A mirrored one flips +Y when scaled,
+	# and the water shoots back at the toon.
 	var forward := dir / distance
 	var up := Vector3.UP
 	if absf(forward.dot(up)) > 0.98:
 		up = Vector3.FORWARD
-	var side := up.cross(forward).normalized()
-	up = forward.cross(side).normalized()
-	spray.global_basis = Basis(side, forward, up)
+	var right := forward.cross(up).normalized()
+	up = right.cross(forward).normalized()
+	spray.global_basis = Basis(right, forward, up)
 	spray.global_position = from_world
 	var reach := distance / _SPRAY_LEN
 	var thick := _SPRAY_SCALE[clampi(level, 0, _SPRAY_SCALE.size() - 1)]

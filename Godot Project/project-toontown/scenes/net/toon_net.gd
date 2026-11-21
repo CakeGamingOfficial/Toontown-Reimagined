@@ -1341,12 +1341,12 @@ func _open_course(district: int, cog_id: int, where: Vector3, yaw: float, peer: 
 		board.call("engage", district, cog_id, where, yaw, peer, toon_name, hp, max_hp)
 
 
-func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
+func _ask_gag(fight_id: int, track: int, level: int, target: int, exp: int, locked := true) -> void:
 	if is_authority():
-		_choose_fight(fight_id, peer_id(), track, level, target, exp)
+		_choose_fight(fight_id, peer_id(), track, level, target, exp, locked)
 		return
 	if _role == "client":
-		_choose_gag.rpc_id(1, fight_id, track, level, target, exp)
+		_choose_gag.rpc_id(1, fight_id, track, level, target, exp, locked)
 
 
 func _vp_script() -> GDScript:
@@ -1806,10 +1806,10 @@ func _open_fight(district: int, slug: String, cog_id: int, peer: int, toon_name:
 		fights.call("open_fight", district, slug, cog_id, peer, toon_name, hp, max_hp)
 
 
-func _choose_fight(fight_id: int, peer: int, track: int, level: int, target: int, exp: int) -> void:
+func _choose_fight(fight_id: int, peer: int, track: int, level: int, target: int, exp: int, locked := true) -> void:
 	var fights := get_node_or_null("/root/StreetTraffic/StreetFights")
 	if fights != null and fights.has_method("choose"):
-		fights.call("choose", fight_id, peer, track, level, target, exp)
+		fights.call("choose", fight_id, peer, track, level, target, exp, locked)
 
 
 func _ask_building(district: int, slug: String, mode: String, plan: Dictionary) -> void:
@@ -2594,18 +2594,19 @@ static func ask_floor_hop(district: int, slug: String, block: int) -> void:
 	net._ask_floor_hop(district, slug, block)
 
 
-static func ask_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
+static func ask_gag(fight_id: int, track: int, level: int, target: int, exp: int, locked := true) -> void:
 	var net := live()
 	if net == null:
 		return
-	net._ask_gag(fight_id, track, level, target, exp)
+	net._ask_gag(fight_id, track, level, target, exp, locked)
 
 
-func _request_suits(district: int, slug: String) -> void:
+func _request_suits(district: int, slug: String, peer := 0) -> void:
 	if is_authority():
 		var traffic := get_node_or_null("/root/StreetTraffic")
+		var who := peer if peer > 0 else ToonNet.peer_id()
 		if traffic != null and traffic.has_method("ensure"):
-			traffic.call("ensure", district, slug)
+			traffic.call("ensure", district, slug, who)
 		if traffic != null and traffic.has_method("ensure_buildings"):
 			traffic.call("ensure_buildings", district, slug)
 		return
@@ -3581,10 +3582,10 @@ func _factory_switch(trip: int, kind: int, ent_id: int, on: bool) -> void:
 
 
 @rpc("any_peer", "reliable")
-func _choose_gag(fight_id: int, track: int, level: int, target: int, exp: int) -> void:
+func _choose_gag(fight_id: int, track: int, level: int, target: int, exp: int, locked := true) -> void:
 	if not is_authority():
 		return
-	_choose_fight(fight_id, multiplayer.get_remote_sender_id(), track, level, target, exp)
+	_choose_fight(fight_id, multiplayer.get_remote_sender_id(), track, level, target, exp, locked)
 
 
 @rpc("any_peer", "reliable")
@@ -3738,7 +3739,8 @@ func _close_reward(fight_id: int, peer: int) -> void:
 @rpc("any_peer", "reliable")
 func _request_street(district: int, slug: String) -> void:
 	if is_authority():
-		_request_suits(district, slug)
+		var sender := multiplayer.get_remote_sender_id()
+		_request_suits(district, slug, sender)
 
 
 func _pack(value: Variant) -> Variant:

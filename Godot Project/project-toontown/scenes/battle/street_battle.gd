@@ -10,6 +10,7 @@ const APPROACH := 7.0
 # TownLoader.battleMusic. BattlePlace.enterBattle plays it at 0.9 and
 # stops the street track. exitBattle brings the street track back at 0.8.
 const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
+const _CAMERA := preload("res://scenes/battle/battle_camera.gd")
 const BATTLE_VOLUME := 0.9
 const PLACE_VOLUME := 0.8
 # BattleBase points for one suit and one toon, and the face-off timing.
@@ -80,6 +81,10 @@ var _dancing := false
 var _dance := 0.0
 var _dance_sound: AudioStreamPlayer
 var _place_fov := 52.0
+var _cam_pos := Vector3.ZERO
+var _cam_look := Vector3.ZERO
+var _cam_fov := 52.0
+var _cam_aimed := false
 
 
 func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky, loadout: ToonLoadout, tasks: ToonTasks, camera: Camera3D, meter: LaffMeter, book: ShtickerBook, hud: CanvasLayer) -> void:
@@ -104,6 +109,10 @@ func setup(host: Node, body: CharacterBody3D, player: ToonActor, flunky: Flunky,
 	_movie.name = "BattleMovie"
 	add_child(_movie)
 	_movie.setup(player, flunky, camera)
+
+
+func _arm_lock(_track: int, _level: int) -> void:
+	_menu.arm_lock(true)
 
 
 func active() -> bool:
@@ -136,8 +145,11 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if _cool > 0.0:
 		_cool = maxf(_cool - delta, 0.0)
+	var filmed := false
 	if _movie != null:
-		_movie.tick_shot(delta)
+		filmed = _movie.tick_shot(delta)
+	if _active and _cam_aimed and not filmed and _camera != null:
+		_CAMERA.glide(_camera, _cam_pos, _cam_look, _cam_fov, delta)
 	if _dancing and _player != null:
 		_dance += delta
 		var length := _player.action_length("victory")
@@ -168,7 +180,8 @@ func _run() -> void:
 	_apply_cog_vitals()
 	_set_cog_bar()
 	if _book != null:
-		_book.close()
+		_book.set_corner_button(false)
+	_hold_tracker(true)
 	var panel := _hud.get_node_or_null("GagPanel")
 	if panel != null:
 		panel.visible = false
@@ -187,6 +200,16 @@ func _run() -> void:
 	_loadout.grant_tutorial_accuracy()
 	while _cog_hp > 0 and _loadout.hp > 0:
 		_aim(true)
+		_menu.hold_choices = preload("res://scenes/shticker/ui_settings.gd").gag_lock_on()
+		if _menu.hold_choices and not _menu.drafted.is_connected(_arm_lock):
+			_menu.drafted.connect(_arm_lock)
+		_menu.set_preview([{
+			"id": 1,
+			"name": _flunky.cog_name if not _flunky.cog_name.is_empty() else "Flunky",
+			"code": _flunky.cog_code if not _flunky.cog_code.is_empty() else "f",
+			"level": _flunky.cog_level,
+			"hp": _cog_hp,
+		}], [])
 		var pick := await _menu.choose()
 		if pick.x >= 0:
 			await _toon_attack(pick.x, pick.y)
@@ -206,11 +229,25 @@ func _run() -> void:
 		_card.visible = false
 	_stop_battle_music()
 	_loadout.clear_tutorial_accuracy()
+	_cam_aimed = false
+	_CAMERA.release()
 	if _camera != null:
 		_camera.fov = _place_fov
 	_host.call("set_cutscene", false)
+	if _book != null:
+		_book.set_corner_button(true)
+	_hold_tracker(false)
 	_active = false
 	_cool = 1.5
+
+
+func _hold_tracker(held: bool) -> void:
+	var tracker := _hud.get_node_or_null("TaskTracker") if _hud != null else null
+	if tracker == null:
+		var scene := get_tree().current_scene
+		tracker = scene.find_child("TaskTracker", true, false) if scene != null else null
+	if tracker != null and tracker.has_method("hold_for_battle"):
+		tracker.call("hold_for_battle", held)
 
 
 func _start_battle_music() -> void:
@@ -303,12 +340,8 @@ func _face_off() -> void:
 	var battle_heading := _heading_toward(cell, cell + toward)
 	_host.call("face_actor", _player, _heading_toward(toon_pos, suit_pos))
 	_flunky.face_heading(_heading_toward(suit_pos, toon_pos))
-	if _camera != null:
-		_camera.fov = _FACEOFF_FOV
-		_aim_taunt(suit_pos)
+	_aim_taunt(suit_pos)
 	await _say(_flunky.global_position + Vector3(0, 4.6, 0), "You're not going to like the way I work.", _FACEOFF_TAUNT, false, true)
-	if _camera != null:
-		_camera.fov = _MOVIE_FOV
 	var suit_dest := Vector3(cell.x + toward.x * _SUIT_REACH, suit_pos.y, cell.z + toward.z * _SUIT_REACH)
 	var toon_dest := Vector3(cell.x - toward.x * _TOON_REACH, toon_pos.y, cell.z - toward.z * _TOON_REACH)
 	if toon_pos.distance_squared_to(toon_dest) > 0.04:
@@ -325,16 +358,28 @@ func _face_off() -> void:
 	var distance := Vector2(timed.x - suit_pos.x, timed.z - suit_pos.z).length()
 	var duration := maxf(distance / _SUIT_SPEED, 0.05)
 	var steps := _run_steps()
+	var toon_travel := _heading_toward(toon_pos, toon_dest)
+	var suit_travel := _heading_toward(suit_pos, suit_dest)
 	var elapsed := 0.0
 	while elapsed < duration:
 		await get_tree().process_frame
 		var delta := get_process_delta_time()
 		elapsed += delta
 		var along := clampf(elapsed / duration, 0.0, 1.0)
-		_body.global_position.x = lerpf(toon_pos.x, toon_dest.x, along)
-		_body.global_position.z = lerpf(toon_pos.z, toon_dest.z, along)
-		_flunky.global_position.x = lerpf(suit_pos.x, suit_dest.x, along)
-		_flunky.global_position.z = lerpf(suit_pos.z, suit_dest.z, along)
+		var eased := _ease(along)
+		_body.global_position.x = lerpf(toon_pos.x, toon_dest.x, eased)
+		_body.global_position.z = lerpf(toon_pos.z, toon_dest.z, eased)
+		_flunky.global_position.x = lerpf(suit_pos.x, suit_dest.x, eased)
+		_flunky.global_position.z = lerpf(suit_pos.z, suit_dest.z, eased)
+		var toon_face := toon_travel
+		var suit_face := suit_travel
+		if along > 0.7:
+			var turn := _ease((along - 0.7) / 0.3)
+			toon_face = _lerp_heading(toon_travel, battle_heading, turn)
+			suit_face = _lerp_heading(suit_travel, battle_heading + 179.0, turn)
+		_host.call("face_actor", _player, toon_face)
+		_flunky.face_heading(suit_face)
+		_aim_walk(cell, toward, suit_pos)
 		_player.play_run(delta)
 		_flunky.play_walk(delta)
 	_body.global_position.x = toon_dest.x
@@ -360,21 +405,30 @@ func _aim_taunt(suit_pos: Vector3) -> void:
 	var heights: Array[float] = [chest, 1.0, 11.0]
 	var height: float = heights[randi() % heights.size()]
 	var cam := suit_pos + right * side + forward * 16.0 + Vector3(0.0, height, 0.0)
-	_look_from(cam, suit_pos + Vector3(0.0, _SUIT_HEIGHT, 0.0))
+	_look_from(cam, suit_pos + Vector3(0.0, _SUIT_HEIGHT, 0.0), _FACEOFF_FOV)
 
 
-func _aim_walk(cell: Vector3, toward: Vector3, suit_pos: Vector3) -> void:
+func _aim_walk(cell: Vector3, toward: Vector3, _suit_pos: Vector3) -> void:
 	var ground_y := _body.global_position.y
 	var cam := Vector3(cell.x - toward.x * 10.0, ground_y + 4.0, cell.z - toward.z * 10.0)
-	_look_from(cam, suit_pos + Vector3(0.0, _SUIT_HEIGHT * 0.5, 0.0))
+	var pair := (_body.global_position + _flunky.global_position) * 0.5
+	_look_from(cam, Vector3(pair.x, ground_y + _SUIT_HEIGHT * 0.5, pair.z), _MOVIE_FOV)
 
 
-func _look_from(pos: Vector3, at: Vector3) -> void:
-	if _camera == null:
-		return
-	_camera.global_position = pos
-	if pos.distance_squared_to(at) > 0.04:
-		_camera.look_at(at, Vector3.UP)
+func _look_from(pos: Vector3, at: Vector3, fov: float) -> void:
+	_cam_pos = pos
+	_cam_look = at
+	_cam_fov = fov
+	_cam_aimed = true
+
+
+func _ease(along: float) -> float:
+	var t := clampf(along, 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+
+func _lerp_heading(from_h: float, to_h: float, along: float) -> float:
+	return rad_to_deg(lerp_angle(deg_to_rad(from_h), deg_to_rad(to_h), clampf(along, 0.0, 1.0)))
 
 
 func _heading_basis(heading: float) -> Basis:
@@ -420,15 +474,11 @@ func _aim(menu_view: bool) -> void:
 	origin.y = _body.global_position.y
 	if menu_view:
 		# BattleCamDefaultPos, pitched down toward the cell, menu lens 65.
-		_camera.fov = _MENU_FOV
-		_camera.global_position = origin - forward * _MENU_BACK + Vector3(0, _MENU_HEIGHT, 0)
-		_camera.look_at(origin + Vector3(0, 2.0, 0), Vector3.UP)
+		_look_from(origin - forward * _MENU_BACK + Vector3(0, _MENU_HEIGHT, 0), origin + Vector3(0, 2.0, 0), _MENU_FOV)
 	else:
 		# allGroupLowShot sits 15 units off the cell at height 3.
-		_camera.fov = _MOVIE_FOV
 		var side := forward.cross(Vector3.UP).normalized()
-		_camera.global_position = origin + side * 15.0 + Vector3(0, 3.0, 0)
-		_camera.look_at(origin + Vector3(0, 1.8, 0), Vector3.UP)
+		_look_from(origin + side * 15.0 + Vector3(0, 3.0, 0), origin + Vector3(0, 1.8, 0), _MOVIE_FOV)
 
 
 func _toon_attack(track: int, level: int) -> void:

@@ -285,13 +285,32 @@ func _change(path: String) -> void:
 		get_tree().change_scene_to_packed(packed)
 	else:
 		get_tree().change_scene_to_file(path)
-	# The new place compiles its shaders on the first frames. Keep this screen
-	# up through those frames, so arriving is not the frame that stalls.
-	for _wait in 4:
+	# The street's first draw compiles its materials, and that stall is the
+	# hitch when the tunnel opens. The old loop hid this screen on the first
+	# frame the new scene existed, which is the frame that stalls. Stay up
+	# until a few frames in a row come back cheap.
+	var calm := 0
+	var last := Time.get_ticks_usec()
+	for _wait in 180:
 		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		var cost := now - last
+		last = now
 		var arrived := get_tree().current_scene
-		if arrived != null and arrived != leaving:
-			break
+		if arrived == null or arrived == leaving:
+			calm = 0
+			continue
+		# A street folds its blocks a few at a time. Opening the view before
+		# that finishes is the hitch in the tunnel.
+		if not bool(arrived.get_meta("street_ready", true)):
+			calm = 0
+			continue
+		if cost < 70000:
+			calm += 1
+			if calm >= 4:
+				break
+		else:
+			calm = 0
 	if ToonSocial.visit_on and ToonSocial.visit_scene == path:
 		ToonSocial.visit_on = false
 	visible = false

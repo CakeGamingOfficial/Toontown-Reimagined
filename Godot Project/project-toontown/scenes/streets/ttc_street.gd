@@ -201,6 +201,7 @@ func _process(delta: float) -> void:
 	TOONTOWN_SKY.ensure(self)
 	var camera := _view_camera()
 	_process_zones(camera)
+	preload("res://scenes/playgrounds/street_batch.gd").warm(self, _zone_sample)
 	if Engine.is_editor_hint():
 		return
 	_process_billboards(camera)

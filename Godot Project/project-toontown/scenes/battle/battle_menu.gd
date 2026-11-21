@@ -1,14 +1,18 @@
 class_name BattleMenu
 extends Control
 
-## InventoryNew.battleActivateButtons. The frame is phase_3.5 BATTLE_Menu.
-## Gag rows, the blue inventory buttons, and Run / SOS / Fire / Pass sit on
-## it the way the original battle inventory does. Pass skips the attack.
-## Fire stays grey until the toon has a pink slip.
+## InventoryNew.battleActivateButtons. Track names sit on a dark bar.
+## Clicking a name opens the gag levels that track has unlocked. Those
+## icons stack above the name, or run in a row when Battle Gag Menu is
+## set to Horizontal. Pass skips the attack. Fire stays grey until the
+## toon has a pink slip.
 
 signal picked(track: int, level: int)
+signal drafted(track: int, level: int)
 
 const _MENU := preload("res://assets/gui/battle/BATTLE_Menu.png")
+const _UI := preload("res://scenes/shticker/ui_settings.gd")
+const _MATH := preload("res://scenes/battle/street_fights.gd")
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _ROW := preload("res://assets/gui/tutorial/InventoryRow.png")
 const _UP := preload("res://assets/gui/rules/InventoryButtonUp.png")
@@ -75,7 +79,10 @@ const _ICONS: Array[Texture2D] = [
 ]
 const _PRESSABLE := Color(0, 0.6, 1, 1)
 const _UNPRESSABLE := Color(0.3, 0.3, 0.3, 0.8)
-const _INK := Color(0.05, 0.14, 0.4)
+## Cream faces on the blue bar. The old cyan tint disappeared into that bar.
+const _COMMAND := Color(1.0, 0.96, 0.78, 1.0)
+const _COMMAND_OFF := Color(0.72, 0.74, 0.78, 1.0)
+const _COMMAND_INK := Color(0.04, 0.1, 0.28, 1.0)
 
 var _loadout: ToonLoadout
 var _waiting := false
@@ -109,9 +116,22 @@ var _sos: TextureButton
 var _fire: TextureButton
 var _sos_list: VBoxContainer
 var _pass: TextureButton
+var _dock: ColorRect
+var _track_picks: Array[TextureButton] = []
+var _track_icons: Array[TextureRect] = []
+var _track_faces: Array[ColorRect] = []
+var _popped: Array[bool] = []
 var _credit := 1.0
 var _credit_level := -1
 var _no_credit := false
+## A group can hold a gag, look at the other toons, and lock it in.
+var hold_choices := false
+var _draft := Vector2i(-99, -1)
+var _lock: TextureButton
+var _lock_ready := false
+var _preview_cogs: Array = []
+var _preview_choices: Array = []
+var _hover := Vector2i(-1, -1)
 
 
 func setup(loadout: ToonLoadout, tutorial := false, building := false, credit := 1.0, credit_level := -1, bonus_track := -1, runnable := true) -> void:
@@ -156,6 +176,10 @@ func _process(_delta: float) -> void:
 
 func choose() -> Vector2i:
 	_waiting = true
+	_draft = Vector2i(-99, -1)
+	arm_lock(false)
+	for track in _popped.size():
+		_popped[track] = false
 	_show_total()
 	_layout()
 	visible = true
@@ -180,6 +204,7 @@ func choose() -> Vector2i:
 func tuck() -> void:
 	_close_run()
 	visible = false
+	z_index = 2
 	mouse_filter = MOUSE_FILTER_IGNORE
 
 
@@ -190,6 +215,7 @@ func cancel() -> void:
 		return
 	_waiting = false
 	visible = false
+	z_index = 2
 	mouse_filter = MOUSE_FILTER_IGNORE
 	picked.emit(-3, -1)
 
@@ -202,13 +228,20 @@ static func icon_for(track: int, level: int) -> Texture2D:
 
 
 func _build() -> void:
+	_dock = ColorRect.new()
+	# Track names and experience. Gag icons open above this strip.
+	_dock.color = Color(0.12, 0.12, 0.14, 0.94)
+	_dock.mouse_filter = MOUSE_FILTER_IGNORE
+	_dock.z_index = -1
+	add_child(_dock)
 	_menu = _image(_MENU)
+	_menu.visible = false
 	for track in ToonLoadout.TRACK_COUNT:
 		var row := _image(_ROW)
 		row.modulate = ToonLoadout.TRACK_COLORS[track]
 		_rows.append(row)
 		var name := _label()
-		name.text = ToonLoadout.TRACK_NAMES[track].to_upper()
+		name.text = ToonLoadout.TRACK_NAMES[track]
 		name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		add_child(name)
 		_names.append(name)
@@ -227,9 +260,30 @@ func _build() -> void:
 		skill.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		add_child(skill)
 		_skills.append(skill)
+		var pick := _gag_button()
+		pick.texture_normal = null
+		pick.texture_hover = null
+		pick.texture_pressed = null
+		pick.texture_disabled = null
+		pick.pressed.connect(_select_track.bind(track))
+		add_child(pick)
+		_track_picks.append(pick)
+		_popped.append(false)
+		var face := ColorRect.new()
+		face.mouse_filter = MOUSE_FILTER_IGNORE
+		face.color = Color(0.16, 0.16, 0.18, 1)
+		pick.add_child(face)
+		_track_faces.append(face)
+		var mark := TextureRect.new()
+		mark.texture = _ICONS[track * ToonLoadout.LEVEL_COUNT]
+		mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mark.mouse_filter = MOUSE_FILTER_IGNORE
+		pick.add_child(mark)
+		_track_icons.append(mark)
 		for level in ToonLoadout.LEVEL_COUNT:
 			var slot := _gag_button()
-			slot.pressed.connect(_pick.bind(track, level))
+			slot.pressed.connect(_hold_gag.bind(track, level))
 			slot.mouse_entered.connect(_show_detail.bind(track, level))
 			slot.mouse_exited.connect(_show_total)
 			add_child(slot)
@@ -270,15 +324,18 @@ func _build() -> void:
 	_prompt_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_prompt_text)
 	# loadBattleFrame places these on the four wells at the lower right.
-	_fire = _command("FIRE", Color(0.4, 0.4, 0.4, 1))
+	_fire = _command("FIRE", _COMMAND_OFF)
 	_fire.disabled = true
-	_pass = _command("PASS", _PRESSABLE)
+	_pass = _command("PASS", _COMMAND)
 	_pass.pressed.connect(_pass_turn)
-	_run = _command("RUN", _PRESSABLE)
+	_run = _command("RUN", _COMMAND)
 	_run.pressed.connect(_run_away)
-	_sos = _command("SOS", _PRESSABLE)
+	_sos = _command("SOS", _COMMAND)
 	_sos.pressed.connect(_open_sos)
 	_fire.pressed.connect(_use_fire)
+	_lock = _command("LOCK", _COMMAND)
+	_lock.visible = false
+	_lock.pressed.connect(_commit_draft)
 	_sos_list = VBoxContainer.new()
 	_sos_list.visible = false
 	_sos_list.z_index = 5
@@ -286,81 +343,208 @@ func _build() -> void:
 
 
 func _layout() -> void:
-	# The inventory sits at z 0.1. The battle frame is scaled by 0.9, and the
-	# menu card itself is image_scale 0.8.
-	const FRAME := 0.9
-	const CARD := 0.8
-	_place(_menu, 0.0, 0.1, 2.925 * CARD * FRAME, 1.3958 * CARD * FRAME)
-	var origin_x := -0.26 * FRAME
-	var origin_z := 0.1 + 0.35 * FRAME
-	var row_w := 1.6667 * FRAME
-	var row_h := 0.1137 * 1.1 * FRAME
+	var view := get_viewport().get_visible_rect().size
+	if view.y < 2.0:
+		return
+	_menu.visible = false
 	for track in ToonLoadout.TRACK_COUNT:
-		# InventoryNew always draws the colored row and the track name.
-		# hideTrack only takes the experience bar and the gag buttons away.
-		var open := _loadout != null and _loadout.track_open(track)
-		var row_z := origin_z + float(track) * -0.12 * FRAME
-		_rows[track].visible = true
-		_names[track].visible = true
-		_bars[track].visible = open
-		_fills[track].visible = open
-		_skills[track].visible = open
-		_place(_rows[track], origin_x, row_z, row_w, row_h)
-		var name := _names[track]
-		var name_size := _size(0.55, row_h)
-		name.position = _point(origin_x + -0.785 * FRAME, row_z + 0.01 * 1.1 * FRAME) - Vector2(0.0, name_size.y * 0.5)
-		name.size = name_size
-		ToonGui.style_label(name, Color(0.2, 0.2, 0.2), _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
-		if open:
-			var bar_size := _size(0.3 * FRAME, 0.05 * 1.1 * FRAME)
-			var bar_at := _point(origin_x + -0.645 * FRAME, row_z + -0.025 * 1.1 * FRAME)
-			_bars[track].position = bar_at - bar_size * 0.5
-			_bars[track].size = bar_size
-			_skills[track].position = _bars[track].position
-			_skills[track].size = bar_size
-			ToonGui.style_label(_skills[track], Color(0, 0, 0, 0.8), _px_of(0.04 * FRAME), Color(0, 0, 0, 0), 0)
-			_paint_bar(track)
-		for level in ToonLoadout.LEVEL_COUNT:
-			var index := track * ToonLoadout.LEVEL_COUNT + level
-			var shown := open and _loadout != null and _loadout.gag_usable(track, level)
-			_slots[index].visible = shown
-			_icons[index].visible = shown
-			_counts[index].visible = shown
-			if not shown:
-				continue
-			var local_x := -0.375 + float(level) * 0.18
-			var center := _point(origin_x + local_x * FRAME, row_z)
-			var well := _size(0.1804 * FRAME, 0.1137 * 1.1 * FRAME)
-			_slots[index].position = center - well * 0.5
-			_slots[index].size = well
-			var icon := well * 0.7
-			_icons[index].position = center + Vector2(-0.01 * FRAME, 0.0) - icon * 0.5
-			_icons[index].size = icon
-			_counts[index].position = _slots[index].position
-			_counts[index].size = well
-			ToonGui.style_label(_counts[index], Color.WHITE, _px_of(0.04 * FRAME), Color(0.05, 0.12, 0.28), 2)
-			_paint_slot(track, level)
-	_seat_info(FRAME)
-	_paint_total()
-	var button := _size(0.1804 * 1.05 * FRAME, 0.1137 * 1.05 * FRAME)
+		_rows[track].visible = false
+		if track < _track_icons.size():
+			_track_icons[track].visible = false
+	for index in _slots.size():
+		_slots[index].visible = false
+		_icons[index].visible = false
+		_counts[index].visible = false
+	var margin := 12.0
+	var well := clampf(view.y * 0.068, 46.0, 68.0)
+	var gap := 6.0
+	var open_tracks: Array[int] = []
+	for track in ToonLoadout.TRACK_COUNT:
+		if _loadout != null and _loadout.track_open(track):
+			open_tracks.append(track)
 	_run.visible = _runnable and not _building
+	var command := clampf(well * 0.86, 44.0, 62.0)
+	var commands: Array[TextureButton] = []
+	commands.append(_fire)
+	commands.append(_pass)
+	commands.append(_sos)
+	if _run.visible:
+		commands.append(_run)
+	var stack_h := float(commands.size()) * command + float(maxi(commands.size() - 1, 0)) * gap
+	var stack_x := view.x - margin - command
+	var stack_y := view.y - margin - stack_h
+	for index in commands.size():
+		var button := commands[index]
+		_place_command(button, stack_x, stack_y + float(index) * (command + gap), command, true)
+	if not _run.visible:
+		_place_command(_run, 0.0, 0.0, command, false)
+	var lock_on := _lock_ready and hold_choices
+	_place_command(_lock, stack_x - command - gap, stack_y, command, lock_on)
+	var lane_left := margin
+	if not _tutorial:
+		var card_h := clampf(view.y * 0.09, 72.0, 96.0)
+		lane_left = 10.0 + card_h * 2.55 + 16.0
+	var lane_right := stack_x - 16.0
+	var lane_w := maxf(lane_right - lane_left, 1.0)
+	var name_w := maxf(well, 88.0)
+	var tracks_w := float(open_tracks.size()) * name_w + float(maxi(open_tracks.size() - 1, 0)) * gap
+	if open_tracks.size() > 0 and tracks_w > lane_w:
+		name_w = maxf((lane_w - float(open_tracks.size() - 1) * gap) / float(open_tracks.size()), 36.0)
+		tracks_w = float(open_tracks.size()) * name_w + float(open_tracks.size() - 1) * gap
+	well = minf(well, name_w)
+	var step := 4.0
+	var across := _UI.gag_rows_across()
+	var rows := 0
+	var deepest := 0
+	for track in open_tracks:
+		if track >= _popped.size() or not _popped[track]:
+			continue
+		var unlocked := _unlocked_levels(track)
+		if unlocked.is_empty():
+			continue
+		rows += 1
+		deepest = maxi(deepest, unlocked.size())
+	if across and deepest > 0:
+		var need := float(deepest) * well + float(deepest - 1) * step
+		if need > lane_w:
+			well = maxf((lane_w - float(deepest - 1) * step) / float(deepest), 34.0)
+	var tallest := 0.0
+	if across:
+		tallest = float(rows) * well + float(maxi(rows - 1, 0)) * step
+	elif deepest > 0:
+		tallest = float(deepest) * well + float(maxi(deepest - 1, 0)) * step
+	var name_h := clampf(name_w * 0.42, 26.0, 36.0)
+	var xp_h := clampf(name_w * 0.28, 16.0, 22.0)
+	var strip_y := view.y - margin - name_h - xp_h
+	var room := strip_y - 40.0
+	if tallest > room and tallest > 0.0:
+		var scale := room / tallest
+		well = maxf(well * scale, 32.0)
+		step = maxf(step * scale, 2.0)
+		if across:
+			tallest = float(rows) * well + float(maxi(rows - 1, 0)) * step
+		else:
+			tallest = float(deepest) * well + float(maxi(deepest - 1, 0)) * step
+	var popup_bottom := strip_y - 8.0
+	var popup_top := popup_bottom - tallest
+	var info_h := 78.0
+	var info_y := popup_top - 6.0 - info_h
+	_dock.position = Vector2(lane_left, strip_y)
+	_dock.size = Vector2(maxf(lane_right - lane_left, 1.0), view.y - margin - strip_y)
+	var row_x := lane_left + maxf((lane_w - tracks_w) * 0.5, 0.0)
+	var column_x: Array[float] = []
+	column_x.resize(ToonLoadout.TRACK_COUNT)
+	var cursor := row_x
+	for track in ToonLoadout.TRACK_COUNT:
+		var listed := open_tracks.has(track)
+		var pick := _track_picks[track]
+		var title := _names[track]
+		pick.visible = listed
+		title.visible = listed
+		_bars[track].visible = listed
+		_fills[track].visible = listed
+		_skills[track].visible = listed
+		if not listed:
+			continue
+		column_x[track] = cursor
+		pick.position = Vector2(cursor, strip_y)
+		pick.size = Vector2(name_w, name_h)
+		pick.z_index = 3
+		var face := _track_faces[track]
+		face.position = Vector2.ZERO
+		face.size = pick.size
+		var opened := track < _popped.size() and _popped[track]
+		face.color = ToonLoadout.TRACK_COLORS[track] if opened else Color(0.16, 0.16, 0.18, 1.0)
+		title.position = pick.position
+		title.size = pick.size
+		title.z_index = 5
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.clip_text = true
+		var ink := Color(0.08, 0.08, 0.1, 1.0) if opened else Color.WHITE
+		ToonGui.style_label(title, ink, maxi(int(name_h * 0.42), 11), Color(0, 0, 0, 0), 0)
+		var back := _bars[track]
+		back.position = Vector2(cursor, strip_y + name_h)
+		back.size = Vector2(name_w, xp_h)
+		_paint_bar(track)
+		var skill := _skills[track]
+		skill.position = back.position
+		skill.size = back.size
+		skill.z_index = 2
+		skill.clip_text = true
+		ToonGui.style_label(skill, Color.WHITE, maxi(int(xp_h * 0.72), 10), Color(0.05, 0.08, 0.14), 2)
+		cursor += name_w + gap
+	var row_at := 0
+	for track in open_tracks:
+		var levels := _unlocked_levels(track)
+		if track >= _popped.size() or not _popped[track] or levels.is_empty():
+			continue
+		if across:
+			var row_w := float(levels.size()) * well + float(maxi(levels.size() - 1, 0)) * step
+			var gag_x := lane_left + maxf((lane_w - row_w) * 0.5, 0.0)
+			var gag_y := popup_bottom - float(row_at + 1) * well - float(row_at) * step
+			for index in levels.size():
+				var level := levels[index]
+				var at := Vector2(gag_x + float(index) * (well + step), gag_y)
+				_seat_gag(track, level, at, well)
+			row_at += 1
+		else:
+			var top := popup_bottom - float(levels.size()) * well - float(maxi(levels.size() - 1, 0)) * step
+			var inset := (name_w - well) * 0.5
+			for index in levels.size():
+				var level := levels[index]
+				var at := Vector2(column_x[track] + inset, top + float(index) * (well + step))
+				_seat_gag(track, level, at, well)
+	_seat_bottom(Rect2(lane_left, info_y, lane_w, info_h))
+	_paint_total()
 	_layout_run()
-	_place(_run, 0.73 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
-	_place(_sos, 0.96 * FRAME, 0.1 + -0.398 * FRAME, button.x / _unit(), button.y / _unit())
-	_place(_fire, 0.73 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())
-	_place(_pass, 0.96 * FRAME, 0.1 + -0.242 * FRAME, button.x / _unit(), button.y / _unit())
-	for command in [_run, _sos, _fire, _pass]:
-		var caption := command.get_child(0) as Label
-		ToonGui.style_label(caption, Color.WHITE, _px_of(0.05 * FRAME), Color(0, 0, 0, 0), 0)
-	_paint_rewards(FRAME)
-	# The toontorial line sits over the rows. Street battles leave it off.
-	_prompt.visible = _tutorial
+	_paint_rewards(1.0)
+	_prompt.visible = false
 	_prompt_text.visible = _tutorial
 	if _tutorial:
-		_place(_prompt, 0.045, -0.08, 0.66, 0.42)
-		_prompt_text.position = _prompt.position
-		_prompt_text.size = _prompt.size
-		ToonGui.style_title(_prompt_text, Color(0.05, 0.05, 0.08), _px_of(0.055))
+		_prompt_text.text = "Click a gag to attack"
+		_prompt_text.position = Vector2(lane_left, info_y - 28.0)
+		_prompt_text.size = Vector2(lane_w, 24.0)
+		ToonGui.style_label(_prompt_text, Color(1, 0.95, 0.7), 16, Color(0.08, 0.1, 0.16), 4)
+
+
+func _unlocked_levels(track: int) -> Array[int]:
+	var levels: Array[int] = []
+	if _loadout == null or not _loadout.track_open(track):
+		return levels
+	for level in ToonLoadout.LEVEL_COUNT:
+		if _loadout.gag_usable(track, level):
+			levels.append(level)
+	return levels
+
+
+func _seat_gag(track: int, level: int, at: Vector2, well: float) -> void:
+	var index := track * ToonLoadout.LEVEL_COUNT + level
+	_slots[index].visible = true
+	_slots[index].position = at
+	_slots[index].size = Vector2(well, well)
+	_slots[index].z_index = 3
+	var icon_size := well * 0.64
+	_icons[index].visible = true
+	_icons[index].position = at + (Vector2(well, well) - Vector2(icon_size, icon_size)) * 0.5
+	_icons[index].size = Vector2(icon_size, icon_size)
+	_icons[index].z_index = 4
+	_counts[index].visible = true
+	_counts[index].position = at
+	_counts[index].size = Vector2(well, well)
+	_counts[index].z_index = 5
+	ToonGui.style_label(_counts[index], Color.WHITE, maxi(int(well * 0.22), 11), Color(0.05, 0.12, 0.28), 2)
+	_paint_slot(track, level)
+
+
+func _place_command(button: TextureButton, x: float, y: float, side: float, shown: bool) -> void:
+	button.visible = shown
+	if not shown:
+		return
+	button.position = Vector2(x, y)
+	button.size = Vector2(side, side)
+	button.z_index = 4
+	var caption := button.get_child(0) as Label
+	ToonGui.style_label(caption, _COMMAND_INK, maxi(int(side * 0.28), 13), Color(1, 1, 1, 0.9), 2)
 
 
 func _paint_bar(track: int) -> void:
@@ -408,7 +592,15 @@ func _paint_total() -> void:
 	_total.text = "Total gags\n%d / %d" % [carried, limit]
 
 
+func set_preview(cogs: Array, choices: Array) -> void:
+	_preview_cogs = cogs
+	_preview_choices = choices
+	if _hover.x >= 0 and _detail_data != null and _detail_data.visible:
+		_show_detail(_hover.x, _hover.y)
+
+
 func _show_total() -> void:
+	_hover = Vector2i(-1, -1)
 	_total.visible = true
 	_detail_icon.visible = false
 	_detail_name.visible = false
@@ -422,6 +614,7 @@ func _show_total() -> void:
 func _show_detail(track: int, level: int) -> void:
 	if _loadout == null:
 		return
+	_hover = Vector2i(track, level)
 	_total.visible = false
 	_detail_icon.visible = true
 	_detail_icon.texture = _ICONS[track * ToonLoadout.LEVEL_COUNT + level]
@@ -432,37 +625,222 @@ func _show_detail(track: int, level: int) -> void:
 	var exp := _loadout.experience_of(track)
 	var grown := _loadout.is_organic(track, level)
 	var buffed := grown or track == _bonus_track
-	var kind := "Toon-up" if track == ToonLoadout.TOON_UP else "Damage"
-	var base := ToonLoadout.gag_damage(track, level, exp)
-	var extra := ToonLoadout.damage_bonus(base) if buffed else 0
-	var bonus := " (+%d)" % extra if extra > 0 else ""
+	var base := ToonLoadout.gag_damage(track, level, exp, buffed)
 	_detail_name.text = _loadout.gag_name(track, level)
 	_detail_amount.text = "%d / %d" % [_loadout.count_of(track, level), _loadout.carry_limit(track, level)]
-	_detail_data.text = "Accuracy: %s\n%s: %d%s\nAffects: %s" % [
-		ToonLoadout.accuracy_label(track, level, grown),
-		kind,
-		base,
-		bonus,
-		ToonLoadout.affects_label(track, level),
-	]
+	_detail_data.text = _hover_math(track, level, exp, buffed, base)
 	_no_credit = _credit_level >= 0 and not ToonLoadout.earns_experience(level, _credit_level)
 	# InventoryNew.setDetailCredit shows "Skill credit: None" in red.
 	_detail_credit.text = "Experience: None" if _no_credit else ToonLoadout.experience_line(level, _credit)
 
 
-func _pick(track: int, level: int) -> void:
-	if not _waiting or _loadout == null or _loadout.count_of(track, level) <= 0:
+## Damage and hit chance for the gag under the cursor. Knockback is half of a
+## throw or squirt when that cog is lured before this track. A same-track combo
+## adds 20 percent of those gag hits on the last one.
+func _hover_math(track: int, level: int, exp: int, buffed: bool, base: int) -> String:
+	if track == ToonLoadout.TOON_UP:
+		var chance := _MATH.hit_chance(track, level, buffed, exp, 0, 0, 1)
+		return "Heals %d laff    %d%% to hit" % [base, chance]
+	if track == 1:
+		return "100%% to hit    sets %d trap damage" % base
+	var living := _living_cogs()
+	if living.is_empty():
+		var bare := _MATH.hit_chance(track, level, buffed, exp, 0, 0, 1)
+		return "%d%% to hit    %d damage" % [bare, base]
+	var group := ToonLoadout.affects_group(track, level)
+	var lines: PackedStringArray = PackedStringArray()
+	if group:
+		lines.append(_group_chance(track, level, exp, buffed, living))
+	for item in living:
+		if item is Dictionary:
+			lines.append(_cog_math(item, track, level, exp, buffed, base, group))
+	return "\n".join(lines)
+
+
+func _living_cogs() -> Array:
+	var rows: Array = []
+	for item in _preview_cogs:
+		if item is Dictionary and int((item as Dictionary).get("hp", 0)) > 0:
+			rows.append(item)
+	return rows
+
+
+func _group_chance(track: int, level: int, exp: int, buffed: bool, living: Array) -> String:
+	var defense := 0
+	var lured_n := 0
+	for item in living:
+		var body: Dictionary = item
+		defense = maxi(defense, _MATH.suit_defense(String(body.get("code", "")), int(body.get("level", 1))))
+		if _lured_for(body, track):
+			lured_n += 1
+	var use_exp := _shared_exp(track, exp, -1)
+	var chance := _MATH.hit_chance(track, level, buffed, use_exp, defense, lured_n, living.size())
+	var note := "" if chance >= 100 else ". Damage is if that hit lands"
+	return "%d%% to hit the group%s" % [chance, note]
+
+
+func _cog_math(cog: Dictionary, track: int, level: int, exp: int, buffed: bool, base: int, group: bool) -> String:
+	var cog_id := int(cog.get("id", -1))
+	var lured := _lured_for(cog, track)
+	var already := bool(cog.get("lured", false))
+	var lvl := int(cog.get("level", 1))
+	var hp := int(cog.get("hp", 0))
+	var title := "Lv.%d %s %d hp" % [lvl, String(cog.get("name", "Cog")), hp]
+	if track == 6 and lured:
+		return "%s    misses, the cog is lured" % title
+	var mine := base
+	var kb := _MATH.knockback_bonus(track, mine, lured)
+	var extra := _partner_damage(track, cog_id, lured)
+	var hits := 1 + int(extra.get("count", 0))
+	var bases := mine + int(extra.get("base", 0))
+	var bonus := _MATH.combo_extra(hits, bases)
+	var total := bases + kb + int(extra.get("kb", 0)) + bonus
+	var parts := str(mine)
+	if kb > 0:
+		parts += "+%d lure" % kb
+	if int(extra.get("base", 0)) > 0:
+		parts += "+%d" % int(extra.get("base", 0))
+		if int(extra.get("kb", 0)) > 0:
+			parts += "+%d lure" % int(extra.get("kb", 0))
+	if bonus > 0:
+		parts += "+%d combo" % bonus
+	if (kb > 0 or int(extra.get("kb", 0)) > 0) and not already:
+		parts += " if lured"
+	var shown := str(total) if parts == str(mine) else "%d (%s)" % [total, parts]
+	var left := "KO" if total >= hp else "%d left" % (hp - total)
+	if group:
+		return "%s    %s    %s" % [title, shown, left]
+	var defense := _MATH.suit_defense(String(cog.get("code", "")), lvl)
+	var lured_n := 1 if lured else 0
+	var use_exp := _shared_exp(track, exp, cog_id)
+	var chance := _MATH.hit_chance(track, level, buffed, use_exp, defense, lured_n, 1)
+	if chance < 100 and total >= hp:
+		left = "KO if it hits"
+	return "%s    %d%%    %s    %s" % [title, chance, shown, left]
+
+
+func _lured_for(cog: Dictionary, track: int) -> bool:
+	var lured := bool(cog.get("lured", false))
+	var cog_id := int(cog.get("id", -1))
+	for earlier in range(track):
+		if earlier != 2 and earlier != 3 and earlier != 4 and earlier != 5:
+			continue
+		if not _round_hits(earlier, cog_id):
+			continue
+		lured = earlier == 2
+	return lured
+
+
+func _round_hits(track: int, cog_id: int) -> bool:
+	for item in _preview_choices:
+		if not (item is Dictionary):
+			continue
+		var choice: Dictionary = item
+		if int(choice.get("id", -1)) == ToonNet.peer_id():
+			continue
+		if int(choice.get("track", -1)) != track:
+			continue
+		if _hits_cog(choice, cog_id):
+			return true
+	return false
+
+
+func _hits_cog(choice: Dictionary, cog_id: int) -> bool:
+	var track := int(choice.get("track", -1))
+	var level := int(choice.get("level", 0))
+	if track < 0 or track > 6:
+		return false
+	if ToonLoadout.affects_group(track, level):
+		return true
+	return int(choice.get("target", -2)) == cog_id
+
+
+func _partner_damage(track: int, cog_id: int, lured: bool) -> Dictionary:
+	var base := 0
+	var kb := 0
+	var count := 0
+	for item in _preview_choices:
+		if not (item is Dictionary):
+			continue
+		var choice: Dictionary = item
+		if int(choice.get("id", -1)) == ToonNet.peer_id():
+			continue
+		if int(choice.get("track", -1)) != track or not _hits_cog(choice, cog_id):
+			continue
+		var grown := bool(choice.get("organic", false)) or track == _bonus_track
+		var dealt := ToonLoadout.gag_damage(track, int(choice.get("level", 0)), int(choice.get("exp", 0)), grown)
+		if dealt <= 0:
+			continue
+		base += dealt
+		kb += _MATH.knockback_bonus(track, dealt, lured)
+		count += 1
+	return {"base": base, "kb": kb, "count": count}
+
+
+func _shared_exp(track: int, exp: int, target: int) -> int:
+	var best := exp
+	var best_bonus := _MATH.exp_accuracy(exp, track)
+	for item in _preview_choices:
+		if not (item is Dictionary):
+			continue
+		var choice: Dictionary = item
+		if int(choice.get("id", -1)) == ToonNet.peer_id():
+			continue
+		if int(choice.get("track", -1)) != track:
+			continue
+		if int(choice.get("target", -2)) != target:
+			continue
+		var theirs := int(choice.get("exp", 0))
+		var bonus := _MATH.exp_accuracy(theirs, track)
+		if bonus > best_bonus:
+			best_bonus = bonus
+			best = theirs
+	return best
+
+
+func _select_track(track: int) -> void:
+	if _loadout == null or not _loadout.track_open(track):
+		return
+	if track < 0 or track >= _popped.size():
+		return
+	_popped[track] = not _popped[track]
+	_show_total()
+	_layout()
+
+
+func _hold_gag(track: int, level: int) -> void:
+	if not _waiting:
+		return
+	if track >= 0 and (_loadout == null or _loadout.count_of(track, level) <= 0):
+		return
+	_draft = Vector2i(track, level)
+	_hide_sos()
+	if not hold_choices:
+		_waiting = false
+		picked.emit(track, level)
+		return
+	arm_lock(false)
+	drafted.emit(track, level)
+
+
+func arm_lock(on: bool) -> void:
+	_lock_ready = on and hold_choices
+	if _lock != null:
+		_lock.disabled = not _lock_ready
+	if is_inside_tree():
+		_layout()
+
+
+func _commit_draft() -> void:
+	if not _waiting or not _lock_ready or _draft.x < -6:
 		return
 	_waiting = false
-	picked.emit(track, level)
+	_lock_ready = false
+	picked.emit(_draft.x, _draft.y)
 
 
 func _pass_turn() -> void:
-	if not _waiting:
-		return
-	_waiting = false
-	_hide_sos()
-	picked.emit(-1, -1)
+	_hold_gag(-1, -1)
 
 
 func _run_away() -> void:
@@ -605,11 +983,7 @@ func _open_sos() -> void:
 
 
 func _use_sos(npc_id: int) -> void:
-	if not _waiting:
-		return
-	_waiting = false
-	_hide_sos()
-	picked.emit(-4, npc_id)
+	_hold_gag(-4, npc_id)
 
 
 func _show_tricks() -> void:
@@ -638,19 +1012,13 @@ func _reopen_sos() -> void:
 
 
 func _use_doodle(trick: int) -> void:
-	if not _waiting:
-		return
-	_waiting = false
-	_hide_sos()
-	picked.emit(-6, trick)
+	_hold_gag(-6, trick)
 
 
 func _use_fire() -> void:
-	if not _waiting or _REWARDS.pink_slips() <= 0:
+	if _REWARDS.pink_slips() <= 0:
 		return
-	_waiting = false
-	_hide_sos()
-	picked.emit(-5, -1)
+	_hold_gag(-5, -1)
 
 
 func _hide_sos() -> void:
@@ -661,7 +1029,7 @@ func _hide_sos() -> void:
 func _paint_rewards(frame: float) -> void:
 	var slips := _REWARDS.pink_slips()
 	_fire.disabled = slips <= 0
-	_fire.modulate = _PRESSABLE if slips > 0 else Color(0.4, 0.4, 0.4, 1)
+	_fire.modulate = _COMMAND if slips > 0 else _COMMAND_OFF
 	var fire_label := _fire.get_child(0) as Label
 	if fire_label != null:
 		fire_label.text = "FIRE" if slips <= 0 else "FIRE %d" % slips
@@ -669,11 +1037,11 @@ func _paint_rewards(frame: float) -> void:
 	var has_pet := preload("res://scenes/pets/doodle_kennel.gd").has_pet()
 	var can_call := cards > 0 or has_pet
 	_sos.disabled = not can_call
-	_sos.modulate = _PRESSABLE if can_call else Color(0.4, 0.4, 0.4, 1)
+	_sos.modulate = _COMMAND if can_call else _COMMAND_OFF
 	if _sos_list == null:
 		return
-	_sos_list.position = _sos.position + Vector2(-_sos.size.x * 2.2, -180.0 * frame)
-	_sos_list.size = Vector2(180, 180)
+	_sos_list.position = Vector2(_sos.position.x - 196.0, _sos.position.y - 24.0 * frame)
+	_sos_list.size = Vector2(188, 180)
 
 
 func _image(texture: Texture2D) -> TextureRect:
@@ -718,29 +1086,20 @@ func _command(text: String, tint: Color) -> TextureButton:
 	return button
 
 
-## BATTLE_Menu's yellow panel and the blue plate inside it. The name sits in the
-## yellow band above the plate, the gag picture fills the plate, and the count
-## and stats fill the yellow body underneath.
-func _seat_info(frame: float) -> void:
-	var card := _menu
-	var yellow := _card_rect(card, 0.7734, 0.2070, 0.1875, 0.4258)
-	var plate := _card_rect(card, 0.7930, 0.2852, 0.1484, 0.1328)
-	var pad := yellow.size.x * 0.08
-	var inner_x := yellow.position.x + pad
-	var inner_w := yellow.size.x - pad * 2.0
-	var name_rect := Rect2(inner_x, yellow.position.y, inner_w, plate.position.y - yellow.position.y)
-	_fit_line(_detail_name, name_rect, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.045 * frame)
-	var side := plate.size.y * 0.82
-	_detail_icon.position = plate.position + (plate.size - Vector2(side, side)) * 0.5
-	_detail_icon.size = Vector2(side, side)
-	var line_h := plate.size.y * 0.48
-	var amount := Rect2(inner_x, plate.position.y + plate.size.y, inner_w, line_h)
-	_fit_line(_detail_amount, amount, HORIZONTAL_ALIGNMENT_RIGHT, VERTICAL_ALIGNMENT_CENTER, 0.04 * frame)
-	var credit := Rect2(inner_x, yellow.position.y + yellow.size.y - line_h - pad * 0.25, inner_w, line_h)
-	var data_top := amount.position.y + amount.size.y
-	_fit_line(_detail_data, Rect2(inner_x, data_top, inner_w, credit.position.y - data_top), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_TOP, 0.04 * frame)
-	_fit_line(_detail_credit, credit, HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER, 0.04 * frame)
-	_fit_line(_total, plate, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.05 * frame)
+## Hovering a gag fills this strip with the hit chance and the damage each cog would take.
+func _seat_bottom(rect: Rect2) -> void:
+	var icon := minf(rect.size.y * 0.46, 28.0)
+	_detail_icon.position = rect.position
+	_detail_icon.size = Vector2(icon, icon)
+	var text := Rect2(rect.position + Vector2(icon + 8.0, 0.0), Vector2(maxf(rect.size.x - icon - 8.0, 1.0), rect.size.y))
+	var top_h := 18.0
+	var name_w := text.size.x * 0.34
+	_fit_line(_detail_name, Rect2(text.position, Vector2(name_w, top_h)), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER, 0.026)
+	_fit_line(_detail_amount, Rect2(text.position + Vector2(name_w, 0.0), Vector2(text.size.x * 0.28, top_h)), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_CENTER, 0.024)
+	_fit_line(_detail_credit, Rect2(text.position + Vector2(text.size.x * 0.64, 0.0), Vector2(text.size.x * 0.36, top_h)), HORIZONTAL_ALIGNMENT_RIGHT, VERTICAL_ALIGNMENT_CENTER, 0.022)
+	_fit_line(_detail_data, Rect2(text.position + Vector2(0.0, top_h), Vector2(text.size.x, text.size.y - top_h)), HORIZONTAL_ALIGNMENT_LEFT, VERTICAL_ALIGNMENT_TOP, 0.022)
+	_detail_data.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_fit_line(_total, rect, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER, 0.03)
 
 
 func _card_rect(card: Control, x: float, y: float, w: float, h: float) -> Rect2:
@@ -755,8 +1114,8 @@ func _fit_line(label: Label, rect: Rect2, horizontal: HorizontalAlignment, verti
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.clip_text = true
 	label.add_theme_constant_override("line_spacing", 0)
-	var ink := Color(0.5, 0.0, 0.0, 1.0) if label == _detail_credit and _no_credit else _INK
-	ToonGui.style_label(label, ink, _px_of(scale), Color(0, 0, 0, 0), 0)
+	var ink := Color(1.0, 0.45, 0.4, 1.0) if label == _detail_credit and _no_credit else Color.WHITE
+	ToonGui.style_label(label, ink, _px_of(scale), Color(0.05, 0.08, 0.16), 4)
 
 
 func _point(ax: float, az: float) -> Vector2:

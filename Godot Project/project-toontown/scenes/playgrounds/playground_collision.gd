@@ -48,8 +48,32 @@ func build_street(flat: bool) -> void:
 	_built = true
 	if flat:
 		_BATCH.apply_flat(self)
-	else:
-		_BATCH.apply(self)
+		_close_street()
+		return
+	var count := _BATCH.queue_zones(self)
+	var host := get_parent()
+	if host != null:
+		host.set_meta("street_ready", count == 0)
+	if count == 0:
+		_close_street()
+
+
+## neighborhood pumps this while the loading screen is still up.
+func pump_street() -> void:
+	if _BATCH.pump_zones(self, 6000):
+		return
+	if bool(get_meta("street_closed", false)):
+		return
+	_close_street()
+	var host := get_parent()
+	if host != null:
+		host.set_meta("street_ready", true)
+
+
+func _close_street() -> void:
+	if bool(get_meta("street_closed", false)):
+		return
+	set_meta("street_closed", true)
 	_add_collision(self)
 	_BATCH.sweep_empty(self)
 

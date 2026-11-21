@@ -20,6 +20,10 @@ namespace ToontownLauncher
         public string Address;
         public int Port;
         public string Release;
+        public string MainRelease;
+        public string ExperimentalRelease;
+        public string Branch;
+        public string InstalledBranch;
         public string WindowMode;
         public int Width;
         public int Height;
@@ -29,6 +33,10 @@ namespace ToontownLauncher
             Address = "";
             Port = 4343;
             Release = "";
+            MainRelease = "";
+            ExperimentalRelease = "";
+            Branch = "main";
+            InstalledBranch = "";
             WindowMode = "windowed";
             Width = 0;
             Height = 0;
@@ -39,6 +47,8 @@ namespace ToontownLauncher
             var config = new LauncherConfig();
             if (!File.Exists(path))
                 return config;
+            var hadMain = false;
+            var hadExperimental = false;
             try
             {
                 var serializer = new JavaScriptSerializer();
@@ -51,6 +61,20 @@ namespace ToontownLauncher
                     config.Port = Convert.ToInt32(root["port"]);
                 if (root.ContainsKey("release") && root["release"] != null)
                     config.Release = root["release"].ToString();
+                if (root.ContainsKey("mainRelease") && root["mainRelease"] != null)
+                {
+                    hadMain = true;
+                    config.MainRelease = root["mainRelease"].ToString();
+                }
+                if (root.ContainsKey("experimentalRelease") && root["experimentalRelease"] != null)
+                {
+                    hadExperimental = true;
+                    config.ExperimentalRelease = root["experimentalRelease"].ToString();
+                }
+                if (root.ContainsKey("branch") && root["branch"] != null && ReleaseClient.IsBranchName(root["branch"].ToString()))
+                    config.Branch = root["branch"].ToString().Trim();
+                if (root.ContainsKey("installedBranch") && root["installedBranch"] != null && ReleaseClient.IsBranchName(root["installedBranch"].ToString()))
+                    config.InstalledBranch = root["installedBranch"].ToString().Trim();
                 if (root.ContainsKey("window") && root["window"] != null)
                 {
                     var mode = root["window"].ToString();
@@ -67,6 +91,17 @@ namespace ToontownLauncher
             }
             if (config.Port < 1 || config.Port > 65535)
                 config.Port = 4343;
+            if (!hadMain && !hadExperimental && !string.IsNullOrEmpty(config.Release))
+            {
+                if (ReleaseClient.IsExperimental(config.InstalledBranch))
+                    config.ExperimentalRelease = config.Release;
+                else
+                    config.MainRelease = config.Release;
+            }
+            if (!ReleaseClient.IsBranchName(config.Branch))
+                config.Branch = "main";
+            if (config.InstalledBranch != null && config.InstalledBranch.Length > 0 && !ReleaseClient.IsBranchName(config.InstalledBranch))
+                config.InstalledBranch = "";
             if (config.WindowMode != "windowed" && config.WindowMode != "borderless" && config.WindowMode != "fullscreen")
                 config.WindowMode = "windowed";
             if (config.Width < 640 || config.Height < 480)
@@ -82,12 +117,35 @@ namespace ToontownLauncher
             var root = new Dictionary<string, object>();
             root["address"] = Address ?? "";
             root["port"] = Port;
-            root["release"] = Release ?? "";
+            root["release"] = TagFor(Branch);
+            root["mainRelease"] = MainRelease ?? "";
+            root["experimentalRelease"] = ExperimentalRelease ?? "";
+            root["branch"] = Branch ?? "main";
+            root["installedBranch"] = InstalledBranch ?? "";
             root["window"] = WindowMode ?? "windowed";
             root["width"] = Width;
             root["height"] = Height;
             var serializer = new JavaScriptSerializer();
             File.WriteAllText(path, serializer.Serialize(root));
+        }
+
+        public string TagFor(string channel)
+        {
+            if (ReleaseClient.IsExperimental(channel))
+                return ExperimentalRelease ?? "";
+            return MainRelease ?? "";
+        }
+
+        public void SetTag(string channel, string tag)
+        {
+            if (tag == null)
+                tag = "";
+            if (ReleaseClient.IsExperimental(channel))
+                ExperimentalRelease = tag;
+            else
+                MainRelease = tag;
+            Release = tag;
+            InstalledBranch = ReleaseClient.IsExperimental(channel) ? "experimental" : "main";
         }
     }
 
@@ -241,9 +299,22 @@ namespace ToontownLauncher
 
     static class ReleaseClient
     {
-        const string ReleasesUrl = "https://api.github.com/repos/CakeGamingOfficial/Toontown-Reimagined/releases?per_page=20";
+        const string ReleasesUrl = "https://api.github.com/repos/CakeGamingOfficial/Toontown-Reimagined/releases?per_page=100";
 
-        public static async Task<ReleaseInfo> GetLatestAsync(CancellationToken cancel)
+        public static bool IsBranchName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return false;
+            var text = name.Trim();
+            return string.Equals(text, "main", StringComparison.OrdinalIgnoreCase) || string.Equals(text, "experimental", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsExperimental(string branch)
+        {
+            return string.Equals(branch, "experimental", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static async Task<ReleaseInfo> GetLatestAsync(string branch, CancellationToken cancel)
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             using (var http = new HttpClient())
@@ -259,24 +330,27 @@ namespace ToontownLauncher
                     if (!response.IsSuccessStatusCode)
                         throw new InvalidOperationException("GitHub returned an error (" + (int)response.StatusCode + ").");
                     var json = await response.Content.ReadAsStringAsync();
-                    return ParseList(json);
+                    return ParseList(json, branch);
                 }
             }
         }
 
-        static ReleaseInfo ParseList(string json)
+        static ReleaseInfo ParseList(string json, string branch)
         {
             var serializer = new JavaScriptSerializer();
             serializer.MaxJsonLength = int.MaxValue;
             var list = serializer.DeserializeObject(json) as IList;
+            var experimental = IsExperimental(branch);
             if (list == null || list.Count == 0)
-                throw new InvalidOperationException("GitHub has no release yet.");
+                throw new InvalidOperationException(experimental ? "Experimental has no pre-release yet." : "Main has no full release yet.");
             Dictionary<string, object> newest = null;
             var newestAt = DateTime.MinValue;
             foreach (var item in list)
             {
                 var row = item as Dictionary<string, object>;
                 if (row == null || IsTrue(row, "draft"))
+                    continue;
+                if (IsTrue(row, "prerelease") != experimental)
                     continue;
                 var published = PublishedAt(row);
                 if (newest == null || published > newestAt)
@@ -286,7 +360,7 @@ namespace ToontownLauncher
                 }
             }
             if (newest == null)
-                throw new InvalidOperationException("GitHub has no release yet.");
+                throw new InvalidOperationException(experimental ? "Experimental has no pre-release yet." : "Main has no full release yet.");
             return ParseRelease(newest);
         }
 

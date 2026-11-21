@@ -8,6 +8,8 @@ const _TASK_GREEN := Color(0.275, 0.65, 0.31)
 
 static var _tracker := true
 static var _discord := true
+static var _gag_across := false
+static var _gag_lock := true
 static var _progress := 0
 static var _done := 1
 static var _progress_hex := ""
@@ -38,6 +40,34 @@ static func set_discord_on(on: bool) -> void:
 	if _discord == on:
 		return
 	_discord = on
+	_write()
+
+
+## Battle gag menus. False stacks the levels above the track. True lays them in a row.
+static func gag_rows_across() -> bool:
+	_ensure()
+	return _gag_across
+
+
+static func set_gag_rows_across(across: bool) -> void:
+	_ensure()
+	if _gag_across == across:
+		return
+	_gag_across = across
+	_write()
+
+
+## Held gag choices. True waits for Lock In. False sends the gag on the first click.
+static func gag_lock_on() -> bool:
+	_ensure()
+	return _gag_lock
+
+
+static func set_gag_lock_on(on: bool) -> void:
+	_ensure()
+	if _gag_lock == on:
+		return
+	_gag_lock = on
 	_write()
 
 
@@ -126,6 +156,8 @@ static func _ensure() -> void:
 static func _read() -> void:
 	_tracker = true
 	_discord = true
+	_gag_across = false
+	_gag_lock = true
 	_progress = 0
 	_done = 1
 	_progress_hex = ""
@@ -141,6 +173,8 @@ static func _read() -> void:
 	var page: Dictionary = parsed
 	_tracker = bool(page.get("tracker", true))
 	_discord = bool(page.get("discord", true))
+	_gag_across = bool(page.get("gag_across", false))
+	_gag_lock = bool(page.get("gag_lock", true))
 	_progress = clampi(int(page.get("progress", 0)), 0, count() - 1)
 	_done = clampi(int(page.get("done", 1)), 0, count() - 1)
 	_progress_hex = _clean_hex(String(page.get("progress_hex", "")))
@@ -169,6 +203,8 @@ static func _write() -> void:
 	var page := {
 		"tracker": _tracker,
 		"discord": _discord,
+		"gag_across": _gag_across,
+		"gag_lock": _gag_lock,
 		"progress": _progress,
 		"done": _done,
 		"progress_hex": _progress_hex,

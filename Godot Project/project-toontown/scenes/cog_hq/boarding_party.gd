@@ -491,6 +491,7 @@ func _board(sender: int, dest: int) -> void:
 
 
 func _start_pull(group: Dictionary, dest: int, delay: float) -> void:
+	preload("res://scenes/cog_hq/party_scale.gd").note_group(_members(group))
 	var info := zone_info(String(group.get("zone", "")))
 	var roll := {}
 	var kind := String(info.get("kind", ""))

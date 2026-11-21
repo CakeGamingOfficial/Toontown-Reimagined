@@ -42,6 +42,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	var camera := get_viewport().get_camera_3d()
 	_process_zones(camera)
+	preload("res://scenes/playgrounds/street_batch.gd").warm(self, _zone_sample)
 	_process_sky(camera)
 	_process_billboards(camera)
 

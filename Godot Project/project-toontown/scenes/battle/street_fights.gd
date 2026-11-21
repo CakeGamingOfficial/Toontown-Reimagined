@@ -375,7 +375,7 @@ func can_run(fight: Dictionary) -> bool:
 	return true
 
 
-func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: int) -> void:
+func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: int, locked := true) -> void:
 	if not ToonNet.is_authority():
 		return
 	var fight := _by_id(fight_id)
@@ -390,8 +390,12 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 			return
 		_begin_run(fight, peer)
 		return
-	if _choice_for(fight, peer) >= 0:
-		return
+	var existing := _choice_for(fight, peer)
+	if existing >= 0:
+		var prior: Dictionary = (fight["choices"] as Array)[existing]
+		if bool(prior.get("locked", false)):
+			return
+		(fight["choices"] as Array).remove_at(existing)
 	var marked := _toon(fight, target)
 	if target >= 0 and not marked.is_empty() and bool(marked.get("running", false)):
 		_mark_redo(fight, peer)
@@ -407,6 +411,7 @@ func choose(fight_id: int, peer: int, track: int, level: int, target: int, exp: 
 		"target": target,
 		"exp": clampi(exp, 0, 10500),
 		"organic": track >= 0 and track <= 6 and level >= 0 and ToonNet.stored_organic(peer, track) >= level,
+		"locked": locked,
 	}
 	if track == -4 or track == -5 or track == -6:
 		if track == -5:
@@ -1189,6 +1194,8 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			beats.append(_beat("%s's %s missed the %s." % [who, gag, cog_name], track, level, toon, suit, false, 0))
 			continue
 		var woke := bool(suit.get("lured", false)) and (track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT)
+		# Throw and squirt add half the hit again when the cog is lured.
+		dealt += knockback_bonus(track, damage, woke)
 		_hurt_cog(suit, dealt, track)
 		if woke:
 			_clear_lure(suit)
@@ -1204,7 +1211,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 			beat["revived"] = true
 		_tag_surge(fight, beat, track)
 		beats.append(beat)
-		_note_combo(fight, track, int(toon.get("id", 0)), int(suit.get("id", 0)), dealt, beats.size() - 1)
+		_note_combo(fight, track, int(toon.get("id", 0)), int(suit.get("id", 0)), damage, beats.size() - 1)
 		landed = true
 	if landed and track != 1:
 		_grant(fight, int(toon.get("id", 0)), track, level)
@@ -1413,6 +1420,74 @@ func _shared_exp(fight: Dictionary, choice: Dictionary, track: int) -> int:
 			continue
 		best = maxi(best, _exp_bonus(int(other.get("exp", 0)), track))
 	return best
+
+
+static func knockback_bonus(track: int, damage: int, lured: bool) -> int:
+	if damage <= 0 or not lured:
+		return 0
+	if track != ToonLoadout.THROW and track != ToonLoadout.SQUIRT:
+		return 0
+	return int(float(damage) * 0.5)
+
+
+## The chance a gag hits one cog, or a whole group, before the round rolls.
+static func hit_chance(track: int, level: int, organic: bool, exp: int, defense: int, lured_count: int, target_count: int) -> int:
+	if track == 1:
+		return 100
+	var count := maxi(target_count, 1)
+	var lured := clampi(lured_count, 0, count)
+	var all_lured := lured == count
+	if track == 6 and all_lured:
+		return 0
+	if track != 2 and track != ToonLoadout.TOON_UP and track != 6 and all_lured:
+		return 100
+	var prop := ToonLoadout.gag_accuracy(track, level)
+	if track == 2 and organic:
+		prop = ToonLoadout.lure_organic_accuracy(level)
+	var acc := prop + exp_accuracy(exp, track) - maxi(defense, 0)
+	if track != 2 and track != ToonLoadout.TOON_UP and track != 6 and not all_lured and lured > 0:
+		acc += int(100.0 * float(lured) / float(count))
+	return clampi(acc, 0, _MAX_TOON_ACC)
+
+
+static func exp_accuracy(exp: int, track: int) -> int:
+	var skill := 0
+	for index in 7:
+		if exp >= ToonLoadout.skill_at(track, index):
+			skill = index
+	var bonus := _EXP_BONUS[clampi(skill, 0, _EXP_BONUS.size() - 1)]
+	if track == ToonLoadout.TOON_UP:
+		bonus = int(bonus / 2)
+	return bonus
+
+
+static func suit_defense(code: String, actual: int) -> int:
+	var row: Variant = _SUIT_DEF.get(code, [])
+	if not (row is Array) or (row as Array).is_empty():
+		return 0
+	var values: Array = row
+	var rel := clampi(actual - _cog_base(code) - 1, 0, 4)
+	return int(values[clampi(rel, 0, values.size() - 1)])
+
+
+static var _cog_bases: Dictionary = {}
+
+
+static func _cog_base(code: String) -> int:
+	if _cog_bases.is_empty() and FileAccess.file_exists("res://assets/cogs/attack_tables.json"):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/cogs/attack_tables.json"))
+		if parsed is Dictionary:
+			for key in (parsed as Dictionary).keys():
+				var body: Variant = (parsed as Dictionary)[key]
+				if body is Dictionary:
+					_cog_bases[String(key)] = int((body as Dictionary).get("base", 0))
+	return int(_cog_bases.get(code, 0))
+
+
+static func combo_extra(hits: int, base_total: int) -> int:
+	if hits < 2 or base_total <= 0:
+		return 0
+	return int(ceil(float(base_total) * 20.0 / 100.0))
 
 
 func _exp_bonus(exp: int, track: int) -> int:
@@ -2249,7 +2324,11 @@ func _all_chosen(fight: Dictionary) -> bool:
 			running = true
 			continue
 		pending = true
-		if _choice_for(fight, int(toon.get("id", -1))) < 0:
+		var held := _choice_for(fight, int(toon.get("id", -1)))
+		if held < 0:
+			return false
+		var held_pick: Dictionary = (fight["choices"] as Array)[held]
+		if not bool(held_pick.get("locked", false)):
 			return false
 	if pending:
 		return true

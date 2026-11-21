@@ -842,13 +842,13 @@ func _liberate(landmark: Node3D, building: Node3D, elapsed: float) -> void:
 	if elapsed < 4.0:
 		_hide_taken(landmark)
 		return
-	var grown := _axis_scale(elapsed - 4.0, 11, 1.2, 4.0, 4.0, 0.01)
+	var grown := _axis_scale(elapsed - 4.0, 11, 1.2, 4.0, 4.0, 1.0, 0.01)
 	_squash_list(landmark, "block_nodes", grown, 0.0, false)
 	_squash_list(landmark, "door_props", grown, 0.0, false)
 
 
 ## createBounceTrack. The last step of a growing shop settles at full height.
-func _axis_scale(elapsed: float, bounces: int, start_scale: float, total: float, slow: float, rest: float) -> float:
+func _axis_scale(elapsed: float, bounces: int, start_scale: float, total: float, slow: float, rest: float, begin: float = -1.0) -> float:
 	var count := bounces + 1
 	var bounce_time := total / float(count)
 	if slow > 0.0:
@@ -856,7 +856,8 @@ func _axis_scale(elapsed: float, bounces: int, start_scale: float, total: float,
 	var span := bounce_time * slow if slow > 0.0 else bounce_time
 	var diff := start_scale - rest
 	var cursor := 0.0
-	var from := rest
+	# The shop is flattened, then the first leap starts there and settles at full height.
+	var from := rest if begin < 0.0 else begin
 	for step in count:
 		var dest := rest
 		if step == count - 1 and rest < 0.5:
@@ -920,8 +921,11 @@ func _cull_towers() -> void:
 		if landmark != null and is_instance_valid(landmark):
 			show = _zone_shown(landmark)
 		var actor := building as Node3D
-		if actor.visible != show:
-			actor.visible = show
+		var hidden := not show
+		if actor.visible == show and bool(actor.get_meta("tower_culled", not hidden)) == hidden:
+			continue
+		actor.visible = show
+		actor.set_meta("tower_culled", hidden)
 		_tower_collision(actor, show)
 
 
@@ -1028,7 +1032,11 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 			# loadElevator(cogdo=True) has no floor bulbs and no department medallion.
 			if not office:
 				_floors(elevator, int(row.get("floors", 1)))
-				_show_story(elevator, int(row.get("story", -1)))
+				var story := int(row.get("story", -1))
+				_show_story(elevator, story)
+				# An occupied building keeps the street doors shut. The floor
+				# cars set their own doors and must not inherit that.
+				_set_doors(elevator, story >= 0)
 				_medallion(elevator, track)
 			frame_solid(elevator)
 	var origin := _find(building, "sign_origin")
@@ -1167,7 +1175,7 @@ func _floors(elevator: Node, floors: int) -> void:
 
 
 ## DistributedElevatorExt.setFloor. story is the 0-based floor a group is on.
-## -1 is an empty elevator: every bulb stays at LIGHT_OFF and the doors stay open.
+## -1 is an empty elevator: every bulb stays at LIGHT_OFF.
 func _show_story(elevator: Node, story: int) -> void:
 	var floors := int(elevator.get_meta("floor_count", 1))
 	var lights: Array[Node] = []
@@ -1185,7 +1193,6 @@ func _show_story(elevator: Node, story: int) -> void:
 		if story >= 0 and index == story:
 			color = _LIGHT_ON
 		_paint_bulb(light, color)
-	_set_doors(elevator, story >= 0)
 
 
 ## Door the suit-building nametag hangs on. The landmark stands in until the car exists.
@@ -1254,6 +1261,7 @@ func set_story(block: int, story: int) -> void:
 	var elevator: Node = (have as Node).get_meta("elevator")
 	if is_instance_valid(elevator):
 		_show_story(elevator, story)
+		_set_doors(elevator, story >= 0)
 
 
 ## DistributedSuitInterior.setElevatorLights. The street car and both floor

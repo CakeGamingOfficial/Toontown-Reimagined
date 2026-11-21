@@ -32,7 +32,6 @@ namespace ToontownLauncher
         static readonly Color SkyBot = Color.FromArgb(13, 75, 156);
 
         readonly string _baseDir;
-        readonly string _gameDir;
         readonly string _configPath;
         readonly LauncherConfig _config;
         readonly Image _logo;
@@ -49,6 +48,7 @@ namespace ToontownLauncher
         readonly ToonButton[] _dots;
 
         Label _synced;
+        Label _releaseCaption;
         Label _releaseName;
         Label _badge;
         Label _date;
@@ -78,7 +78,10 @@ namespace ToontownLauncher
         ToonButton _resPrev;
         ToonButton _resNext;
         Label _resValue;
+        ToonButton _channelMain;
+        ToonButton _channelExperimental;
         string _windowMode = "windowed";
+        string _branchChoice = "main";
         List<Size> _resolutions;
         int _resIndex;
         RoundPanel _credits;
@@ -108,10 +111,10 @@ namespace ToontownLauncher
         public MainForm()
         {
             _baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
-            _gameDir = Path.Combine(_baseDir, "game");
             _configPath = Path.Combine(_baseDir, "launcher.json");
             _config = LauncherConfig.Load(_configPath);
             DisplayFile.ReadInto(_config);
+            PlaceLegacyGame();
             _logo = CropLogo(LoadImage("logo.png"));
             var family = LoadFamily();
             _display = new Font(family, 22f, FontStyle.Bold, GraphicsUnit.Pixel);
@@ -139,6 +142,12 @@ namespace ToontownLauncher
             DoubleBuffered = true;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
+            var iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("logo.ico");
+            if (iconStream != null)
+            {
+                using (iconStream)
+                    Icon = new Icon(iconStream);
+            }
             Build();
             ClearPartials();
             ApplyMode();
@@ -254,19 +263,19 @@ namespace ToontownLauncher
             var sync = new RoundPanel();
             sync.Fill = Outline;
             sync.Radius = 14;
-            sync.SetBounds(16, 12, 280, 28);
+            sync.SetBounds(16, 12, 360, 28);
             _synced = MakeLabel(_uiSm, Yellow, Outline, ContentAlignment.MiddleLeft);
-            _synced.SetBounds(12, 2, 256, 24);
+            _synced.SetBounds(12, 2, 336, 24);
             _synced.Parent = sync;
 
             var releaseCard = new RoundPanel();
             releaseCard.Fill = Color.White;
             releaseCard.Radius = 16;
             releaseCard.SetBounds(744, 144, 248, 72);
-            var releaseCaption = MakeLabel(_uiSm, Color.FromArgb(100, 116, 139), Color.White, ContentAlignment.MiddleLeft);
-            releaseCaption.Text = "RELEASE";
-            releaseCaption.SetBounds(16, 8, 216, 18);
-            releaseCaption.Parent = releaseCard;
+            _releaseCaption = MakeLabel(_uiSm, Color.FromArgb(100, 116, 139), Color.White, ContentAlignment.MiddleLeft);
+            _releaseCaption.Text = "MAIN";
+            _releaseCaption.SetBounds(16, 8, 216, 18);
+            _releaseCaption.Parent = releaseCard;
             _releaseName = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleLeft);
             _releaseName.SetBounds(16, 28, 216, 32);
             _releaseName.Parent = releaseCard;
@@ -309,7 +318,7 @@ namespace ToontownLauncher
             _next.Parent = _banner;
             _next.Click += delegate { SetSlide(_slide + 1); };
             var newsFoot = MakeLabel(_uiSm, Outline, Color.White, ContentAlignment.MiddleLeft);
-            newsFoot.Text = "Packs download from the newest GitHub release, including prereleases.";
+            newsFoot.Text = "Main uses the latest full release. Experimental uses the newest pre-release.";
             newsFoot.SetBounds(16, 206, 568, 36);
             newsFoot.Parent = news;
 
@@ -425,7 +434,7 @@ namespace ToontownLauncher
             var card = new RoundPanel();
             card.Fill = Color.White;
             card.Radius = 22;
-            card.SetBounds(232, 168, 560, 424);
+            card.SetBounds(232, 122, 560, 516);
             var title = MakeLabel(_display, Outline, Color.White, ContentAlignment.MiddleLeft);
             title.Text = "Settings";
             title.SetBounds(24, 18, 400, 34);
@@ -436,16 +445,28 @@ namespace ToontownLauncher
             close.SetBounds(508, 18, 28, 28);
             close.Parent = card;
             close.Click += delegate { HideOverlays(); };
+            var channelLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
+            channelLabel.Text = "Play";
+            channelLabel.SetBounds(24, 64, 200, 22);
+            channelLabel.Parent = card;
+            _channelMain = MakeTab("Main");
+            _channelExperimental = MakeTab("Experimental");
+            _channelMain.SetBounds(24, 90, 248, 36);
+            _channelExperimental.SetBounds(284, 90, 248, 36);
+            _channelMain.Parent = card;
+            _channelExperimental.Parent = card;
+            _channelMain.Click += delegate { ChooseChannel("main"); };
+            _channelExperimental.Click += delegate { ChooseChannel("experimental"); };
             var windowLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
             windowLabel.Text = "Window";
-            windowLabel.SetBounds(24, 64, 200, 22);
+            windowLabel.SetBounds(24, 142, 200, 22);
             windowLabel.Parent = card;
             _winWindowed = MakeTab("Windowed");
             _winBorder = MakeTab("Borderless");
             _winFull = MakeTab("Fullscreen");
-            _winWindowed.SetBounds(24, 90, 163, 36);
-            _winBorder.SetBounds(199, 90, 163, 36);
-            _winFull.SetBounds(374, 90, 163, 36);
+            _winWindowed.SetBounds(24, 168, 163, 36);
+            _winBorder.SetBounds(199, 168, 163, 36);
+            _winFull.SetBounds(374, 168, 163, 36);
             _winWindowed.Parent = card;
             _winBorder.Parent = card;
             _winFull.Parent = card;
@@ -454,41 +475,41 @@ namespace ToontownLauncher
             _winFull.Click += delegate { ChooseWindow("fullscreen"); };
             var sizeLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
             sizeLabel.Text = "Resolution";
-            sizeLabel.SetBounds(24, 142, 200, 22);
+            sizeLabel.SetBounds(24, 220, 200, 22);
             sizeLabel.Parent = card;
             _resPrev = new ToonButton(_uiBold, Color.White, Outline);
             _resPrev.Text = "<";
             _resPrev.Radius = 14;
-            _resPrev.SetBounds(24, 168, 36, 36);
+            _resPrev.SetBounds(24, 246, 36, 36);
             _resPrev.Parent = card;
             _resPrev.Click += delegate { StepResolution(-1); };
             _resValue = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleCenter);
             _resValue.Text = "Current window";
-            _resValue.SetBounds(68, 168, 424, 36);
+            _resValue.SetBounds(68, 246, 424, 36);
             _resValue.Parent = card;
             _resNext = new ToonButton(_uiBold, Color.White, Outline);
             _resNext.Text = ">";
             _resNext.Radius = 14;
-            _resNext.SetBounds(500, 168, 36, 36);
+            _resNext.SetBounds(500, 246, 36, 36);
             _resNext.Parent = card;
             _resNext.Click += delegate { StepResolution(1); };
             var portLabel = MakeLabel(_uiBold, Outline, Color.White, ContentAlignment.MiddleLeft);
             portLabel.Text = "Port";
-            portLabel.SetBounds(24, 220, 200, 22);
+            portLabel.SetBounds(24, 298, 200, 22);
             portLabel.Parent = card;
             _settingsPort = MakeBox();
-            _settingsPort.SetBounds(24, 246, 160, 32);
+            _settingsPort.SetBounds(24, 324, 160, 32);
             _settingsPort.Parent = card;
             _settingsNote = MakeLabel(_ui, Outline, Color.White, ContentAlignment.TopLeft);
-            _settingsNote.Text = "Play opens the game in this window. Host and Join use this UDP port. The game default is 4343.";
-            _settingsNote.SetBounds(24, 292, 512, 56);
+            _settingsNote.Text = "Main downloads the latest full release. Experimental downloads the newest pre-release. Host and Join use this UDP port. The game default is 4343.";
+            _settingsNote.SetBounds(24, 368, 512, 72);
             _settingsNote.Parent = card;
             var cancel = MakeLink("Cancel", Color.FromArgb(226, 232, 240), Outline);
-            cancel.SetBounds(304, 360, 110, 36);
+            cancel.SetBounds(304, 448, 110, 36);
             cancel.Parent = card;
             cancel.Click += delegate { HideOverlays(); };
             var save = MakeLink("Save", Green, Color.White);
-            save.SetBounds(426, 360, 110, 36);
+            save.SetBounds(426, 448, 110, 36);
             save.Parent = card;
             save.Click += delegate { SaveSettings(); };
             return card;
@@ -688,7 +709,7 @@ namespace ToontownLauncher
         {
             try
             {
-                var info = await ReleaseClient.GetLatestAsync(CancellationToken.None);
+                var info = await ReleaseClient.GetLatestAsync(PlayChannel(), CancellationToken.None);
                 if (IsDisposed || info == null || string.IsNullOrEmpty(info.Tag))
                     return;
                 Action apply = delegate
@@ -703,15 +724,34 @@ namespace ToontownLauncher
                 else
                     apply();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                var message = Friendly(ex);
+                if (message.IndexOf("no pre-release") < 0 && message.IndexOf("no full release") < 0)
+                    return;
+                Action apply = delegate
+                {
+                    if (!IsDisposed)
+                        SetPatch(message, 0, PlayChannel());
+                };
+                if (InvokeRequired)
+                    BeginInvoke(apply);
+                else
+                    apply();
             }
+        }
+
+        string PlayChannel()
+        {
+            return ReleaseClient.IsExperimental(_config.Branch) ? "experimental" : "main";
         }
 
         void ShowVersion()
         {
             var tag = CurrentTag();
-            _synced.Text = string.IsNullOrEmpty(tag) ? "Synced: local copy" : "Synced: " + tag;
+            var channel = PlayChannel();
+            _releaseCaption.Text = channel == "experimental" ? "EXPERIMENTAL" : "MAIN";
+            _synced.Text = string.IsNullOrEmpty(tag) ? "Synced: " + channel : "Synced: " + channel + " " + tag;
             _releaseName.Text = string.IsNullOrEmpty(tag) ? "Local copy" : tag;
             RefreshReleaseSlide();
             if (!_busy)
@@ -722,7 +762,7 @@ namespace ToontownLauncher
         {
             if (!string.IsNullOrEmpty(_remoteTag))
                 return _remoteTag;
-            return _config.Release;
+            return _config.TagFor(PlayChannel());
         }
 
         void ShowReady()
@@ -730,7 +770,7 @@ namespace ToontownLauncher
             var tag = CurrentTag();
             if (!File.Exists(GameExe()) || !File.Exists(PackPath()))
             {
-                SetPatch("Add game/Toontown.exe and game/Toontown.pck beside this launcher.", 0, "Toontown.exe is never replaced.");
+                SetPatch("Add Toontown.exe under game/" + PlayChannel() + ". Packs download into that folder.", 0, "Toontown.exe is never replaced.");
                 return;
             }
             if (string.IsNullOrEmpty(tag))
@@ -780,9 +820,10 @@ namespace ToontownLauncher
                     Launch(mode);
                 return;
             }
+            EnsureExe();
             if (!File.Exists(GameExe()))
             {
-                SetPatch("game/Toontown.exe was not found. Play does not download or replace that file.", 0, "");
+                SetPatch("game/" + PlayChannel() + "/Toontown.exe was not found. Play does not download or replace that file.", 0, "");
                 return;
             }
             _busy = true;
@@ -794,12 +835,13 @@ namespace ToontownLauncher
             try
             {
                 SetPatch("Checking GitHub for a newer release...", 8, "");
-                var info = await ReleaseClient.GetLatestAsync(_cancel.Token);
+                var info = await ReleaseClient.GetLatestAsync(PlayChannel(), _cancel.Token);
                 Remember(info);
                 ShowVersion();
                 var needed = PacksToDownload(info);
                 if (needed.Count == 0)
                 {
+                    RememberInstalled(info.Tag);
                     SetPatch("Up to date (" + info.Tag + ").", 100, "Toontown.pck matches this release.");
                     FinishUpdate(launch, mode);
                     return;
@@ -807,7 +849,7 @@ namespace ToontownLauncher
                 for (var i = 0; i < needed.Count; i++)
                 {
                     var pack = needed[i];
-                    var dest = Path.Combine(_gameDir, pack.Name);
+                    var dest = Path.Combine(ChannelDir(), pack.Name);
                     var partial = dest + ".partial";
                     if (File.Exists(partial))
                         File.Delete(partial);
@@ -821,8 +863,7 @@ namespace ToontownLauncher
                     await ReleaseClient.DownloadAsync(pack.Url, partial, pack.Name, progress, _cancel.Token);
                     PackFile.Replace(partial, dest);
                 }
-                _config.Release = info.Tag;
-                _config.Save(_configPath);
+                RememberInstalled(info.Tag);
                 ShowVersion();
                 SetPatch("Updated to " + info.Tag + ".", 100, "Packs are in the game folder.");
                 FinishUpdate(launch, mode);
@@ -858,10 +899,11 @@ namespace ToontownLauncher
 
         void Launch(string mode)
         {
+            EnsureExe();
             var exe = GameExe();
             if (!File.Exists(exe))
             {
-                Fail("game/Toontown.exe was not found. Play does not download or replace that file.");
+                Fail("game/" + PlayChannel() + "/Toontown.exe was not found. Play does not download or replace that file.");
                 return;
             }
             if (!File.Exists(PackPath()))
@@ -876,7 +918,7 @@ namespace ToontownLauncher
                 arguments = "-- --join " + QuoteArg(_config.Address) + " " + _config.Port;
             try { DisplayFile.Write(_config); }
             catch (Exception) { }
-            if (!GameStart.Open(exe, arguments, _gameDir))
+            if (!GameStart.Open(exe, arguments, ChannelDir()))
             {
                 _busy = false;
                 SetPlayBusy(false);
@@ -1004,8 +1046,30 @@ namespace ToontownLauncher
             _play.Invalidate();
         }
 
+        void ChooseChannel(string channel)
+        {
+            _branchChoice = ReleaseClient.IsExperimental(channel) ? "experimental" : "main";
+            ApplyChannelChoice();
+        }
+
+        void ApplyChannelChoice()
+        {
+            var experimental = ReleaseClient.IsExperimental(_branchChoice);
+            PaintTab(_channelMain, !experimental);
+            PaintTab(_channelExperimental, experimental);
+        }
+
+        void RememberInstalled(string tag)
+        {
+            _config.SetTag(PlayChannel(), tag ?? "");
+            try { _config.Save(_configPath); }
+            catch (Exception) { }
+        }
+
         void ShowSettings()
         {
+            _branchChoice = PlayChannel();
+            ApplyChannelChoice();
             _windowMode = _config.WindowMode;
             if (_windowMode != "windowed" && _windowMode != "borderless" && _windowMode != "fullscreen")
                 _windowMode = "windowed";
@@ -1022,7 +1086,7 @@ namespace ToontownLauncher
             ApplyWindowChoice();
             ShowResolution();
             _settingsPort.Text = _portBox.Text;
-            _settingsNote.Text = "Play opens the game in this window. Host and Join use this UDP port. The game default is 4343.";
+            _settingsNote.Text = "Main downloads the latest full release. Experimental downloads the newest pre-release. Host and Join use this UDP port. The game default is 4343.";
             _credits.Visible = false;
             _notesCard.Visible = false;
             _settings.Visible = true;
@@ -1119,7 +1183,17 @@ namespace ToontownLauncher
             _config.WindowMode = _windowMode;
             _config.Width = size.Width < 640 || size.Height < 480 ? 0 : size.Width;
             _config.Height = size.Width < 640 || size.Height < 480 ? 0 : size.Height;
+            var nextChannel = ReleaseClient.IsExperimental(_branchChoice) ? "experimental" : "main";
+            var channelChanged = !string.Equals(nextChannel, PlayChannel(), StringComparison.OrdinalIgnoreCase);
+            _config.Branch = nextChannel;
             SaveFields();
+            if (channelChanged)
+            {
+                _remoteTag = "";
+                _remoteName = "";
+                _remotePage = "";
+                _remoteNotes = "";
+            }
             try
             {
                 DisplayFile.Write(_config);
@@ -1130,8 +1204,9 @@ namespace ToontownLauncher
                 return;
             }
             HideOverlays();
-            if (!_busy)
-                ShowReady();
+            ShowVersion();
+            if (channelChanged && !_busy)
+                BeginCheckVersion();
         }
 
         void ShowCredits()
@@ -1169,7 +1244,7 @@ namespace ToontownLauncher
         {
             try
             {
-                var info = await ReleaseClient.GetLatestAsync(CancellationToken.None);
+                var info = await ReleaseClient.GetLatestAsync(PlayChannel(), CancellationToken.None);
                 if (IsDisposed || info == null)
                     return;
                 Action apply = delegate
@@ -1248,23 +1323,90 @@ namespace ToontownLauncher
             Process.Start(url);
         }
 
+        string ChannelDir()
+        {
+            var dir = Path.Combine(_baseDir, "game", PlayChannel());
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            return dir;
+        }
+
         string GameExe()
         {
-            return Path.Combine(_gameDir, "Toontown.exe");
+            return Path.Combine(ChannelDir(), "Toontown.exe");
         }
 
         string PackPath()
         {
-            return Path.Combine(_gameDir, "Toontown.pck");
+            return Path.Combine(ChannelDir(), "Toontown.pck");
+        }
+
+        void PlaceLegacyGame()
+        {
+            var root = Path.Combine(_baseDir, "game");
+            var legacyPack = Path.Combine(root, "Toontown.pck");
+            var legacyExe = Path.Combine(root, "Toontown.exe");
+            if (!File.Exists(legacyPack) && !File.Exists(legacyExe))
+                return;
+            var channel = ReleaseClient.IsExperimental(_config.InstalledBranch) ? "experimental" : "main";
+            if (string.IsNullOrEmpty(_config.TagFor(channel)) && !string.IsNullOrEmpty(_config.Release))
+                _config.SetTag(channel, _config.Release);
+            var destDir = Path.Combine(root, channel);
+            if (!Directory.Exists(destDir))
+                Directory.CreateDirectory(destDir);
+            var moved = MoveIfAbsent(legacyExe, Path.Combine(destDir, "Toontown.exe"));
+            if (Directory.Exists(root))
+            {
+                foreach (var pack in Directory.GetFiles(root, "*.pck"))
+                {
+                    if (MoveIfAbsent(pack, Path.Combine(destDir, Path.GetFileName(pack))))
+                        moved = true;
+                }
+            }
+            if (moved)
+            {
+                try { _config.Save(_configPath); }
+                catch (Exception) { }
+            }
+        }
+
+        void EnsureExe()
+        {
+            var dest = Path.Combine(ChannelDir(), "Toontown.exe");
+            if (File.Exists(dest))
+                return;
+            var root = Path.Combine(_baseDir, "game");
+            var sources = new[]
+            {
+                Path.Combine(root, "Toontown.exe"),
+                Path.Combine(root, "main", "Toontown.exe"),
+                Path.Combine(root, "experimental", "Toontown.exe")
+            };
+            foreach (var source in sources)
+            {
+                if (!File.Exists(source) || string.Equals(source, dest, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                File.Copy(source, dest);
+                return;
+            }
+        }
+
+        static bool MoveIfAbsent(string source, string dest)
+        {
+            if (!File.Exists(source) || File.Exists(dest))
+                return false;
+            File.Move(source, dest);
+            return true;
         }
 
         System.Collections.Generic.List<ReleasePack> PacksToDownload(ReleaseInfo info)
         {
             var needed = new System.Collections.Generic.List<ReleasePack>();
-            var sameRelease = _config.Release == info.Tag;
+            var saved = _config.TagFor(PlayChannel());
+            var sameRelease = saved.Length > 0 && saved == info.Tag;
             foreach (var pack in info.Packs)
             {
-                var dest = Path.Combine(_gameDir, pack.Name);
+                var dest = Path.Combine(ChannelDir(), pack.Name);
                 if (!sameRelease || !File.Exists(dest))
                     needed.Add(pack);
             }
@@ -1273,9 +1415,10 @@ namespace ToontownLauncher
 
         void ClearPartials()
         {
-            if (!Directory.Exists(_gameDir))
+            var dir = ChannelDir();
+            if (!Directory.Exists(dir))
                 return;
-            foreach (var partial in Directory.GetFiles(_gameDir, "*.partial"))
+            foreach (var partial in Directory.GetFiles(dir, "*.partial"))
             {
                 if (!partial.EndsWith(".pck.partial", StringComparison.OrdinalIgnoreCase))
                     continue;

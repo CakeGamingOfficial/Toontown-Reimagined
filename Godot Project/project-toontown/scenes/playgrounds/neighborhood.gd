@@ -6,6 +6,8 @@ extends Node3D
 ## A zones_path turns on the original visgroup stash for that street.
 
 const TOONTOWN_SKY := preload("res://scenes/sky/toontown_sky.gd")
+const _DAY := preload("res://scenes/sky/day_cycle.gd")
+const _SNOW := preload("res://scenes/playgrounds/brrrgh_snow.gd")
 const _FIREWORK_SHOW := preload("res://scenes/effects/firework_show.gd")
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _DRESSING := preload("res://scenes/playgrounds/holiday_dressing.gd")
@@ -25,6 +27,8 @@ var _zone_nodes: Dictionary = {}
 var _current_zone := ""
 var _zone_sample := Vector2(INF, INF)
 var _billboards: Array[Dictionary] = []
+var _day: Node
+var _snow: Node
 
 
 func _ready() -> void:
@@ -33,6 +37,13 @@ func _ready() -> void:
 	_prepare_cog_sky()
 	if Engine.is_editor_hint():
 		return
+	_day = _DAY.new()
+	_day.name = "DayCycle"
+	add_child(_day)
+	if sky_kind == "br":
+		_snow = _SNOW.new()
+		_snow.name = "BrrrghSnow"
+		add_child(_snow)
 	if scene_file_path.ends_with("cashbot_trainyard.tscn"):
 		preload("res://scenes/cog_hq/cashbot_trains.gd").place(self)
 	if scene_file_path.ends_with("bossbot_country_club.tscn"):
@@ -78,7 +89,10 @@ func _ready() -> void:
 	preload("res://scenes/battle/street_fight.gd").attach(self)
 	_current_zone = ""
 	_zone_sample = Vector2(INF, INF)
-	_process_zones(_view_camera())
+	# A street's floor is folded over the next frames. Choosing the block now
+	# would remember an empty solid list, and the floor would stay non-solid.
+	if bool(get_meta("street_ready", true)):
+		_process_zones(_view_camera())
 
 
 func _keep_estate_house(slot: int) -> void:
@@ -143,16 +157,52 @@ func _attach_returning_toon() -> void:
 
 
 func _process(_delta: float) -> void:
+	var plant := false
+	if not bool(get_meta("street_ready", true)):
+		var geom := get_node_or_null("Geometry")
+		if geom != null and geom.has_method("pump_street"):
+			geom.call("pump_street")
+		else:
+			set_meta("street_ready", true)
+		if bool(get_meta("street_ready", true)):
+			_current_zone = ""
+			_zone_sample = Vector2(INF, INF)
+			if has_meta("street_shown"):
+				remove_meta("street_shown")
+			for zone_name in _zone_nodes:
+				var zone_node := _zone_nodes[zone_name] as Node
+				if zone_node != null and zone_node.has_meta("street_bodies"):
+					zone_node.remove_meta("street_bodies")
+			plant = true
 	TOONTOWN_SKY.ensure(self, sky_kind)
 	var camera := _view_camera()
 	_follow_cog_sky(camera)
 	_process_zones(camera)
+	if plant:
+		var feet := _toon_feet()
+		if feet != null:
+			var at := Vector2(feet.global_position.x, feet.global_position.z)
+			var under := _zone_at(at)
+			if under.is_empty():
+				under = _nearest_zone(at)
+			var block := _zone_nodes.get(under) as Node3D
+			if block != null:
+				block.visible = true
+				preload("res://scenes/playgrounds/street_batch.gd").set_solid(block, true)
+		var toon := get_node_or_null("PlaygroundToon")
+		if toon != null and toon.has_method("plant_feet"):
+			toon.call("plant_feet")
+	preload("res://scenes/playgrounds/street_batch.gd").warm(self, _zone_sample)
 	if Engine.is_editor_hint():
 		return
 	_process_billboards(camera)
 	_watch_fireworks()
 	if _DRESSING.follow(self):
 		_ready_billboards()
+	if _day != null and _day.has_method("follow"):
+		_day.call("follow", self)
+	if _snow != null and camera != null and _snow.has_method("follow"):
+		_snow.call("follow", camera)
 
 
 func show_fireworks(show_name: String, at: int = -1, delay: float = 0.0) -> void:

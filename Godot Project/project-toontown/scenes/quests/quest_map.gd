@@ -222,6 +222,17 @@ func follow(where: Vector3, heading: float) -> void:
 		_place_arrow()
 
 
+## The corner map button stays off during a fight.
+func set_corner_button(shown: bool) -> void:
+	if not shown:
+		hide_map()
+		if _open_button != null:
+			_open_button.visible = false
+		return
+	if _open_button != null and _ready and not _open:
+		_open_button.visible = true
+
+
 func toggle() -> void:
 	if not _ready:
 		return

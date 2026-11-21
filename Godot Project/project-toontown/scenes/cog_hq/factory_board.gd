@@ -398,7 +398,7 @@ func _open_trip(district: int, entrance: int, peers: Array) -> int:
 		"district": district,
 		"entrance": entrance,
 		"peers": riders,
-		"rows": _roll_factory(trip),
+		"rows": _roll_factory(trip, riders.size()),
 		"barrels": [],
 		"crates": {},
 		"goons": [],
@@ -644,7 +644,7 @@ func _battle_cog(row: Dictionary, origin: Vector3) -> Dictionary:
 	}
 
 
-func _roll_factory(trip: int) -> Array:
+func _roll_factory(trip: int, toons: int) -> Array:
 	var catalog := _read_json(_CATALOG)
 	var data := _read_json(_LIST)
 	var by_code := {}
@@ -660,6 +660,7 @@ func _roll_factory(trip: int) -> Array:
 		var suit := _suit(by_code, int(spec.get("level", 1)), int(spec.get("skeleton", 0)) == 1)
 		if suit.is_empty():
 			continue
+		suit["level"] = preload("res://scenes/cog_hq/party_scale.gd").level(int(suit.get("level", 1)), toons)
 		suit["parent"] = int(spec.get("parent", 0))
 		suit["pos"] = spec.get("pos", [0.0, 0.0, 0.0])
 		suit["h"] = float(spec.get("h", 0.0))

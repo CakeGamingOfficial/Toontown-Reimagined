@@ -699,6 +699,11 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var place := get_parent()
+	if place != null and not bool(place.get_meta("street_ready", true)):
+		if _body != null:
+			_body.velocity = Vector3.ZERO
+		return
 	if _squish_left > 0.0:
 		_squish_left = maxf(_squish_left - delta, 0.0)
 		if _body != null:
@@ -751,6 +756,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	_steer_camera(event)
 	if _filming or _locked:
+		return
+	if _battle_hold:
 		return
 	if _book != null and _tasks != null and _tasks.book_ready() and _book_hotkey(event):
 		_book.toggle_hotkey()
@@ -1014,6 +1021,21 @@ func hold_for_battle(held: bool) -> void:
 	if not held or _player == null:
 		return
 	_player.set_locomotion(0.0, false, false, 0.0)
+
+
+func show_laff_meter(shown: bool) -> void:
+	if _meter != null:
+		_meter.visible = shown
+
+
+func show_street_buttons(shown: bool) -> void:
+	if _book != null:
+		_book.set_corner_button(shown)
+	if _map != null and _map.has_method("set_corner_button"):
+		_map.call("set_corner_button", shown)
+	var tracker := _hud().get_node_or_null("TaskTracker")
+	if tracker != null and tracker.has_method("hold_for_battle"):
+		tracker.call("hold_for_battle", not shown)
 
 
 func battle_busy() -> bool:
@@ -5779,6 +5801,28 @@ func _aim_tunnel_camera(origin: Node3D, cam_from: Vector3, blend: float) -> void
 	_camera.global_position = cam_from.lerp(settle, eased)
 	if _camera.global_position.distance_squared_to(focus) > 0.01:
 		_camera.look_at(focus, Vector3.UP)
+
+
+func plant_feet() -> void:
+	if _body == null:
+		return
+	_body.velocity = Vector3.ZERO
+	var space := _body.get_world_3d().direct_space_state
+	if space == null:
+		return
+	var x := _body.global_position.x
+	var z := _body.global_position.z
+	var top := _home.y + 40.0
+	var query := PhysicsRayQueryParameters3D.create(Vector3(x, top, z), Vector3(x, _home.y - 40.0, z))
+	query.exclude = [_body.get_rid()]
+	query.collide_with_areas = false
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		_snap_feet()
+		return
+	var point: Vector3 = hit["position"]
+	_body.global_position = Vector3(x, point.y + 0.05, z)
+	_home = _body.global_position
 
 
 func _snap_feet() -> void:

@@ -27,6 +27,37 @@ static func apply(root: Node) -> void:
 	_walk(root, root)
 
 
+## One visgroup per slice, so opening a street does not build every block
+## on the same frame. pump_zones returns true while work is left.
+static func queue_zones(root: Node) -> int:
+	var zones: Array[Node3D] = []
+	_queue_zones(root, zones)
+	root.set_meta("batch_queue", zones)
+	return zones.size()
+
+
+static func pump_zones(root: Node, budget_usec: int) -> bool:
+	var queued: Variant = root.get_meta("batch_queue", [])
+	if not (queued is Array):
+		return false
+	var zones: Array = queued
+	var started := Time.get_ticks_usec()
+	while not zones.is_empty() and Time.get_ticks_usec() - started < budget_usec:
+		var zone: Variant = zones.pop_back()
+		if zone is Node3D and is_instance_valid(zone):
+			_batch(zone as Node3D, root)
+	root.set_meta("batch_queue", zones)
+	return not zones.is_empty()
+
+
+static func _queue_zones(node: Node, zones: Array[Node3D]) -> void:
+	if _is_zone(node):
+		zones.append(node as Node3D)
+		return
+	for child in node.get_children():
+		_queue_zones(child, zones)
+
+
 static func apply_flat(root: Node3D) -> void:
 	_batch(root, root)
 
@@ -124,6 +155,70 @@ static func apply_visible(host: Node, zone_name: String, zone_nodes: Dictionary,
 				_show_zone(zone_nodes[zone_key] as Node, true)
 	host.set_meta("street_shown", shown)
 	show_zones(host, zone_name, _shown_nodes(zone_nodes, zones, zone_name))
+
+
+## The zone under the toon is drawn immediately. The others are folded while
+## the toon stands there, closest first, so the next step does not build them.
+static func warm(host: Node, around: Vector2 = Vector2(INF, INF)) -> void:
+	if Engine.is_editor_hint():
+		return
+	var geom := _geometry(host)
+	if geom == null:
+		return
+	var zone_nodes: Dictionary = geom.get_meta("street_zone_nodes", {})
+	var zones: Dictionary = geom.get_meta("street_zones", {})
+	if zone_nodes.is_empty() or zones.is_empty():
+		return
+	var gen := int(geom.get_meta("fold_gen", 0))
+	if int(geom.get_meta("street_warm_gen", -1)) == gen:
+		return
+	var views: Dictionary = geom.get_meta("street_views", {})
+	var gens: Dictionary = geom.get_meta("street_view_gen", {})
+	var best := ""
+	var best_distance := INF
+	for zone_name in zones:
+		var key := String(zone_name)
+		if int(gens.get(key, -1)) == gen and views.has(key):
+			continue
+		var distance := 0.0
+		if not is_inf(around.x):
+			distance = _zone_distance(zones[key], around)
+		if distance < best_distance:
+			best_distance = distance
+			best = key
+	if best.is_empty():
+		geom.set_meta("street_warm_gen", gen)
+		return
+	var nodes := _shown_nodes(zone_nodes, zones, best)
+	if _has_cached_verts(nodes) or _has_folded(nodes):
+		_view_meshes(geom, best, nodes, gen)
+		return
+	views = geom.get_meta("street_views", {})
+	gens = geom.get_meta("street_view_gen", {})
+	views[best] = []
+	gens[best] = gen
+	geom.set_meta("street_views", views)
+	geom.set_meta("street_view_gen", gens)
+
+
+static func _zone_distance(zone: Variant, around: Vector2) -> float:
+	if not (zone is Dictionary):
+		return INF
+	var record: Dictionary = zone
+	var polygons: Array = record.get("polygons", [])
+	var best := INF
+	for polygon in polygons:
+		if not (polygon is PackedVector2Array):
+			continue
+		var ring: PackedVector2Array = polygon
+		if ring.is_empty():
+			continue
+		var center := Vector2.ZERO
+		for vertex in ring:
+			center += vertex
+		center /= float(ring.size())
+		best = minf(best, center.distance_squared_to(around))
+	return best
 
 
 static func show_zones(host: Node, zone_name: String, zones: Array[Node3D]) -> void:
@@ -234,7 +329,11 @@ static func _batch(zone: Node3D, root: Node) -> void:
 		shape.set_faces(job.faces)
 		var body := StaticBody3D.new()
 		body.name = "ZoneSolid"
-		body.collision_layer = 0
+		# On until the visibility pass turns hidden blocks off. A pass that
+		# ran before this body existed used to leave the floor non-solid.
+		body.collision_layer = 1
+		if zone.has_meta("street_bodies"):
+			zone.remove_meta("street_bodies")
 		var collision := CollisionShape3D.new()
 		collision.shape = shape
 		body.add_child(collision)

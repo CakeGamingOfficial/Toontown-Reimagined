@@ -504,7 +504,7 @@ func _build_type_name() -> void:
 	_name_edit.add_theme_stylebox_override("read_only", blank)
 	_name_edit.text_changed.connect(_on_typed_name)
 	_name_edit.text_submitted.connect(func(_text: String) -> void:
-		_on_typed_name(_name_edit.text)
+		_submit_typed_name()
 	)
 	_pin(panel, _name_edit, 0.51, 0.283, 0.42, 0.125)
 	_name_view = Label.new()
@@ -527,7 +527,7 @@ func _build_type_name() -> void:
 	_panel_socket(panel, "Pick-A-Name", 0.508, 0.859, 0.332, 0.066, func() -> void:
 		_typing = false
 		_load_name_lists()
-		_show_shop()
+		_show_shop_after_click()
 	)
 	_name_edit.grab_focus.call_deferred()
 
@@ -2008,10 +2008,23 @@ func _submit_typed_name() -> void:
 	if typed.is_empty():
 		return
 	# Submit leaves Type a Name and keeps this name. The lists take over again
-	# only after the player shuffles or scrolls one.
+	# only after the player shuffles or scrolls one. The rebuild waits until
+	# this click is over: Submit sits where Shuffle appears, and the same
+	# click would replace the typed name.
 	_submitted_name = typed
 	_typing = false
-	_show_shop()
+	_show_shop_after_click()
+
+
+func _show_shop_after_click() -> void:
+	var tree := get_tree()
+	if tree == null:
+		_show_shop()
+		return
+	tree.process_frame.connect(func() -> void:
+		if is_inside_tree():
+			_show_shop()
+	, CONNECT_ONE_SHOT)
 
 
 func _picked_name() -> String:

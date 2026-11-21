@@ -94,6 +94,7 @@ var _suits: Node3D
 var _plates: Array[int] = []
 var _stuffed: Array[bool] = []
 var _diner_level := 11
+var _party_size := 0
 var _rounds: Node
 var _show: Node
 var _caged: Dictionary = {}
@@ -3059,12 +3060,20 @@ func _open_ceo_sides(diners: bool) -> bool:
 	return opened
 
 
+func _scaled_level(base: int) -> int:
+	if _party_size <= 0:
+		_party_size = maxi(_boss_peers().size(), 1)
+	return preload("res://scenes/cog_hq/party_scale.gd").level(base, _party_size)
+
+
 func _make_cog(dept: String, level: int, forced_type: int, skeleton: bool, revives: int, cog_id: int) -> Dictionary:
 	var cog_type := forced_type
 	if cog_type <= 0:
 		cog_type = randi_range(maxi(level - 4, 1), mini(level, 8))
+	var shown := _scaled_level(level)
 	var found := _catalog_cog(dept, cog_type)
-	var hp := Cog.hp_for_level(level)
+	var hp := Cog.hp_for_level(shown)
+	level = shown
 	return {
 		"id": 800000 + cog_id,
 		"code": String(found.get("code", "f")),

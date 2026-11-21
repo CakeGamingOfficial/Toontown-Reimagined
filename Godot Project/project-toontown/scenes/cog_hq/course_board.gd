@@ -14,7 +14,7 @@ var _sig := ""
 var _boss_paid := false
 
 
-func ensure(district: int) -> void:
+func ensure(district: int, peer := 0) -> void:
 	if not ToonNet.is_authority():
 		return
 	var plan: Dictionary = _RUN.floor_plan()
@@ -24,7 +24,8 @@ func ensure(district: int) -> void:
 		return
 	_sig = signature
 	_boss_paid = _RUN.boss_paid
-	_rows = _roll(plan)
+	var who := peer if peer > 0 else ToonNet.peer_id()
+	_rows = _roll(plan, preload("res://scenes/cog_hq/party_scale.gd").for_peer(who))
 	_publish(district)
 
 
@@ -78,7 +79,7 @@ func reveal_cell(district: int, piece: int, cell: int) -> void:
 
 
 func engage(district: int, cog_id: int, origin: Vector3, yaw: float, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
-	ensure(district)
+	ensure(district, peer)
 	var lead := _find(cog_id)
 	if lead.is_empty():
 		return
@@ -153,7 +154,7 @@ func _publish(district: int) -> void:
 	ToonNet.publish("suits:%d:%s" % [district, SLUG], {"rows": _rows})
 
 
-func _roll(plan: Dictionary) -> Array:
+func _roll(plan: Dictionary, toons: int) -> Array:
 	var catalog := _read(_CATALOG)
 	var by_code := {}
 	for item in catalog.get("cogs", []):
@@ -181,6 +182,7 @@ func _roll(plan: Dictionary) -> Array:
 			var suit := _suit(by_code, int(cog.get("level", 1)), int(cog.get("skeleton", 0)) == 1)
 			if suit.is_empty():
 				continue
+			suit["level"] = preload("res://scenes/cog_hq/party_scale.gd").level(int(suit.get("level", 1)), toons)
 			suit["parent"] = int(cog.get("parent", 0))
 			suit["pos"] = cog.get("pos", [0.0, 0.0, 0.0])
 			suit["h"] = float(cog.get("h", 0.0))
