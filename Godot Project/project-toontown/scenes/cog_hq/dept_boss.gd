@@ -8,6 +8,7 @@ extends Node
 const _GATE := preload("res://scenes/cog_hq/boss_gate.gd")
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _PLACES := preload("res://scenes/places/hood_places.gd")
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 
 const _ROOMS := {
 	"sellbot_vp.tscn": {"title": "Senior V.P.", "dept": 3, "letter": "s", "zone": 11000, "lobby": "res://scenes/cog_hq/sellbot_lobby.tscn", "max_hp": 100, "kind": "vp"},
@@ -169,6 +170,7 @@ func _ready() -> void:
 	_zone = int(info.get("zone", 0))
 	_lobby = String(info.get("lobby", ""))
 	_boss_name = String(info.get("title", "Boss"))
+	_SUMMARY.start(_boss_name)
 	_max_hp = int(info.get("max_hp", 1))
 	_hp = 0 if _kind != "cj" else 1350
 	_mark_spawn(host)
@@ -1097,6 +1099,7 @@ func _show_ceo_reward() -> void:
 				any = true
 	if any and loadout != null:
 		await play_gag_reward(loadout, _ceo_exp_before, earned, "", false)
+	await _SUMMARY.present()
 	if not is_inside_tree() or _body == null:
 		return
 	if _rounds != null:
@@ -1200,6 +1203,7 @@ func _show_cj_reward() -> void:
 				any = true
 	if any and loadout != null:
 		await play_gag_reward(loadout, _cj_exp_before, earned, "", false)
+	await _SUMMARY.present()
 	if not is_inside_tree() or _body == null:
 		return
 	_body.text = "\n".join(_cj_reward_lines)
@@ -1258,6 +1262,7 @@ func _finish_cfo_victory() -> void:
 		await play_gag_reward(loadout, _cfo_exp_before, _cfo_earned, "", false)
 	else:
 		await get_tree().create_timer(4.5).timeout
+	await _SUMMARY.present()
 	if not is_inside_tree():
 		return
 	if _rounds != null:

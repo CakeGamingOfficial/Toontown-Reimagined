@@ -8,6 +8,7 @@ const _ROLL_SPEED := 7.5
 const _RIDE := 8.0
 const _OPEN := 4.0
 const _CAGE_Z: Array[float] = [100.0, 81.0, 63.0, 44.0, 25.0, 18.0]
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const _DOOBERS: Array = [
 	{"code": "cc", "name": "Cold Caller", "body": "c", "height": 4.63},
 	{"code": "tm", "name": "Telemarketer", "body": "b", "height": 5.24},
@@ -1968,6 +1969,7 @@ func _show_gag_reward() -> void:
 			return
 	_reward_cam = false
 	_reward_focus = null
+	await _SUMMARY.present()
 	_open_thanks()
 
 

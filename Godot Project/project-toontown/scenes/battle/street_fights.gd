@@ -10,6 +10,7 @@ const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
 const _RESTOCK_WORD: PackedStringArray = ["Heal", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"]
 const _FACTORY := preload("res://scenes/cog_hq/factory_props.gd")
 const _MINT := preload("res://scenes/cog_hq/mint_props.gd")
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const INPUT_TIME := 20.0
 const REWARD_TIME := 120.0
 ## BattleBase.FLOOR_REWARD_TIMEOUT. A cleared floor dances, then the elevator.
@@ -1179,6 +1180,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		hit = bool(rolled["hit"])
 		acc = int(rolled["acc"])
 	_note_hit(fight, track, level, target_id, group, hit)
+	var harm := 0
 	var landed := false
 	for cog in living:
 		var suit: Dictionary = cog
@@ -1203,10 +1205,15 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		var woke := bool(suit.get("lured", false)) and (track == 3 or track == ToonLoadout.THROW or track == ToonLoadout.SQUIRT)
 		# Throw and squirt add half the hit again when the cog is lured.
 		dealt += knockback_bonus(track, damage, woke)
+		var before_hp := int(suit.get("hp", 0))
 		_hurt_cog(suit, dealt, track)
+		var removed := maxi(before_hp - int(suit.get("hp", 0)), 0)
 		if woke:
 			_clear_lure(suit)
 		var revived := _revive_suit(suit)
+		if revived:
+			removed = 0
+		harm += removed
 		var line := "%s used a %s on the %s for %d damage." % [who, gag, cog_name, dealt]
 		if not revived and int(suit.get("hp", 0)) <= 0:
 			line += " The %s is defeated." % cog_name
@@ -1220,6 +1227,7 @@ func _apply_gag(fight: Dictionary, toon: Dictionary, choice: Dictionary, beats: 
 		beats.append(beat)
 		_note_combo(fight, track, int(toon.get("id", 0)), int(suit.get("id", 0)), damage, beats.size() - 1)
 		landed = true
+	_SUMMARY.note(int(toon.get("id", 0)), who, harm, 0, 1)
 	if landed and track != 1:
 		_grant(fight, int(toon.get("id", 0)), track, level)
 
@@ -1278,8 +1286,13 @@ func _lure(fight: Dictionary, toon: Dictionary, suit: Dictionary, gag: String, h
 	var laid: Dictionary = trap
 	var damage := int(laid.get("damage", 0))
 	suit["trap"] = {}
+	var before_hp := int(suit.get("hp", 0))
 	_hurt_cog(suit, damage, 1)
+	var removed := maxi(before_hp - int(suit.get("hp", 0)), 0)
 	var revived := _revive_suit(suit)
+	if revived:
+		removed = 0
+	_SUMMARY.note(int(laid.get("owner", 0)), String(laid.get("by", "")), removed, 0, 0)
 	var line := "The %s hit the %s for %d damage." % [String(laid.get("gag", "trap")), cog_name, damage]
 	if not revived and int(suit.get("hp", 0)) <= 0:
 		line += " The %s is defeated." % cog_name
@@ -1316,6 +1329,7 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 	var rolled: Dictionary = _toon_hit(fight, choice, [])
 	var hit: bool = bool(rolled["hit"])
 	_note_hit(fight, track, level, int(choice.get("target", -1)), ToonLoadout.affects_group(track, level), hit)
+	var healed_sum := 0
 	var landed := false
 	for item in patients:
 		var patient: Dictionary = item
@@ -1327,12 +1341,14 @@ func _heal(fight: Dictionary, toon: Dictionary, choice: Dictionary, gag: String,
 		var before := int(patient.get("hp", 0))
 		patient["hp"] = mini(before + amount, int(patient.get("max_hp", before)))
 		var gained := int(patient.get("hp", 0)) - before
+		healed_sum += maxi(gained, 0)
 		var healed := _beat("%s used a %s and healed %d laff." % [who, gag, gained], track, level, toon, {}, true, gained, "")
 		healed["toon_hp"] = int(patient.get("hp", 0))
 		healed["toon_id"] = int(patient.get("id", 0))
 		_tag_surge(fight, healed, track)
 		beats.append(healed)
 		landed = true
+	_SUMMARY.note(int(toon.get("id", 0)), who, 0, healed_sum, 1)
 	if landed:
 		_grant(fight, int(toon.get("id", 0)), track, level)
 

@@ -7,6 +7,7 @@ extends Node
 const _RUN := preload("res://scenes/cog_hq/office_run.gd")
 const _OFFICE := "res://scenes/cog_hq/lawbot_office.tscn"
 const _LOBBY := "res://scenes/cog_hq/lawbot_da_lobby.tscn"
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const _MUSIC := "res://assets/buildings/cog/audio/tt_elevator.ogg"
 const _OPEN_SFX := "res://assets/buildings/cog/audio/elevator_door_open.ogg"
 const _CLOSE_SFX := "res://assets/buildings/cog/audio/elevator_door_close.ogg"
@@ -366,6 +367,8 @@ func _depart() -> void:
 			_RUN.begin(int(_car.get_meta("office", 0)))
 		else:
 			_RUN.begin_at(int(_car.get_meta("office", 0)), int(shared.get("layout", 0)))
+		var office_names: PackedStringArray = ["Lawbot A Office", "Lawbot B Office", "Lawbot C Office", "Lawbot D Office"]
+		_SUMMARY.start(office_names[_RUN.office])
 		ToonLoading.change_to(_OFFICE)
 		return
 	if _RUN.has_next():
@@ -373,6 +376,7 @@ func _depart() -> void:
 		ToonLoading.change_to(_OFFICE)
 		return
 	_RUN.trip = "out"
+	await _SUMMARY.present()
 	ToonLoading.change_to(_LOBBY)
 
 

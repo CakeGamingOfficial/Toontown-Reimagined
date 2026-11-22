@@ -8,6 +8,7 @@ extends Node
 const _MODEL := preload("res://assets/buildings/cog/elevator.glb")
 const _INTERIOR := "res://scenes/cog_hq/sellbot_factory.tscn"
 const _EXTERIOR := "res://scenes/cog_hq/sellbot_factory_exterior.tscn"
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const _MUSIC := "res://assets/buildings/cog/audio/tt_elevator.ogg"
 const _OPEN_SFX := "res://assets/buildings/cog/audio/elevator_door_open.ogg"
 const _CLOSE_SFX := "res://assets/buildings/cog/audio/elevator_door_close.ogg"
@@ -353,6 +354,7 @@ func _depart() -> void:
 	entrance = int(_car.get_meta("entrance"))
 	if outside:
 		trip_id = int(snap.get("trip", 0))
+		_SUMMARY.start("Sellbot Factory")
 	else:
 		trip_id = 0
 	if not mine.is_empty():

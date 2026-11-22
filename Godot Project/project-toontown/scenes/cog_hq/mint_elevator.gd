@@ -8,6 +8,7 @@ extends Node
 const _MODEL := "res://assets/cog_hq/mint/mint_elevator.glb"
 const _MINT := "res://scenes/cog_hq/cashbot_mint.tscn"
 const _YARD := "res://scenes/cog_hq/cashbot_trainyard.tscn"
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const _MUSIC := "res://assets/buildings/cog/audio/tt_elevator.ogg"
 const _OPEN_SFX := "res://assets/buildings/cog/audio/elevator_door_open.ogg"
 const _CLOSE_SFX := "res://assets/buildings/cog/audio/elevator_door_close.ogg"
@@ -284,6 +285,12 @@ func _depart() -> void:
 	floor_num = int(shared.get("floor", randi() % 20)) if not shared.is_empty() else randi() % 20
 	if not shared.is_empty():
 		ride = int(shared.get("ride", ride))
+	var mint_name := "Coin Mint"
+	if mint_id == 12600:
+		mint_name = "Dollar Mint"
+	elif mint_id == 12700:
+		mint_name = "Bullion Mint"
+	_SUMMARY.start(mint_name)
 	ToonNet.publish("mint-trip", {"mint": mint_id, "floor": floor_num, "ride": ride})
 	ToonLoading.change_to(_MINT)
 

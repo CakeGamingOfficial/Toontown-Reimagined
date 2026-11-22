@@ -12,6 +12,7 @@ const JOIN_REACH := 20.0
 const WATCH_REACH := 60.0
 const BATTLE_MUSIC := "res://assets/audio/battle/encntr_general_bg.mp3"
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const BATTLE_VOLUME := 0.9
 const PLACE_VOLUME := 0.8
 const _LOSE := "res://assets/audio/battle/ENC_Lose.ogg"
@@ -2186,6 +2187,8 @@ func _show_reward(fight: Dictionary, token: int) -> void:
 	if token != _reward_token or not is_inside_tree():
 		return
 	ToonNet.finish_reward(int(fight.get("id", 0)))
+	if leaving and (bool(fight.get("mint_won", false)) or bool(fight.get("factory_won", false))):
+		await _SUMMARY.present()
 	if leaving and bool(fight.get("mint_won", false)):
 		_ride_mint()
 	elif leaving:

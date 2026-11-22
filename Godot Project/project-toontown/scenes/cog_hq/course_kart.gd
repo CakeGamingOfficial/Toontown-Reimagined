@@ -9,6 +9,7 @@ extends Node
 const _RUN := preload("res://scenes/cog_hq/course_run.gd")
 const _COURSE := "res://scenes/cog_hq/bossbot_course.tscn"
 const _CLUB := "res://scenes/cog_hq/bossbot_country_club.tscn"
+const _SUMMARY := preload("res://scenes/battle/run_summary.gd")
 const _NAMES: PackedStringArray = ["FrontThree", "MiddleSix", "BackNine"]
 
 const _REACH := 6.0
@@ -254,10 +255,13 @@ func _depart() -> void:
 			_RUN.begin(int(_kart.get_meta("course", 0)))
 		else:
 			_RUN.begin_at(int(_kart.get_meta("course", 0)), int(shared.get("layout", 0)))
+		var course_names: PackedStringArray = ["The Front Three", "The Middle Six", "The Back Nine"]
+		_SUMMARY.start(course_names[_RUN.course])
 		ToonLoading.change_to(_COURSE)
 		return
 	if bool(_kart.get_meta("exit")):
 		_RUN.trip = "out"
+		await _SUMMARY.present()
 		ToonLoading.change_to(_CLUB)
 		return
 	_RUN.advance()
