@@ -711,11 +711,26 @@ func _exp_for(track: int) -> int:
 		var card := _REWARDS.sos_by_id(_pending.y)
 		var gag_track := int(card.get("track", -1))
 		if gag_track >= 0 and gag_track <= 6:
-			return loadout.experience_of(gag_track)
+			return mini(loadout.experience_of(gag_track) + _pending_exp(gag_track), ToonLoadout.max_skill())
 		return 0
 	if track < 0:
 		return 0
-	return loadout.experience_of(track)
+	return mini(loadout.experience_of(track) + _pending_exp(track), ToonLoadout.max_skill())
+
+
+## Points already earned in this battle, and on earlier floors of a building,
+## count toward the next gag before the reward card plays.
+func _pending_exp(track: int) -> int:
+	return _pending_row(_fight.get("carried", {}), track) + _pending_row(_fight.get("skill", {}), track)
+
+
+func _pending_row(book: Variant, track: int) -> int:
+	if not (book is Dictionary):
+		return 0
+	var row: Variant = (book as Dictionary).get(str(ToonNet.peer_id()), [])
+	if row is Array and track < (row as Array).size():
+		return int(round(float((row as Array)[track])))
+	return 0
 
 
 func _preview(track: int, level: int, target: int, exp: int) -> void:

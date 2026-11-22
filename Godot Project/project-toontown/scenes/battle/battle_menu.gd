@@ -102,6 +102,7 @@ var _names: Array[Label] = []
 var _bars: Array[ColorRect] = []
 var _fills: Array[ColorRect] = []
 var _skills: Array[Label] = []
+var _xp_hits: Array[Control] = []
 var _slots: Array[TextureButton] = []
 var _icons: Array[TextureRect] = []
 var _counts: Array[Label] = []
@@ -258,8 +259,15 @@ func _build() -> void:
 		var skill := _label()
 		skill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		skill.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		skill.mouse_filter = MOUSE_FILTER_IGNORE
 		add_child(skill)
 		_skills.append(skill)
+		var hit := Control.new()
+		hit.mouse_filter = MOUSE_FILTER_STOP
+		hit.mouse_entered.connect(_show_xp.bind(track))
+		hit.mouse_exited.connect(_show_total)
+		add_child(hit)
+		_xp_hits.append(hit)
 		var pick := _gag_button()
 		pick.texture_normal = null
 		pick.texture_hover = null
@@ -444,6 +452,8 @@ func _layout() -> void:
 		_bars[track].visible = listed
 		_fills[track].visible = listed
 		_skills[track].visible = listed
+		if track < _xp_hits.size():
+			_xp_hits[track].visible = listed
 		if not listed:
 			continue
 		column_x[track] = cursor
@@ -472,6 +482,11 @@ func _layout() -> void:
 		skill.z_index = 2
 		skill.clip_text = true
 		ToonGui.style_label(skill, Color.WHITE, maxi(int(xp_h * 0.72), 10), Color(0.05, 0.08, 0.14), 2)
+		var hit := _xp_hits[track]
+		hit.visible = true
+		hit.position = back.position
+		hit.size = back.size
+		hit.z_index = 6
 		cursor += name_w + gap
 	var row_at := 0
 	for track in open_tracks:
@@ -557,6 +572,36 @@ func _paint_bar(track: int) -> void:
 	var back := _bars[track]
 	_fills[track].position = back.position
 	_fills[track].size = Vector2(back.size.x * ratio, back.size.y)
+
+
+func _show_xp(track: int) -> void:
+	if _loadout == null:
+		return
+	_hover = Vector2i(-1, -1)
+	_total.visible = false
+	_detail_icon.visible = false
+	_detail_name.visible = true
+	_detail_amount.visible = false
+	_detail_data.visible = true
+	_detail_credit.visible = false
+	_detail_name.text = ToonLoadout.TRACK_NAMES[track]
+	_detail_data.text = _xp_line(track)
+
+
+func _xp_line(track: int) -> String:
+	var exp := _loadout.experience_of(track)
+	var next_level := -1
+	for level in ToonLoadout.LEVEL_COUNT:
+		if exp < ToonLoadout.skill_at(track, level):
+			next_level = level
+			break
+	if next_level < 0:
+		return "This track is maxed."
+	var left := ToonLoadout.skill_at(track, next_level) - exp
+	var gag := _loadout.gag_name(track, next_level)
+	if left == 1:
+		return "1 point to %s." % gag
+	return "%d points to %s." % [left, gag]
 
 
 func _paint_slot(track: int, level: int) -> void:

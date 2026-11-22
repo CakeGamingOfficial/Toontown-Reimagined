@@ -41,6 +41,8 @@ var _cam_from := Vector3.ZERO
 var _look_from := Vector3.FORWARD
 var _cam_blend := -1.0
 var _warned := false
+var _danger := false
+var _declined := false
 var _group_told := false
 var _pulled := 0
 
@@ -216,6 +218,8 @@ func _sign(geom: Node, index: int) -> void:
 
 
 func _offer() -> void:
+	if _danger:
+		return
 	var toon := _toon()
 	if toon == null or bool(toon.call("battle_busy")):
 		return
@@ -235,15 +239,43 @@ func _offer() -> void:
 				_group_told = true
 				return
 			_group_told = false
-			if BoardingParty.leading():
-				BoardingParty.request("board", {"dest": office})
-				return
 		elif not _floor_open():
+			return
+		if _deeper(car) and _declined:
+			return
+		if _deeper(car):
+			_confirm_in(car, "this office")
 			return
 		_warned = false
 		_begin_board(car)
 		return
 	_group_told = false
+	_declined = false
+
+
+func _deeper(car: Node3D) -> bool:
+	if bool(car.get_meta("outside")):
+		return true
+	return _RUN.has_next()
+
+
+func _confirm_in(car: Node3D, place: String) -> void:
+	_danger = true
+	var toon := _toon()
+	var ok := true
+	if toon != null and toon.has_method("confirm_danger"):
+		ok = await toon.confirm_danger(place)
+	_danger = false
+	if not ok:
+		_declined = true
+		return
+	if not is_inside_tree() or car == null or _toon() == null:
+		return
+	if bool(car.get_meta("outside")) and BoardingParty.leading():
+		BoardingParty.request("board", {"dest": int(car.get_meta("office", 0))})
+		return
+	_warned = false
+	_begin_board(car)
 
 
 func _floor_open() -> bool:

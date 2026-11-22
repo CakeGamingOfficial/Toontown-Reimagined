@@ -44,7 +44,7 @@ static func pump_zones(root: Node, budget_usec: int) -> bool:
 	var started := Time.get_ticks_usec()
 	while not zones.is_empty() and Time.get_ticks_usec() - started < budget_usec:
 		var zone: Variant = zones.pop_back()
-		if zone is Node3D and is_instance_valid(zone):
+		if is_instance_valid(zone):
 			_batch(zone as Node3D, root)
 	root.set_meta("batch_queue", zones)
 	return not zones.is_empty()
@@ -154,6 +154,7 @@ static func apply_visible(host: Node, zone_name: String, zone_nodes: Dictionary,
 			if not previous.has(zone_key) and zone_nodes.has(zone_key):
 				_show_zone(zone_nodes[zone_key] as Node, true)
 	host.set_meta("street_shown", shown)
+	host.set_meta("street_current", zone_name)
 	show_zones(host, zone_name, _shown_nodes(zone_nodes, zones, zone_name))
 
 
@@ -313,6 +314,40 @@ static func _walk(node: Node, root: Node) -> void:
 		_walk(child, root)
 
 
+static func _present_if_shown(root: Node, zone: Node3D) -> void:
+	var host := root.get_parent()
+	if host == null or not (root is Node3D):
+		return
+	var current := String(host.get_meta("street_current", ""))
+	if current.is_empty():
+		return
+	var geom := root as Node3D
+	var zone_nodes: Dictionary = geom.get_meta("street_zone_nodes", {})
+	var zones: Dictionary = geom.get_meta("street_zones", {})
+	if zone_nodes.is_empty():
+		return
+	var nodes := _shown_nodes(zone_nodes, zones, current)
+	var included := false
+	for node in nodes:
+		if node == zone:
+			included = true
+			break
+	if not included:
+		return
+	var views: Dictionary = geom.get_meta("street_views", {})
+	var gens: Dictionary = geom.get_meta("street_view_gen", {})
+	if views.has(current):
+		views.erase(current)
+		geom.set_meta("street_views", views)
+	if gens.has(current):
+		gens.erase(current)
+		geom.set_meta("street_view_gen", gens)
+	var live := geom.get_node_or_null("StreetVisible") as Node3D
+	if live != null:
+		live.set_meta("fold_gen", -1)
+	show_zones(host, current, nodes)
+
+
 static func _is_zone(node: Node) -> bool:
 	if not (node is Node3D):
 		return false
@@ -329,9 +364,10 @@ static func _batch(zone: Node3D, root: Node) -> void:
 		shape.set_faces(job.faces)
 		var body := StaticBody3D.new()
 		body.name = "ZoneSolid"
-		# On until the visibility pass turns hidden blocks off. A pass that
-		# ran before this body existed used to leave the floor non-solid.
-		body.collision_layer = 1
+		# Match the block's visibility. The vis pass often runs before this
+		# body exists, and it does not come back, so a hidden block must not
+		# start solid and a shown block must not start hollow.
+		body.collision_layer = 1 if zone.visible else 0
 		if zone.has_meta("street_bodies"):
 			zone.remove_meta("street_bodies")
 		var collision := CollisionShape3D.new()
@@ -353,6 +389,9 @@ static func _batch(zone: Node3D, root: Node) -> void:
 	_thicken_walls(taken)
 	for mesh in taken:
 		mesh.mesh = null
+	# The vis pass often runs before any block is folded, so this null used to
+	# leave the sidewalk with nothing to draw. Rebuild the block the toon is in.
+	_present_if_shown(root, zone)
 
 
 static func _collect(node: Node, zone: Node3D, into_zone: Transform3D, job: Job, taken: Array[MeshInstance3D]) -> void:
@@ -911,7 +950,10 @@ static func _view_meshes(geom: Node3D, zone_name: String, zones: Array[Node3D], 
 	var views: Dictionary = geom.get_meta("street_views", {})
 	var gens: Dictionary = geom.get_meta("street_view_gen", {})
 	if int(gens.get(zone_name, -1)) == gen and views.has(zone_name):
-		return views[zone_name]
+		var cached: Array = views[zone_name]
+		# An early pass can remember an empty draw from before the fold.
+		if not cached.is_empty() or not _has_cached_verts(zones):
+			return cached
 	var meshes := _build_meshes(zones)
 	views[zone_name] = meshes
 	gens[zone_name] = gen

@@ -56,6 +56,8 @@ var _left := 0.0
 var _seat := 0
 var _ask_wait := 0.0
 var _group_told := false
+var _danger := false
+var _declined := false
 var _from := Vector3.ZERO
 var _hop: TextureButton
 var _clock: Label3D
@@ -196,6 +198,8 @@ func _car_on(parent: Node3D, car_name: String, pos: Vector3, basis: Basis, outsi
 
 
 func _offer() -> void:
+	if _danger:
+		return
 	var toon := _toon()
 	if toon == null or bool(toon.call("battle_busy")) or _ask_wait > 0.0:
 		return
@@ -210,6 +214,8 @@ func _offer() -> void:
 			continue
 		if not _in_door(car, here):
 			continue
+		if bool(car.get_meta("outside")) and _declined:
+			return
 		_ask_wait = 0.4
 		if bool(car.get_meta("outside")):
 			var gate := BoardingParty.gate(toon, "sellbot_factory_exterior.tscn", int(car.get_meta("entrance")), _group_told)
@@ -217,12 +223,36 @@ func _offer() -> void:
 				_group_told = true
 				return
 			_group_told = false
-			if BoardingParty.leading():
-				BoardingParty.request("board", {"dest": int(car.get_meta("entrance"))})
-				return
+			_confirm_in(car, "this factory")
+			return
 		_request_board(car)
 		return
 	_group_told = false
+	_declined = false
+
+
+func _confirm_in(car: Node3D, place: String) -> void:
+	_danger = true
+	var toon := _toon()
+	var ok := true
+	if toon != null and toon.has_method("confirm_danger"):
+		ok = await toon.confirm_danger(place)
+	_danger = false
+	if not ok:
+		_declined = true
+		return
+	if not is_inside_tree() or car == null:
+		return
+	toon = _toon()
+	if toon == null:
+		return
+	var here: Vector3 = toon.call("battle_point")
+	if not _in_door(car, here):
+		return
+	if BoardingParty.leading():
+		BoardingParty.request("board", {"dest": int(car.get_meta("entrance"))})
+		return
+	_request_board(car)
 
 
 ## The arrival seat is inside the car. Ready flips once the toon has walked out.

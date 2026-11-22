@@ -239,6 +239,8 @@ func open_roster(district: int, slug: String, cogs: Array, reserves: Array, ride
 	_fights.append(fight)
 	if building != 0 and floor_index <= 0:
 		_floor_bank.erase(building)
+	if building != 0 and _floor_bank.has(building):
+		fight["carried"] = (_floor_bank[building] as Dictionary).duplicate(true)
 	for cog in cogs:
 		if cog is Dictionary:
 			_add_cog(fight, cog)
@@ -698,7 +700,9 @@ func _reward_row(fight: Dictionary, peer: int, toon_name: String, toon: Dictiona
 		var known := ToonNet.stored_exp(peer, track)
 		var start := 0 if known < 0 else known
 		var gained := int(earned[track]) if track < earned.size() else 0
-		var summed := mini(start + gained, 10500)
+		# The ledger is the whole run. Only the points that fit under max skill
+		# are stored. Nothing is cut back to the gag this reward unlocked.
+		var summed := mini(start + gained, ToonLoadout.max_skill())
 		before.append(start)
 		total.append(summed)
 		earned[track] = summed - start
@@ -771,7 +775,10 @@ func _grant(fight: Dictionary, peer: int, track: int, level: int, locked := fals
 	while row.size() < ToonLoadout.TRACK_COUNT:
 		row.append(0)
 	var gained := float(level + 1) * _credit_mult(fight)
-	row[track] = minf(float(row[track]) + gained, 10500.0)
+	# ToontownBattleGlobals.ExperienceCap used to stop a track at 200, and
+	# later private servers at 300, for the whole building or facility. Points
+	# past a gag unlocked in this run stay in the ledger too.
+	row[track] = float(row[track]) + gained
 	book[key] = row
 	fight["skill"] = book
 
@@ -1862,7 +1869,7 @@ func _sum_tracks(have: Variant, extra: Variant) -> Array:
 	for track in ToonLoadout.TRACK_COUNT:
 		var a := float(left[track]) if track < left.size() else 0.0
 		var b := float(right[track]) if track < right.size() else 0.0
-		sum.append(minf(a + b, 10500.0))
+		sum.append(a + b)
 	return sum
 
 
@@ -2364,6 +2371,28 @@ func _drop_missing(fight: Dictionary) -> void:
 		fight["toons"] = kept
 		_place(fight)
 		_mark(fight)
+
+
+func declare_victory(peer: int) -> String:
+	if not ToonNet.is_authority():
+		return "The district has to end this battle."
+	var fight := {}
+	for item in _fights:
+		var row: Dictionary = item
+		if String(row.get("state", "")) == "gone":
+			continue
+		if not _toon(row, peer).is_empty():
+			fight = row
+			break
+	if fight.is_empty():
+		return "You are not in a battle."
+	if String(fight.get("state", "")) == "reward":
+		return "The victory is already playing."
+	for cog in fight.get("cogs", []):
+		if cog is Dictionary:
+			(cog as Dictionary)["hp"] = 0
+	_finish_movie(fight)
+	return "The cogs are defeated."
 
 
 func _fight_with(district: int, slug: String, peer: int, cog_id: int) -> Dictionary:

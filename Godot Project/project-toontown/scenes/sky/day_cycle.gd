@@ -20,11 +20,21 @@ var _ambient_known := false
 var _ambient_energy := 1.0
 var _ambient_color := Color.WHITE
 var _painted_day := -1.0
+static var forced_hour := -1.0
+
+
+static func set_forced_hour(hour: float) -> void:
+	forced_hour = hour
+
+
+static func clock_hour() -> float:
+	return forced_hour
 
 
 func follow(host: Node3D) -> void:
 	_kind = str(host.get("sky_kind"))
-	if not _DISPLAY.day_cycle_on() or not _outdoor(host):
+	var forced := forced_hour >= 0.0
+	if not _outdoor(host) or (not forced and not _DISPLAY.day_cycle_on()):
 		if not _cleared:
 			_clear(host)
 		return
@@ -53,12 +63,7 @@ func _outdoor(host: Node3D) -> bool:
 
 
 func _day_amount() -> float:
-	var now := Time.get_time_dict_from_system()
-	var hours := float(now.get("hour", 12))
-	hours += float(now.get("minute", 0)) / 60.0
-	hours += float(now.get("second", 0)) / 3600.0
-	# 6:00 is sunrise, 12:00 is noon, 18:00 is sunset.
-	return clampf(sin((hours - 6.0) / 24.0 * TAU), 0.0, 1.0)
+	return clampf(sin((_hours() - 6.0) / 24.0 * TAU), 0.0, 1.0)
 
 
 func _ensure_sun(host: Node3D) -> void:
@@ -100,8 +105,15 @@ func _paint_sun(day: float) -> void:
 
 
 func _hours() -> float:
+	# 6:00 is sunrise, 12:00 is noon, 18:00 is sunset. ~settime replaces the clock.
+	if forced_hour >= 0.0:
+		return forced_hour
 	var now := Time.get_time_dict_from_system()
 	return float(now.get("hour", 12)) + float(now.get("minute", 0)) / 60.0
+
+
+func wake() -> void:
+	_painted_day = -1.0
 
 
 func _paint_sky(host: Node, day: float) -> void:

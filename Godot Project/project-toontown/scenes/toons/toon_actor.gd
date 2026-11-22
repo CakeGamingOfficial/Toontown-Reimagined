@@ -659,9 +659,10 @@ func play_gesture(suffix: String, rate: float, loop: bool) -> void:
 func _hold_head() -> void:
 	_look_enabled = false
 	_looking = false
-	for look in _looks:
+	var looks: Array = _looks
+	for look in looks:
 		if is_instance_valid(look):
-			look.rotation = Vector3.ZERO
+			(look as Node3D).rotation = Vector3.ZERO
 
 
 func clear_gesture() -> void:
@@ -843,9 +844,10 @@ func _clear_emote() -> void:
 	_head_clock = 0.0
 	_heading = 0.0
 	_pitch = 0.0
-	for look in _looks:
+	var looks: Array = _looks
+	for look in looks:
 		if is_instance_valid(look):
-			look.basis = Basis.IDENTITY
+			(look as Node3D).basis = Basis.IDENTITY
 	if reopen:
 		_eyes_shut = false
 		_apply_eyes()
@@ -918,7 +920,7 @@ func _head_sample(which: String, clock: float) -> float:
 
 
 func _apply_head_emote() -> void:
-	if _head_emote == "" or _look == null:
+	if _head_emote == "" or not is_instance_valid(_look):
 		return
 	if _head_emote == "sleep":
 		_pitch = deg_to_rad(lerpf(0.0, -25.0, clampf(_head_clock / 0.25, 0.0, 1.0)))
@@ -930,9 +932,10 @@ func _apply_head_emote() -> void:
 		_heading = deg_to_rad(_head_sample("no", _head_clock))
 		_pitch = 0.0
 	var look_basis := Basis(Vector3(0, 0, 1), _heading) * Basis(Vector3(1, 0, 0), _pitch)
-	for look in _looks:
+	var looks: Array = _looks
+	for look in looks:
 		if is_instance_valid(look):
-			look.basis = look_basis
+			(look as Node3D).basis = look_basis
 
 
 ## True from the open clip through the close clip. Walking stays off.
@@ -2995,8 +2998,12 @@ func _apply_eyes() -> void:
 	# write the open sheet back onto it. Each change gets a new material.
 	var stamp: String = ("1" if _eyes_shut else "0") + _mood
 	for eye in _eyes:
-		var mesh := eye["mesh"] as MeshInstance3D
-		if not is_instance_valid(mesh):
+		# Cast after the check. A freed lid throws before is_instance_valid can run.
+		var mesh_ref: Variant = eye["mesh"]
+		if not is_instance_valid(mesh_ref):
+			continue
+		var mesh := mesh_ref as MeshInstance3D
+		if mesh == null:
 			continue
 		if String(eye.get("stamp", "")) == stamp:
 			continue
@@ -3018,12 +3025,13 @@ func _apply_eyes() -> void:
 		for surface in surfaces:
 			mesh.set_surface_override_material(surface, material)
 	for pupil in _pupils:
-		var mesh := pupil["mesh"] as MeshInstance3D
-		if is_instance_valid(mesh):
-			mesh.visible = not _eyes_shut
-	for lash in _lashes:
+		var mesh_ref: Variant = pupil["mesh"]
+		if is_instance_valid(mesh_ref):
+			(mesh_ref as MeshInstance3D).visible = not _eyes_shut
+	var lashes: Array = _lashes
+	for lash in lashes:
 		if is_instance_valid(lash):
-			lash.visible = not _eyes_shut and _style.gender == "f"
+			(lash as MeshInstance3D).visible = not _eyes_shut and _style.gender == "f"
 
 
 func _load_closed_eyes() -> Texture2D:
@@ -3040,7 +3048,7 @@ func _load_closed_eyes() -> Texture2D:
 
 
 func _tick_look(delta: float) -> void:
-	if _head_emote != "" or _look == null or not _look_enabled:
+	if _head_emote != "" or not is_instance_valid(_look) or not _look_enabled:
 		return
 	if not _looking:
 		_look_wait -= delta
@@ -3053,9 +3061,10 @@ func _tick_look(delta: float) -> void:
 	_heading = lerpf(_heading_from, _heading_to, head_blend)
 	_pitch = lerpf(_pitch_from, _pitch_to, head_blend)
 	var look_basis := Basis(Vector3(0, 0, 1), _heading) * Basis(Vector3(1, 0, 0), _pitch)
-	for look in _looks:
+	var looks: Array = _looks
+	for look in looks:
 		if is_instance_valid(look):
-			look.basis = look_basis
+			(look as Node3D).basis = look_basis
 	var weight := 0.0
 	if t < 0.2:
 		weight = _ease_out(t / 0.2)
@@ -3123,9 +3132,10 @@ func _pupil_side(up_a: Vector3, up_b: Vector3, flat_ad: Vector3, flat_bc: Vector
 
 func _place_pupils(left_offset: Vector3, right_offset: Vector3) -> void:
 	for pupil in _pupils:
-		var mover := pupil["mover"] as Node3D
-		if not is_instance_valid(mover):
+		var mover_ref: Variant = pupil["mover"]
+		if not is_instance_valid(mover_ref):
 			continue
+		var mover := mover_ref as Node3D
 		var rest: Vector3 = pupil["rest"]
 		var offset := left_offset if String(pupil["side"]) == "left" else right_offset
 		mover.position = rest + Vector3(offset.x, 0.0, offset.z)

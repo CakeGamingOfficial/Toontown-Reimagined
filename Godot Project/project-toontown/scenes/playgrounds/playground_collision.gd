@@ -58,8 +58,11 @@ func build_street(flat: bool) -> void:
 		_close_street()
 
 
-## neighborhood pumps this while the loading screen is still up.
+## Called while the loading screen is up, and again from the toon if a street
+## script never pumps. Playgrounds never queue a fold, so this stays quiet there.
 func pump_street() -> void:
+	if not has_meta("batch_queue"):
+		return
 	if _BATCH.pump_zones(self, 6000):
 		return
 	if bool(get_meta("street_closed", false)):

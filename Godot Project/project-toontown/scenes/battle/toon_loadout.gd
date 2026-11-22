@@ -79,6 +79,10 @@ const _SKILL: Array = [
 	[0, 20, 100, 500, 2000, 6000, 10000],
 ]
 const _MAX_SKILL := 10500
+
+
+static func max_skill() -> int:
+	return _MAX_SKILL
 const _ACCURACY: Array = [
 	[70, 70, 70, 70, 70, 70, 100],
 	[0, 0, 0, 0, 0, 0, 0],
@@ -267,10 +271,15 @@ func goal_for(track: int, exp: int) -> int:
 	return _MAX_SKILL
 
 
-func add_experience(track: int, amount: int) -> void:
-	if track < 0 or track >= _exp.size():
-		return
-	_exp[track] += maxi(amount, 0)
+## Every point is kept, including the ones past a gag this reward just unlocked.
+## The only stop is max skill.
+func add_experience(track: int, amount: int) -> int:
+	if track < 0 or track >= _exp.size() or amount <= 0:
+		return 0
+	var room := _MAX_SKILL - _exp[track]
+	var kept := mini(amount, maxi(room, 0))
+	_exp[track] += kept
+	return kept
 
 
 func set_experience(track: int, amount: int) -> void:
@@ -718,6 +727,26 @@ func _add_carried(track: int, level: int) -> int:
 	var next := count_of(track, level) + 1
 	set_gag(track, level, next, true)
 	return next
+
+
+## ~gag. Train the track far enough to hold this gag, then add one to the pouch.
+func grant_one(track: int, level: int) -> String:
+	if not _valid(track, level):
+		return "That gag is outside the seven tracks."
+	var names: Array = GAG_NAMES[track]
+	var gag_name := String(names[level])
+	var need := skill_at(track, level)
+	if experience_of(track) < need:
+		set_experience(track, need)
+	if count_of(track, level) >= carry_limit(track, level):
+		save()
+		return "You already carry the maximum %s." % gag_name
+	if level <= LAST_REGULAR and count_of(track, level) == 0 and _regular_count() >= max_carry:
+		save()
+		return "The pouch is full. %s is trained." % gag_name
+	set_gag(track, level, count_of(track, level) + 1, true)
+	save()
+	return "Added one %s." % gag_name
 
 
 ## ~max. Every gag is owned, the tracks are maxed, the pouch is raised to

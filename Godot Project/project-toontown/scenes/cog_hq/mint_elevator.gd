@@ -98,6 +98,8 @@ func _ready() -> void:
 
 
 var _group_told := false
+var _danger := false
+var _declined := false
 var _pulled := 0
 
 
@@ -165,6 +167,8 @@ func _yard(host: Node) -> void:
 
 
 func _offer() -> void:
+	if _danger:
+		return
 	var toon := _toon()
 	if toon == null or bool(toon.call("battle_busy")):
 		return
@@ -180,12 +184,33 @@ func _offer() -> void:
 			_group_told = true
 			return
 		_group_told = false
-		if BoardingParty.leading():
-			BoardingParty.request("board", {"dest": index})
+		if _declined:
 			return
-		_begin_board(car)
+		_confirm_in(car, "this mint")
 		return
 	_group_told = false
+	_declined = false
+
+
+func _confirm_in(car: Node3D, place: String) -> void:
+	_danger = true
+	var toon := _toon()
+	var ok := true
+	if toon != null and toon.has_method("confirm_danger"):
+		ok = await toon.confirm_danger(place)
+	_danger = false
+	if not ok:
+		_declined = true
+		return
+	if not is_inside_tree() or car == null or _toon() == null:
+		return
+	var here: Vector3 = _toon().call("battle_point")
+	if not _in_door(car, here):
+		return
+	if BoardingParty.leading():
+		BoardingParty.request("board", {"dest": _cars.find(car)})
+		return
+	_begin_board(car)
 
 
 func _in_door(car: Node3D, here: Vector3) -> bool:

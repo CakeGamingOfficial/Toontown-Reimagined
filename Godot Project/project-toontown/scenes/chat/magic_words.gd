@@ -10,6 +10,9 @@ const _ARRIVAL := preload("res://scenes/playgrounds/playground_toon.gd")
 const _BEANS := preload("res://scenes/toons/jellybeans.gd")
 const _DISGUISE := preload("res://scenes/shticker/disguise_page.gd")
 const _REWARDS := preload("res://scenes/cog_hq/boss_rewards.gd")
+const _TITLE := preload("res://scenes/places/zone_title.gd")
+const _DAY := preload("res://scenes/sky/day_cycle.gd")
+const _LINKS := preload("res://scenes/places/tunnel_links.gd")
 
 ## HoodsForTeleportAll. Funny Farm stays off the list.
 const _TELEPORT_ALL: Array[int] = [
@@ -21,8 +24,8 @@ const _FLY_SPEED := 36.0
 const _FLY_FAST := 90.0
 ## A shorter left press is a click. A longer one is a hold.
 const _FLY_CLICK := 0.25
-const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~ghost   ~collisions off   ~restock   ~max   ~beans 100\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
-~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1\n~gags empty   ~pinkslips 255   ~unite   ~unite all   ~unite toonup 80   ~sos   ~sos all   ~summon   ~summon building flunky   ~gagpouch 80   ~instantkill   ~sleep\n~factory   ~boss vp   ~boss kill   ~globaltp   ~exitgame   ~skipgolfhole   ~abortgolf   ~fireworks newyear"
+const _HELP := "~help   ~tp ttc   ~hp 15   ~maxhp 137\n~run   ~oobe   ~getpos   ~setpos x y z   ~showpaths\n~immortal   ~godmode   ~ghost   ~collisions off   ~restock   ~max   ~beans 100\n~mg maze   ~mg random   ~suit flunky   ~suit pp 5 skelecog   ~suit flunky v2   ~suit flunky laser   ~suit flunky waiter\n~spawnbuilding sellbot 1   ~spawnbuilding flunky   ~spawnbuilding fieldoffice   ~freebldg\n~togglegm   ~setgm 1\n~quest finish 164   ~quest finish 1   ~quest set 164   ~quest set 2 175\n~holiday 7   ~holiday Fish Bingo   ~startholiday 3   ~endholiday 3
+~invasion start flunky 1000   ~invasion start flunky v2   ~invasion start flunky laser   ~invasion start flunky waiter   ~invasion start sellbot 1000   ~invasion start f 1000 true   ~invasion stop   ~invasionstatus\n~acc hbb1   ~hat 0   ~glasses   ~backpack   ~shoes\n~districts   ~district host   ~district join 127.0.0.1\n~gags empty   ~pinkslips 255   ~unite   ~unite all   ~unite toonup 80   ~sos   ~sos all   ~summon   ~summon building flunky   ~gagpouch 80   ~instantkill   ~sleep\n~factory   ~boss vp   ~boss kill   ~globaltp   ~exitgame   ~skipgolfhole   ~abortgolf   ~fireworks newyear\n~where   ~reload   ~showzones   ~timescale 0.2   ~settime 18\n~win   ~tp 2100   ~mark   ~back   ~gag squirt 4"
 const _HOLIDAYS := preload("res://scenes/shticker/calendar_holidays.gd")
 const _GM_NAMES: PackedStringArray = ["TOON COUNCIL", "TOON TROOPER", "RESISTANCE RANGER", "GC"]
 
@@ -48,6 +51,8 @@ const _WORDS: Dictionary = {
 	"immortal": "immortal",
 	"invincible": "immortal",
 	"invulnerable": "immortal",
+	"godmode": "immortal",
+	"god": "immortal",
 	"ghost": "ghost",
 	"invisible": "ghost",
 	"collisions": "collisions",
@@ -171,11 +176,23 @@ const _WORDS: Dictionary = {
 	"toggleinstantkill": "instantkill",
 	"firework": "fireworks",
 	"fireworks": "fireworks",
+	"where": "where",
+	"reload": "reload",
+	"showzones": "showzones",
+	"timescale": "timescale",
+	"slowmo": "timescale",
+	"settime": "settime",
+	"win": "win",
+	"endbattle": "win",
+	"victory": "win",
+	"mark": "mark",
+	"back": "back",
+	"gag": "gag",
 }
 
 const _USAGE := {
 	"help": "~help",
-	"tp": "~tp ttc, dd, dg, mml, tb, ddl, aa, gs, estate, or a HQ",
+	"tp": "~tp ttc, dd, dg, mml, tb, ddl, aa, gs, estate, a HQ, or a zone such as 2100",
 	"hp": "~hp 15",
 	"maxhp": "~maxhp 137",
 	"run": "~run",
@@ -183,7 +200,7 @@ const _USAGE := {
 	"getpos": "~getpos",
 	"setpos": "~setpos x y z",
 	"showpaths": "~showpaths",
-	"immortal": "~immortal",
+	"immortal": "~immortal, or ~godmode",
 	"ghost": "~ghost",
 	"collisions": "~collisions off",
 	"noclip": "~noclip",
@@ -220,6 +237,15 @@ const _USAGE := {
 	"pouch": "~gagpouch 80",
 	"instantkill": "~instantkill",
 	"fireworks": "~fireworks newyear, summer, combo, or party",
+	"where": "~where",
+	"reload": "~reload",
+	"showzones": "~showzones",
+	"timescale": "~timescale 0.2, or ~timescale 1",
+	"settime": "~settime 18, or ~settime off",
+	"win": "~win",
+	"mark": "~mark, then ~back",
+	"back": "~back",
+	"gag": "~gag squirt 4, or ~gag seltzer",
 }
 
 ## Trolley games. Names match ToontownGlobals.MinigameNames.
@@ -345,6 +371,11 @@ static var _run := false
 static var _run_loaded := false
 static var _oobe := false
 static var _immortal := false
+static var _zone_draw: Node3D
+static var _mark_on := false
+static var _mark_scene := ""
+static var _mark_point := Vector3.ZERO
+static var _mark_heading := 0.0
 static var _ghost := false
 
 
@@ -491,6 +522,24 @@ static func invoke(scene: Node, text: String) -> String:
 			return _set_pos(scene, args)
 		"showpaths":
 			return _show_paths(scene)
+		"where":
+			return _where(scene)
+		"reload":
+			return _reload(scene)
+		"showzones":
+			return _show_zones(scene)
+		"timescale":
+			return _time_scale(args)
+		"settime":
+			return _set_time(scene, args)
+		"win":
+			return _win_battle()
+		"mark":
+			return _mark(scene)
+		"back":
+			return _back(scene)
+		"gag":
+			return _give_gag(scene, args)
 		"immortal":
 			_immortal = not _immortal
 			return "Immortal mode is on." if _immortal else "Immortal mode is off."
@@ -679,7 +728,11 @@ static func _teleport(scene: Node, args: PackedStringArray) -> String:
 	if _ZONES.has(key):
 		hood = int(_ZONES[key])
 	elif args[0].is_valid_int():
-		hood = _PLACES.hood_of(int(args[0]))
+		var zone := int(args[0])
+		var exact := _LINKS.scene_for_zone(zone)
+		if exact != "" and zone % 1000 != 0:
+			return _teleport_zone(scene, exact, zone)
+		hood = _PLACES.hood_of(zone)
 	else:
 		return "Unknown zone! Try ttc, dd, dg, mml, tb, ddl, aa, gs, estate, sbhq, cbhq, lbhq, or bbhq."
 	var place := String(_ZONE_NAMES.get(hood, "zone %d" % hood))
@@ -696,6 +749,29 @@ static func _teleport(scene: Node, args: PackedStringArray) -> String:
 	_ARRIVAL.portal_in = true
 	ToonLoading.change_to(_PLACES.scene_for(hood))
 	return "Teleporting to %s." % place
+
+
+static func _teleport_zone(scene: Node, path: String, zone: int) -> String:
+	var info: Dictionary = _TITLE.caption(path)
+	var title := String(info.get("text", "")).replace("\n", " ")
+	if title.is_empty():
+		title = "zone %d" % zone
+	var drop := _zone_drop(path)
+	var arrival := scene.get_node_or_null("PlaygroundToon")
+	if arrival != null and arrival.has_method("teleport_to_scene"):
+		arrival.call("teleport_to_scene", path, drop, 0.0, _PLACES.hood_of(zone))
+		return "Throwing a hole to %s." % title
+	ToonSocial.visit_on = true
+	ToonSocial.visit_scene = path
+	ToonSocial.visit_point = drop
+	ToonSocial.visit_heading = 0.0
+	var tasks := ToonTasks.for_selected()
+	if tasks != null:
+		tasks.note_hood(_PLACES.hood_of(zone))
+	_ARRIVAL.teleport_in = true
+	_ARRIVAL.portal_in = true
+	ToonLoading.change_to(path)
+	return "Teleporting to %s." % title
 
 
 static func _set_hp(scene: Node, args: PackedStringArray, maximum: bool) -> String:
@@ -1173,6 +1249,436 @@ static func _show_paths(scene: Node) -> String:
 	if suits == null or not suits.has_method("toggle_paths"):
 		return "Cog paths can only be shown on a street."
 	return String(suits.call("toggle_paths"))
+
+
+static func _where(scene: Node) -> String:
+	var body := _body(scene)
+	if body == null:
+		return "No toon to measure."
+	var lines: PackedStringArray = []
+	var path := scene.scene_file_path
+	var zone := _TITLE.zone_of(path)
+	var info: Dictionary = _TITLE.caption(path)
+	var title := String(info.get("text", "")).replace("\n", ", ")
+	if title.is_empty():
+		title = path.get_file().get_basename()
+	if zone != 0:
+		lines.append("%s (%d)." % [title, zone])
+	else:
+		lines.append("%s." % title)
+	if zone != 0 and StreetSuits.HOOD.has(zone):
+		var span: Vector2i = StreetSuits.HOOD[zone]
+		lines.append("Cogs %d-%d." % [span.x, span.y])
+	var at := Vector2(body.global_position.x, body.global_position.z)
+	var block := _block_at(scene, at)
+	if not block.is_empty():
+		lines.append(_block_line(scene, block))
+	lines.append(_floor_line(scene, body))
+	var where := body.global_position
+	lines.append("Position %.2f %.2f %.2f." % [where.x, where.y, where.z])
+	return "\n".join(lines)
+
+
+static func _reload(scene: Node) -> String:
+	var path := scene.scene_file_path
+	if path.is_empty():
+		return "This place has no scene to reload."
+	ToonLoading.change_to(path)
+	return "Reloading this scene."
+
+
+static func _show_zones(scene: Node) -> String:
+	if _zone_draw != null and is_instance_valid(_zone_draw):
+		_zone_draw.queue_free()
+		_zone_draw = null
+		return "Street blocks are hidden."
+	var body := _body(scene)
+	if body == null:
+		return "No toon to measure."
+	var zones := _load_zones(scene)
+	if zones.is_empty():
+		return "This place has no street blocks."
+	var at := Vector2(body.global_position.x, body.global_position.z)
+	var here := _zone_at(zones, at)
+	if here.is_empty():
+		return "You are not standing in a street block."
+	var record: Dictionary = zones[here]
+	var names: PackedStringArray = [here]
+	for entry in record.get("vis", []):
+		var key := String(entry)
+		if key != here and zones.has(key) and not names.has(key):
+			names.append(key)
+	var root := Node3D.new()
+	root.name = "ZoneDebug"
+	scene.add_child(root)
+	var height := body.global_position.y + 0.25
+	for key in names:
+		var zone: Dictionary = zones[key]
+		var color := _block_color(scene, key, key == here)
+		for polygon in zone.get("polygons", []):
+			if polygon is PackedVector2Array:
+				_lay_ribbon(root, polygon, height, color)
+	_zone_draw = root
+	return "Yellow is the block under you. Green is drawn and solid. Orange is drawn with no floor. Red is hidden. ~showzones again clears it."
+
+
+static func _time_scale(args: PackedStringArray) -> String:
+	if args.is_empty():
+		return "Time scale is %.2f. Use ~timescale 0.2 or ~timescale 1." % Engine.time_scale
+	if not args[0].is_valid_float():
+		return "Use ~timescale 0.2."
+	var scale := float(args[0])
+	if scale < 0.05 or scale > 8.0:
+		return "Time scale has to be from 0.05 to 8."
+	Engine.time_scale = scale
+	return "Time scale is %.2f." % scale
+
+
+static func _set_time(scene: Node, args: PackedStringArray) -> String:
+	if args.is_empty():
+		if _DAY.clock_hour() >= 0.0:
+			return "Clock is forced to %d:00. ~settime off uses the real clock." % int(_DAY.clock_hour())
+		var now := Time.get_time_dict_from_system()
+		return "Clock is %02d:%02d. ~settime 18 forces an hour. 6 is sunrise, 12 is noon, 18 is sunset." % [int(now.get("hour", 0)), int(now.get("minute", 0))]
+	var word := args[0].to_lower()
+	if word == "off" or word == "real":
+		_DAY.set_forced_hour(-1.0)
+		_wake_day(scene)
+		return "Clock follows the real time."
+	if not word.is_valid_float():
+		return "Use ~settime 18, or ~settime off."
+	var hour := float(word)
+	if hour < 0.0 or hour >= 24.0:
+		return "The hour has to be from 0 to 23."
+	_DAY.set_forced_hour(hour)
+	_wake_day(scene)
+	var cycle := scene.get_node_or_null("DayCycle")
+	if cycle == null:
+		return "Clock is forced to %d:00. This place does not run day and night." % int(hour)
+	return "Clock is forced to %d:00. ~settime off uses the real clock." % int(hour)
+
+
+static func _win_battle() -> String:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return "You are not in a battle."
+	var fights := tree.root.get_node_or_null("StreetTraffic/StreetFights")
+	if fights == null or not fights.has_method("declare_victory"):
+		return "You are not in a battle."
+	return String(fights.call("declare_victory", ToonNet.peer_id()))
+
+
+static func _mark(scene: Node) -> String:
+	var body := _body(scene)
+	if body == null:
+		return "No toon to mark."
+	var heading := 0.0
+	var toon := scene.get_node_or_null("PlaygroundToon")
+	if toon != null and toon.has_method("facing"):
+		heading = float(toon.call("facing"))
+	_mark_on = true
+	_mark_scene = scene.scene_file_path
+	_mark_point = body.global_position
+	_mark_heading = heading
+	return "Marked %.2f %.2f %.2f. ~back returns here." % [_mark_point.x, _mark_point.y, _mark_point.z]
+
+
+static func _back(scene: Node) -> String:
+	if not _mark_on or _mark_scene.is_empty():
+		return "No mark yet. Use ~mark first."
+	if scene.scene_file_path == _mark_scene:
+		var toon := scene.get_node_or_null("PlaygroundToon")
+		if toon != null and toon.has_method("place_at"):
+			toon.call("place_at", _mark_point, _mark_heading)
+			return "Back at the mark."
+		var body := _body(scene)
+		if body == null:
+			return "No toon to move."
+		body.global_position = _mark_point
+		return "Back at the mark."
+	var arrival := scene.get_node_or_null("PlaygroundToon")
+	if arrival != null and arrival.has_method("teleport_to_scene"):
+		var zone := _LINKS.zone_for_scene(_mark_scene)
+		var hood := _PLACES.hood_of(zone) if zone != 0 else _PLACES.hood_for_scene(_mark_scene)
+		arrival.call("teleport_to_scene", _mark_scene, _mark_point, _mark_heading, hood)
+		return "Throwing a hole back to the mark."
+	ToonSocial.visit_on = true
+	ToonSocial.visit_scene = _mark_scene
+	ToonSocial.visit_point = _mark_point
+	ToonSocial.visit_heading = _mark_heading
+	_ARRIVAL.teleport_in = true
+	_ARRIVAL.portal_in = true
+	ToonLoading.change_to(_mark_scene)
+	return "Teleporting back to the mark."
+
+
+static func _give_gag(scene: Node, args: PackedStringArray) -> String:
+	var loadout := _loadout(scene)
+	if loadout == null:
+		return "No gag pouch here."
+	if args.is_empty():
+		return "Use ~gag squirt 4, or ~gag seltzer."
+	var level := 0
+	var named := ""
+	if args[args.size() - 1].is_valid_int():
+		var spoken := int(args[args.size() - 1])
+		if spoken < 1 or spoken > ToonLoadout.LEVEL_COUNT:
+			return "Gag levels run from 1 to %d." % ToonLoadout.LEVEL_COUNT
+		level = spoken - 1
+		var words: PackedStringArray = []
+		for index in args.size() - 1:
+			words.append(args[index])
+		named = " ".join(words)
+	else:
+		named = " ".join(args)
+		level = -1
+	var found := _find_gag(named, level)
+	if found.x < 0:
+		return "Unknown gag. Try ~gag squirt 4, or ~gag seltzer."
+	var note := loadout.grant_one(found.x, found.y)
+	var book := _find(scene, "ShtickerBook") as ShtickerBook
+	if book != null:
+		book.refresh_gags()
+	return note
+
+
+static func _find_gag(named: String, level: int) -> Vector2i:
+	var key := named.to_lower().replace("-", "").replace(" ", "")
+	if level >= 0:
+		for track in ToonLoadout.TRACK_NAMES.size():
+			var track_name := String(ToonLoadout.TRACK_NAMES[track]).to_lower().replace("-", "").replace(" ", "")
+			if track_name == key or track_name.begins_with(key):
+				return Vector2i(track, level)
+		return Vector2i(-1, -1)
+	for track in ToonLoadout.GAG_NAMES.size():
+		var names: Array = ToonLoadout.GAG_NAMES[track]
+		for index in names.size():
+			var gag_name := String(names[index]).to_lower().replace("-", "").replace(" ", "").replace("$", "")
+			var ask := key.replace("$", "")
+			if gag_name == ask:
+				return Vector2i(track, index)
+	return Vector2i(-1, -1)
+
+
+static func _zone_drop(scene_path: String) -> Vector3:
+	var zones := _zones_from_file(_zones_file(scene_path, ""))
+	var best_area := -1.0
+	var center := Vector2.ZERO
+	for zone_name in zones:
+		var zone: Dictionary = zones[zone_name]
+		var polygons: Array = zone.get("polygons", [])
+		var areas: Array = zone.get("areas", [])
+		for index in polygons.size():
+			var area := float(areas[index]) if index < areas.size() else 0.0
+			if area <= best_area:
+				continue
+			var polygon: PackedVector2Array = polygons[index]
+			if polygon.is_empty():
+				continue
+			var sum := Vector2.ZERO
+			for vertex in polygon:
+				sum += vertex
+			best_area = area
+			center = sum / float(polygon.size())
+	if best_area < 0.0:
+		return Vector3(0.0, 4.0, 0.0)
+	return Vector3(center.x, 6.0, center.y)
+
+
+static func _wake_day(scene: Node) -> void:
+	var cycle := scene.get_node_or_null("DayCycle")
+	if cycle != null and cycle.has_method("wake"):
+		cycle.call("wake")
+
+
+static func _body(scene: Node) -> Node3D:
+	var body := scene.get_node_or_null("Player") as Node3D
+	if body != null:
+		return body
+	var toon := scene.get_node_or_null("PlaygroundToon")
+	if toon == null:
+		return null
+	return toon.get_node_or_null("Player") as Node3D
+
+
+static func _floor_line(scene: Node, body: Node3D) -> String:
+	var ready := "Street is ready." if bool(scene.get_meta("street_ready", true)) else "Street is still folding."
+	var space := body.get_world_3d().direct_space_state
+	if space == null:
+		return ready
+	var from := body.global_position + Vector3(0.0, 1.5, 0.0)
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3(0.0, -20.0, 0.0))
+	var solid_body := body as CollisionObject3D
+	if solid_body != null:
+		query.exclude = [solid_body.get_rid()]
+	query.collide_with_areas = false
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return "No floor under you. %s" % ready
+	var collider := hit.get("collider") as CollisionObject3D
+	if collider == null:
+		return ready
+	var block := ""
+	var host := collider.get_parent()
+	if host != null and _block_name(String(host.name)):
+		block = " on block %s" % String(host.name)
+	var solid := "solid" if collider.collision_layer != 0 else "not solid"
+	return "Floor is %s%s (%s). %s" % [String(collider.name), block, solid, ready]
+
+
+static func _block_line(scene: Node, block: String) -> String:
+	var node := scene.find_child(block, true, false) as Node3D
+	if node == null:
+		return "Block %s is missing." % block
+	var drawn := "drawn" if node.visible else "hidden"
+	var floor := _zone_solid(node)
+	if floor:
+		return "Block %s is %s and solid." % [block, drawn]
+	return "Block %s is %s and has no floor." % [block, drawn]
+
+
+static func _block_color(scene: Node, block: String, here: bool) -> Color:
+	if here:
+		return Color(1.0, 0.92, 0.2, 0.9)
+	var node := scene.find_child(block, true, false) as Node3D
+	if node == null or not node.visible:
+		return Color(0.9, 0.2, 0.2, 0.75)
+	if _zone_solid(node):
+		return Color(0.25, 0.9, 0.35, 0.8)
+	return Color(1.0, 0.55, 0.1, 0.85)
+
+
+static func _zone_solid(node: Node) -> bool:
+	var solid := node.find_child("ZoneSolid", true, false) as CollisionObject3D
+	return solid != null and solid.collision_layer != 0
+
+
+static func _load_zones(scene: Node) -> Dictionary:
+	var hinted := ""
+	if "zones_path" in scene:
+		hinted = String(scene.get("zones_path"))
+	return _zones_from_file(_zones_file(scene.scene_file_path, hinted))
+
+
+static func _zones_file(scene_path: String, hinted: String) -> String:
+	if not hinted.is_empty() and FileAccess.file_exists(hinted):
+		return hinted
+	var base := scene_path.get_file().get_basename()
+	var folders: PackedStringArray = ["toontown_central", "donalds_dock", "daisy_gardens", "minnies_melodyland", "the_burrrgh", "donalds_dreamland"]
+	for folder in folders:
+		var guess := "res://assets/neighborhoods/%s/streets/%s_zones.json" % [folder, base]
+		if FileAccess.file_exists(guess):
+			return guess
+	return ""
+
+
+static func _zones_from_file(path: String) -> Dictionary:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return {}
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	var zones := {}
+	for zone_name in parsed:
+		var record: Dictionary = parsed[zone_name]
+		var polygons: Array[PackedVector2Array] = []
+		var areas: Array[float] = []
+		for source in record.get("polygons", []):
+			var polygon := PackedVector2Array()
+			for point in source:
+				if point is Array and point.size() >= 2:
+					polygon.append(Vector2(float(point[0]), float(point[1])))
+			if polygon.size() >= 3:
+				polygons.append(polygon)
+				areas.append(_polygon_area(polygon))
+		zones[String(zone_name)] = {
+			"vis": record.get("vis", []),
+			"polygons": polygons,
+			"areas": areas,
+		}
+	return zones
+
+
+static func _block_at(scene: Node, at: Vector2) -> String:
+	return _zone_at(_load_zones(scene), at)
+
+
+static func _zone_at(zones: Dictionary, at: Vector2) -> String:
+	var best := ""
+	var best_area := INF
+	for zone_name in zones:
+		var zone: Dictionary = zones[zone_name]
+		var polygons: Array = zone.get("polygons", [])
+		var areas: Array = zone.get("areas", [])
+		for index in polygons.size():
+			var area := float(areas[index]) if index < areas.size() else INF
+			if area < best_area and _contains(at, polygons[index]):
+				best = String(zone_name)
+				best_area = area
+	return best
+
+
+static func _contains(point: Vector2, polygon: PackedVector2Array) -> bool:
+	var inside := false
+	var previous := polygon.size() - 1
+	for index in polygon.size():
+		var current := polygon[index]
+		var earlier := polygon[previous]
+		var crosses := (current.y > point.y) != (earlier.y > point.y)
+		if crosses and point.x < (earlier.x - current.x) * (point.y - current.y) / (earlier.y - current.y) + current.x:
+			inside = not inside
+		previous = index
+	return inside
+
+
+static func _polygon_area(polygon: PackedVector2Array) -> float:
+	var area := 0.0
+	var previous := polygon.size() - 1
+	for index in polygon.size():
+		var current := polygon[index]
+		var earlier := polygon[previous]
+		area += earlier.x * current.y - current.x * earlier.y
+		previous = index
+	return absf(area) * 0.5
+
+
+static func _block_name(node_name: String) -> bool:
+	return node_name.length() >= 4 and node_name.is_valid_int()
+
+
+static func _lay_ribbon(root: Node3D, polygon: PackedVector2Array, height: float, color: Color) -> void:
+	var verts := PackedVector3Array()
+	var count := polygon.size()
+	for index in count:
+		var a := polygon[index]
+		var b := polygon[(index + 1) % count]
+		var along := b - a
+		if along.length() < 0.05:
+			continue
+		var side := Vector2(-along.y, along.x).normalized() * 0.35
+		var a0 := Vector3(a.x + side.x, height, a.y + side.y)
+		var a1 := Vector3(a.x - side.x, height, a.y - side.y)
+		var b0 := Vector3(b.x + side.x, height, b.y + side.y)
+		var b1 := Vector3(b.x - side.x, height, b.y - side.y)
+		verts.append_array([a0, b0, a1, a1, b0, b1])
+	if verts.is_empty():
+		return
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var instance := MeshInstance3D.new()
+	instance.mesh = mesh
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = color
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true
+	instance.material_override = mat
+	root.add_child(instance)
 
 
 static func _set_collisions(scene: Node, args: PackedStringArray) -> String:

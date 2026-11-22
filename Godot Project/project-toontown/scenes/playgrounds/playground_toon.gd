@@ -701,9 +701,15 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	var place := get_parent()
 	if place != null and not bool(place.get_meta("street_ready", true)):
-		if _body != null:
-			_body.velocity = Vector3.ZERO
-		return
+		# Toontown Central and Donald's Dock fold their own blocks and never
+		# pump that queue. Keep folding here or the toon stays planted.
+		var geom := place.get_node_or_null("Geometry")
+		if geom != null and geom.has_method("pump_street"):
+			geom.call("pump_street")
+		if not bool(place.get_meta("street_ready", true)):
+			if _body != null:
+				_body.velocity = Vector3.ZERO
+			return
 	if _squish_left > 0.0:
 		_squish_left = maxf(_squish_left - delta, 0.0)
 		if _body != null:
@@ -1061,6 +1067,48 @@ func battle_hp() -> Vector2i:
 	if _loadout == null:
 		return Vector2i(ToonLoadout.START_HP, ToonLoadout.START_HP)
 	return Vector2i(_loadout.hp, _loadout.max_hp)
+
+
+## A building, facility, or boss door. Empty means it is safe to walk in.
+## Laff at a fifth of the meter, or no sound, throw, squirt, or drop.
+func confirm_danger(place: String) -> bool:
+	var lines := _danger_lines(place)
+	if lines.is_empty():
+		return true
+	var was_locked := _locked
+	_locked = true
+	var going := await _yes_no(lines)
+	if is_inside_tree():
+		_locked = was_locked
+	return going
+
+
+func _danger_lines(place: String) -> PackedStringArray:
+	if _loadout == null or _loadout.max_hp <= 0:
+		return PackedStringArray()
+	var low := _loadout.hp > 0 and _loadout.hp * 5 <= _loadout.max_hp
+	var bare := _no_damage_gags()
+	if not low and not bare:
+		return PackedStringArray()
+	var lines := PackedStringArray()
+	if low:
+		lines.append("Your laff is very low.")
+	if bare:
+		lines.append("You have no gags that can damage a cog.")
+	lines.append("Go into %s anyway?" % place)
+	return lines
+
+
+func _no_damage_gags() -> bool:
+	if _loadout == null:
+		return false
+	for track in [3, 4, 5, 6]:
+		if not _loadout.track_open(track):
+			continue
+		for level in ToonLoadout.LEVEL_COUNT:
+			if _loadout.count_of(track, level) > 0:
+				return false
+	return true
 
 
 func battle_loadout() -> ToonLoadout:
@@ -4029,6 +4077,8 @@ func _try_building_door() -> void:
 
 
 func _enter_building() -> void:
+	if not await confirm_danger("this building"):
+		return
 	_locked = true
 	var near: Dictionary = _BLDG.closest(_body.global_position)
 	if near.is_empty():
@@ -4614,6 +4664,38 @@ func teleport_to_hood(hood: int, remember := true) -> void:
 	if remember and _tasks != null:
 		_tasks.note_hood(hood)
 	ToonLoading.change_to(_PLACES.scene_for(hood))
+
+
+func teleport_to_scene(path: String, point: Vector3, heading: float, hood: int) -> void:
+	if _is_sad():
+		return
+	if not await _play_teleport_out():
+		return
+	portal_in = true
+	teleport_in = true
+	ToonSocial.visit_on = true
+	ToonSocial.visit_scene = path
+	ToonSocial.visit_point = point
+	ToonSocial.visit_heading = heading
+	if _tasks != null:
+		_tasks.note_hood(hood)
+	ToonLoading.change_to(path)
+
+
+func facing() -> float:
+	return _heading
+
+
+func place_at(point: Vector3, heading: float) -> void:
+	if _body == null:
+		return
+	_body.velocity = Vector3.ZERO
+	_body.global_position = point
+	_heading = heading
+	_home = _body.global_position
+	_home_heading = heading
+	if _player != null:
+		_face(_player, heading)
 
 
 ## DeathForceAcknowledge. The laff meter sits on the left of the card at 0.
@@ -5624,13 +5706,14 @@ func _try_tunnel() -> void:
 		if gap < best_gap:
 			best_gap = gap
 			best = i
-	# HoodMgr listens for enter on the sphere, not overlap. Coming out of the
-	# shaft leaves the toon on the sidewalk, and the trip cannot start again
-	# until they have stepped clear and walked back in.
+	# HoodMgr listens for enter on the sphere, not overlap, and not for which
+	# way the toon is facing. Coming out of the shaft leaves them on the
+	# sidewalk, and the trip cannot start again until they have stepped clear.
+	# Backing in is still an enter.
 	if best < 0:
 		_tunnel_ready = true
 		return
-	if not _tunnel_ready or not _KEYS.held("forward"):
+	if not _tunnel_ready or not (_KEYS.held("forward") or _KEYS.held("back")):
 		return
 	_tunnel_ready = false
 	var chosen: Dictionary = _tunnels[best]

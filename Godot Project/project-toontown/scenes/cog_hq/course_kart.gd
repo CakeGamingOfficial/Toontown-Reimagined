@@ -23,6 +23,8 @@ var _age := 0.0
 var _left := 0.0
 var _from := Vector3.ZERO
 var _warned := false
+var _danger := false
+var _declined := false
 var _group_told := false
 var _pulled := 0
 var _clock: Label3D
@@ -126,6 +128,8 @@ func _interior(host: Node) -> void:
 
 
 func _offer() -> void:
+	if _danger:
+		return
 	var toon := _toon()
 	if toon == null or bool(toon.call("battle_busy")):
 		return
@@ -144,15 +148,43 @@ func _offer() -> void:
 				_group_told = true
 				return
 			_group_told = false
-			if BoardingParty.leading():
-				BoardingParty.request("board", {"dest": course})
-				return
 		elif not _floor_open():
+			return
+		if _deeper(kart) and _declined:
+			return
+		if _deeper(kart):
+			_confirm_in(kart, "this golf course")
 			return
 		_warned = false
 		_begin(kart)
 		return
 	_group_told = false
+	_declined = false
+
+
+func _deeper(kart: Node3D) -> bool:
+	if bool(kart.get_meta("outside")):
+		return true
+	return not bool(kart.get_meta("exit"))
+
+
+func _confirm_in(kart: Node3D, place: String) -> void:
+	_danger = true
+	var toon := _toon()
+	var ok := true
+	if toon != null and toon.has_method("confirm_danger"):
+		ok = await toon.confirm_danger(place)
+	_danger = false
+	if not ok:
+		_declined = true
+		return
+	if not is_inside_tree() or kart == null or _toon() == null:
+		return
+	if bool(kart.get_meta("outside")) and BoardingParty.leading():
+		BoardingParty.request("board", {"dest": int(kart.get_meta("course", 0))})
+		return
+	_warned = false
+	_begin(kart)
 
 
 func _laff(index: int) -> int:

@@ -48,6 +48,7 @@ var _from := Vector3.ZERO
 var _away := false
 var _refused := false
 var _group_told := false
+var _danger := false
 var _pulled := 0
 var _cue := ""
 var _cam_from := Vector3.ZERO
@@ -240,6 +241,8 @@ func _ride(delta: float) -> void:
 
 
 func _offer() -> void:
+	if _danger:
+		return
 	var toon := _toon()
 	if toon == null or bool(toon.call("battle_busy")):
 		return
@@ -260,7 +263,22 @@ func _offer() -> void:
 		_refused = true
 		return
 	_group_told = false
-	if BoardingParty.leading():
+	_confirm_boss(BoardingParty.leading())
+
+
+func _confirm_boss(lead: bool) -> void:
+	_danger = true
+	var toon := _toon()
+	var ok := true
+	if toon != null and toon.has_method("confirm_danger"):
+		ok = await toon.confirm_danger("this boss battle")
+	_danger = false
+	if not ok:
+		_refused = true
+		return
+	if not is_inside_tree():
+		return
+	if lead:
 		BoardingParty.request("board", {"dest": 0})
 		_away = true
 		return
@@ -482,9 +500,23 @@ func _toon() -> Node:
 
 
 func _board() -> void:
+	if _danger:
+		return
 	if not DisguisePage.ready_for_promotion(_dept):
 		_note.text = _REJECT
 		_note.visible = true
+		return
+	_confirm_hop()
+
+
+func _confirm_hop() -> void:
+	_danger = true
+	var toon := _toon()
+	var ok := true
+	if toon != null and toon.has_method("confirm_danger"):
+		ok = await toon.confirm_danger("this boss battle")
+	_danger = false
+	if not ok or not is_inside_tree():
 		return
 	_boarding = true
 	_left = _COUNTDOWN
