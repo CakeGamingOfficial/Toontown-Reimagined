@@ -112,7 +112,7 @@ func _build() -> void:
 	_px = lineup_x(4.0)
 	_py = 0.0
 	var toon := _make_toon(_panda(_px, _py, 0.0))
-	toon.rotation_degrees.y = 180.0
+	_show_heading()
 	_aim_camera()
 	show_board("avatar")
 	_perfect = Label.new()
@@ -411,7 +411,17 @@ func _apply_turn(delta: float) -> void:
 		_turn_left = maxf(_turn_left - delta, 0.0)
 		var along := 1.0 if _turn_dur <= 0.0 else 1.0 - _turn_left / _turn_dur
 		_heading = wrapf(_turn_from + wrapf(_turn_to - _turn_from, -180.0, 180.0) * along, -180.0, 180.0)
-	_toon.rotation_degrees.y = _heading
+	_show_heading()
+
+
+## Panda heading 0 faces +Y, away from this camera. The toon model faces the
+## camera at yaw 0, so the shown yaw is the heading plus a half turn.
+func _show_heading() -> void:
+	if _toon == null:
+		return
+	# Assign the whole rotation. Setting only yaw leaves a leftover pitch
+	# from Godot's euler decomposition, and the toon turns onto their side.
+	_toon.rotation_degrees = Vector3(0.0, wrapf(_heading + 180.0, -180.0, 180.0), 0.0)
 
 
 func _bump_cog() -> void:

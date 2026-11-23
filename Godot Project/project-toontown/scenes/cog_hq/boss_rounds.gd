@@ -380,8 +380,9 @@ func start_vp(boss: Node) -> void:
 		_cage = pies.global_position
 	# The cage node's origin sits above the platform. The grab is on the floor under it.
 	_cage.y = _boss_pos.y
-	# Battle three heading is 180, already baked into the body. The cage stays behind the doors.
-	boss_node.rotation = Vector3.ZERO
+	# The mesh is built at heading 180, so rotation 0 turns his back on the
+	# platform. Face the toons: heading 0, which is an extra half turn.
+	boss_node.rotation = Vector3(0.0, 0.0, PI)
 	_vp_forward = -boss_node.global_transform.basis.y
 	_vp_forward.y = 0.0
 	if _vp_forward.length_squared() < 0.01:
@@ -692,7 +693,7 @@ func _tick_vp(delta: float, body: CharacterBody3D) -> void:
 		if _boss.has_method("place_vp"):
 			_boss.call("place_vp", float(state.get("hp", 0)) / float(maxi(int(state.get("max", 100)), 1)))
 		_boss_pos = vp.global_position
-		_vp_forward = -vp.global_transform.basis.z
+		_vp_forward = -vp.global_transform.basis.y
 		_vp_forward.y = 0.0
 		if _vp_forward.length_squared() > 0.01:
 			_vp_forward = _vp_forward.normalized()
@@ -1784,13 +1785,15 @@ func _begin(boss: Node) -> void:
 	var geom := host.get_node_or_null("Geometry") as Node3D if host != null else null
 	_root = Node3D.new()
 	_root.name = "BossRound"
-	# The banquet file turns panda (x, y, z) into Godot (x, z, -y) on its inner
-	# root. Parenting the round there keeps the intro camera on the floor.
+	# The room glb root turns panda (x, y, z) into Godot (x, z, -y).
+	# Parenting the round there keeps the pie round on the floor.
 	var room := geom
 	if geom != null:
-		var converted := geom.get_node_or_null("BossbotCeo") as Node3D
-		if converted != null:
-			room = converted
+		for room_name in ["SellbotVp", "CashbotCfo", "LawbotCj", "BossbotCeo"]:
+			var converted := geom.get_node_or_null(room_name) as Node3D
+			if converted != null:
+				room = converted
+				break
 	if room != null:
 		room.add_child(_root)
 	elif host != null:

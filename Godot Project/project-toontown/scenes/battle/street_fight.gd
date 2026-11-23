@@ -98,6 +98,8 @@ static func attach(host: Node) -> void:
 
 
 func _ready() -> void:
+	# Aim after the toon orbit. Same priority lets the orbit cover the fight.
+	process_priority = -8
 	_layer = CanvasLayer.new()
 	_layer.layer = 24
 	add_child(_layer)
@@ -2648,6 +2650,26 @@ func _aim_camera(fight: Dictionary, delta: float) -> void:
 		var side_sign := 1.0 if int(fight.get("id", 0)) % 2 == 0 else -1.0
 		var reward_pos := look - forward * 10.0 + right * side_sign * 5.0
 		_CAMERA.cut(camera, reward_pos, look, 80.0)
+		return
+	# The stock menu camera sits at height 16.5. In the V.P. pit that is
+	# against the upper floor, so the lens is inside the ceiling. The battle
+	# forward also points back at the toon, which parks that camera in the cogs.
+	# Stand behind the toon and look at the cogs.
+	if String(fight.get("slug", "")).begins_with("boss_vp"):
+		var toon_pos := origin
+		var actor := _actor_for(ToonNet.peer_id())
+		if actor != null:
+			toon_pos = actor.global_position
+		var line_pos := _center(fight.get("cogs", []))
+		var flat := line_pos - toon_pos
+		flat.y = 0.0
+		if flat.length_squared() < 0.25:
+			flat = forward
+		else:
+			flat = flat.normalized()
+		var pos := toon_pos - flat * 9.0 + Vector3.UP * 4.2
+		var focus := line_pos + Vector3.UP * 6.0
+		_place_camera(camera, pos, focus, 58.0, delta)
 		return
 	var fov := 80.0
 	var pos := origin - forward * 8.6 + Vector3.UP * 16.5

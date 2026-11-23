@@ -146,7 +146,7 @@ func play(which: String) -> void:
 		music("elevator")
 		_use_hq_fov()
 		_open_iris()
-		_place_vp(_elevator_spot(), Vector3(0, -20, 5))
+		_stand(Vector3(0, -35, 0), -90.0)
 		_seat_toons()
 		_wear_suits()
 		_remember_exp()
@@ -236,6 +236,9 @@ func skip() -> void:
 ## The introduction, the roll, and the epilogue own the toon camera.
 ## playground_toon leaves the orbit alone while this is true.
 func holds_camera() -> bool:
+	# The roll is watched from the toon. The cage drop and the speeches keep the movie camera.
+	if _movie == "roll":
+		return false
 	return _movie != "" or _reward_cam or _waiting
 
 
@@ -268,7 +271,10 @@ func place_damage(along: float) -> void:
 		var u := 0.0 if second <= 0.001 else (_damage_at - first) / second
 		spot = Vector3(0, -110, -6.5).lerp(Vector3(0, -175, -6.5), clampf(u, 0.0, 1.0))
 	_vp.position = spot
-	_face_h(180.0)
+	# The front door is on local +Y at rotation 0. The toons stand on the pit
+	# side, so battle three has to face that way. _face_h(180) leaves the door
+	# pointing at the cage.
+	_face_h(0.0)
 	_stick_floor()
 	# reverse=1. Both belts use the negative tread speed for the whole movie.
 	_left_tread = _damage_left - 3.5 * _damage_at
@@ -291,12 +297,13 @@ func _process(delta: float) -> void:
 	_advance_pose(delta)
 	_pie_lines(delta)
 	if _movie == "intro":
+		_hold(true)
 		_t += delta
 		if _t < _RIDE + _OPEN:
 			_ride_elevator()
 		elif not _arrived:
 			_arrived = true
-			_place_vp(Vector3(0, -35, 0), Vector3(0, 0, 5))
+			_stand(Vector3(0, -35, 0), -90.0)
 			music("promotion")
 			_say("You are hereby promoted to full-fledged Sellbots.  Congratulations!", true)
 		_intro_beat()
@@ -315,6 +322,7 @@ func _process(delta: float) -> void:
 			_finish_drop()
 	elif _movie == "roll":
 		_t += delta
+		# makeEndOfBattleMovie puts the camera back on the toon before he rolls.
 		if not _step_roll(delta):
 			_roll_back = false
 			_face_h(-90.0)
@@ -322,6 +330,9 @@ func _process(delta: float) -> void:
 			_collide_back = -1.0
 			_set_collisions(false)
 			_complete()
+	elif _movie == "prepare2" or _movie == "prepare3":
+		# enterPrepareBattleTwo / Three. The cage shot, not the frozen battle camera.
+		_aim_prepare()
 	elif _movie == "uncage":
 		_t += delta
 		_play_uncage(delta)
@@ -347,7 +358,7 @@ func _intro_beat() -> void:
 	if speech >= _party().size():
 		_door_goal = 0.0
 	if speech >= 40.0:
-		_place_vp(Vector3(0, -35, 0), Vector3(0, 0, 5))
+		_stand(Vector3(0, -35, 0), -90.0)
 		_complete()
 		return
 	if speech >= 39.0:
@@ -417,12 +428,12 @@ func _move_doobers() -> void:
 			if remain >= 0.0:
 				# beginSupaFlyMove. The propeller climb belongs to the suit.
 				if not bool(cog.get_meta("flew", false)):
-					cog.position = spot
+					cog.global_position = _world(spot)
 					cog.set_meta("flew", true)
 					if cog.has_method("fly_away"):
 						cog.call("fly_away")
 				continue
-		cog.position = spot
+		cog.global_position = _world(spot)
 		if cog.has_method("set_walking"):
 			cog.call("set_walking", moving and spot.z <= 0.1)
 		_face_panda(cog, spot, aim)
@@ -490,7 +501,6 @@ func _march_toons(delta: float) -> void:
 		Vector3(-2.5, 4, 0.1), Vector3(2.5, 4, 0.1),
 		Vector3(-8.0, 4, 0.1), Vector3(8.0, 4, 0.1),
 	]
-	var origin := _elevator_spot()
 	for index in assignments.size():
 		var item: Dictionary = assignments[index]
 		var person := item["node"] as Node3D
@@ -500,7 +510,7 @@ func _march_toons(delta: float) -> void:
 		var slot := int(item["slot"])
 		var count := int(item["count"])
 		var delay := float(item["delay"])
-		var seat := origin + seats[mini(index, seats.size() - 1)]
+		var seat := _car_point(seats[mini(index, seats.size() - 1)])
 		var promo := _battle_point(side, slot, count, true)
 		var battle := _battle_point(side, slot, count, false)
 		var heading := _battle_heading(side, _point_heading(slot, count))
@@ -508,23 +518,43 @@ func _march_toons(delta: float) -> void:
 		var spot := seat
 		var walking := false
 		var backward := false
+		var ahead := spot
 		if speech >= 37.0:
 			var u := clampf((speech - 37.0) / 3.0, 0.0, 1.0)
 			spot = promo.lerp(battle, u)
 			walking = u < 1.0
 			backward = true
+			ahead = battle
 		elif local > 0.0 and local <= 1.0:
-			spot = seat.lerp(Vector3(0, 90, 20), local)
+			ahead = Vector3(0, 90, 18)
+			spot = seat.lerp(ahead, local)
 			walking = true
 		elif local > 1.0:
 			var along := (local - 1.0) / 35.0
 			if along >= 1.0:
 				spot = promo
+				ahead = promo
 			else:
 				spot = _enter_point(side, along)
+				ahead = _enter_point(side, minf(along + 0.04, 1.0))
 				walking = true
+		if walking and not backward and ahead.distance_squared_to(spot) > 0.05:
+			heading = _segment_h(spot, ahead)
 		_stand_person(person, spot, heading)
 		_pose_person(person, delta, walking, backward)
+
+
+func _park_battle_line() -> void:
+	for item in _toon_assignments():
+		var person := item["node"] as Node3D
+		if person == null or not is_instance_valid(person):
+			continue
+		var side := int(item["side"])
+		var slot := int(item["slot"])
+		var count := int(item["count"])
+		var spot := _battle_point(side, slot, count, false)
+		var heading := _battle_heading(side, _point_heading(slot, count))
+		_stand_person(person, spot, heading)
 
 
 func _toon_assignments() -> Array[Dictionary]:
@@ -599,9 +629,9 @@ func _pose_person(person: Node3D, delta: float, walking: bool, backward: bool) -
 
 func _enter_point(side: int, along: float) -> Vector3:
 	var samples: Array[Vector3] = [
-		Vector3(0, 88.147, 20), Vector3(-14.813, 67.855, 20), Vector3(-44.402, 56.936, 20),
-		Vector3(-69.814, 42.021, 20), Vector3(-85.394, 19.556, 20), Vector3(-88.668, -8.956, 20),
-		Vector3(-76.582, -31.586, 20), Vector3(-49.371, -38.409, 20), Vector3(-21, -37.929, 20),
+		Vector3(0, 88.147, 18), Vector3(-14.813, 67.855, 18), Vector3(-44.402, 56.936, 18),
+		Vector3(-69.814, 42.021, 18), Vector3(-85.394, 19.556, 18), Vector3(-88.668, -8.956, 18),
+		Vector3(-76.582, -31.586, 18), Vector3(-49.371, -38.409, 18), Vector3(-21, -37.929, 18),
 	]
 	if side == 1:
 		for index in samples.size():
@@ -667,6 +697,7 @@ func _place_camera(at: Vector3, hpr: Vector3) -> void:
 	var camera := _camera()
 	if camera == null:
 		return
+	camera.current = true
 	camera.global_position = _world(at)
 	var forward := _heading_forward(hpr.x)
 	var pitch := deg_to_rad(hpr.y)
@@ -1033,6 +1064,11 @@ func _complete() -> void:
 	_mark_ready(false)
 	var which := _finish_as if _finish_as != "" else _movie
 	var wait_solid := false
+	if which == "intro":
+		# The walk crosses the extended ramps. Put them on the open battle
+		# line before the floor becomes solid again, or the orbit camera
+		# comes back inside a ramp.
+		_park_battle_line()
 	if which == "roll":
 		_collide_back = -1.0
 		_set_collisions(false)
@@ -1066,10 +1102,24 @@ func _stop_movie() -> void:
 	_doobers.clear()
 
 
+func release_show() -> void:
+	# Battle three and the next fight use the toon camera. A speech must not keep the cage shot.
+	_waiting = false
+	_reward_cam = false
+	_stop_movie()
+	_hold(false)
+
+
 func _ensure_cast() -> void:
 	if _geom == null:
 		var host := _boss.get_parent() if _boss != null else null
 		_geom = host.get_node_or_null("Geometry") as Node3D if host != null else null
+	if _geom != null:
+		# Geometry only carries the scene shift. The glb root is the node that
+		# turns panda (x, y, z) into Godot (x, z, -y). Positions belong there.
+		var turned := _geom.get_node_or_null("SellbotVp") as Node3D
+		if turned != null:
+			_geom = turned
 	if _geom == null:
 		return
 	if _marker == null:
@@ -1096,13 +1146,22 @@ func _summon_toon() -> void:
 	_toon = ToonActor.new()
 	_toon.name = "CagedToon"
 	_cage.add_child(_toon)
-	_toon.position = Vector3(0, -1.5, -6)
 	_toon.set("follows_ground", false)
 	if _toon.has_method("show_style"):
 		_toon.call("show_style", style)
+	_stand_in_cage()
 	var tags := _tags()
 	if tags != null and tags.has_method("add"):
 		tags.call("add", _toon, _toon_name, "npc")
+
+
+func _stand_in_cage() -> void:
+	if _toon == null:
+		return
+	# The cage floor is local z=0. Heading 180 faces the camera, which sits on local -Y.
+	_toon.position = Vector3(0.0, -2.0, 0.2)
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0))
+	_toon.basis = upright.scaled(Vector3(0.5, 0.5, 0.5))
 
 
 func _spawn_doobers() -> void:
@@ -1110,7 +1169,13 @@ func _spawn_doobers() -> void:
 		var spec: Dictionary = _DOOBERS[index]
 		var cog := (load("res://scenes/cogs/street_cog.gd") as GDScript).new() as Node3D
 		cog.name = "Doober%d" % index
-		_geom.add_child(cog)
+		# Street cogs are Y-up. The room root is panda Z-up, so they stand on
+		# the scene and the movie moves them in world space.
+		var host := _boss.get_parent() if _boss != null else _geom
+		if host != null:
+			host.add_child(cog)
+		else:
+			_geom.add_child(cog)
 		if cog.has_method("present"):
 			cog.call("present", {
 				"code": spec["code"],
@@ -1129,14 +1194,17 @@ func _place_vp(at: Vector3, look: Vector3, rolling := false) -> void:
 	if _vp == null:
 		return
 	var before := _vp.global_position
-	var before_yaw := _vp.global_rotation.y
+	var before_h := _roll_h
 	_vp.position = at
-	var focus := _world(look)
-	if _vp.global_position.distance_squared_to(focus) > 0.25:
-		_vp.look_at(focus, Vector3.UP)
+	# The body is panda Z-up under the room. look_at() treats Y as up and
+	# lays him on his face. Yaw about local Z, which the room already stands up.
+	_vp.rotation.x = 0.0
+	var heading := _segment_h(at, look)
+	_roll_back = false
+	_face_h(heading)
 	if rolling:
 		_stick_floor()
-		var yaw := wrapf(_vp.global_rotation.y - before_yaw, -PI, PI)
+		var yaw := deg_to_rad(_wrap_deg(heading - before_h))
 		_scroll_treads(_vp.global_position - before, yaw)
 
 
@@ -1571,10 +1639,11 @@ func _play_uncage(delta: float) -> void:
 			_finish_uncage()
 		return
 	if _t < 0.7:
-		_toon.position = Vector3(0, -2, -6)
+		_stand_in_cage()
+		_toon.position = Vector3(0.0, -1.2, 0.2)
 	elif _t < 1.5:
 		var walk := (_t - 0.7) / 0.8
-		_toon.position = Vector3(0, lerpf(-2.0, -6.0, walk), -6)
+		_toon.position = Vector3(0.0, lerpf(-1.2, -4.5, walk), 0.2)
 		if _toon.has_method("set_locomotion"):
 			_toon.call("set_locomotion", 4.0, false, false, delta)
 	elif _t < 2.6:
@@ -1912,14 +1981,30 @@ func _begin_prepare3() -> void:
 
 
 func _aim_cage() -> void:
+	# setPosHpr(cage, 0, -50, 0, 0, 0, 0). The cage node is scaled, so the
+	# offset has to be in its own space or the lens ends up in the bars.
 	var camera := _camera()
-	if camera == null or _cage == null or _marker == null:
+	if camera == null or _cage == null:
 		return
-	_marker.global_position = _cage.global_position
-	var panda: Vector3 = _marker.position
-	camera.global_position = _world(panda + Vector3(0, -50, 0))
-	if camera.global_position.distance_squared_to(_cage.global_position) > 0.04:
-		camera.look_at(_cage.global_position, Vector3.UP)
+	camera.current = true
+	camera.fov = 60.0
+	camera.global_position = _cage.to_global(Vector3(0, -50, 0))
+	var focus := _cage.to_global(Vector3(0, 0, 2))
+	if camera.global_position.distance_squared_to(focus) > 0.04:
+		camera.look_at(focus, Vector3.UP)
+
+
+func _aim_prepare() -> void:
+	# setPosHpr(cage, 0, -17, 3.3, 0, 0, 0). Heading 0 looks back at the cage.
+	var camera := _camera()
+	if camera == null or _cage == null:
+		return
+	camera.current = true
+	camera.fov = 60.0
+	camera.global_position = _cage.to_global(Vector3(0, -17, 3.3))
+	var focus := _cage.to_global(Vector3(0, 0, 2))
+	if camera.global_position.distance_squared_to(focus) > 0.04:
+		camera.look_at(focus, Vector3.UP)
 
 
 func seat_cage(index: int) -> void:
@@ -2082,21 +2167,25 @@ func _show_frolic() -> void:
 	pose("neutral")
 	_hide_shadow()
 	_use_hq_fov()
-	_place_vp(Vector3(0, -35, 0), Vector3(0, 0, 5))
+	_stand(Vector3(0, -35, 0), -90.0)
 
 
 func _ride_elevator() -> void:
-	_place_vp(_elevator_spot(), Vector3(0, -20, 5))
+	# enterElevator leaves him at the first battle spot. The ride films the car.
+	_stand(Vector3(0, -35, 0), -90.0)
 	_seat_toons()
 	if _t >= _RIDE and _door_goal < 0.5:
 		_door_goal = 1.0
 	var height := 8.0 if _t >= _RIDE else _ride_bob(_t)
 	var camera := _camera()
-	if camera == null:
+	var car := _elevator_car()
+	if camera == null or car == null:
 		return
-	var spot := _elevator_spot()
-	camera.global_position = _world(spot + Vector3(0, 30, height))
-	var focus := _world(spot + Vector3(0, 0, 6))
+	# DistributedBossCog.enterElevator: local (0, 30, z), heading 180.
+	# The entrance is scaled, so this has to be the car's own space.
+	camera.current = true
+	camera.global_position = car.to_global(Vector3(0, 30, height))
+	var focus := car.to_global(Vector3(0, 0, height))
 	if camera.global_position.distance_squared_to(focus) > 0.04:
 		camera.look_at(focus, Vector3.UP)
 
@@ -2136,14 +2225,13 @@ func _step_out() -> void:
 
 
 func _place_party(spots: Array[Vector3]) -> void:
-	var origin := _elevator_spot()
 	var people := _party()
 	for index in people.size():
 		var person := people[index]
 		var spot: Vector3 = spots[mini(index, spots.size() - 1)]
-		var panda := origin + spot
+		var panda := _car_point(spot)
 		person.global_position = _world(panda)
-		var ahead := _world(panda + Vector3(0, -1, 0))
+		var ahead := _world(panda + _car_step())
 		if person.global_position.distance_squared_to(ahead) > 0.04:
 			person.look_at(ahead, Vector3.UP)
 		_snap_suit(person, ahead)
@@ -2488,6 +2576,39 @@ func _ring_toons() -> void:
 		person.global_position = stand
 		if person.global_position.distance_squared_to(around) > 0.25:
 			person.look_at(Vector3(around.x, person.global_position.y, around.z), Vector3.UP)
+
+
+func _elevator_car() -> Node3D:
+	if _geom == null:
+		return null
+	var entrance := _geom.find_child("elevatorEntrance", true, false) as Node3D
+	if entrance == null:
+		return null
+	var door := entrance.find_child("left-door", true, false) as Node3D
+	if door != null and door.get_parent() is Node3D:
+		return door.get_parent() as Node3D
+	return entrance
+
+
+func _car_point(local_point: Vector3) -> Vector3:
+	# BigElevatorPoints and ElevatorOutPoints are in the car's local space.
+	var car := _elevator_car()
+	if car == null or _geom == null:
+		return _elevator_spot() + local_point
+	return _geom.to_local(car.to_global(local_point))
+
+
+func _car_step() -> Vector3:
+	# Heading 180 looks back along the car's local -Y, one unit.
+	var car := _elevator_car()
+	if car == null or _geom == null:
+		return Vector3(0, -1, 0)
+	var here := _geom.to_local(car.global_position)
+	var there := _geom.to_local(car.to_global(Vector3(0, -1, 0)))
+	var step := there - here
+	if step.length_squared() < 0.0001:
+		return Vector3(0, -1, 0)
+	return step.normalized()
 
 
 func _elevator_spot() -> Vector3:

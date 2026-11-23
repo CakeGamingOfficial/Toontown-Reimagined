@@ -501,7 +501,8 @@ func _ready() -> void:
 		window.close_requested.connect(_keep_quests)
 	_quiet_fly_camera()
 	_collect_tunnels(get_parent())
-	_spawn(arriving or logging_in or from_factory == "in" or from_office == "in" or from_course == "in" or from_boss == "in")
+	var boss_intro := _boss_intro_scene()
+	_spawn(arriving or logging_in or from_factory == "in" or from_office == "in" or from_course == "in" or (from_boss == "in" and not boss_intro))
 	if _player != null and _is_sad():
 		_player.set_sad(true)
 	_ready_hud()
@@ -518,7 +519,7 @@ func _ready() -> void:
 		_minigolf = null
 	# setFactoryInteriorZone. The exterior doors close, then enterTeleportIn
 	# plays on the factory floor. The toon does not ride the interior car.
-	if from_factory == "in" or from_office == "in" or from_course == "in" or from_boss == "in":
+	if from_factory == "in" or from_office == "in" or from_course == "in" or (from_boss == "in" and not _boss_intro_scene()):
 		await _portal_in()
 		if sad_arrival:
 			await _death_ack()
@@ -587,12 +588,14 @@ func _ready() -> void:
 	if arriving or logging_in:
 		if from_portal:
 			await _portal_in()
-		elif _scene_path().ends_with("bossbot_ceo.tscn"):
-			# The introduction is already playing. The hole would leave them
-			# hidden while the camera looks at the elevator.
+		elif _boss_intro_scene():
+			# The department introduction is already playing. A teleport hole
+			# would hide the toon and pull the camera off the elevator.
 			_fade_in()
 			if _player != null:
 				_player.visible = true
+			_locked = true
+			return
 		else:
 			_fade_in()
 			await _pop_up()
@@ -600,6 +603,12 @@ func _ready() -> void:
 		if _player != null:
 			_player.set_sad(true)
 		await _death_ack()
+	if _boss_intro_scene():
+		_fade_in()
+		if _player != null:
+			_player.visible = true
+		_locked = true
+		return
 	_locked = false
 	_place_camera()
 
@@ -1272,6 +1281,11 @@ func _scene_path() -> String:
 	if get_parent() != null:
 		return get_parent().scene_file_path
 	return ""
+
+
+func _boss_intro_scene() -> bool:
+	var path := _scene_path()
+	return path.ends_with("sellbot_vp.tscn") or path.ends_with("cashbot_cfo.tscn") or path.ends_with("lawbot_cj.tscn") or path.ends_with("bossbot_ceo.tscn")
 
 
 func _own_home() -> bool:

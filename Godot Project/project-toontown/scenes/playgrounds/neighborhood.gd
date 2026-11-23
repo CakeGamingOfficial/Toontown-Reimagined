@@ -149,6 +149,13 @@ func _attach_returning_toon() -> void:
 	preload("res://scenes/cog_hq/course_puzzles.gd").place(self)
 	preload("res://scenes/cog_hq/boss_gate.gd").place(self)
 	preload("res://scenes/cog_hq/dept_boss.gd").place(self)
+	# Opening a boss room on its own is the elevator arrival. Otherwise the
+	# free-fly camera plays the introduction and nobody is in the car.
+	var boss_file := scene_file_path.get_file()
+	if boss_file in ["sellbot_vp.tscn", "cashbot_cfo.tscn", "lawbot_cj.tscn", "bossbot_ceo.tscn"]:
+		var gate := preload("res://scenes/cog_hq/boss_gate.gd")
+		if String(gate.trip) == "" and not toon.expects_avatar():
+			gate.trip = "in"
 	# A playground always has someone to walk. A street does too when a door,
 	# a tunnel, or a factory car is bringing them back.
 	if places.hood_for_scene(scene_file_path) == 0 and not toon.expects_avatar():

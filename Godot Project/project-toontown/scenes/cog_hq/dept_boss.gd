@@ -313,6 +313,9 @@ func _go(phase: String) -> void:
 	if _layer != null:
 		_layer.visible = true
 	_clear_row()
+	# A leftover cog battle keeps aiming the camera over the roll and the pie round.
+	if phase != "cogs" and phase != "cogs2" and phase != "skele":
+		_close_battle()
 	if phase == "intro":
 		_intro()
 	elif phase == "cogs" or phase == "cogs2" or phase == "skele":
@@ -668,7 +671,30 @@ func _start_pies() -> void:
 		_show.call("pose", "neutral")
 		_show.call("music", "battle3")
 		_show.call("widen")
+		_show.call("release_show")
+	_stand_for_pies()
 	_rounds.call("start_vp", self)
+
+
+func _stand_for_pies() -> void:
+	# Battle two ends with the toon beside him. P3PosA is on the roll path,
+	# and standing there puts the orbit camera under the treads.
+	var toon := _avatar()
+	if toon == null or not toon.has_method("place_for_battle"):
+		return
+	var spot := Vector3(-55.0, 20.0, 18.0)
+	toon.call("place_for_battle", _panda_world(spot), _heading_between(spot, Vector3(0.0, 60.0, 18.0)))
+	var camera := get_viewport().get_camera_3d()
+	if camera != null:
+		camera.fov = 72.0
+
+
+func _heading_between(from_panda: Vector3, to_panda: Vector3) -> float:
+	var flat := _panda_world(to_panda) - _panda_world(from_panda)
+	flat.y = 0.0
+	if flat.length_squared() < 0.04:
+		return 0.0
+	return rad_to_deg(atan2(-flat.x, -flat.z))
 
 
 func _start_lesson() -> void:
@@ -2765,11 +2791,13 @@ func _panda_world(panda: Vector3) -> Vector3:
 	var geom := host.get_node_or_null("Geometry") as Node3D if host != null else null
 	if geom == null:
 		return panda
-	# The banquet root turns panda (x, y, z) into Godot (x, z, -y). The waiter
-	# fight is boss (0, 355, 0) plus (20, -400, 0), which is on that floor.
-	var converted := geom.get_node_or_null("BossbotCeo") as Node3D
-	if converted != null:
-		return converted.to_global(panda)
+	# The room glb root turns panda (x, y, z) into Godot (x, z, -y).
+	# Geometry itself is only the scene offset, so a battle parked on it
+	# sits under the floor.
+	for room_name in ["SellbotVp", "CashbotCfo", "LawbotCj", "BossbotCeo"]:
+		var converted := geom.get_node_or_null(room_name) as Node3D
+		if converted != null:
+			return converted.to_global(panda)
 	return geom.to_global(panda)
 
 

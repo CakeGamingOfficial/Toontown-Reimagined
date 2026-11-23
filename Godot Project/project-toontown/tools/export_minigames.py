@@ -90,6 +90,11 @@ SOUNDS = (
     "sparkly",
     "AV_collision",
     "Piano_Tuna",
+    "Clownfish",
+    "PBJ_Fish",
+    "BalloonFish",
+    "Bear_Acuda",
+    "Nurse_Shark",
     "m_match_trumpet",
     "m_match_guitar",
     "m_match_drums",
@@ -246,6 +251,11 @@ def main() -> int:
     scene("diving_game", [("phase_4/models/minigames/diving_game.bam",)])
     scene("treasure", [("phase_4/models/minigames/treasure.bam",)])
     scene("clownfish", [("phase_4/models/char/clownFish-zero.bam",)])
+    scene("pbjfish", [("phase_4/models/char/PBJfish-zero.bam",)])
+    scene("bearacuda", [("phase_4/models/char/BearAcuda-zero.bam",)])
+    scene("balloonfish", [("phase_4/models/char/balloonFish-zero.bam",)])
+    scene("nurseshark", [("phase_4/models/char/nurseShark-zero.bam",)])
+    scene("pianotuna", [("phase_4/models/char/pianoTuna-zero.bam",)])
     scene("slingshot_desert", [("phase_4/models/minigames/slingshot_game_desert4.bam", (0, -5, 0), (0, 0, 0), (15, 15, 2))])
     scene("trampoline", [("phase_4/models/minigames/slingshot_game_tramp.bam",)])
     scene("umbrella", [("phase_4/models/minigames/slingshot_game_umbrellas.bam",)])
