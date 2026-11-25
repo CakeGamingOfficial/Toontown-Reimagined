@@ -67,7 +67,11 @@ static func grant_field_sos(difficulty: int) -> String:
 	var card := _roll_band(low, high)
 	if card.is_empty():
 		return ""
-	return _store_sos(card, 1)
+	var stored := _store_sos(card, 1)
+	if not stored.contains("joined your SOS"):
+		return stored
+	var friend := String(card.get("name", "a friend"))
+	return "Thanks for the rescue!\nIf you need help in a fight, use this SOS card to call my friend %s." % friend
 
 
 static func give_sos_named(query: String) -> String:

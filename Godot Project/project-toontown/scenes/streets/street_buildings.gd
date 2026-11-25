@@ -99,9 +99,9 @@ static func target_count(block_count: int, bmin: int, bmax: int) -> int:
 
 
 ## assignInitialSuitBuildings. int(wanted * CogdoRatio) of the quota are field offices.
-## That half stays at zero until the cogdominium is finished.
-static func cogdo_quota(_total: int) -> int:
-	return 0
+## CogdoRatio defaults to one half.
+static func cogdo_quota(total: int) -> int:
+	return int(float(total) * 0.5)
 
 
 ## One newSuitShouldAttemptTakeover building. The level fits the floor span.
@@ -512,7 +512,11 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	# The imported child still carries the glTF Z-up spin, and leaving both
 	# on lays the tower on its side.
 	building.global_transform = _suit_slot(landmark).global_transform
-	_drop_import_spin(building)
+	if office:
+		# office.glb is still Panda Z-up. Suit towers were exported already stood up.
+		_stand_office(building)
+	else:
+		_drop_import_spin(building)
 	if String(landmark.name).to_lower().contains("animated_building"):
 		# DistributedAnimBuilding.adjustSbNodepathScale. The anim slot is scale 1.
 		var squeezed := building.scale
@@ -520,7 +524,8 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 		building.scale = squeezed
 	if office:
 		# setupCogdo places the office 15.463 along the slot, then darkens it.
-		building.global_position += building.global_basis * Vector3(15.463, 0.0, 0.0)
+		var forward := building.global_basis.orthonormalized()
+		building.global_position += forward * Vector3(15.463, 0.0, 0.0)
 	building.set_meta("rest", building.global_transform)
 	building.set_meta("rest_scale", building.scale)
 	building.set_meta("dept", kind)
@@ -533,8 +538,10 @@ func _ensure_actor(landmark: Node3D, row: Dictionary) -> Node3D:
 	# One surface per texture. The elevator alone was a dozen separate draws,
 	# and every taken block on the street paid that cost.
 	preload("res://scenes/playgrounds/street_batch.gd").flatten_prop(building)
-	_suit_flats(landmark, building, office)
-	if office:
+	# setupCogdo shows the office model alone. The toon flats stay hidden.
+	if not office:
+		_suit_flats(landmark, building, false)
+	else:
 		_tint(building, Color(0.6, 0.6, 0.6))
 	_actors[block] = building
 	return building
@@ -1096,6 +1103,15 @@ func _dress(building: Node3D, row: Dictionary) -> void:
 		wide *= 8.0 / 20.0
 	label.scale = Vector3(glyph * wide, glyph / z_scale, glyph)
 	sign.add_child(label)
+
+
+## Panda (x, y, z) becomes Godot (x, z, -y). office.glb was not run through that.
+func _stand_office(building: Node3D) -> void:
+	var z_up := Basis(Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, -1.0), Vector3(0.0, 1.0, 0.0))
+	var current := building.global_transform
+	var scale := current.basis.get_scale()
+	var rot := current.basis.orthonormalized() * z_up
+	building.global_transform = Transform3D(rot.scaled(scale), current.origin)
 
 
 func _drop_import_spin(root: Node3D) -> void:

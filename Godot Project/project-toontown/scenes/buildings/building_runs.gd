@@ -14,6 +14,10 @@ const RIDE_TIME := 6.0
 const EXIT_TIME := 3.0
 const LIBERATE_TIME := 8.0
 const MAX_TOONS := 4
+## CogdoMazeGame intro is not part of the 240 second maze clock.
+const MAZE_INTRO := 24.0
+const MAZE_LIMIT := 240.0
+const MAZE_EXIT := 60.0
 ## SuitBuildingGlobals.SuitBuildingInfo, street buildings only (index is difficulty).
 const _BLDG: Array = [
 	{"suit_min": 1, "suit_max": 3, "boss_min": 4, "boss_max": 4, "pool_min": 8, "pool_max": 10, "mult": [1.0]},
@@ -33,6 +37,7 @@ var _catalog: Array = []
 var _catalog_gen := -1
 var _dirty: Dictionary = {}
 var _wait := 0.0
+var _cogdo_gap := 0.0
 
 
 static func room_origin(block: int) -> Vector3:
@@ -76,12 +81,12 @@ func _process(delta: float) -> void:
 		kept.append(run)
 	_runs = kept
 	_wait -= delta
-	if _dirty.is_empty() or _wait > 0.0:
-		return
-	_wait = 0.4
-	for key in _dirty.keys():
-		_publish(String(key))
-	_dirty.clear()
+	if not _dirty.is_empty() and _wait <= 0.0:
+		_wait = 0.4
+		for key in _dirty.keys():
+			_publish(String(key))
+		_dirty.clear()
+	_publish_cogdos(delta)
 
 
 func board(district: int, slug: String, block: int, peer: int, toon_name: String, hp: int, max_hp: int) -> void:
@@ -189,6 +194,17 @@ func _tick(run: Dictionary, delta: float) -> void:
 			_after_floor(run)
 		return
 	if state == "maze":
+		run["maze_age"] = float(run.get("maze_age", 0.0)) + delta
+		_cogdo_end(run)
+		return
+	# CogdoExecutiveSuiteIntro lasts 7 seconds, then the battle floor starts.
+	if state == "suite":
+		run["left"] = maxf(float(run.get("left", 0.0)) - delta, 0.0)
+		if float(run["left"]) > 0.0:
+			_mark(run)
+			return
+		run["suite_done"] = true
+		_begin_floor(run)
 		return
 	# DistributedSuitInterior enterResting. The toon walks to the far elevator.
 	if state == "resting":
@@ -254,15 +270,31 @@ func maze_result(district: int, slug: String, run_id: int, made_it: bool) -> voi
 			run["state"] = "failed"
 			run["left"] = 2.0
 		_mark(run)
+		_wait = 0.0
 		return
 
 
 func _begin_floor(run: Dictionary) -> void:
 	# CogdoLayout: floor 0 is the maze. The next floor is the executive battle.
 	if bool(run.get("cogdo", false)) and int(run.get("floor", 0)) == 0 and not bool(run.get("maze_done", false)):
+		# Every client builds the same CogdoMazeFactory layout from this seed.
+		if int(run.get("maze_seed", 0)) == 0:
+			run["maze_seed"] = 1 + int(run.get("id", 1)) * 17 + int(run.get("block", 0)) * 131
 		run["state"] = "maze"
 		run["left"] = 240.0
 		run["room"] = "lobby"
+		run["maze_age"] = 0.0
+		run["acts"] = []
+		run["maze_hp"] = {}
+		run["maze_doors"] = []
+		run["maze_memos"] = []
+		run["maze_open"] = -1.0
+		_mark(run)
+		return
+	if run.get("cogdo", false) == true and int(run.get("floor", 0)) > 0 and run.get("suite_done", false) != true:
+		run["state"] = "suite"
+		run["left"] = 7.0
+		run["room"] = "office"
 		_mark(run)
 		return
 	var plan := _floor_cogs(run)
@@ -674,6 +706,126 @@ func _traffic() -> Node:
 
 func _key(run: Dictionary) -> String:
 	return "%d:%s" % [int(run.get("district", 0)), String(run.get("slug", ""))]
+
+
+func cogdo_act(district: int, slug: String, run_id: int, peer: int, op: String, suit: int, x: float, y: float, h: float) -> void:
+	if not ToonNet.is_authority():
+		return
+	var run := _run_by_id(district, slug, run_id)
+	if run.is_empty() or String(run.get("state", "")) != "maze":
+		return
+	if op == "hit" and not _take_hit(run, suit):
+		return
+	if op == "memo" and not _take_memo(run, suit):
+		return
+	if op == "door" and not _take_door(run, peer):
+		return
+	if op != "hit" and op != "memo" and op != "door" and op != "gag" and op != "throw" and op != "bump":
+		return
+	var acts: Array = run.get("acts", [])
+	var game_age := maxf(float(run.get("maze_age", 0.0)) - MAZE_INTRO, 0.0)
+	var stamp := float(floor(game_age / 0.05)) * 0.05
+	acts.append([op, peer, suit, stamp, x, y, h])
+	run["acts"] = acts
+	_publish_cogdo(run)
+	if op == "door":
+		_cogdo_end(run)
+
+
+func _run_by_id(district: int, slug: String, run_id: int) -> Dictionary:
+	for item in _runs:
+		var run: Dictionary = item
+		if int(run.get("district", 0)) == district and String(run.get("slug", "")) == slug and int(run.get("id", -1)) == run_id:
+			return run
+	return {}
+
+
+func _take_hit(run: Dictionary, suit: int) -> bool:
+	if suit < 0:
+		return false
+	var hp_map: Dictionary = run.get("maze_hp", {})
+	var key := str(suit)
+	var have := 1
+	if suit < 4:
+		have = 2
+	have = int(hp_map.get(key, have))
+	if have <= 0:
+		return false
+	have -= 1
+	hp_map[key] = have
+	run["maze_hp"] = hp_map
+	if suit < 4 and float(run.get("maze_open", -1.0)) < 0.0 and _bosses_down(hp_map):
+		run["maze_open"] = float(run.get("maze_age", 0.0))
+	return true
+
+
+func _bosses_down(hp_map: Dictionary) -> bool:
+	for index in 4:
+		if int(hp_map.get(str(index), 2)) > 0:
+			return false
+	return true
+
+
+func _take_memo(run: Dictionary, memo_id: int) -> bool:
+	var taken: Array = run.get("maze_memos", [])
+	if taken.has(memo_id):
+		return false
+	taken.append(memo_id)
+	run["maze_memos"] = taken
+	return true
+
+
+func _take_door(run: Dictionary, peer: int) -> bool:
+	var doors: Array = run.get("maze_doors", [])
+	if doors.has(peer):
+		return false
+	var inside := false
+	for item in run.get("toons", []):
+		if item is Dictionary and int((item as Dictionary).get("id", 0)) == peer:
+			inside = true
+	if not inside:
+		return false
+	doors.append(peer)
+	run["maze_doors"] = doors
+	return true
+
+
+func _cogdo_end(run: Dictionary) -> void:
+	if String(run.get("state", "")) != "maze":
+		return
+	var age := float(run.get("maze_age", 0.0))
+	var open_at := float(run.get("maze_open", -1.0))
+	var doors: Array = run.get("maze_doors", [])
+	var toons: Array = run.get("toons", [])
+	var district := int(run.get("district", 0))
+	var slug := String(run.get("slug", ""))
+	var run_id := int(run.get("id", -1))
+	if not toons.is_empty() and doors.size() >= toons.size():
+		maze_result(district, slug, run_id, true)
+		return
+	if open_at >= 0.0 and age >= open_at + MAZE_EXIT:
+		maze_result(district, slug, run_id, true)
+		return
+	if open_at < 0.0 and age >= MAZE_INTRO + MAZE_LIMIT:
+		maze_result(district, slug, run_id, false)
+
+
+func _publish_cogdos(delta: float) -> void:
+	_cogdo_gap -= delta
+	if _cogdo_gap > 0.0:
+		return
+	_cogdo_gap = 0.05
+	for item in _runs:
+		var run: Dictionary = item
+		if run.get("cogdo", false) == true and String(run.get("state", "")) == "maze":
+			_publish_cogdo(run)
+
+
+func _publish_cogdo(run: Dictionary) -> void:
+	ToonNet.publish("cogdo:%d:%s:%d" % [int(run.get("district", 0)), String(run.get("slug", "")), int(run.get("id", 0))], {
+		"age": float(run.get("maze_age", 0.0)),
+		"acts": run.get("acts", []),
+	})
 
 
 func _mark(run: Dictionary) -> void:

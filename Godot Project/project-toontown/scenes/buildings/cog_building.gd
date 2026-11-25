@@ -57,6 +57,7 @@ const _OUT: Array[Vector3] = [
 const _EXIT_OPEN := 2.0
 
 var _room: Node3D
+var _bubble: SubViewportContainer
 var _car: Node3D
 var _out: Node3D
 var _suits: Node3D
@@ -113,8 +114,8 @@ func _ready() -> void:
 	_banner = Label.new()
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_banner.add_theme_font_size_override("font_size", 28)
-	_banner.add_theme_color_override("font_color", Color(1, 1, 1))
+	# The elevator and suite lines use the toon font.
+	ToonGui.style_label(_banner, Color(1, 1, 1), 28, Color(0, 0, 0), 4)
 	_banner.visible = false
 	_layer.add_child(_banner)
 	_build_hop()
@@ -240,6 +241,8 @@ func _leave() -> void:
 		return
 	_inside = false
 	_banner.visible = false
+	if _bubble != null:
+		_bubble.visible = false
 	_hide_board_gui()
 	_release_riders()
 	_cam_blend = -1.0
@@ -269,10 +272,19 @@ func _leave() -> void:
 
 func _show(run: Dictionary, delta: float) -> void:
 	var state := String(run.get("state", ""))
+	if state != "maze" and _maze != null and _maze.has_method("busy") and _maze.call("busy") == true:
+		var made := false
+		if _maze.has_method("reached_exit"):
+			made = _maze.call("reached_exit") == true
+		_maze.call("shutdown", made)
+	_place_bubble(run, state)
 	if state == "exit" or state == "liberating":
 		_present_victory(run, delta)
 		return
-	_ensure_room(run)
+	if state != "maze":
+		_ensure_room(run)
+	if _room != null:
+		_room.visible = state != "maze"
 	var block := int(run.get("block", 0))
 	var buildings := _buildings()
 	var fight := _fight_of(run)
@@ -332,10 +344,16 @@ func _show(run: Dictionary, delta: float) -> void:
 	elif state == "resting" or state == "floorboard":
 		_hold_street()
 		_play_music(_WAIT_MUSIC, _WAIT_VOL)
+	elif state == "suite":
+		_hold_street()
+		_banner.visible = true
+		_banner.text = "Oh no, they've got the shop keeper!\nDefeat the Cogs and free the captive."
+		_present_suite(run)
+		return
 	elif state == "maze":
 		_hold_street()
 		_banner.visible = true
-		_banner.text = "Sellbot Field Office"
+		_banner.text = "Mover & Shaker Field Office"
 		var walker := _toon()
 		if walker != null:
 			walker.call("hold_for_battle", false)
@@ -390,7 +408,7 @@ func _show(run: Dictionary, delta: float) -> void:
 func _present_victory(run: Dictionary, delta: float) -> void:
 	_drop_floor()
 	_credit_building(run)
-	_banner.visible = false
+	_banner.visible = run.get("cogdo", false) == true
 	_hide_board_gui()
 	var block := int(run.get("block", 0))
 	var buildings := _buildings()
@@ -402,6 +420,8 @@ func _present_victory(run: Dictionary, delta: float) -> void:
 	var elapsed := (_EXIT_OPEN + _EXIT_RUN) - left
 	if state == "liberating":
 		elapsed = _EXIT_OPEN + _EXIT_RUN
+	if run.get("cogdo", false) == true and elapsed > 4.0:
+		_banner.text = "Bye!"
 	var closed := 0.0
 	if elapsed < _EXIT_OPEN:
 		closed = 1.0 - clampf(elapsed / _EXIT_OPEN, 0.0, 1.0)
@@ -545,6 +565,175 @@ func _aim_victory(elevator: Node3D, high: bool) -> void:
 	camera.fov = 75.0 if high else 52.0
 	if camera.global_position.distance_squared_to(_victory_look) > 0.04:
 		camera.look_at(_victory_look, Vector3.UP)
+
+
+func _place_bubble(run: Dictionary, state: String) -> void:
+	var cogdo: bool = run.get("cogdo", false) == true
+	var office := cogdo and (state == "suite" or state == "exit" or state == "liberating" or state == "battle")
+	if not office:
+		if _bubble != null:
+			_bubble.visible = false
+		return
+	if _bubble == null:
+		_bubble = _bubble_view()
+		if _bubble == null or _layer == null:
+			return
+		_layer.add_child(_bubble)
+		_layer.move_child(_banner, -1)
+	_bubble.visible = state != "battle"
+	var view := get_viewport().get_visible_rect().size
+	_bubble.position = Vector2(view.x * 0.5 - 340.0, 24.0)
+	_bubble.size = Vector2(680.0, 170.0)
+	if state == "suite" or state == "exit" or state == "liberating":
+		_banner.position = _bubble.position + Vector2(70.0, 36.0)
+		_banner.size = Vector2(540.0, 100.0)
+
+
+func _bubble_view() -> SubViewportContainer:
+	var box := SubViewportContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.stretch = true
+	var view := SubViewport.new()
+	view.transparent_bg = true
+	view.own_world_3d = true
+	view.size = Vector2i(680, 170)
+	box.add_child(view)
+	var stage := Node3D.new()
+	view.add_child(stage)
+	var packed := load("res://assets/buildings/field_office/field_flythru.glb") as PackedScene
+	if packed == null:
+		return box
+	var model := packed.instantiate() as Node3D
+	if model == null:
+		return box
+	stage.add_child(model)
+	var keep := _exact_name(model, "chatBubble")
+	if keep != null:
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mesh := node as MeshInstance3D
+			var under := false
+			var walk: Node = mesh
+			while walk != null:
+				if walk == keep:
+					under = true
+					break
+				walk = walk.get_parent()
+			mesh.visible = under
+	var bounds := _merged_bounds(model)
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.current = true
+	stage.add_child(cam)
+	if bounds.size.length() > 0.01:
+		var center := bounds.get_center()
+		var size := bounds.size
+		var axis := 0
+		var thin := size.x
+		if size.y < thin:
+			axis = 1
+			thin = size.y
+		if size.z < thin:
+			axis = 2
+		var span := maxf(size.x, maxf(size.y, size.z))
+		var offset := Vector3.ZERO
+		offset[axis] = span
+		cam.global_position = center + offset
+		var up := Vector3.UP if axis != 1 else Vector3.BACK
+		if cam.global_position.distance_squared_to(center) > 0.0001:
+			cam.look_at(center, up)
+		cam.size = span * 1.2
+	var light := DirectionalLight3D.new()
+	light.light_energy = 1.6
+	stage.add_child(light)
+	if bounds.size.length() > 0.01:
+		light.global_position = cam.global_position
+		light.look_at(bounds.get_center(), Vector3.UP)
+	return box
+
+
+func _merged_bounds(root: Node) -> AABB:
+	var box := AABB()
+	var first := true
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh.mesh == null or not mesh.visible:
+			continue
+		var world := mesh.global_transform * mesh.get_aabb()
+		if first:
+			box = world
+			first = false
+		else:
+			box = box.merge(world)
+	return box
+
+
+func _present_suite(run: Dictionary) -> void:
+	_ensure_room(run)
+	if _room == null:
+		return
+	var captive := _room.get_node_or_null("Captive") as ToonActor
+	if captive == null:
+		captive = _make_captive(int(run.get("block", 0)))
+	var toon := _toon()
+	if toon != null:
+		toon.call("visit_friend", _room.global_position + Vector3(0.0, 0.2, 6.0), 0.0)
+		toon.call("hold_for_battle", true)
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or captive == null:
+		return
+	camera.global_position = captive.global_position + Vector3(0.0, 5.0, 10.0)
+	camera.fov = 52.0
+	var look := captive.global_position + Vector3(0.0, 3.0, 0.0)
+	if camera.global_position.distance_squared_to(look) > 0.04:
+		camera.look_at(look, Vector3.UP)
+
+
+func _make_captive(block: int) -> ToonActor:
+	var actor := ToonActor.new()
+	actor.name = "Captive"
+	_room.add_child(actor)
+	actor.position = Vector3(-3.0, 0.2, -2.0)
+	var style := _captive_style(block)
+	if style != null:
+		actor.show_style(style)
+		actor.name = style.first_name
+	var upright := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+	actor.transform.basis = upright.rotated(Vector3.UP, deg_to_rad(180.0))
+	actor.play_gesture("cringe", 1.0, true)
+	return actor
+
+
+func _captive_style(block: int) -> ToonStyle:
+	var door := preload("res://scenes/interiors/shop_door.gd")
+	var path := ""
+	var host := get_parent()
+	if host != null:
+		path = host.scene_file_path
+	var street := int(door.street_zone(path))
+	var zone := street - street % 100 + 500 + block
+	var row: Dictionary = door.record(zone)
+	var npcs: Array = row.get("npcs", [])
+	if npcs.is_empty() or not (npcs[0] is Dictionary):
+		return null
+	var npc: Dictionary = npcs[0]
+	var dna: Array = npc.get("dna", [])
+	if dna.size() < 14:
+		return null
+	var style := ToonStyle.new()
+	style.first_name = String(npc.get("name", "Shopkeeper"))
+	style.head = String(dna[0])
+	style.torso = String(dna[1])
+	style.legs = String(dna[2])
+	style.gender = String(dna[3])
+	style.arm_color = int(dna[4])
+	style.glove_color = int(dna[5])
+	style.leg_color = int(dna[6])
+	style.head_color = int(dna[7])
+	style.top_tex = int(dna[8])
+	style.top_color = int(dna[9])
+	style.bot_tex = int(dna[12])
+	style.bot_color = int(dna[13])
+	return style
 
 
 func _ensure_room(run: Dictionary) -> void:
@@ -1532,6 +1721,18 @@ func _slug() -> String:
 	if buildings != null:
 		return str(buildings.get("street_slug"))
 	return ""
+
+
+func _exact_name(root: Node, needle: String) -> Node:
+	if root == null:
+		return null
+	if str(root.name) == needle:
+		return root
+	for child in root.get_children():
+		var found := _exact_name(child, needle)
+		if found != null:
+			return found
+	return null
 
 
 func _find(root: Node, needle: String) -> Node3D:

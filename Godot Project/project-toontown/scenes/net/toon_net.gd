@@ -628,6 +628,16 @@ static func claim_maze_treasure(index: int) -> void:
 		net._claim_maze_treasure(index)
 
 
+static func cogdo_act(district: int, slug: String, run_id: int, op: String, suit: int, x: float, y: float, h: float) -> void:
+	var net := live()
+	if net == null or net._role == "offline":
+		return
+	if is_authority():
+		net._cogdo_act(net._self_peer(), district, slug, run_id, op, suit, x, y, h)
+		return
+	net._request_cogdo.rpc_id(1, district, slug, run_id, op, suit, x, y, h)
+
+
 static func finish_trolley(score: int) -> void:
 	var net := live()
 	if net != null:
@@ -1211,6 +1221,12 @@ func _open_next(district: int, slug: String, block: int, peer: int) -> void:
 	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
 	if runs != null and runs.has_method("next_floor"):
 		runs.call("next_floor", district, slug, block, peer)
+
+
+func _cogdo_act(peer: int, district: int, slug: String, run_id: int, op: String, suit: int, x: float, y: float, h: float) -> void:
+	var runs := get_node_or_null("/root/StreetTraffic/BuildingRuns")
+	if runs != null and runs.has_method("cogdo_act"):
+		runs.call("cogdo_act", district, slug, run_id, peer, op, suit, x, y, h)
 
 
 func _open_floor_hop(district: int, slug: String, block: int, peer: int) -> void:
@@ -3024,6 +3040,14 @@ func _release_trolley_seat_rpc(place: String, district: int) -> void:
 
 
 @rpc("any_peer", "reliable")
+func _request_cogdo(district: int, slug: String, run_id: int, op: String, suit: int, x: float, y: float, h: float) -> void:
+	if not is_authority():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	_cogdo_act(sender, district, slug, run_id, op, suit, x, y, h)
+
+
+@rpc("any_peer", "reliable")
 func _request_maze_treasure(index: int, district: int) -> void:
 	if not is_authority():
 		return
@@ -3118,7 +3142,7 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 	var stamp := int(latest("trolley:%d" % district).get("stamp", 0))
 	var state := latest(_mg_channel(district)).duplicate(true)
 	if int(state.get("round", -1)) != stamp:
-		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": [], "photos": {}, "film": [], "tracks": {}}
+		state = {"round": stamp, "it": -1, "taken": [], "picks": {}, "turn": 0, "deal": [], "photos": {}, "film": [], "tracks": {}, "tugs": {}, "line": 0, "tow": 0}
 	if kind == "it":
 		var current := int(state.get("it", -1))
 		if current < 0 or current == peer:
@@ -3239,7 +3263,29 @@ func _note_minigame(kind: String, value: int, district: int = -1, peer: int = -1
 			book["counts"] = counts
 			book["dirs"] = dirs
 		state["tracks"] = book
+	elif kind == "tug":
+		# Tug-of-War. Low 5 bits are the key rate. The rest is force times 10.
+		var pulls: Dictionary = {}
+		var raw_pulls: Variant = state.get("tugs", {})
+		if raw_pulls is Dictionary:
+			pulls = (raw_pulls as Dictionary).duplicate()
+		pulls[str(peer)] = value
+		state["tugs"] = pulls
+	elif kind == "line":
+		# The first rider owns the rope. The value packs both sides and the cog.
+		if _tug_leader(district, peer):
+			state["line"] = value
+	elif kind == "tow":
+		if _tug_leader(district, peer):
+			state["tow"] = clampi(value, 0, 3)
 	publish(_mg_channel(district), state)
+
+
+func _tug_leader(district: int, peer: int) -> bool:
+	var listed: Variant = latest("trolley:%d" % district).get("party", [])
+	if listed is Array and (listed as Array).size() > 0:
+		return int((listed as Array)[0]) == peer
+	return peer == _self_peer()
 
 
 func _note_cannon(yaw: float, pitch: float, district: int = -1, peer: int = -1) -> void:

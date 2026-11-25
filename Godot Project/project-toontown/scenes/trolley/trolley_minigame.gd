@@ -12,6 +12,7 @@ var instructions := ""
 var duration := 60.0
 var score := 0
 var playing := false
+var _hold_clock := false
 var _over := false
 var _camera: Camera3D
 var _toon: ToonActor
@@ -95,7 +96,8 @@ func _process(delta: float) -> void:
 	_place_tags()
 	if not playing:
 		return
-	duration -= delta
+	if not _hold_clock:
+		duration -= delta
 	_layout_clock(false)
 	if duration <= 0.0:
 		_end()

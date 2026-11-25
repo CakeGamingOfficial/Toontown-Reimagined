@@ -941,8 +941,6 @@ func spawn_building(query: String, near: Vector3) -> String:
 		if field_office and key == "office":
 			continue
 		kept.append(part)
-	if field_office:
-		return "Field offices are turned off until they are finished."
 	var args := kept
 	var track := ""
 	var floors := 0

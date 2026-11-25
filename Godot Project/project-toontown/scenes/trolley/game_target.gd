@@ -67,6 +67,9 @@ var _help: Label
 var _count: Label
 var _bar: ColorRect
 var _bar_back: ColorRect
+var _seated := false
+var _chute_basis := Basis.IDENTITY
+var _chute_ready := false
 
 
 func _init() -> void:
@@ -170,14 +173,96 @@ func _pattern() -> void:
 
 
 func _desert() -> void:
+	_hide_floor()
 	var path := "res://assets/minigames/slingshot_desert.glb"
-	_show(path)
 	for row in range(-1, 5):
-		var y := 300.0 * float(row)
-		for column in [-150.0, 0.0, 150.0]:
-			if row == 0 and column == 0.0:
-				continue
-			_spawn(path, column, y, 0.0)
+		var along := 300.0 * float(row)
+		_place_tile(path, 0.0, along, row, 0)
+		for side in [-1, 1]:
+			for band in range(1, 4):
+				_place_tile(path, float(side * band) * 150.0, along, row, side * band)
+
+
+func _place_tile(path: String, x: float, y: float, row: int, column: int) -> void:
+	var tile := _spawn(path, x, y, 0.0)
+	if tile == null:
+		return
+	_hide_named(tile, "cloud_layer1")
+	_hide_named(tile, "backdrop_layer1")
+	_hide_named(tile, "mountain_set_b")
+	_hide_named(tile, "mountain_c")
+	var sky := _named(tile, "blue_sky_layer1")
+	if sky != null:
+		sky.position = Vector3(0.0, 0.0, 76.0)
+		_both_sides(sky)
+	var cloud := _named(tile, "cloud_layer_alpha")
+	if cloud != null:
+		cloud.position = Vector3(0.0, 0.0, 63.0)
+		cloud.basis = _sling_hpr(0.0, 0.0, 180.0)
+		_both_sides(cloud)
+		var low := cloud.duplicate() as Node3D
+		cloud.get_parent().add_child(low)
+		low.position = Vector3(0.0, 0.0, 50.0)
+		low.basis = _sling_hpr(0.0, 0.0, 180.0)
+	var slot := absi(column)
+	if slot == 3:
+		_hide_named(tile, "sand_layer1")
+	if slot != 2:
+		return
+	var which := "mountain_set_b" if column < 0 else "mountain_c"
+	var mount := _named(tile, which)
+	if mount == null:
+		return
+	mount.visible = true
+	_hide_named(mount, "sand_b")
+	_hide_named(mount, "sand_c")
+	var height := 6.0 + float(absi(row * 3 + column) % 5)
+	mount.position.x += 8.5 if column < 0 else -8.5
+	var heading := 0.0
+	var wide := Vector3(1.0, 1.1, height)
+	if row >= 3:
+		wide = Vector3(1.0, 1.5, height * 1.2)
+		mount.position.x += -2.0 if column < 0 else 2.0
+		heading = 310.0 if column < 0 else 50.0
+		if row == 4:
+			mount.visible = false
+	elif row == -1:
+		wide = Vector3(1.0, 1.5, height * 1.2)
+		mount.position.x += 5.0 if column < 0 else -5.0
+		mount.position.y += 3.0
+		heading = 50.0 if column < 0 else 310.0
+	if heading != 0.0:
+		mount.basis = _sling_hpr(heading, 0.0, 0.0)
+	mount.scale = wide
+
+
+func _named(root: Node, node_name: String) -> Node3D:
+	return root.find_child(node_name, true, false) as Node3D
+
+
+func _hide_named(root: Node, node_name: String) -> void:
+	var node := _named(root, node_name)
+	if node != null:
+		node.visible = false
+
+
+func _both_sides(node: Node3D) -> void:
+	if not node is MeshInstance3D:
+		return
+	var mesh_node := node as MeshInstance3D
+	var source := mesh_node.get_active_material(0) as StandardMaterial3D
+	if source == null:
+		return
+	var paint := source.duplicate() as StandardMaterial3D
+	paint.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh_node.material_override = paint
+
+
+func _sling_hpr(heading: float, pitch: float, roll: float) -> Basis:
+	var turn := Quaternion(Vector3(0, 0, 1), deg_to_rad(heading))
+	var tilt := Quaternion(Vector3(1, 0, 0), deg_to_rad(pitch))
+	var twist := Quaternion(Vector3(0, 1, 0), deg_to_rad(roll))
+	return Basis(turn * tilt * twist)
 
 
 func _lay_targets() -> void:
@@ -315,6 +400,9 @@ func _pound(delta: float) -> void:
 	_paint_power()
 	if _rubber != null:
 		_rubber.volume_db = linear_to_db(maxf(clampf(_power / 140.0, 0.02, 0.7), 0.001))
+	if not _seated and _toon != null and _toon.gesture_finished():
+		_toon.play_gesture("sit", 1.0, true)
+		_seated = true
 	_help.text = "Pound left and right arrows for power, stop to launch"
 	_count.text = "Forced launch in %d seconds" % maxi(_clock, 0)
 
@@ -476,6 +564,7 @@ func _enter_pound() -> void:
 	_force = false
 	_bounces = 0
 	_butt = false
+	_seated = false
 	_show_chute(false)
 	if _toon != null:
 		_toon.set_swimming(false)
@@ -562,9 +651,17 @@ func _mark(landed: int) -> void:
 
 
 func _show_chute(open: bool) -> void:
-	if _chute == null:
+	if _chute == null or _toon == null:
 		return
 	_chute.visible = true
+	if not _chute_ready:
+		_chute_basis = _chute.basis
+		_chute_ready = true
+		if _open != null:
+			_open.position = Vector3(0.1, 0.2, -0.1)
+			_open.basis = _sling_hpr(-90.0, 0.0, 15.0)
+		if _closed != null:
+			_closed.basis = _sling_hpr(0.0, 100.0, 35.0)
 	if _open != null:
 		_open.visible = open
 	if _closed != null:
@@ -572,13 +669,12 @@ func _show_chute(open: bool) -> void:
 	var hand := _toon.find_child("def_joint_right_hold", true, false) as Node3D
 	if hand != null and _chute.get_parent() != hand:
 		_chute.reparent(hand)
-	_chute.position = Vector3(0.0, 0.12, 0.06)
-	_chute.rotation_degrees = Vector3(80.0, 0.0, 20.0)
-
-
+	_chute.position = Vector3.ZERO
 	if open:
+		_chute.basis = _chute_basis * _sling_hpr(0.0, 180.0, -25.0)
 		_chute.scale = Vector3.ONE * 1.5
 	else:
+		_chute.basis = _chute_basis
 		_chute.scale = Vector3.ONE
 
 
@@ -589,25 +685,29 @@ func _put_toon() -> void:
 
 
 func _watch() -> void:
-	var back := 18.0
-	var up := 12.0
-	var ahead := 2.0
-	if _phase == "fly":
-		back = 16.0
-		up = 8.0
-		ahead = 22.0
-	elif _phase == "fall" or _phase == "bounce":
-		back = 12.0
-		up = 14.0
-		ahead = 6.0
+	if _phase == "pound":
+		_aim_cam(_home_x, 0.0, 1.0, 25.0, 7.0, -15.0, 0.0)
+	elif _phase == "fly":
+		_aim_cam(_x, _y, _z, 13.0, 5.0, -15.0, 0.0)
 	elif _phase == "score":
-		_camera.position = _panda(_x, _y + 14.0, _z + 3.0)
-		if _camera.global_position.distance_squared_to(_toon.global_position) > 0.2:
-			_camera.look_at(_toon.global_position + Vector3(0.0, 1.2, 0.0), Vector3.UP)
-		return
-	_camera.position = _toon.position + Vector3(0.0, up, back)
-	var look := _toon.global_position + Vector3(0.0, 1.2, -ahead)
-	if _camera.global_position.distance_squared_to(look) > 0.2:
+		_aim_cam(_x, _y, _z, -13.0, 1.0, 10.0, 180.0)
+	else:
+		_aim_cam(_x, _y, _z, 10.0, 15.0, -68.0, 0.0)
+
+
+func _aim_cam(anchor_x: float, anchor_y: float, anchor_z: float, back: float, up: float, pitch: float, heading: float) -> void:
+	var cam_y := anchor_y - back
+	var cam_z := anchor_z + up
+	_camera.position = _panda(anchor_x, cam_y, cam_z)
+	var heading_rad := deg_to_rad(heading)
+	var pitch_rad := deg_to_rad(pitch)
+	var level := cos(pitch_rad)
+	var look := _panda(
+		anchor_x + -sin(heading_rad) * level * 40.0,
+		cam_y + cos(heading_rad) * level * 40.0,
+		cam_z + sin(pitch_rad) * 40.0
+	)
+	if _camera.global_position.distance_squared_to(look) > 0.01:
 		_camera.look_at(look, Vector3.UP)
 
 
@@ -626,8 +726,8 @@ func _draw_band() -> void:
 	var tint := Color(1.0, 0.3, 0.2).lerp(Color(1.0, 0.6, 0.35), clampf(thick, 0.0, 1.0))
 	var mesh := ImmediateMesh.new()
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	_ribbon(mesh, Vector3(_home_x - 5.5, 10.0, 13.0), held, thick, tint)
-	_ribbon(mesh, Vector3(_home_x + 5.5, 10.0, 13.0), held, thick, tint)
+	_ribbon(mesh, Vector3(_home_x - 5.5, 10.0, 14.0), held, thick, tint)
+	_ribbon(mesh, Vector3(_home_x + 5.5, 10.0, 14.0), held, thick, tint)
 	mesh.surface_end()
 	_band.mesh = mesh
 

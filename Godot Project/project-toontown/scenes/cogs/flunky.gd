@@ -449,7 +449,7 @@ func _load_walk() -> void:
 
 
 func _load_actions() -> void:
-	for suffix in ["phone", "throw-paper", "shredder", "pie-small", "squirt-small", "sidestep-left", "sidestep-right", "drop-react"]:
+	for suffix in ["phone", "throw-paper", "shredder", "pie-small", "squirt-small", "sidestep-left", "sidestep-right", "drop-react", "tug-o-war"]:
 		_actions[suffix] = _read_bank("res://assets/cogs/flunky." + suffix)
 
 

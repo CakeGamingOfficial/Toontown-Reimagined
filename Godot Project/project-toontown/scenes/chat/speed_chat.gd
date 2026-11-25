@@ -2159,7 +2159,7 @@ func _apply_holiday_menus() -> void:
 			"He's sending the Sellbots in to invade Toontown!",
 			"Let's go fight some Sellbots!",
 		])})
-	if on.has(103):
+	if on.has(103) or _inside_field_office():
 		var office: Array = _lines([
 			"There's a new kind of building in Toontown!",
 			"Have you seen the Mover & Shaker Field Offices?",
@@ -2167,18 +2167,20 @@ func _apply_holiday_menus() -> void:
 			"Let's go defeat a Field Office!",
 			"I got an SOS Card for defeating a Field Office!",
 		])
-		office.append({"title": "STRATEGY", "items": _lines([
-			"Clear the map by exploring the maze.",
-			"Destroy the Cogs by hitting them with water balloons!",
-			"Movers & Shakers take two balloons to destroy.",
-			"Look out for falling objects!",
-			"Watch out for the Cogs!",
-			"Collect Jokes to get a Toon-up at the end!",
-			"When the room shakes, a Mover & Shaker is nearby.",
-			"Defeat all four Movers & Shakers to open the exit!",
-			"The exit is open!",
-			"It's the Boss!",
-		])})
+		# STRATEGY is the inside-only page. The holiday shows the five lines outside.
+		if _inside_field_office():
+			office.append({"title": "STRATEGY", "items": _lines([
+				"Clear the map by exploring the maze.",
+				"Destroy the Cogs by hitting them with water balloons!",
+				"Movers & Shakers take two balloons to destroy.",
+				"Look out for falling objects!",
+				"Watch out for the Cogs!",
+				"Collect Jokes to get a Toon-up at the end!",
+				"When the room shakes, a Mover & Shaker is nearby.",
+				"Defeat all four Movers & Shakers to open the exit!",
+				"The exit is open!",
+				"It's the Boss!",
+			])})
 		menus.append({"title": "FIELD OFFICES", "items": office})
 	if on.has(49) or on.has(97) or on.has(98) or on.has(99):
 		menus.append({"title": "JELLYBEAN WEEK", "items": [
@@ -2201,6 +2203,24 @@ func _apply_holiday_menus() -> void:
 	var at := mini(2, _items.size())
 	for index in range(menus.size() - 1, -1, -1):
 		_items.insert(at, menus[index])
+
+
+func _inside_field_office() -> bool:
+	var states := PackedStringArray([
+		"maze", "suite", "battle", "resting", "riding",
+		"floorboard", "exit", "liberating", "closing",
+	])
+	var host: Node = self
+	while host != null:
+		var office := host.get_node_or_null("CogBuilding")
+		if office != null and office.has_method("_mine"):
+			var run: Variant = office.call("_mine")
+			if run is Dictionary:
+				var row: Dictionary = run
+				if row.get("cogdo", false) == true and states.has(String(row.get("state", ""))):
+					return true
+		host = host.get_parent()
+	return false
 
 
 ## TTSCSingingMenu links 9000-9007 to emotes 25-32. SpeedChatStaticText never

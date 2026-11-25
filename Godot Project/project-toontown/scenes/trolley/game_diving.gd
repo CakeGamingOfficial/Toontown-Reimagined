@@ -92,6 +92,16 @@ var _chests: Array[Dictionary] = []
 var _carry := -1
 var _fish: Array[Dictionary] = []
 var _swim: AudioStreamPlayer
+var _sky: Node3D
+var _water: Node3D
+var _front: Node3D
+var _cliff_l: Node3D
+var _cliff_r: Node3D
+var _sky_scale := Vector3.ONE
+var _water_scale := Vector3.ONE
+var _front_scale := Vector3.ONE
+var _cliff_l_scale := Vector3.ONE
+var _cliff_r_scale := Vector3.ONE
 
 
 func _init() -> void:
@@ -124,8 +134,13 @@ func _build() -> void:
 	_lay_chests()
 	for _lane in _LANES:
 		_spawn_wait.append(0.0)
-	_camera.fov = 45.0
+	# Panda setFov(45) is a horizontal angle. On a 4:3 window that is this
+	# vertical angle. Keeping the height lets a wider window open sideways
+	# instead of cropping the boat and the lake bottom.
+	_camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(45.0) * 0.5) / (4.0 / 3.0)))
 	_camera.far = 1500.0
+	_remember_backdrop(lake)
 	_aim_camera()
 	show_board("treasure")
 
@@ -460,3 +475,60 @@ func _aim_camera() -> void:
 	var ahead := _camera.position + Vector3(0.0, 0.0, -1.0)
 	if _camera.global_position.distance_squared_to(ahead) > 0.04:
 		_camera.look_at(ahead, Vector3.UP)
+	_fit_backdrop()
+
+
+func _remember_backdrop(lake: Node3D) -> void:
+	if lake == null:
+		return
+	_sky = lake.find_child("sky", true, false) as Node3D
+	_water = lake.find_child("seawater", true, false) as Node3D
+	_front = lake.find_child("sea_front", true, false) as Node3D
+	_cliff_l = lake.find_child("cliff_a", true, false) as Node3D
+	_cliff_r = lake.find_child("cliff_b", true, false) as Node3D
+	if _sky != null:
+		_sky_scale = _sky.scale
+	if _water != null:
+		_water_scale = _water.scale
+	if _front != null:
+		_front_scale = _front.scale
+	if _cliff_l != null:
+		_cliff_l_scale = _cliff_l.scale
+	if _cliff_r != null:
+		_cliff_r_scale = _cliff_r.scale
+
+
+func _fit_backdrop() -> void:
+	var view := get_viewport().get_visible_rect().size
+	if view.y < 1.0:
+		return
+	var aspect := view.x / view.y
+	var half_angle := atan(tan(deg_to_rad(_camera.fov) * 0.5) * aspect)
+	# The sky sits a little farther from the camera than the swimmer.
+	var world_half := 56.0 * tan(half_angle) * 1.05
+	var local_half := world_half / 2.8
+	_stretch_card(_sky, _sky_scale, 8.767, local_half, 1.3)
+	_stretch_card(_water, _water_scale, 8.131, local_half)
+	_stretch_card(_front, _front_scale, 8.814, local_half)
+	_stretch_side(_cliff_l, _cliff_l_scale, -8.153, -5.604, -local_half)
+	_stretch_side(_cliff_r, _cliff_r_scale, 5.577, 8.130, local_half)
+
+
+func _stretch_card(node: Node3D, base: Vector3, half_extent: float, needed: float, floor_scale: float = 1.0) -> void:
+	if node == null or half_extent <= 0.0:
+		return
+	var widen := maxf(needed / half_extent, floor_scale)
+	node.scale = Vector3(base.x * widen, base.y, base.z)
+
+
+func _stretch_side(node: Node3D, base: Vector3, outer: float, inner: float, needed: float) -> void:
+	if node == null:
+		return
+	var span := inner - outer
+	if absf(span) < 0.001:
+		return
+	if absf(needed) < absf(outer):
+		needed = outer
+	var widen := (inner - needed) / span
+	node.scale = Vector3(base.x * widen, base.y, base.z)
+	node.position.x = inner - widen * inner

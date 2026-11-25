@@ -23,6 +23,11 @@ var _origin := Vector2.ZERO
 var _alpha := 1.0
 var _head_h := 3.21496
 var _power := 8.0
+var _all_out := false
+var _tint := Color(0, 1, 0, 0.6)
+var _arrows: Array[TextureRect] = []
+var _arrow_on := false
+var _arrow_hot := -1
 var _target := 8.0
 var _flip_tint := Color(0, 1, 0, 1)
 var _results: Array[int] = []
@@ -123,15 +128,24 @@ func perfect() -> void:
 	tween.tween_property(_banner, "modulate:a", 0.0, 0.5)
 
 
-func set_power(power: float, target: float) -> void:
+func set_power(power: float, target: float, all_out: bool = false, tint: Color = Color(0, 1, 0, 0.6)) -> void:
 	_power = clampf(power, 0.0, 17.0)
 	_target = target
-	var slow := _power < _target - 2.0
+	_all_out = all_out
+	_tint = tint
+	var slow := not all_out and _power < _target - 2.0
 	if _slow != null:
 		_slow.visible = slow
 	if _fast != null:
-		_fast.visible = not slow and _power > _target + 2.0
+		_fast.visible = not slow and not all_out and _power > _target + 2.0
 	_paint_gauge()
+
+
+## 0 is the right arrow and 1 is the left. hot is the arrow under the finger.
+func set_arrows(enabled: bool, hot: int) -> void:
+	_arrow_on = enabled
+	_arrow_hot = hot
+	_paint_arrows()
 
 
 func note_flip(flips: int, matches: int) -> void:
@@ -215,6 +229,15 @@ func _build_power() -> void:
 	_fill = _make_bar(Color(0, 1, 0, 0.6))
 	_white_tick = _make_bar(Color(1, 1, 1, 1))
 	_red_tick = _make_bar(Color(1, 0, 0, 1))
+	var arrow_tex := load("res://assets/gui/nametag/arrow.png") as Texture2D
+	for index in 2:
+		var arrow := TextureRect.new()
+		arrow.texture = arrow_tex
+		arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		arrow.flip_h = index == 1
+		add_child(arrow)
+		_arrows.append(arrow)
 
 
 func _build_slingshot() -> void:
@@ -303,6 +326,7 @@ func _layout_power() -> void:
 	_put(_slow, -0.15, 0.45, 0.07, _ALIGN_CENTER, 0.16)
 	_style_ui(_fast, blue, 0.07, Color(0, 0, 0, 0), 0)
 	_put(_fast, 0.15, 0.45, 0.07, _ALIGN_CENTER, 0.16)
+	_place_arrows()
 	_paint_gauge()
 
 
@@ -354,10 +378,34 @@ func _paint_gauge() -> void:
 	var slot := _rect(0.0, 0.4, 0.14, 0.42)
 	var ratio := clampf(_power / 17.0, 0.0, 1.0)
 	var fill_h := slot.size.y * ratio
+	_fill.color = _tint
 	_fill.position = Vector2(slot.position.x, slot.position.y + slot.size.y - fill_h)
 	_fill.size = Vector2(slot.size.x, maxf(fill_h, 1.0))
 	_tick(_white_tick, _target)
 	_tick(_red_tick, _target + 1.0)
+
+
+func _place_arrows() -> void:
+	if _arrows.is_empty():
+		return
+	var size := _aspect_px(0.2)
+	for index in _arrows.size():
+		var arrow := _arrows[index]
+		var spot := _anchor(0.12 - 0.24 * float(index), 0.14)
+		arrow.position = spot - Vector2(size, size) * 0.5
+		arrow.size = Vector2(size, size)
+	_paint_arrows()
+
+
+func _paint_arrows() -> void:
+	for index in _arrows.size():
+		var arrow := _arrows[index]
+		if not _arrow_on:
+			arrow.modulate = Color(1, 0, 0, 0.3)
+		elif index == _arrow_hot:
+			arrow.modulate = Color(1, 0.7, 0, 1)
+		else:
+			arrow.modulate = Color(1, 0, 0, 1)
 
 
 func _tick(node: ColorRect, value: float) -> void:

@@ -1597,12 +1597,12 @@ func _layout_gags(page_size: Vector2, body_px: int) -> void:
 		var name := _gag_names[track]
 		name.position = Vector2(row_x + row_w * 0.02, row_y)
 		name.size = Vector2(row_w * 0.17, row_h * 0.52)
-		ToonGui.style_label(name, Color.WHITE, name_px, Color(0.08, 0.08, 0.12), 2)
+		ToonGui.style_label(name, Color(0.2, 0.2, 0.2), name_px, Color(0, 0, 0, 0), 0)
 		var meter := _gag_meters[track]
 		meter.position = Vector2(row_x + row_w * 0.02, row_y + row_h * 0.58)
 		meter.size = Vector2(row_w * 0.16, row_h * 0.32)
 		_paint_exp_bar(track)
-		ToonGui.style_label(_gag_exps[track], Color.WHITE, maxi(int(row_h * 0.22), 8), Color(0, 0, 0), 1)
+		ToonGui.style_label(_gag_exps[track], Color(0, 0, 0, 0.8), maxi(int(row_h * 0.22), 8), Color(0, 0, 0, 0), 0)
 		for level in ToonLoadout.LEVEL_COUNT:
 			var index := track * ToonLoadout.LEVEL_COUNT + level
 			var center := Vector2(row_x + _SLOT_CENTER[level] * row_w, row_y + row_h * 0.5)

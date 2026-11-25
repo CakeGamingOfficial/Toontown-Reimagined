@@ -392,6 +392,12 @@ func species() -> String:
 	return _style.species()
 
 
+func head_color() -> Color:
+	if _style == null:
+		return Color.WHITE
+	return _style.painted_color("head")
+
+
 ## DeliverItemQuest puts the package in the right hand until it is handed over.
 func hold_parcel(carry: bool) -> void:
 	if not carry:
@@ -1241,7 +1247,7 @@ func _ensure_clips() -> void:
 	# Extra clips have to load with the walk, while the joints are still at rest.
 	# A gag clip loaded on first use records the idle pose as the bind, and the
 	# throw, squirt, or lure never matches the original.
-	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book", "happy", "wave", "shrug", "angry", "applause", "confused", "bow", "curtsy", "bored", "think", "left", "bad-putt", "leverReach", "leverNeutral", "leverPull"]:
+	for suffix in ["run", "jump", "rjump", "land", "rland", "talk", "rhand", "rstart", "rpoint", "pstart", "throw", "toss", "pushbutton", "battlecast", "hold-magnet", "hypnotize", "sound", "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "spit", "water-gun", "hold-bottle", "firehose", "conked", "cringe", "slip-forward", "slip-backward", "catch-neutral", "catch-run", "struggle", "sidestep-left", "sidestep-right", "duck", "victory", "teleport", "leap", "bank", "sit-start", "sit", "swim", "lose", "sad-neutral", "sad-walk", "cast", "castlong", "pole", "pole-neutral", "fish-neutral", "reel", "reel-neutral", "fish-again", "fish-end", "book", "happy", "wave", "shrug", "angry", "applause", "confused", "bow", "curtsy", "bored", "think", "left", "bad-putt", "leverReach", "leverNeutral", "leverPull"]:
 		if not _extra.has(suffix):
 			var clips: Array = []
 			var joints: Array = []

@@ -280,7 +280,7 @@ func building_rows(district: int, slug: String) -> Array:
 
 func keep_buildings(district: int, slug: String, rows: Array) -> void:
 	var key := _key(district, slug)
-	var kept := _without_field_offices(rows)
+	var kept := rows
 	_blocks[key] = kept
 	ToonNet.publish("buildings:" + key, {"rows": kept})
 	if district != 0:
@@ -460,24 +460,9 @@ func _publish_buildings() -> void:
 			keep_buildings(int(name.substr(0, at)), name.substr(at + 1), rows)
 
 
-func _without_field_offices(rows: Array) -> Array:
-	var kept: Array = []
-	for item in rows:
-		if not (item is Dictionary):
-			kept.append(item)
-			continue
-		var row: Dictionary = item
-		if bool(row.get("cogdo", false)):
-			row = row.duplicate()
-			row["cogdo"] = false
-		kept.append(row)
-	return kept
-
-
 func _maybe_field_office(district: int, slug: String, picked: Dictionary) -> void:
 	# CogdoRatio 0.5 of the street's building quota. The taking cog is a Sellbot.
 	# FieldOfficeNumFloors is 1 game floor; CogdoLayout adds the executive battle.
-	# cogdo_quota is 0 until the cogdominium is finished, so this picks a cog building.
 	var plan: Dictionary = _plans.get(_key(district, slug), {})
 	var target := int(plan.get("target", 0))
 	if target <= 0:
