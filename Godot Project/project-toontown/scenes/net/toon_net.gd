@@ -1387,6 +1387,21 @@ func _vp_report(kind: String) -> void:
 		_request_vp_hit.rpc_id(1, kind)
 
 
+func _vp_throw(x: float, y: float, z: float, fx: float, fy: float, fz: float, ux: float, uy: float, uz: float, power: float) -> void:
+	if is_authority():
+		_accept_vp_throw(peer_id(), x, y, z, fx, fy, fz, ux, uy, uz, power)
+		return
+	if _role == "client":
+		_request_vp_throw.rpc_id(1, x, y, z, fx, fy, fz, ux, uy, uz, power)
+
+
+func _accept_vp_throw(sender: int, x: float, y: float, z: float, fx: float, fy: float, fz: float, ux: float, uy: float, uz: float, power: float) -> void:
+	var sim := _vp_script()
+	if sim == null:
+		return
+	sim.call("note_throw", sender, x, y, z, fx, fy, fz, ux, uy, uz, power)
+
+
 func _accept_vp_hit(sender: int, kind: String) -> void:
 	var sim := _vp_script()
 	if sim == null:
@@ -2323,6 +2338,13 @@ static func vp_hit(kind: String) -> void:
 	if net == null or kind == "":
 		return
 	net._vp_report(kind)
+
+
+static func vp_throw(at: Vector3, forward: Vector3, up: Vector3, power: float) -> void:
+	var net := live()
+	if net == null or not net.networked():
+		return
+	net._vp_throw(at.x, at.y, at.z, forward.x, forward.y, forward.z, up.x, up.y, up.z, power)
 
 
 static func cfo_begin() -> void:
@@ -3744,6 +3766,13 @@ func _request_vp_hit(kind: String) -> void:
 	if not is_authority():
 		return
 	_accept_vp_hit(multiplayer.get_remote_sender_id(), kind)
+
+
+@rpc("any_peer", "reliable")
+func _request_vp_throw(x: float, y: float, z: float, fx: float, fy: float, fz: float, ux: float, uy: float, uz: float, power: float) -> void:
+	if not is_authority():
+		return
+	_accept_vp_throw(multiplayer.get_remote_sender_id(), x, y, z, fx, fy, fz, ux, uy, uz, power)
 
 
 @rpc("any_peer", "reliable")

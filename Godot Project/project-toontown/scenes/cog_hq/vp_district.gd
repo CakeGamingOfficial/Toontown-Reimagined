@@ -19,9 +19,12 @@ static var _attack_wait := 5.0
 static var _strafe_wait := 9.0
 static var _attack_open := 0.0
 static var _strafe_open := 0.0
+static var _strafe_side := -1
 static var _seq := 0
 static var _event := {}
 static var _struck: Dictionary = {}
+static var _throws: Array = []
+static var _throw_seq := 0
 
 
 static func running() -> bool:
@@ -52,9 +55,12 @@ static func begin() -> void:
 	_strafe_wait = 9.0
 	_attack_open = 0.0
 	_strafe_open = 0.0
+	_strafe_side = -1
 	_seq = 0
 	_event = {}
 	_struck.clear()
+	_throws.clear()
+	_throw_seq = 0
 
 
 static func stop() -> void:
@@ -80,8 +86,18 @@ static func tick(delta: float, peers: Array) -> Dictionary:
 		_strafe_wait -= delta
 		if _strafe_wait <= 0.0:
 			_choose_strafe()
+	var kept: Array = []
+	for item in _throws:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		row["age"] = float(row.get("age", 0.0)) + delta
+		if float(row["age"]) < 2.0:
+			kept.append(row)
+	_throws = kept
 	var state := _snapshot()
 	state["event"] = _event
+	state["throws"] = _throws
 	_event = {}
 	return state
 
@@ -91,13 +107,15 @@ static func hit(kind: String, peer: int, peers: Array) -> int:
 		return 0
 	if kind == "opening":
 		if _near:
-			_ending = true
-			dirty = true
 			return 0
 		_begin("dizzy", peers)
 		return 0
 	if kind == "body":
-		if not _dizzy or _near:
+		if _near:
+			_ending = true
+			dirty = true
+			return 0
+		if not _dizzy:
 			return 0
 		var dealt := 2 if _nerfed() else 1
 		_set_damage(mini(_damage() + dealt, 100), 0.0)
@@ -127,6 +145,24 @@ static func hit(kind: String, peer: int, peers: Array) -> int:
 	return 0
 
 
+static func note_throw(peer: int, x: float, y: float, z: float, fx: float, fy: float, fz: float, ux: float, uy: float, uz: float, power: float) -> void:
+	if not active:
+		return
+	_throw_seq += 1
+	_throws.append({
+		"seq": _throw_seq,
+		"peer": peer,
+		"age": 0.0,
+		"x": x, "y": y, "z": z,
+		"fx": fx, "fy": fy, "fz": fz,
+		"ux": ux, "uy": uy, "uz": uz,
+		"power": power,
+	})
+	while _throws.size() > 8:
+		_throws.pop_front()
+	dirty = true
+
+
 static func struck_damage(kind: String) -> int:
 	return _amount(kind)
 
@@ -152,18 +188,25 @@ static func _choose_strafe() -> void:
 		_strafe_wait = 0.5
 		return
 	var t := float(_damage()) / 100.0
-	_strafe_open = 0.7 + (5.0 - 4.0 * t)
+	var time := 5.0 - 4.0 * t
+	var count := int(4.0 + 6.0 * t + 0.5)
+	if count < 1:
+		count = 1
+	var rate := time / float(count)
+	_strafe_side = randi() % 2
+	_strafe_open = 0.7 + float(count - 1) * rate + 1.0
 	_seq += 1
 	_event = {
 		"kind": "strafe",
 		"damage": _amount("strafe"),
 		"delay": _strafe_open,
 		"radius": 6.0,
-		"side": randi() % 2,
+		"side": _strafe_side,
 		"dir": randi() % 2,
 		"target": 0,
 		"seq": _seq,
 		"t": t,
+		"seed": randi(),
 	}
 	dirty = true
 
@@ -178,6 +221,7 @@ static func _begin(kind: String, peers: Array) -> void:
 		_event = {}
 		dirty = true
 		return
+	var rising := _dizzy
 	_dizzy = false
 	if kind == "area":
 		var rate := 2.0 if _rate <= 0.0 else minf(200.0, _rate * 1.2)
@@ -195,8 +239,21 @@ static func _begin(kind: String, peers: Array) -> void:
 	if kind == "directed" and not peers.is_empty():
 		target = int(peers[randi() % peers.size()])
 	_seq += 1
-	var delay := 0.2 if kind == "area" else (1.1 if kind == "directed" else _attack_open * 0.55)
-	var radius := 50.0 if kind == "area" else (4.0 if kind == "directed" else 12.0)
+	var delay := 1.9
+	var radius := 12.0
+	if kind == "area":
+		delay = 1.21
+		radius = 50.0
+	elif kind == "directed":
+		delay = 1.2
+		radius = 3.0
+	elif kind == "recover":
+		delay = _attack_open
+		radius = 0.0
+	if rising:
+		delay += 2.5
+		_attack_wait += 2.5
+		_attack_open += 2.5
 	_event = {
 		"kind": kind,
 		"damage": _amount(kind),
@@ -207,6 +264,8 @@ static func _begin(kind: String, peers: Array) -> void:
 		"target": target,
 		"seq": _seq,
 		"t": float(_damage()) / 100.0,
+		"seed": randi(),
+		"rise": 2.5 if rising else 0.0,
 	}
 	dirty = true
 
@@ -263,6 +322,8 @@ static func _nerfed() -> bool:
 
 
 static func _snapshot() -> Dictionary:
+	var front := _strafe_open > 0.0 and _strafe_side == 0
+	var rear := _strafe_open > 0.0 and _strafe_side == 1
 	return {
 		"live": true,
 		"hp": _damage(),
@@ -270,6 +331,8 @@ static func _snapshot() -> Dictionary:
 		"dizzy": _dizzy,
 		"near": _near,
 		"ending": _ending,
-		"doors": _dizzy or _attack_open > 0.0 or _strafe_open > 0.0 or _near,
+		"doors": front or rear,
+		"door_front": front,
+		"door_rear": rear,
 		"seq": _seq,
 	}

@@ -60,6 +60,8 @@ var _pose := ""
 var _pose_time := 0.0
 var _pose_loop := true
 var _pose_next := ""
+var _pose_rate := 1.0
+var _down := false
 var _left_tread := 0.0
 var _right_tread := 0.0
 var _left_mat: BaseMaterial3D
@@ -1211,9 +1213,16 @@ func _place_vp(at: Vector3, look: Vector3, rolling := false) -> void:
 func pose(which: String) -> void:
 	# BossCog.getAnim. Speech loops through the introduction. The hit plays
 	# once, then he stays down until the next attack. The fall holds.
+	var follow := ""
+	if _down and (which == "jump" or which == "throw" or which == "spin"):
+		follow = which
+		which = "rise"
 	var clip := "Fb_neutral"
 	var loop := true
 	var nxt := ""
+	var rate := 1.0
+	_cue = ""
+	_cued = false
 	match which:
 		"speech":
 			clip = "Ff_speech"
@@ -1233,6 +1242,7 @@ func pose(which: String) -> void:
 			clip = "Fb_firstHit"
 			loop = false
 			nxt = "down"
+			_down = true
 			sfx("CHQ_VP_reeling_backwards.ogg")
 			sfx("AA_sound_aoogah.ogg")
 		"downhit":
@@ -1240,46 +1250,81 @@ func pose(which: String) -> void:
 			clip = "Fb_downHit"
 			loop = false
 			nxt = "down"
+			_down = true
 			sfx("CHQ_VP_reeling_backwards.ogg")
 		"down":
 			clip = "Fb_downNeutral"
+			_down = true
+		"rise":
+			clip = "Fb_down2Up"
+			loop = false
+			nxt = follow
+			_down = false
+			sfx("CHQ_VP_raise_up.ogg")
+		"sink":
+			if _down:
+				which = "down"
+				clip = "Fb_downNeutral"
+				_down = true
+			else:
+				clip = "Fb_down2Up"
+				loop = false
+				nxt = "down"
+				rate = -1.0
+				_down = true
+				sfx("CHQ_VP_collapse.ogg")
 		"jump":
 			clip = "Fb_jump"
 			loop = false
 			nxt = "neutral"
+			_down = false
 			sfx("General_throw_miss.ogg")
 			_cue = "boom"
-			_cued = false
 		"throw":
 			clip = "Fb_UpThrow"
 			loop = false
 			nxt = "neutral"
+			_down = false
 			sfx("CHQ_VP_frisbee_gears.ogg")
 		"spin":
 			clip = "Bb2Ff_spin"
 			loop = false
 			nxt = "neutral"
+			_down = false
 			sfx("CHQ_VP_spin.ogg")
 			_cue = "rain"
-			_cued = false
 		"fall":
 			clip = "Fb_fall"
 			loop = false
+			nxt = ""
+			_down = false
 			sfx("CHQ_VP_reeling_backwards.ogg")
 			_cue = "death"
-			_cued = false
 		_:
 			clip = "Fb_neutral"
-	if clip == _pose:
+			_down = false
+	if clip == _pose and _pose_rate == rate:
 		_pose_loop = loop
+		_pose_next = nxt
 		return
-	_cue = ""
-	_cued = false
 	_pose = clip
 	_pose_time = 0.0
 	_pose_loop = loop
 	_pose_next = nxt
+	_pose_rate = rate
 	_ensure_bank(clip)
+	if not _banks.has(clip):
+		_pose = ""
+		if nxt != "":
+			pose(nxt)
+		return
+	if rate < 0.0:
+		var bank: Dictionary = _banks.get(clip, {})
+		var frames := int(bank.get("frames", 1))
+		var fps := float(bank.get("fps", 24.0))
+		if fps <= 0.0:
+			fps = 24.0
+		_pose_time = float(maxi(frames - 1, 1)) / fps
 
 
 func _advance_pose(delta: float) -> void:
@@ -1294,8 +1339,15 @@ func _advance_pose(delta: float) -> void:
 		_pose_time = _pose_hold
 		_pose_hold = -1.0
 	else:
-		_pose_time += delta
+		_pose_time += delta * _pose_rate
 	_play_cue()
+	if _pose_rate < 0.0:
+		if not _pose_loop and _pose_next != "" and _pose_time <= 0.0:
+			pose(_pose_next)
+			return
+		_poser._pose_elapsed(bank, maxf(_pose_time, 0.0), fps, _pose_loop)
+		_keep_treads()
+		return
 	if _movie == "victory" and _pose == "Fb_fall" and _pose_time >= float(frames) / fps:
 		_begin_epilogue()
 	if frames == 1:
@@ -2488,7 +2540,7 @@ func _pie_lines(delta: float) -> void:
 		_throw_advice -= delta
 		if _throw_advice <= 0.0:
 			_throw_advice = -1.0
-			_boss_say("Click to throw pies!", 6.0)
+			_boss_say("Hold the mouse to wind up, then let go!", 6.0)
 	_cage_chat -= delta
 	if _cage_chat > 0.0:
 		return
@@ -2512,8 +2564,8 @@ func _cage_line(index: int) -> String:
 		12: "Hey there, %(toon)s!  You've got some pies now!",
 		20: "Hey, %(toon)s!  Jump up to my cage and get some pies to throw!",
 		21: "Hi, %(toon)s!  Use the Ctrl key to jump up and touch my cage!",
-		100: "Click to throw a pie.",
-		101: "Click to throw. The pie flies the way you are looking.",
+		100: "Hold the mouse to wind up, then let go to throw.",
+		101: "Hold the mouse to wind up. The pie flies the way you are facing.",
 		102: "First try to lob a pie inside his undercarriage to gum up his works.",
 		103: "Wait for the door to open, and throw a pie straight inside.",
 		104: "When he's dizzy, hit him in the face or chest to knock him back!",

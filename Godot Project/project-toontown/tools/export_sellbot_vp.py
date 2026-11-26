@@ -39,7 +39,9 @@ for root in (RESOURCES, GAME):
 
 
 def load(relative: str) -> NodePath:
-    node = Loader.getGlobalPtr().loadSync(Filename.from_os_specific(str(RESOURCES / relative)))
+    node = Loader.getGlobalPtr().loadSync(relative)
+    if node is None:
+        node = Loader.getGlobalPtr().loadSync(Filename.from_os_specific(str(GAME / relative)))
     if node is None:
         raise RuntimeError("missing " + relative)
     return NodePath(node)
@@ -134,6 +136,7 @@ CLIPS = (
     "Fb_firstHit",
     "Fb_downHit",
     "Fb_downNeutral",
+    "Fb_down2Up",
     "Fb_jump",
     "Fb_fall",
     "Bb2Ff_spin",

@@ -24,6 +24,20 @@ var _right := Vector3(1, 0, 0)
 var _clock := 0.0
 var _cool := 0.0
 var _pies: Array[Dictionary] = []
+var _pie_age := -1.0
+var _pie_toss := -1.0
+var _pie_power := 0.0
+var _pie_whoosh := false
+var _pie_node: Node3D
+var _touch_peer := 0
+var _gear_caught := false
+var _fling := -1.0
+var _fling_area := false
+var _fling_from := Vector3.ZERO
+var _fling_to := Vector3.ZERO
+var _splats: Array[Dictionary] = []
+var _seen_throws: Dictionary = {}
+var _gear_rng := RandomNumberGenerator.new()
 var _shots: Array[Dictionary] = []
 var _safes: Array[Dictionary] = []
 var _goons: Array[Dictionary] = []
@@ -128,7 +142,13 @@ var _attack_at := Vector3.ZERO
 var _attack_kind := ""
 var _boss_pos := Vector3.ZERO
 var _vp_forward := Vector3(0, 0, -1)
-var _door_open := true
+var _door_front := false
+var _door_rear := false
+var _posed_front := false
+var _posed_rear := false
+var _hand_pies: Dictionary = {}
+var _splat_movie: GagMovie
+var _vp_stars: Node3D
 var _attack_live := false
 var _attack_damage := 0
 var _attack_radius := 0.0
@@ -321,6 +341,12 @@ func shutdown() -> void:
 	_clear_waiter()
 	_restore_jury()
 	_mode = ""
+	_drop_pie()
+	_clear_splats()
+	_clear_hand_pies()
+	_clear_vp_stars()
+	process_priority = 0
+	_seen_throws.clear()
 	_gears.clear()
 	_clear_gear_bits()
 	_clear_lever()
@@ -389,7 +415,7 @@ func start_vp(boss: Node) -> void:
 		_vp_forward = Vector3(0, 0, 1)
 	else:
 		_vp_forward = _vp_forward.normalized()
-	_tell("The pie cage is behind him. Click throws. Doors open when he attacks and stay open while he is stunned. A pie in the doors stuns him. Pies on his body do 1 only then. Front is 3, directed is 3, strafe is 2, area is 10. At 100, one more pie in the doors ends it.")
+	_tell("The pie cage is behind him. Hold the mouse to wind up, then release. A pie through the door he opens on a side attack stuns him. While he is stunned, a pie on his body does 1. His gears hit on the way, and the jump hits anyone still on the ground. At 100, one more pie on his body ends it.")
 
 
 func start_cfo_intro(boss: Node) -> void:
@@ -685,6 +711,11 @@ func _process(delta: float) -> void:
 
 func _tick_vp(delta: float, body: CharacterBody3D) -> void:
 	if _boss.has_method("vp_ending") and bool(_boss.call("vp_ending")):
+		_drop_pie()
+		_show_vp_stars(false)
+		_stop_birds()
+		_tick_fling(delta)
+		_tick_splats(delta)
 		return
 	var state: Dictionary = _boss.call("tick_vp", delta)
 	var vp := _existing_vp()
@@ -697,45 +728,68 @@ func _tick_vp(delta: float, body: CharacterBody3D) -> void:
 		_vp_forward.y = 0.0
 		if _vp_forward.length_squared() > 0.01:
 			_vp_forward = _vp_forward.normalized()
-	_door_open = bool(state.get("doors", false))
+	_door_front = bool(state.get("door_front", false))
+	_door_rear = bool(state.get("door_rear", false))
 	_pose_doors()
-	_fly_gears(delta)
+	var is_dizzy := bool(state.get("dizzy", false))
+	_show_vp_stars(is_dizzy)
+	_tick_birds(is_dizzy)
+	_take_throws(state.get("throws", []))
+	_fly_gears(delta, body)
 	if _near(body, _cage, 3.5):
 		_boss.call("restock_pies")
-	if _fresh_press() and bool(_boss.call("take_pie")):
-		_launch(body, 26.0, Color(0.95, 0.45, 0.55), "pie")
+	_hold_pie(delta, body, int(state.get("pies", 0)))
+	_show_remote_pies()
 	_fly(_pies, delta)
-	var door_at := _opening_point()
-	var chest := _boss_pos + Vector3(0, 12, 0)
 	for shot in _pies:
 		if bool(shot["done"]):
 			continue
 		var at: Vector3 = shot["at"]
-		if _door_open and _near_point(at, door_at, 5.0) and absf(at.y - door_at.y) < 6.0:
-			shot["done"] = true
+		var prev := at
+		if shot.has("prev"):
+			prev = shot["prev"] as Vector3
+		var code := _touch_pie(prev, at)
+		if code == 0:
+			continue
+		shot["done"] = true
+		shot["landed"] = true
+		shot["code"] = code
+		if not bool(shot.get("own", false)):
+			continue
+		if code == 4:
 			_boss.call("note_opening")
-		elif _near_point(at, chest, 7.0) and absf(at.y - chest.y) < 10.0:
-			shot["done"] = true
+		elif code == 1:
 			_boss.call("note_body")
-		else:
-			var peer := _hit_toon(at)
-			if peer > 0:
-				shot["done"] = true
-				_boss.call("note_friend_pie", peer)
+		elif code == 3 and _touch_peer > 0:
+			_boss.call("note_friend_pie", _touch_peer)
 	var event: Dictionary = state.get("event", {})
 	if not event.is_empty():
 		_arm_attack(event, body)
 	if _attack_left > 0.0:
 		_attack_left -= delta
-		if _attack_kind == "strafe" and _attack_live and _in_strafe(body):
+		if _attack_kind == "front" and _attack_live and _attack_left <= 0.25 and _near(body, _attack_at, 12.0):
 			_attack_live = false
-			_boss.call("note_vp_attack", "strafe")
-		elif _attack_left <= 0.0 and _attack_live and _near(body, _attack_at, _attack_radius):
+			_boss.call("note_vp_attack", "front")
+		elif _attack_left <= 0.0 and _attack_live:
 			_attack_live = false
-			_boss.call("note_vp_attack", _attack_kind)
+			if _attack_kind == "area" and body.velocity.y <= 1.0:
+				_boss.call("note_vp_attack", "area")
 	if _boss.has_method("vp_ending") and bool(_boss.call("vp_ending")):
+		_drop_pie()
+		_show_vp_stars(false)
+		_stop_birds()
+		_tick_fling(delta)
+		_tick_splats(delta)
 		return
-	var doors := "OPEN" if _door_open else "shut"
+	_tick_fling(delta)
+	_tick_splats(delta)
+	var doors := "shut"
+	if _door_front and _door_rear:
+		doors = "both doors"
+	elif _door_front:
+		doors = "front door"
+	elif _door_rear:
+		doors = "rear door"
 	var dizzy := "stunned" if bool(state.get("dizzy", false)) else "up"
 	var pies := int(state.get("pies", 0))
 	var stack := "full" if pies > 100 else str(pies)
@@ -756,7 +810,8 @@ func _hit_toon(at: Vector3) -> int:
 		if peer <= 0 or peer == local:
 			continue
 		var actor := node as Node3D
-		if Vector2(at.x, at.z).distance_to(Vector2(actor.global_position.x, actor.global_position.z)) < 1.5:
+		var chest := actor.global_position + Vector3(0.0, 2.0, 0.0)
+		if at.distance_to(chest) <= 2.5:
 			return peer
 	return 0
 
@@ -779,14 +834,22 @@ func _attack_target(peer: int, body: CharacterBody3D) -> Vector3:
 
 
 func _launch_gears(event: Dictionary) -> void:
+	for gear in _gears:
+		var node := gear.get("node") as Node3D
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_gears.clear()
+	_gear_rng.seed = int(event.get("seed", 1))
+	_gear_caught = false
 	if _attack_kind == "directed":
-		_launch_directed()
+		_launch_directed(float(event.get("rise", 0.0)))
 	elif _attack_kind == "strafe":
 		_launch_strafe(float(event.get("t", 0.0)), int(event.get("dir", 0)))
 
 
-func _launch_directed() -> void:
-	# doDirectedAttack throws four gears over one second, staggered by 0.15.
+func _launch_directed(wind: float) -> void:
+	# doDirectedAttack. Four gears leave after the windup and fly 50 units
+	# toward where the toon was standing, with a little scatter.
 	var hinge := _door_hinge(0)
 	var start := _boss_pos + Vector3(0, 10, 0)
 	var forward := _vp_forward
@@ -796,14 +859,29 @@ func _launch_directed() -> void:
 		forward.y = 0.0
 		if forward.length_squared() > 0.01:
 			forward = forward.normalized()
+	var aim := _attack_at - start
+	aim.y = 0.0
+	if aim.length_squared() > 0.01:
+		aim = aim.normalized()
+	else:
+		aim = forward
+	var side := aim.cross(Vector3.UP).normalized()
 	for index in 4:
 		var gear := _gear(0.2)
-		var scatter := Vector3(randf_range(-5.0, 5.0), randf_range(-3.0, 3.0), randf_range(-5.0, 5.0))
-		var land := _attack_at + forward * 4.0 + scatter
-		land.y = maxf(land.y, 1.5)
+		var land := start + aim * 50.0
+		land += side * _gear_rng.randf_range(-5.0, 5.0)
+		land.y += _gear_rng.randf_range(-3.0, 3.0)
 		gear.global_position = start
 		gear.visible = false
-		_gears.append({"from": start, "to": land, "age": 0.0, "wait": float(index) * 0.15, "node": gear})
+		_gears.append({
+			"from": start,
+			"to": land,
+			"age": 0.0,
+			"wait": wind + 1.2 + float(index) * 0.15,
+			"reach": 2.4,
+			"kind": "directed",
+			"node": gear,
+		})
 
 
 func _launch_strafe(along: float, direction: int) -> void:
@@ -834,7 +912,15 @@ func _launch_strafe(along: float, direction: int) -> void:
 		land.y = start.y
 		gear.global_position = start
 		gear.visible = false
-		_gears.append({"from": start, "to": land, "age": 0.0, "wait": float(index) * rate, "node": gear})
+		_gears.append({
+			"from": start,
+			"to": land,
+			"age": 0.0,
+			"wait": 0.7 + float(index) * rate,
+			"reach": 1.6,
+			"kind": "strafe",
+			"node": gear,
+		})
 
 
 func _door_hinge(side: int) -> Node3D:
@@ -855,8 +941,9 @@ func _gear(scale: float) -> Node3D:
 	return _box(_boss_pos, Color(0.75, 0.7, 0.2), Vector3(1.2, 0.2, 1.2), "Gear")
 
 
-func _fly_gears(delta: float) -> void:
+func _fly_gears(delta: float, body: CharacterBody3D) -> void:
 	var keep: Array[Dictionary] = []
+	var chest := body.global_position + Vector3(0, 2.5, 0)
 	for gear in _gears:
 		var age := float(gear["age"]) + delta
 		var node := gear["node"] as Node3D
@@ -871,6 +958,10 @@ func _fly_gears(delta: float) -> void:
 		var u := clampf((age - wait) / 1.0, 0.0, 1.0)
 		node.global_position = (gear["from"] as Vector3).lerp(gear["to"], u)
 		node.rotate_y(delta * 8.0)
+		if not _gear_caught and node.global_position.distance_to(chest) <= float(gear.get("reach", 2.0)):
+			_gear_caught = true
+			if _boss != null:
+				_boss.call("note_vp_attack", str(gear.get("kind", "directed")))
 		if u >= 1.0:
 			node.queue_free()
 			continue
@@ -898,40 +989,54 @@ func _opening_point() -> Vector3:
 
 
 func _pose_doors() -> void:
-	var actor := _root.get_node_or_null("VP") as Node3D
+	var actor := _existing_vp()
+	if actor == null and _root != null:
+		actor = _root.get_node_or_null("VP") as Node3D
 	if actor == null:
 		return
-	for hinge_name in ["DoorFront", "DoorRear"]:
-		var hinge := actor.find_child(hinge_name, true, false) as Node3D
-		if hinge == null:
-			continue
-		if not _door_closed.has(hinge_name):
-			_door_closed[hinge_name] = hinge.quaternion
-		# Open is identity. Closed is the roll BossCog.DoorFSM starts on.
-		hinge.quaternion = Quaternion.IDENTITY if _door_open else _door_closed[hinge_name]
+	_pose_hinge(actor, "DoorFront", _door_front, _posed_front)
+	_pose_hinge(actor, "DoorRear", _door_rear, _posed_rear)
+	_posed_front = _door_front
+	_posed_rear = _door_rear
+
+
+func _pose_hinge(actor: Node3D, hinge_name: String, open: bool, was_open: bool) -> void:
+	var hinge := actor.find_child(hinge_name, true, false) as Node3D
+	if hinge == null:
+		return
+	if not _door_closed.has(hinge_name):
+		_door_closed[hinge_name] = hinge.quaternion
+	hinge.quaternion = Quaternion.IDENTITY if open else _door_closed[hinge_name]
+	if open == was_open:
+		return
+	_sfx("res://assets/cogs/bosses/audio/CHQ_VP_door_open.ogg" if open else "res://assets/cogs/bosses/audio/CHQ_VP_door_close.ogg")
 
 
 func _arm_attack(event: Dictionary, body: CharacterBody3D) -> void:
-	# A pie flinch is only a clip. It is not a gear attack.
-	if String(event.get("kind", "")) == "downhit":
+	# A pie flinch is only a clip. Recovering is him standing back up.
+	var kind := String(event.get("kind", ""))
+	if kind == "downhit" or kind == "recover" or kind == "dizzy":
 		return
-	_attack_kind = String(event.get("kind", ""))
+	_attack_kind = kind
 	_attack_damage = int(event.get("damage", 0))
 	_attack_radius = float(event.get("radius", 4.0))
 	_attack_side = int(event.get("side", 0))
 	_attack_left = float(event.get("delay", 1.0))
 	_attack_live = true
-	var shown := minf(_attack_radius, 8.0)
 	if _attack_kind == "directed":
 		_attack_at = _attack_target(int(event.get("target", 0)), body)
+	elif _attack_kind == "front":
+		_attack_at = _boss_pos + _vp_forward * 25.0
+		_attack_radius = 12.0
+		var shown := 12.0
+		_replace_marker("Attack", _attack_at, Color(0.8, 0.15, 0.15), Vector3(shown, 0.15, shown))
 	elif _attack_kind == "strafe":
 		var side := _vp_forward.cross(Vector3.UP).normalized()
 		if _attack_side == 0:
 			side = -side
 		_attack_at = _boss_pos + side * 8.0 + _vp_forward * 16.0
 	else:
-		_attack_at = _boss_pos + _vp_forward * (0.0 if _attack_kind == "area" else 12.0)
-	_replace_marker("Attack", _attack_at, Color(0.8, 0.15, 0.15), Vector3(shown, 0.15, shown))
+		_attack_at = _boss_pos
 	_launch_gears(event)
 
 
@@ -1800,6 +1905,609 @@ func _begin(boss: Node) -> void:
 		host.add_child(_root)
 
 
+func _hold_pie(delta: float, body: CharacterBody3D, pies: int) -> void:
+	# LocalToon.presentPie / tossPie. Hold winds the throw, release sends it
+	# in the direction the toon faces. Walking or jumping puts the pie away.
+	var actor := _local_toon()
+	if _pie_toss >= 0.0:
+		_advance_toss(delta, actor)
+		return
+	var down := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	if _pie_age < 0.0:
+		if not down or _pressed or _cool > 0.0 or pies <= 0 or actor == null:
+			return
+		if _moving(body):
+			return
+		_pie_age = 0.0
+		_pie_power = 0.0
+		_pie_whoosh = false
+		_show_held_pie(actor)
+		_show_pie_power(true, 0.0)
+		return
+	if _moving(body) or actor == null:
+		_drop_pie()
+		return
+	if not down:
+		_pie_power = _pie_power_of(_pie_age)
+		_pie_toss = 0.0
+		_show_pie_power(true, _pie_power)
+		return
+	_pie_age += delta
+	_pie_power = _pie_power_of(_pie_age)
+	_pose_present(actor)
+	_grow_pie()
+	_show_pie_power(true, _pie_power)
+
+
+func _advance_toss(delta: float, actor: Node) -> void:
+	_pie_toss += delta
+	if actor != null and actor.has_method("pose_action"):
+		actor.call("pose_action", "throw", 48.0 / 24.0 + _pie_toss)
+	if not _pie_whoosh and _pie_toss >= 14.0 / 24.0:
+		_pie_whoosh = true
+		_sfx("res://assets/audio/battle/AA_pie_throw_only.ogg")
+	if _pie_node != null and _pie_toss >= 16.0 / 24.0:
+		_release_pie(actor)
+	var length := 0.0
+	if actor != null and actor.has_method("action_length"):
+		length = float(actor.call("action_length", "throw"))
+	var toss_end := length - 48.0 / 24.0
+	if toss_end < 0.7:
+		toss_end = 0.8
+	if _pie_toss >= toss_end:
+		if actor != null and actor.has_method("release_pose"):
+			actor.call("release_pose")
+		_pie_toss = -1.0
+		_pie_age = -1.0
+		_show_pie_power(false, 0.0)
+		_cool = 0.2
+
+
+func _release_pie(actor: Node) -> void:
+	if _pie_node == null or not is_instance_valid(_pie_node):
+		_pie_node = null
+		return
+	if _boss == null or not bool(_boss.call("take_pie")):
+		_pie_node.queue_free()
+		_pie_node = null
+		return
+	var share := _pie_power / 100.0
+	var dist := 100.0 - 70.0 * share
+	var time := 1.0 + 0.5 * share
+	var speed := dist / time
+	var lift := 16.0 * time
+	var basis := Basis.IDENTITY
+	if actor is Node3D:
+		basis = (actor as Node3D).global_transform.basis
+	var forward := basis.y
+	var up := basis.z
+	if forward.length_squared() > 0.01:
+		forward = forward.normalized()
+	if up.length_squared() > 0.01:
+		up = up.normalized()
+	var vel := forward * speed + up * lift
+	var at := _pie_node.global_position
+	var host := _root if _root != null else self
+	_pie_node.reparent(host)
+	_pie_node.global_position = at
+	_pies.append({
+		"at": at,
+		"vel": vel,
+		"prev": at,
+		"done": false,
+		"kind": "pie",
+		"mesh": _pie_node,
+		"grav": 32.0,
+		"life": 3.0,
+		"own": true,
+		"splat": false,
+		"code": 0,
+	})
+	if ToonNet.networked():
+		ToonNet.vp_throw(at, forward, up, _pie_power)
+	_pie_node = null
+
+
+func _show_held_pie(actor: Node) -> void:
+	_drop_held_mesh()
+	var wrap := Node3D.new()
+	wrap.name = "HeldPie"
+	var packed := load("res://assets/battle/props/fruitpie.glb") as PackedScene
+	if packed != null:
+		wrap.add_child(packed.instantiate())
+	var joint := actor.find_child("def_joint_right_hold", true, false) as Node3D
+	if joint != null:
+		joint.add_child(wrap)
+		wrap.transform = Transform3D.IDENTITY
+	else:
+		actor.add_child(wrap)
+		wrap.position = Vector3(0.52, 0.97, 2.24)
+	wrap.scale = Vector3(0.01, 0.01, 0.01)
+	_pie_node = wrap
+	_pose_present(actor)
+
+
+func _pose_present(actor: Node) -> void:
+	if actor == null or not actor.has_method("pose_action"):
+		return
+	var present := 31.0 / 24.0
+	var frame := _pie_age * 24.0
+	if _pie_age > present:
+		var local := fmod(_pie_age - present, 32.0 / 24.0)
+		if local < 16.0 / 24.0:
+			frame = 32.0 + local * 24.0
+		else:
+			frame = 47.0 - (local - 16.0 / 24.0) * 24.0
+	actor.call("pose_action", "throw", frame / 24.0)
+
+
+func _grow_pie() -> void:
+	if _pie_node == null or not is_instance_valid(_pie_node):
+		return
+	var scale := lerpf(0.01, 0.75, clampf(_pie_age, 0.0, 1.0))
+	_pie_node.scale = Vector3(scale, scale, scale)
+
+
+func _pie_power_of(elapsed: float) -> float:
+	# piePowerSpeed 0.2, piePowerExponent 0.75. The bar runs up and back down.
+	var t := maxf(elapsed, 0.0) / 0.2
+	t = pow(t, 0.75)
+	var power := int(t * 100.0) % 200
+	if power > 100:
+		power = 200 - power
+	return float(power)
+
+
+func _moving(body: CharacterBody3D) -> bool:
+	if body.velocity.y > 1.0:
+		return true
+	return Vector2(body.velocity.x, body.velocity.z).length() > 0.75
+
+
+func _local_toon() -> Node:
+	var body := _body()
+	if body == null:
+		return null
+	if body.has_method("pose_action"):
+		return body
+	for node in body.get_children():
+		if node.has_method("pose_action") and not node.has_meta("peer"):
+			return node
+	return null
+
+
+func _drop_pie() -> void:
+	_drop_held_mesh()
+	var actor := _local_toon()
+	if actor != null and actor.has_method("release_pose") and (_pie_age >= 0.0 or _pie_toss >= 0.0):
+		actor.call("release_pose")
+	_pie_age = -1.0
+	_pie_toss = -1.0
+	_pie_whoosh = false
+	_show_pie_power(false, 0.0)
+
+
+func _drop_held_mesh() -> void:
+	if _pie_node != null and is_instance_valid(_pie_node):
+		_pie_node.queue_free()
+	_pie_node = null
+
+
+func _retire_pie(shot: Dictionary) -> void:
+	if str(shot.get("kind", "")) != "pie" or bool(shot.get("splat", false)):
+		return
+	shot["splat"] = true
+	if bool(shot.get("landed", false)):
+		var at: Vector3 = shot["at"]
+		_show_splat(at, int(shot.get("code", 2)))
+	var mesh := shot.get("mesh") as Node3D
+	if mesh != null and is_instance_valid(mesh):
+		mesh.queue_free()
+	shot["mesh"] = null
+
+
+func _show_pie_power(showing: bool, amount: float) -> void:
+	if not showing:
+		if _power_root != null:
+			_power_root.visible = false
+		return
+	if _power_root == null:
+		_show_power(false)
+	if _power_root == null or _power_fill == null:
+		return
+	var shown := clampf(amount, 0.0, 100.0)
+	_power_root.visible = true
+	_power_fill.offset_right = lerpf(-156.0, 156.0, shown / 100.0)
+	_power_fill.color = Color(0.95, 0.35, 0.55)
+
+
+func _touch_pie(a: Vector3, b: Vector3) -> int:
+	# Insides polygons live on the axle. The chest tube and the back shield live
+	# on the pelvis. The pie's own sphere has radius 1, so the tubes use 4.5.
+	_touch_peer = 0
+	var axle := _vp_joint("joint_axle")
+	var pelvis := _vp_joint("joint_pelvis")
+	if axle == null or pelvis == null:
+		return 0
+	for step in 9:
+		var world := a.lerp(b, float(step) / 8.0)
+		var peer := _hit_toon(world)
+		if peer > 0:
+			_touch_peer = peer
+			return 3
+		var hip := pelvis.global_transform.affine_inverse() * world
+		if _on_tube(hip, Vector3(0, -1, 4), Vector3(0, -1, 9), 4.5):
+			return 1
+		# The door panel rides the hinge. Closed, it is armor. The insides
+		# polygons stay on the axle and only count while that door is open.
+		if _on_door_panel("DoorFront", world, Vector3(5, -4, 0.32), Vector3(0, -4, 0), Vector3(0, 4, 0), Vector3(5, 4, 0.32)):
+			return 2
+		if _on_door_panel("DoorRear", world, Vector3(-5, 4, 0.84), Vector3(0, 4, 0), Vector3(0, -4, 0), Vector3(-5, -4, 0.84)):
+			return 2
+		var leg := axle.global_transform.affine_inverse() * world
+		if _on_rect(leg, -2.0, -4.0, 4.0, 0.5, 5.0):
+			return 4 if _door_front else 2
+		if _on_rect(leg, 2.0, -4.0, 4.0, 0.5, 5.0):
+			return 4 if _door_rear else 2
+		if _on_tube(hip, Vector3(0, 1, 4), Vector3(0, 1, 7), 4.5):
+			return 2
+		if _on_gear(hip):
+			return 2
+	return 0
+
+
+func _vp_joint(joint_name: String) -> Node3D:
+	var vp := _existing_vp()
+	if vp == null:
+		return null
+	return vp.find_child(joint_name, true, false) as Node3D
+
+
+func _on_rect(local: Vector3, plane_y: float, x0: float, x1: float, z0: float, z1: float) -> bool:
+	var closest := Vector3(clampf(local.x, x0, x1), plane_y, clampf(local.z, z0, z1))
+	return local.distance_to(closest) <= 1.0
+
+
+func _on_tube(local: Vector3, a: Vector3, b: Vector3, radius: float) -> bool:
+	var span := b - a
+	var length := span.length_squared()
+	var along := 0.0
+	if length > 0.0001:
+		along = clampf((local - a).dot(span) / length, 0.0, 1.0)
+	return local.distance_to(a + span * along) <= radius
+
+
+func _on_door_panel(hinge_name: String, world: Vector3, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> bool:
+	var hinge := _vp_joint(hinge_name)
+	if hinge == null:
+		return false
+	var local := hinge.global_transform.affine_inverse() * world
+	return _on_tri(local, a, b, c) or _on_tri(local, a, c, d)
+
+
+func _on_tri(point: Vector3, a: Vector3, b: Vector3, c: Vector3) -> bool:
+	var normal := (b - a).cross(c - a)
+	var area := normal.length()
+	if area < 0.0001:
+		return false
+	var unit := normal / area
+	if absf((point - a).dot(unit)) > 1.0:
+		return false
+	var flat := point - unit * (point - a).dot(unit)
+	var edge_ab := b - a
+	var edge_ac := c - a
+	var from_a := flat - a
+	var ab_ab := edge_ab.dot(edge_ab)
+	var ab_ac := edge_ab.dot(edge_ac)
+	var ac_ac := edge_ac.dot(edge_ac)
+	var a_point := from_a.dot(edge_ab)
+	var c_point := from_a.dot(edge_ac)
+	var denom := ab_ab * ac_ac - ab_ac * ab_ac
+	if absf(denom) < 0.0001:
+		return false
+	var along_b := (ac_ac * a_point - ab_ac * c_point) / denom
+	var along_c := (ab_ab * c_point - ab_ac * a_point) / denom
+	var along_a := 1.0 - along_b - along_c
+	return along_a >= -0.05 and along_b >= -0.05 and along_c >= -0.05
+
+
+func _on_gear(local: Vector3) -> bool:
+	# bossCog-gearCollide on the pelvis at z 0.8. A solid disk, radius 6.84,
+	# from z -0.96 to 0.96 in the disk's own space. The pie sphere adds 1.
+	var flat := Vector2(local.x, local.y)
+	var radial := flat.length()
+	var clamped_r := minf(radial, 6.84)
+	var clamped_z := clampf(local.z, -0.16, 1.76)
+	var dir := Vector2.ZERO
+	if radial > 0.0001:
+		dir = flat / radial
+	return local.distance_to(Vector3(dir.x * clamped_r, dir.y * clamped_r, clamped_z)) <= 1.0
+
+
+func _show_splat(at: Vector3, code: int) -> void:
+	var wrap := Node3D.new()
+	wrap.name = "PieSplat"
+	var packed := load("res://assets/battle/props/splat.glb") as PackedScene
+	if packed != null:
+		wrap.add_child(packed.instantiate())
+	var host: Node = _root if _root != null else self
+	host.add_child(wrap)
+	wrap.global_position = at
+	wrap.scale = Vector3(0.7, 0.7, 0.7)
+	if code == 2:
+		for child in wrap.find_children("*", "MeshInstance3D", true, false):
+			var mesh := child as MeshInstance3D
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.8, 0.8, 0.8)
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			mesh.material_override = mat
+	_splats.append({"node": wrap, "age": 0.0})
+	_sfx("res://assets/audio/battle/AA_wholepie_only.ogg")
+
+
+func _tick_splats(delta: float) -> void:
+	var keep: Array[Dictionary] = []
+	var camera := _camera()
+	for splat in _splats:
+		var node := splat.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var age := float(splat.get("age", 0.0)) + delta
+		splat["age"] = age
+		if camera != null and node.global_position.distance_squared_to(camera.global_position) > 0.04:
+			node.look_at(camera.global_position, Vector3.UP)
+		var player := _splat_player()
+		if player != null:
+			player._pose_prop(node, "splat", age)
+		var life := 10.0 / 24.0
+		if node.has_meta("prop_bank"):
+			var raw: Variant = node.get_meta("prop_bank")
+			if raw is Dictionary:
+				var frames := int((raw as Dictionary).get("frames", 10))
+				if frames > 1:
+					life = float(frames) / 24.0
+		if age >= life:
+			node.queue_free()
+			continue
+		keep.append(splat)
+	_splats = keep
+
+
+func _clear_splats() -> void:
+	for splat in _splats:
+		var node := splat.get("node") as Node3D
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_splats.clear()
+
+
+func fling_toon(area: bool) -> void:
+	# doZapToon. A gear or the front swing slides you back. The jump plays
+	# slip-forward and leaves you where you are if you did not leave the ground.
+	_drop_pie()
+	_fling = 0.0
+	_fling_area = area
+	var body := _body()
+	var actor := _local_toon()
+	if body != null:
+		_fling_from = body.global_position
+		var back := Vector3.ZERO
+		if actor is Node3D:
+			back = -((actor as Node3D).global_transform.basis.y)
+			back.y = 0.0
+			if back.length_squared() > 0.01:
+				back = back.normalized()
+		_fling_to = _fling_from + back * 5.0
+	_lock_toon()
+	process_priority = 20 if area else 0
+	if actor != null and actor.has_method("pose_action"):
+		actor.call("pose_action", "slip-forward" if area else "slip-backward", 0.0)
+
+
+func _tick_fling(delta: float) -> void:
+	if _fling < 0.0:
+		return
+	_fling += delta
+	var actor := _local_toon()
+	var clip := "slip-forward" if _fling_area else "slip-backward"
+	if actor != null and actor.has_method("pose_action"):
+		actor.call("pose_action", clip, _fling)
+	var body := _body()
+	if body != null and not _fling_area:
+		var next := _fling_from.lerp(_fling_to, clampf(_fling / 0.5, 0.0, 1.0))
+		next.y = body.global_position.y
+		body.global_position = next
+	if _fling_area:
+		_shake_camera()
+	if _fling < 0.7:
+		return
+	if actor != null and actor.has_method("release_pose"):
+		actor.call("release_pose")
+	_free_toon()
+	_fling = -1.0
+	process_priority = 0
+
+
+func _shake_camera() -> void:
+	# doZapToon sets the camera Z to 1, then -2, then 1, a sixth of a second apart.
+	# The playground writes the orbit first, so this bump is added after it.
+	if _fling >= 0.45:
+		return
+	var camera := _camera()
+	if camera == null:
+		return
+	var bump := 1.0
+	if _fling >= 0.15 and _fling < 0.30:
+		bump = -2.0
+	camera.global_position.y += bump
+
+
+func _splat_player() -> GagMovie:
+	if _splat_movie != null and is_instance_valid(_splat_movie):
+		return _splat_movie
+	_splat_movie = GagMovie.new()
+	return _splat_movie
+
+
+func _show_remote_pies() -> void:
+	if _boss == null:
+		return
+	var host := _boss.get_parent()
+	if host == null:
+		return
+	var local := _local_toon()
+	var live: Dictionary = {}
+	for node in host.find_children("", "ToonActor", true, false):
+		if node == local or not node.has_meta("peer"):
+			continue
+		var actor := node as Node3D
+		if actor == null or not actor.has_method("remote_anim"):
+			continue
+		if str(actor.call("remote_anim")) != "throw":
+			continue
+		var posed: Variant = actor.call("remote_pose_time")
+		var pose := float(posed)
+		if pose < 0.0 or pose >= 2.0:
+			continue
+		var peer := int(actor.get_meta("peer"))
+		if peer == ToonNet.peer_id():
+			continue
+		live[peer] = true
+		_hold_remote_pie(actor, peer, pose)
+	var gone: Array = []
+	for key in _hand_pies:
+		if not live.has(key):
+			gone.append(key)
+	for key in gone:
+		var pie := _hand_pies[key] as Node3D
+		if pie != null and is_instance_valid(pie):
+			pie.queue_free()
+		_hand_pies.erase(key)
+
+
+func _hold_remote_pie(actor: Node3D, peer: int, pose: float) -> void:
+	var joint := actor.find_child("def_joint_right_hold", true, false) as Node3D
+	if joint == null:
+		return
+	var pie: Node3D = null
+	if _hand_pies.has(peer):
+		pie = _hand_pies[peer] as Node3D
+	if pie == null or not is_instance_valid(pie):
+		pie = Node3D.new()
+		pie.name = "RemotePie"
+		var packed := load("res://assets/battle/props/fruitpie.glb") as PackedScene
+		if packed != null:
+			pie.add_child(packed.instantiate())
+		joint.add_child(pie)
+		pie.transform = Transform3D.IDENTITY
+		_hand_pies[peer] = pie
+	elif pie.get_parent() != joint:
+		joint.add_child(pie)
+		pie.transform = Transform3D.IDENTITY
+	var scale := lerpf(0.01, 0.75, clampf(pose, 0.0, 1.0))
+	pie.scale = Vector3(scale, scale, scale)
+
+
+func _clear_hand_pies() -> void:
+	for key in _hand_pies:
+		var pie := _hand_pies[key] as Node3D
+		if pie != null and is_instance_valid(pie):
+			pie.queue_free()
+	_hand_pies.clear()
+
+
+func _show_vp_stars(dizzy: bool) -> void:
+	var vp := _existing_vp()
+	if vp == null:
+		return
+	if _vp_stars == null or not is_instance_valid(_vp_stars):
+		_vp_stars = Node3D.new()
+		_vp_stars.name = "VpStars"
+		var head := vp.find_child("bossCog-head", true, false) as Node3D
+		var neck: Node3D = null
+		if head != null:
+			neck = head.find_child("joint34", true, false) as Node3D
+		if neck == null:
+			neck = vp.find_child("joint34", true, false) as Node3D
+		if neck == null:
+			vp.add_child(_vp_stars)
+		else:
+			neck.add_child(_vp_stars)
+			_vp_stars.position = Vector3(7.0, 0.0, 0.0)
+		_vp_stars.transform.basis = Basis(Vector3(0.0, 1.0, 0.0), deg_to_rad(-90.0)).scaled(Vector3.ONE * 3.0)
+		var packed := load("res://assets/cogs/bosses/stun.glb") as PackedScene
+		if packed != null:
+			_vp_stars.add_child(packed.instantiate())
+	_vp_stars.visible = dizzy
+	if dizzy:
+		_pose_stun(_vp_stars)
+
+
+func _clear_vp_stars() -> void:
+	if _vp_stars != null and is_instance_valid(_vp_stars):
+		_vp_stars.queue_free()
+	_vp_stars = null
+
+
+func _take_throws(rows: Variant) -> void:
+	if not (rows is Array):
+		return
+	var mine := ToonNet.peer_id()
+	for item in rows:
+		if not (item is Dictionary):
+			continue
+		var row: Dictionary = item
+		var seq := int(row.get("seq", 0))
+		if seq <= 0 or _seen_throws.has(seq):
+			continue
+		_seen_throws[seq] = true
+		if int(row.get("peer", 0)) == mine:
+			continue
+		_spawn_seen_pie(row)
+
+
+func _spawn_seen_pie(row: Dictionary) -> void:
+	var age := float(row.get("age", 0.0))
+	var share := float(row.get("power", 0.0)) / 100.0
+	var dist := 100.0 - 70.0 * share
+	var time := 1.0 + 0.5 * share
+	var forward := Vector3(float(row.get("fx", 0.0)), float(row.get("fy", 0.0)), float(row.get("fz", 0.0)))
+	var up := Vector3(float(row.get("ux", 0.0)), float(row.get("uy", 1.0)), float(row.get("uz", 0.0)))
+	if forward.length_squared() < 0.01:
+		return
+	forward = forward.normalized()
+	if up.length_squared() > 0.01:
+		up = up.normalized()
+	var vel := forward * (dist / time) + up * (16.0 * time)
+	var at := Vector3(float(row.get("x", 0.0)), float(row.get("y", 0.0)), float(row.get("z", 0.0)))
+	at += vel * age + Vector3(0.0, -16.0 * age * age, 0.0)
+	vel += Vector3(0.0, -32.0 * age, 0.0)
+	if at.y < 0.2 or age >= 3.0:
+		return
+	var wrap := Node3D.new()
+	wrap.name = "SeenPie"
+	var packed := load("res://assets/battle/props/fruitpie.glb") as PackedScene
+	if packed != null:
+		wrap.add_child(packed.instantiate())
+	var host: Node = _root if _root != null else self
+	host.add_child(wrap)
+	wrap.global_position = at
+	wrap.scale = Vector3(0.75, 0.75, 0.75)
+	_pies.append({
+		"at": at,
+		"prev": at,
+		"vel": vel,
+		"done": false,
+		"kind": "pie",
+		"mesh": wrap,
+		"grav": 32.0,
+		"life": 3.0 - age,
+		"own": false,
+		"splat": false,
+		"code": 0,
+	})
+
+
 func _launch(body: CharacterBody3D, speed: float, color: Color, kind: String) -> void:
 	if _cool > 0.0:
 		return
@@ -1818,16 +2526,28 @@ func _launch(body: CharacterBody3D, speed: float, color: Color, kind: String) ->
 func _fly(rows: Array[Dictionary], delta: float) -> void:
 	for shot in rows:
 		if bool(shot["done"]):
+			_retire_pie(shot)
 			continue
 		var vel: Vector3 = shot["vel"]
-		vel.y -= 18.0 * delta
+		vel.y -= float(shot.get("grav", 18.0)) * delta
 		shot["vel"] = vel
-		shot["at"] = shot["at"] + vel * delta
+		var prev: Vector3 = shot["at"]
+		shot["prev"] = prev
+		shot["at"] = prev + vel * delta
+		if shot.has("life"):
+			shot["life"] = float(shot["life"]) - delta
+			if float(shot["life"]) <= 0.0:
+				shot["done"] = true
 		var mesh := shot.get("mesh") as Node3D
-		if mesh != null:
+		if mesh != null and is_instance_valid(mesh):
 			mesh.global_position = shot["at"]
 		if shot["at"].y < 0.2:
 			shot["done"] = true
+			shot["landed"] = true
+			if int(shot.get("code", 0)) == 0:
+				shot["code"] = 2
+		if bool(shot["done"]):
+			_retire_pie(shot)
 
 
 func _grab_safe() -> void:

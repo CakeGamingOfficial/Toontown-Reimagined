@@ -101,7 +101,9 @@ var _show: Node
 var _caged: Dictionary = {}
 var _vp_ending := false
 var _suit_promoted := false
-var _net_doors := false
+var _net_front := false
+var _net_rear := false
+var _strafe_side := -1
 var _vp_seq := 0
 var _pies_left := 0
 var _stored := 0
@@ -369,7 +371,7 @@ func _intro() -> void:
 
 func _intro_line() -> String:
 	if _kind == "vp":
-		return "The Senior V.P. is in. Defeat his cogs, then his skelecogs. Get pies from the cage. A pie in the open doors stuns him. While he is stunned, each pie on his body does 1. He falls at 100, then one more pie in the doors ends it."
+		return "The Senior V.P. is in. Defeat his cogs, then his skelecogs. Get pies from the cage. A pie in the open doors stuns him. While he is stunned, each pie on his body does 1. He falls at 100, then one more pie on his body ends it."
 	if _kind == "cfo":
 		return "The Chief Financial Officer is in the vault. Defeat his cogs, then use the cranes. The first safe becomes his helmet. Knock it off, drop a goon to dizzy him, then safes do up to 50. He falls at 500."
 	if _kind == "cj":
@@ -400,7 +402,7 @@ func _start_show(phase: String) -> void:
 			"Now you need to attack the V.P. Cog directly.",
 			"I've got a whole bunch of pies you can use!",
 			"Jump up and touch the bottom of my cage and I'll give you some pies.",
-			"Click to throw pies once you've got them!",
+			"Hold the mouse to wind up, then let go to throw.",
 		])
 	_show.call("pages", phase, lines)
 	_button("Continue", _next_show)
@@ -661,6 +663,7 @@ func _start_pies() -> void:
 	_battle_at = _clock
 	_attack_open = 0.0
 	_strafe_open = 0.0
+	_strafe_side = -1
 	_pending = ""
 	_event = {}
 	_paint_bar()
@@ -1592,12 +1595,13 @@ func nerfed() -> bool:
 func tick_vp(delta: float) -> Dictionary:
 	if ToonNet.networked():
 		return _adopt_vp()
+	if _phase == "pies":
+		_strafe_open = maxf(_strafe_open - delta, 0.0)
 	if _phase != "pies" or _near:
 		var waiting := _vp_state()
 		waiting["event"] = {}
 		return waiting
 	_attack_open = maxf(_attack_open - delta, 0.0)
-	_strafe_open = maxf(_strafe_open - delta, 0.0)
 	_hp = _boss_damage()
 	_attack_wait -= delta
 	if _attack_wait <= 0.0:
@@ -1618,14 +1622,12 @@ func note_opening() -> void:
 	if _show != null:
 		_show.call("flash")
 	if ToonNet.networked():
-		ToonNet.vp_hit("opening")
 		if _near:
-			_start_victory()
-		else:
-			_say("The doors are open. He is stunned.")
+			return
+		ToonNet.vp_hit("opening")
+		_say("The doors are open. He is stunned.")
 		return
 	if _near:
-		_start_victory()
 		return
 	_begin_attack("dizzy")
 	_say("The doors are open. He is stunned.")
@@ -1639,9 +1641,16 @@ func note_friend_pie(peer: int) -> void:
 
 
 func note_body() -> void:
-	if _phase != "pies" or _near or not _vp_dizzy:
-		if _phase == "pies" and not _near:
-			_say("That pie hit his armor.")
+	if _phase != "pies":
+		return
+	if _near:
+		if ToonNet.networked():
+			ToonNet.vp_hit("body")
+		else:
+			_start_victory()
+		return
+	if not _vp_dizzy:
+		_say("That pie hit his armor.")
 		return
 	if ToonNet.networked():
 		ToonNet.vp_hit("body")
@@ -1664,6 +1673,8 @@ func note_body() -> void:
 func note_vp_attack(kind: String) -> void:
 	if _vp_dizzy or _near:
 		return
+	if _rounds != null:
+		_rounds.call("fling_toon", kind == "area")
 	var amount := _attack_damage(kind)
 	if ToonNet.networked():
 		ToonNet.vp_hit("struck:" + kind)
@@ -2059,22 +2070,30 @@ func _choose_strafe() -> void:
 		_strafe_wait = 0.5
 		return
 	_pending = "strafe"
-	_strafe_open = 0.7 + _strafe_span()
+	_strafe_side = randi() % 2
+	_strafe_open = _strafe_hold()
 	_event = {
 		"kind": "strafe",
 		"damage": 2,
 		"delay": _strafe_open,
 		"radius": 6.0,
-		"side": randi() % 2,
+		"side": _strafe_side,
 		"dir": randi() % 2,
 		"t": float(_boss_damage()) / 100.0,
 		"target": 0,
+		"seed": randi(),
 	}
 
 
-func _strafe_span() -> float:
+func _strafe_hold() -> float:
+	# doStrafe opens the door, waits 0.7, flies the gears for 1 second, then closes.
 	var t := float(_boss_damage()) / 100.0
-	return 5.0 - 4.0 * t
+	var time := 5.0 - 4.0 * t
+	var count := int(4.0 + 6.0 * t + 0.5)
+	if count < 1:
+		count = 1
+	var rate := time / float(count)
+	return 0.7 + float(count - 1) * rate + 1.0
 
 
 func _begin_attack(kind: String) -> void:
@@ -2088,6 +2107,7 @@ func _begin_attack(kind: String) -> void:
 		_event = {}
 		_pose_attack(kind)
 		return
+	var rising := _vp_dizzy
 	_vp_dizzy = false
 	if kind == "area":
 		var rate := 2.0 if _recover_rate <= 0.0 else minf(200.0, _recover_rate * 1.2)
@@ -2103,8 +2123,22 @@ func _begin_attack(kind: String) -> void:
 		_attack_open = 2.65
 	_attack_wait = _attack_open
 	var damage := _attack_damage(kind)
-	var radius := 50.0 if kind == "area" else (4.0 if kind == "directed" else 12.0)
-	var delay := 0.2 if kind == "area" else (1.1 if kind == "directed" else _attack_open * 0.55)
+	var radius := 12.0
+	var delay := 1.9
+	if kind == "area":
+		delay = 1.21
+		radius = 50.0
+	elif kind == "directed":
+		delay = 1.2
+		radius = 3.0
+	elif kind == "recover":
+		delay = _attack_open
+		radius = 0.0
+	# Fb_down2Up is 60 frames. He stands up before the throw, the jump, or the spin.
+	if rising:
+		delay += 2.5
+		_attack_wait += 2.5
+		_attack_open += 2.5
 	_event = {
 		"kind": kind,
 		"damage": damage,
@@ -2114,6 +2148,8 @@ func _begin_attack(kind: String) -> void:
 		"dir": 0,
 		"t": float(_boss_damage()) / 100.0,
 		"target": 0,
+		"seed": randi(),
+		"rise": 2.5 if rising else 0.0,
 	}
 	_pose_attack(kind)
 
@@ -2126,7 +2162,9 @@ func _enter_near() -> void:
 	_attack_open = 99999.0
 	_pending = ""
 	_event = {}
-	_say("He is down. One more pie in the doors.")
+	if _show != null:
+		_show.call("pose", "sink")
+	_say("He is down. One more pie on his body.")
 
 
 func _attack_damage(kind: String) -> int:
@@ -2173,6 +2211,7 @@ func _adopt_vp() -> Dictionary:
 	var snap := ToonNet.latest("vp-pies")
 	var event := {}
 	var was_dizzy := _vp_dizzy
+	var was_near := _near
 	if bool(snap.get("live", false)):
 		_stored = int(snap.get("hp", 0))
 		_recover_rate = 0.0
@@ -2181,7 +2220,8 @@ func _adopt_vp() -> Dictionary:
 		_hits = int(snap.get("hits", 0))
 		_vp_dizzy = bool(snap.get("dizzy", false))
 		_near = bool(snap.get("near", false))
-		_net_doors = bool(snap.get("doors", false))
+		_net_front = bool(snap.get("door_front", false))
+		_net_rear = bool(snap.get("door_rear", false))
 		if bool(snap.get("ending", false)):
 			_start_victory()
 		var seq := int(snap.get("seq", 0))
@@ -2197,15 +2237,25 @@ func _adopt_vp() -> Dictionary:
 				_pose_attack("dizzy")
 		elif _vp_dizzy and not was_dizzy:
 			_pose_attack("dizzy")
+		if _near and not was_near and not bool(snap.get("ending", false)) and _show != null:
+			_show.call("pose", "sink")
 	var state := _vp_state()
 	state["event"] = event
+	var thrown: Variant = snap.get("throws", [])
+	state["throws"] = thrown if thrown is Array else []
 	return state
 
 
 func _vp_state() -> Dictionary:
-	var doors := _net_doors if ToonNet.networked() else (_vp_dizzy or _attack_open > 0.0 or _strafe_open > 0.0 or _near)
+	var front := _net_front
+	var rear := _net_rear
+	if not ToonNet.networked() and _strafe_open > 0.0:
+		front = _strafe_side == 0
+		rear = _strafe_side == 1
 	return {
-		"doors": doors,
+		"doors": front or rear,
+		"door_front": front,
+		"door_rear": rear,
 		"dizzy": _vp_dizzy,
 		"near": _near,
 		"hp": _boss_damage(),
