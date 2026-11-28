@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/playgrounds/neighborhood.gd" id="1_hood"]
+[ext_resource type="Script" path="res://scenes/playgrounds/playground_collision.gd" id="2_collision"]
+[ext_resource type="Script" path="res://scenes/playgrounds/fly_camera.gd" id="3_fly"]
+
+[sub_resource type="Environment" id="Environment_day"]
+background_mode = 1
+background_color = Color(0.45, 0.72, 0.95, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
+[node name="BarnyardBoulevard" type="Node3D"]
+script = ExtResource("1_hood")
+music_path = "res://assets/audio/bgm/FF_safezone.ogg"
+sky_kind = "tt"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day")
+
+[node name="7100_street" type="Node3D" parent="."]
+script = ExtResource("2_collision")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18, 40)
+current = true
+far = 4000.0
+script = ExtResource("3_fly")

@@ -37,6 +37,8 @@ func _ready() -> void:
 	_prepare_cog_sky()
 	if Engine.is_editor_hint():
 		return
+	# The farm link has to exist before collision and before the toon looks for a shaft.
+	preload("res://scenes/places/farm_link.gd").place(self)
 	_day = _DAY.new()
 	_day.name = "DayCycle"
 	add_child(_day)

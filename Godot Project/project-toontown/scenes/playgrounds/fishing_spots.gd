@@ -37,6 +37,7 @@ const _PONDS := {
 	"lullaby_lane.tscn": {"count": 2, "center": Vector3(223.988, -2.1, -21.045), "radius": 14.0},
 	"pajama_place.tscn": {"count": 2, "center": Vector3(90.966, -2.1, 270.577), "radius": 14.0},
 	"toon_estate.tscn": {"count": 3, "center": Vector3(30, -0.3, 126), "radius": 16.0},
+	"funny_farm.tscn": {"count": 2, "center": Vector3(-88.1, -1.96, 78.3), "radius": 15.0},
 }
 
 static var _shadow_mesh: QuadMesh

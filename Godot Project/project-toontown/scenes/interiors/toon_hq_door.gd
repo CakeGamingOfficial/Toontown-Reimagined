@@ -39,6 +39,7 @@ const _ZONE_BY_SCENE: Dictionary = {
 	"res://scenes/streets/maple_street.tscn": 5728,
 	"res://scenes/streets/oak_street.tscn": 5802,
 	"res://scenes/playgrounds/donalds_dreamland.tscn": 9505,
+	"res://scenes/playgrounds/funny_farm.tscn": 7520,
 	"res://scenes/streets/lullaby_lane.tscn": 9652,
 	"res://scenes/streets/pajama_place.tscn": 9756,
 }
@@ -66,6 +67,7 @@ const _DOOR_COLOR: Dictionary = {
 	5728: Color(1.0, 1.0, 0.7),
 	5802: Color(0.8, 0.5, 0.3),
 	9505: Color(1.0, 1.0, 0.7),
+	7520: Color(0.86, 0.22, 0.16),
 	9652: Color(0.8, 0.5, 0.3),
 	9756: Color(0.8, 0.5, 0.3),
 }

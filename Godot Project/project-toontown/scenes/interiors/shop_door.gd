@@ -172,6 +172,11 @@ static func _place_landmark(building: Node3D, zone_id: int, door_code: String, p
 	door.name = door_code
 	building.add_child(door)
 	door.position = pivot
+	# A replaced playground shop keeps the doorway on the new model.
+	if building.has_meta("farm_mouth"):
+		door.set_meta("shop_mouth", building.get_meta("farm_mouth"))
+		door.set_meta("shop_forward", building.get_meta("farm_forward"))
+		door.visible = false
 	_add_panels(door)
 	_tint_tree(door, tint)
 	_buildings.append(building)
@@ -441,6 +446,8 @@ static func _approach(building: Node3D, door: Node3D, gap: float) -> Vector3:
 
 
 static func _doorway(door: Node3D) -> Vector3:
+	if door.has_meta("shop_mouth"):
+		return door.get_meta("shop_mouth")
 	var center := door.global_position
 	var flat := _flat(door)
 	if flat is MeshInstance3D and (flat as MeshInstance3D).mesh != null:

@@ -179,6 +179,9 @@ static func _approach(building: Node3D, door: Node3D, gap: float) -> Vector3:
 
 ## The painted slab is nine units wide and its node origin is the left edge.
 static func _doorway(door: Node3D) -> Vector3:
+	# A replaced storefront parks the real doorway on the new door.
+	if door.has_meta("shop_mouth"):
+		return door.get_meta("shop_mouth")
 	var center := door.global_position
 	var flat := _flat(door)
 	if flat is MeshInstance3D and (flat as MeshInstance3D).mesh != null:

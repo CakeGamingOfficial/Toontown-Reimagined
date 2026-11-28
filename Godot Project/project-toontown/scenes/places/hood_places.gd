@@ -30,6 +30,7 @@ const _SCENES: Dictionary = {
 	4000: "res://scenes/playgrounds/minnies_melodyland.tscn",
 	5000: "res://scenes/playgrounds/daisy_gardens.tscn",
 	6000: "res://scenes/playgrounds/acorn_acres.tscn",
+	7000: "res://scenes/playgrounds/funny_farm.tscn",
 	8000: "res://scenes/playgrounds/goofy_speedway.tscn",
 	9000: "res://scenes/playgrounds/donalds_dreamland.tscn",
 	10000: "res://scenes/cog_hq/bossbot_country_club.tscn",
@@ -165,7 +166,7 @@ static func hood_for_scene(path: String) -> int:
 
 static func is_playground(hood: int) -> bool:
 	match hood_of(hood):
-		1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000, 17000, 18000:
+		1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 17000, 18000:
 			return true
 		_:
 			return false
@@ -185,7 +186,7 @@ static func random_drop(hood: int) -> Dictionary:
 
 static func has_drop(hood: int) -> bool:
 	match hood_of(hood):
-		1000, 2000, 3000, 4000, 5000, 6000, 8000, 9000, 11000, 12000, 13000, 17000, 18000:
+		1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 11000, 12000, 13000, 17000, 18000:
 			return true
 		_:
 			return false
@@ -206,6 +207,9 @@ static func drop_for(hood: int) -> Vector3:
 			return Vector3(0.0, 0.35, 0.0)
 		6000:
 			return Vector3(-165.8, 0.375, -108.0)
+		7000:
+			# On the south path, just inside the Barnyard Boulevard mouth.
+			return Vector3(0.0, 0.35, 140.0)
 		8000:
 			return Vector3(-0.7, 0.43, -62.0)
 		9000:
@@ -239,6 +243,8 @@ static func heading_for(hood: int) -> float:
 			return -10.5
 		6000:
 			return 252.0
+		7000:
+			return 0.0
 		8000:
 			return 182.0
 		9000:
@@ -273,6 +279,8 @@ static func _playground_drops(hood: int) -> Array:
 			return [[0.0, 0.0, 0.0, -10.5], [76.0, 35.0, 1.1, -30.2], [97.0, 106.0, 0.0, 51.4], [51.0, 180.0, 10.0, 22.6], [-14.0, 203.0, 10.0, 85.6], [-58.0, 158.0, 10.0, -146.9], [-86.0, 128.0, 0.0, -178.9], [-64.0, 65.0, 0.0, 17.7], [-13.0, 39.0, 0.0, -15.7], [-12.0, 193.0, 0.0, -112.4], [87.0, 128.0, 0.0, 45.4]]
 		6000:
 			return [[-165.8, 108.0, 0.025, 252.0], [21.0, 130.0, 0.16, 170.0], [93.0, 78.5, 0.23, 112.0], [79.0, -1.6, 0.75, 163.0], [10.0, 33.0, 5.32, 130.379], [-200.0, -42.0, 0.025, 317.543], [-21.0, -65.0, 0.335, -18.0], [23.0, 68.5, 4.51, -22.808]]
+		7000:
+			return [[0.0, -140.0, 0.0, 0.0]]
 		8000:
 			return [[-0.7, 62.0, 0.08, 182.0], [-1.0, -30.0, 0.06, 183.0], [-13.0, -120.0, 0.0, 307.0], [16.4, -120.0, 0.0, 65.0], [-0.5, -90.0, 0.0, 182.0], [-30.0, -25.0, -0.373, 326.0], [29.0, -17.0, -0.373, 32.0]]
 		9000:
